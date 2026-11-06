@@ -1,15 +1,8 @@
 /*
- * Admin Skin — The Self-Hosted Self. Vanilla JS, no build step, no
- * dependency on jQuery or any admin script this doesn't explicitly
- * enqueue itself (matches this whole ecosystem's own "no build step"
- * convention, even though this plugin is otherwise fully standalone/
- * portable) — two independent features:
- *
- *  1. Light/dark toggle (admin-bar button, top of every screen).
- *  2. A Cmd/Ctrl+K command palette over the real, capability-filtered
- *     admin menu PHP already localized (shsasMenu.items) — genuinely
- *     useful on a big multi-plugin dashboard like this one, not just
- *     decoration.
+ * Admin Skin — The Self-Hosted Self. Hand-written vanilla JS, no jQuery.
+ *  1. Light/dark toggle (admin-bar button).
+ *  2. Cmd/Ctrl+K command palette over the capability-filtered admin menu
+ *     localized from PHP (shsasMenu.items).
  */
 (function () {
     'use strict';
@@ -34,24 +27,8 @@
         return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
     }
 
-    // View Transitions API (document.startViewTransition) — shipped
-    // Chrome/Edge 111 (2023), Safari 18 (2024), genuinely underrated:
-    // most sites still cross-fade or jump-cut a full-page state change
-    // rather than reaching for the one native API built exactly for
-    // this. Used here for a circular "reveal" wipe expanding out from
-    // the actual click point on the theme toggle — a real, literal
-    // instance of this ecosystem's own "composing with light" brief
-    // (a light/dark boundary radiating outward), and a natural fit for
-    // the "Half-Blood Prince" cinematic-transition language elsewhere
-    // in this file, using a real browser primitive instead of another
-    // hand-rolled CSS animation.
-    //
-    // Feature-detected with a full functional fallback: browsers
-    // without support (Firefox as of this writing) just get the old
-    // instant swap — the SAME toggle, not a broken one. Also gated on
-    // prefers-reduced-motion, same as every other animation in this
-    // file — the wipe is a flourish, the toggle itself must work
-    // identically either way.
+    // View Transitions circular wipe from the click point. Falls back to an
+    // instant swap when unsupported or under prefers-reduced-motion.
     function toggleTheme(originEvent) {
         var next = currentTheme() === 'light' ? 'dark' : 'light';
         function applyThemeChange() {
@@ -62,8 +39,7 @@
         var canWipe = typeof document.startViewTransition === 'function' && originEvent && !reducedMotion;
         if (canWipe) {
             var x = originEvent.clientX, y = originEvent.clientY;
-            // Radius that guarantees full coverage regardless of which
-            // corner of the screen the click happened nearest to.
+            // Radius covering the farthest corner from the click.
             var endRadius = Math.hypot(
                 Math.max(x, window.innerWidth - x),
                 Math.max(y, window.innerHeight - y)
@@ -80,15 +56,8 @@
         }
         var icon = document.querySelector('#wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon');
         if (icon) {
-            // A real transition instead of an instant swap: spin the icon
-            // out and let it spin back in. The sun/moon ARTWORK itself is
-            // now a CSS mask keyed off :root[data-shsas-theme] (set on the
-            // line above), not a text glyph this function writes — so the
-            // icon swap happens via CSS the moment the attribute flips,
-            // and this function only owns the spin timing. Previously it
-            // wrote a unicode character here; that would now fight the
-            // mask (a stray glyph rendering underneath it), so it's
-            // deliberately gone rather than left as dead-but-harmless.
+            // Spin timing only: the sun/moon artwork is a CSS mask keyed off
+            // data-shsas-theme, so writing a glyph here would fight it.
             icon.classList.add('shsas-spin');
             setTimeout(function () { icon.classList.remove('shsas-spin'); }, 320);
         }
@@ -118,11 +87,7 @@
     var filtered = [];
 
     function fuzzyScore(query, label) {
-        // Cheap, real-enough fuzzy match: every character of the query
-        // must appear in order somewhere in the label — not a full
-        // Levenshtein/weighted algorithm, but genuinely useful for a
-        // menu list this size (dozens of items, not thousands), and
-        // zero dependencies to get there.
+        // Subsequence match: every query character appears in order.
         query = query.toLowerCase();
         label = label.toLowerCase();
         if (query === '') return 0;
@@ -260,31 +225,9 @@
     });
 
     /* ---------------- Wallet-stack default collapse ----------------
-     * Direct request: "I like Apple's Wallet metaphor... to reduce the
-     * vertical space of screen real estate at smaller sizes." 0.16.0
-     * built the actual accordion (postboxes animate open/closed via
-     * grid-template-rows instead of core's instant jump-cut) but that
-     * alone doesn't produce the Wallet EFFECT — WP's own postbox open/
-     * closed state is a per-user preference that starts fully OPEN for
-     * everyone, so a first-time mobile visitor still saw every
-     * dashboard card expanded, the exact vertical-space problem the
-     * metaphor exists to solve. Caught by measuring the real dashboard
-     * at 375px width rather than assuming the CSS mechanism alone was
-     * the whole feature.
-     *
-     * Fix: on a visitor's very first mobile-width page load ONLY
-     * (localStorage-gated so this never fires again for them, and
-     * never fights a choice they make afterward), collapse every
-     * postbox but the first per column to a peeking header — by
-     * dispatching a real click on WP core's own .handlediv toggle, not
-     * by cosmetically adding a CSS class. That matters: a real click
-     * runs through window.postboxes and persists the resulting closed
-     * state via WP's own user-meta ajax call, so it becomes a genuine
-     * saved preference (the same as if the user had closed it
-     * themselves) rather than something a plain reload would silently
-     * undo. The first box per column stays open on purpose — a real
-     * Wallet stack always shows the top card's content, not just a
-     * stack of bare headers.
+     * On a visitor's first mobile-width load only (localStorage-gated),
+     * collapse every postbox but the first per column by clicking core's
+     * .handlediv, so the closed state persists via WP's own user-meta save.
      */
     (function applyWalletDefault() {
         function isMobileWidth() { return window.innerWidth <= 782; }
@@ -293,19 +236,8 @@
         try { applied = window.localStorage.getItem(APPLIED_KEY); } catch (e) { applied = '1'; /* storage blocked — don't repeat every load */ }
         if (applied === '1' || !isMobileWidth()) return;
 
-        // window 'load' (not DOMContentLoaded), and deliberately so —
-        // a real bug caught by verifying live rather than trusting the
-        // logic on paper: WP core's postboxes.js binds its .handlediv
-        // click delegation itself via jQuery, and on a first page load
-        // there's no guarantee that binding has attached before THIS
-        // script's own DOMContentLoaded listener fires — if this ran
-        // first, the simulated click landed on a button with no
-        // listener yet and silently did nothing (confirmed live: the
-        // flag was set, meaning this code DID run, but nothing actually
-        // closed). 'load' fires only after every script, including
-        // jQuery-based ones, has executed — the safe point to assume
-        // WP's own handler is already bound. The extra delay is
-        // imperceptible for a one-time background default.
+        // WHY 'load', not DOMContentLoaded: core's postboxes.js may not
+        // have bound its .handlediv handler yet, and the click would no-op.
         window.addEventListener('load', function () {
             try { window.localStorage.setItem(APPLIED_KEY, '1'); } catch (e) { /* non-fatal — worst case this runs again next load */ }
             document.querySelectorAll('.postbox-container').forEach(function (container) {
@@ -319,16 +251,6 @@
         });
     })();
 
-    /* Depth-aware cross-document navigation's 'pagereveal' listener
-     * intentionally does NOT live here. Real bug found by verifying
-     * live: this file loads in_footer=true (correct for everything
-     * else in it), but 'pagereveal' fires very early — before a
-     * footer-loaded script has ever run — so a listener registered
-     * here would always attach after the event it needs already
-     * passed. It's printed instead as a tiny synchronous inline
-     * <script> in <head> (self-hosted-self-admin-skin.php,
-     * shsas_print_nav_depth_script(), admin_head priority 1) where it
-     * can actually run in time. See that function for the real
-     * implementation; the CSS keyframes it drives live in
-     * admin-skin.css under "Depth-aware cross-document navigation". */
+    /* The 'pagereveal' listener lives inline in <head>
+     * (shsas_print_nav_depth_script()); this footer script runs too late. */
 })();

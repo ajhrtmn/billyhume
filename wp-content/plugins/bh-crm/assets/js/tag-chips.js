@@ -1,20 +1,7 @@
 "use strict";
 /**
- * tag-chips.js — ROADMAP-ux-polish-and-feature-parity-2026-07.md
- * Section 3: replaces the plain comma-separated tags text input with
- * real removable chips + an autocomplete dropdown sourced from every
- * tag already in use site-wide (class-tags.php's render_editor()).
- *
- * Progressive enhancement, not a replacement: the original <input
- * name="tags"> stays in the DOM (visually hidden), and this script's
- * only job is keeping ITS value in sync with the chip UI on every
- * change — the form still submits through the exact same field
- * handle_save() has always read. No build step, plain vanilla JS,
- * same convention as this ecosystem's other admin widgets
- * (kanban-board.js).
- *
- * TypeScript pilot conversion — same posture as bh-crm's own
- * segment-builder.ts.
+ * Tag chips + autocomplete over tags in use (BHCRM_Tags::render_editor()).
+ * Progressive enhancement: the original hidden <input name="tags"> is kept in sync and is what submits.
  */
 (function () {
     'use strict';
@@ -33,8 +20,7 @@
             suggestions = [];
         }
         const tags = hiddenInput.value.split(',').map((t) => t.trim()).filter(Boolean);
-        // Hide the original field but keep it in the form/DOM — it's
-        // still what actually gets submitted.
+        // Hidden but kept: it's still what gets submitted.
         hiddenInput.style.position = 'absolute';
         hiddenInput.style.left = '-9999px';
         hiddenInput.setAttribute('tabindex', '-1');
@@ -127,8 +113,7 @@
             }
         });
         typeahead.addEventListener('blur', () => {
-            // Slight delay so a suggestion's mousedown can still fire
-            // before the dropdown disappears.
+            // Delay so a suggestion's mousedown fires before the dropdown hides.
             setTimeout(hideDropdown, 150);
         });
         renderChips();

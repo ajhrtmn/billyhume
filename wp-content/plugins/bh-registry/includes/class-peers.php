@@ -2,29 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Admin CRUD for discovery peers — a "peer" is another bh-registry
- * install this site periodically pulls a manifest from (see
- * class-crawl.php). No secret, no authentication, no per-relationship
- * setup beyond knowing a base_url — the earlier push+shared-secret
- * design (briefly shipped, then redesigned) required two admins to
- * manually exchange a secret before anything worked, which was both
- * more friction than this feature should ever need and had a real bug
- * (no way for two independently-generated secrets to ever match).
- *
- * This screen also hosts the settings for the two OPTIONAL automatic-
- * discovery enhancements (ActivityPub relay, search-index lookup) —
- * both real, existing, internet-scale mechanisms capable of true
- * zero-prior-knowledge discovery, both off by default, both following
- * the same "toggle + credential, blank-preserves-existing" shape
- * the-self-hosted-self's own Media & CDN Setup wizard already establishes
- * (class-media-wizard.php's Tier B section) rather than inventing a
- * new settings convention. Whatever base_url either layer finds feeds
- * into the exact same bhr_peers table and the exact same crawl loop a
- * manually-added peer does — one shared pipeline, three ways in.
- *
- * Registered via BHR_Admin's own 'admin_menus' entry (class-admin.php)
- * — no raw add_submenu_page() call here, matching this ecosystem's
- * established page-hook-resolution-safe pattern.
+ * Admin CRUD for discovery peers (other bh-registry installs this site crawls) plus relay settings.
+ * Registered via BHR_Admin's 'admin_menus' entry, not a raw add_submenu_page().
  */
 class BHR_Peers {
     public static function init(): void {
@@ -82,11 +61,6 @@ class BHR_Peers {
         echo '</tbody></table></div></div>';
     }
 
-    // Tier B pattern (the-self-hosted-self's Media & CDN Setup wizard,
-    // class-media-wizard.php): one toggle + one credential field per
-    // optional layer, password/key field always rendered blank
-    // (placeholder signals "already set," a blank submit preserves the
-    // existing stored value rather than wiping it).
     private static function render_discovery_settings(): void {
         $relay_enabled = (bool) get_option('bhr_relay_enabled', true);
         $relay_url     = (string) get_option('bhr_relay_url', '');
@@ -109,8 +83,6 @@ class BHR_Peers {
         echo '<p><button type="submit" class="button button-primary">Save Discovery Settings</button></p>';
         echo '</form>';
 
-        // Cron runs daily; an admin setting this up right now shouldn't
-        // have to wait a day to find out whether it works.
         echo '<hr><p class="description"><strong>Run now</strong> — these normally run on their own daily schedule.</p><p>';
         echo self::run_now_link('crawl', 'Crawl peers now') . ' ';
         echo self::run_now_link('relay', 'Sync relay now');
@@ -125,10 +97,7 @@ class BHR_Peers {
         return '<a class="button" href="' . esc_url($url) . '">' . esc_html($label) . '</a>';
     }
 
-    // Real, observable federation state — a relay subscription that
-    // silently failed is otherwise invisible until you notice nothing
-    // is being discovered, which is exactly the kind of quiet failure
-    // this ecosystem's own debug conventions exist to prevent.
+    // Surfaces relay state so a silently failed subscription is visible.
     private static function render_relay_status(): void {
         if (!class_exists('BHR_ActivityPub')) return;
         $state = BHR_ActivityPub::relay_state();
@@ -209,10 +178,7 @@ class BHR_Peers {
             exit;
         }
 
-        // Fail closed — don't save a peer we can't confirm is actually a
-        // live, reachable bh-registry install. This also means an
-        // admin's typo'd URL never silently sits there as a useless
-        // "active" peer this site keeps trying to crawl forever.
+        // Fail closed: only save a peer that serves a live manifest.
         $res = wp_remote_get($base_url . '/wp-json/bhr/v1/peers/manifest', ['timeout' => 8, 'redirection' => 2]);
         if (is_wp_error($res) || wp_remote_retrieve_response_code($res) !== 200) {
             if (class_exists('OUS_DebugLog')) {

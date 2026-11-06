@@ -2,32 +2,15 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Everything needed to make this installable as a real PWA, and to
- * minimize the work left over when it's eventually wrapped for the App
- * Store/Play Store — icon generation especially, since normally that's
- * a tedious manual export of a dozen-plus specific sizes.
- *
- * Icon sizes here cover what the web manifest and iOS actually ask for
- * today. The FULL native icon set Xcode wants at build time (an
- * App Store 1024×1024 icon plus many more specific in-app sizes) is a
- * separate, later step once real Capacitor wrapping starts — generating
- * those now, before that pipeline exists to consume them, would be
- * guessing at a shape we don't need yet.
+ * PWA support: manifest, service worker, and iOS head tags. Icon sizes cover
+ * the web manifest and iOS; the full native app icon set is out of scope.
  */
 class BHS_PWA {
-    // The manual "upload a source image, generate every icon size" admin
-    // page was removed (not worth the admin surface right now) — these
-    // sizes still describe what the manifest/iOS ask for, but nothing
-    // currently populates the bhs_icons option they'd be looked up from.
-    // icon_url() below simply returns '' until something does, and
-    // print_head_tags()/get_manifest() already handle that gracefully
-    // (a PWA without a custom icon still installs fine, just with a
-    // generic one).
+    // Nothing currently populates the bhs_icons option, so icon_url() returns
+    // '' and the manifest/head tags fall back gracefully.
     const ICON_SIZES = [512, 192, 180, 144, 96, 72, 48];
 
     public static function init(): void {
-        // No admin_post/admin_menu hooks here anymore — see the note
-        // above the icon generation section below.
     }
 
     public static function register_routes(): void {
@@ -66,13 +49,8 @@ class BHS_PWA {
 
     /* ---------- service worker ---------- */
 
-    // Deliberately minimal: caches the app shell (not audio files — those
-    // are large and streamed, not something to blanket-precache) so the
-    // player UI itself loads instantly and the manifest's installability
-    // checks pass. Served through REST rather than a static file so
-    // Service-Worker-Allowed can be set explicitly below — that header
-    // is what lets a worker served from a plugin subpath still claim the
-    // whole site as its scope, without needing a rewrite rule.
+    // Caches the app shell only (never audio). Served through REST so the
+    // Service-Worker-Allowed header can grant site-wide scope from a plugin path.
     public static function get_service_worker(): \WP_REST_Response {
         $js = "
 const BHS_CACHE = 'bhs-shell-v" . BHS_VER . "';
@@ -98,9 +76,7 @@ self.addEventListener('fetch', function (e) {
         return $icons[$size] ?? '';
     }
 
-    // A generated placeholder so a track without its own artwork never
-    // shows a broken image — a plain, theme-neutral gradient square
-    // rather than nothing.
+    // Gradient placeholder so a track without artwork never shows a broken image.
     public static function placeholder_artwork_url(): string {
         return self::icon_url(512) ?: BHS_URL . 'assets/img/placeholder.svg';
     }
@@ -113,9 +89,7 @@ self.addEventListener('fetch', function (e) {
         echo "\n<!-- BH Streaming PWA -->\n";
         echo '<link rel="manifest" href="' . esc_url($manifest_url) . '">' . "\n";
         echo '<meta name="theme-color" content="#000000">' . "\n";
-        // iOS ignores the manifest for most of this — these three tags
-        // are what actually make "Add to Home Screen" behave like an
-        // app on iOS specifically, independent of manifest support.
+        // iOS ignores most of the manifest; these tags make Add to Home Screen work there.
         echo '<meta name="apple-mobile-web-app-capable" content="yes">' . "\n";
         echo '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">' . "\n";
         if ($icon180) echo '<link rel="apple-touch-icon" href="' . esc_url($icon180) . '">' . "\n";

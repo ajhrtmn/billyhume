@@ -2,26 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The Test Runner (see class-test-runner.php) version of BH_Element
- * coverage — same "runnable from Debug Tools, no CLI/PHPUnit needed"
- * pattern every other *_TestSuite class in this ecosystem uses
- * (BHC_TestSuite, OUS_CoreTestSuite, etc.).
- *
- * Covers three prior real bugs in this layer (BH_Element/Design Suite
- * canvas), each a class a cheap deterministic assertion would catch
- * without a live browser: (1) render_slot() returning '' with no
- * wrapper div for an empty slot, breaking the live-preview insert-
- * anchor; (2) a doubled/404ing REST path ('/elements/preview' vs the
- * correct bare 'preview'); (3) two different surfaces registered under
- * two different keys for the same page, causing duplicate/mismatched
- * canvas stories. JS-side bugs like #2 and DOM-sync bugs like tree/
- * canvas mismatch aren't testable from PHP-side assertions at all —
- * see this file's "NOT covered here" note at the bottom.
- *
- * No DB fixtures/cleanup needed for any of the assertions below — every
- * one exercises pure rendering/registry logic against either a
- * temporarily-registered throwaway type or the framework's own always-
- * present built-in primitives (bh/note etc., 3.4.50).
+ * Test Runner suite for BH_Element: empty-slot wrapper, delete_context(), unregistered
+ * surface previews, and color-token schema. No DB fixtures needed.
  */
 class BH_Element_TestSuite {
     public static function init(): void {
@@ -50,7 +32,7 @@ class BH_Element_TestSuite {
         return $rows;
     }
 
-    /* ---------- DESIGN-SUITE-PAGE-MANAGER-PLAN.md Phase 5: delete_context() ---------- */
+    /* ---------- delete_context() ---------- */
 
     /** @return array<int, mixed> */
     private static function run_delete_context_tests(): array {
@@ -83,29 +65,21 @@ class BH_Element_TestSuite {
         $other_still_there = BH_Element::get_placements($surface, $context_id + 1, 'root');
         $rows[] = OUS_TestRunner::assert_same(1, count($other_still_there), 'A DIFFERENT context under the same surface is completely untouched');
 
-        // Cleanup
         BH_Element::delete_context($surface, $context_id + 1);
 
         return $rows;
     }
 
     /**
-     * Regression test: a slot with zero saved placements used to return
-     * '' from render_slot() with no wrapper div at all — the single most
-     * common real-world case there is (any fresh page's first-ever edit)
-     * — which broke the live-preview JS's insertion anchor. Uses a
-     * surface/context id combo
-     * ('bh-element-test-suite-surface', a random high context id) that
-     * can never collide with a real registered surface or real saved
-     * data, so this needs no registration/cleanup at all — an
-     * unregistered surface slug still has zero placements, which is
-     * exactly the empty-slot case being tested.
+     * An empty slot must still render its wrapper div (the live-preview insertion anchor).
+     * Uses an unregistered surface slug, which is guaranteed to have zero placements.
+     *
+     * @return array<int, mixed>
      */
-    /** @return array<int, mixed> */
     private static function run_empty_slot_tests(): array {
         $rows = [];
         $surface = 'bh-element-test-suite-nonexistent-surface';
-        $context_id = 999999001; // astronomically unlikely to collide with any real placement's context id
+        $context_id = 999999001; // random high id, never a real placement's context
         $html = BH_Element::render_slot($surface, $context_id, 'root');
 
         $rows[] = OUS_TestRunner::assert_true(
@@ -121,13 +95,11 @@ class BH_Element_TestSuite {
     }
 
     /**
-     * BH_Element::render_surface_preview() (the Live Views auto-story
-     * generator) must degrade gracefully — never fatal, never
-     * warning-spam — for a surface slug nobody registered. A slug typo
-     * or stale key should produce an obvious empty result, not broken
-     * output.
+     * render_surface_preview() must degrade to an empty result, not a fatal or warnings,
+     * for an unregistered surface slug.
+     *
+     * @return array<int, mixed>
      */
-    /** @return array<int, mixed> */
     private static function run_surface_preview_tests(): array {
         $rows = [];
         $html = BH_Element::render_surface_preview('bh-element-test-suite-nonexistent-surface');
@@ -136,16 +108,11 @@ class BH_Element_TestSuite {
     }
 
     /**
-     * Regression test: BHY_Style::style_schema_for_js()'s 'colorTokens'
-     * map used to just echo each token's own name back as its value
-     * (`$color_tokens[$field] = $field`), which the color-token dropdown
-     * (buildColorTokenPopup(), element-builder.js) needs to be a real
-     * `var(--bh-accent)` reference. If this regresses back to bare token
-     * names, every swatch silently renders as a blank/transparent box
-     * with no error anywhere. Asserts every value is a real CSS
-     * custom-property reference (starts with '--'), not just any string.
+     * style_schema_for_js()'s 'colorTokens' values must be var() references, not bare token
+     * names, or every swatch in the color-token picker renders blank.
+     *
+     * @return array<int, mixed>
      */
-    /** @return array<int, mixed> */
     private static function run_color_token_schema_tests(): array {
         $rows = [];
         if (!class_exists('BHY_Style')) return $rows;
@@ -164,10 +131,7 @@ class BH_Element_TestSuite {
             "every colorTokens value is a real CSS custom property (starts with '--'), not the bare token name — the exact shape the color-swatch dropdown needs to build var(--bh-accent) directly"
         );
 
-        // Spot-check one specific, known-stable mapping rather than only
-        // the generic "starts with --" shape check above — catches a
-        // typo'd/renamed CSS var even if it still technically starts
-        // with '--'.
+        // Spot-check one known mapping to catch a renamed var that still starts with '--'.
         $rows[] = OUS_TestRunner::assert_same(
             '--bh-accent', $tokens['color_accent'] ?? null,
             "'color_accent' maps to the exact '--bh-accent' CSS var BHY_Style::inline_css() actually defines"
@@ -178,15 +142,6 @@ class BH_Element_TestSuite {
 }
 
 /**
- * NOT covered by this suite — needs a real browser pass, not a PHP
- * assertion:
- * - The REST-path class of bug (api('/elements/preview', ...) vs the
- *   correct api('preview', ...)) — this is pure client-side JS string
- *   concatenation against a config value only present in a real browser
- *   session; nothing server-side to assert against.
- * - The tree/canvas Live-View selection-sync (bhel:select-surface) —
- *   inherently a live-DOM, two-file coordination behavior.
- * - Any actual visual rendering (swatch colors, font previews) — these
- *   tests confirm the DATA is correct, not that a browser paints it
- *   correctly.
+ * NOT covered here (needs a real browser): client-side REST path construction, the
+ * tree/canvas selection sync, and actual visual rendering.
  */

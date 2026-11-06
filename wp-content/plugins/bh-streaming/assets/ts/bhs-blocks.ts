@@ -1,19 +1,7 @@
 /**
- * bhs-blocks.js — editor-side registration for 'bhs/player'
- * (class-blocks.php). Plain ES5-safe JS against WP core's own globals,
- * no build step, same convention as bh-contest's bh-contest-blocks.js
- * and bh-monetization-woo's bhm-blocks.js.
- *
- * wp.serverSideRender shows the real render_callback output (the exact
- * same static mount div the front end gets) live in the canvas — not
- * an interactive preview of the actual streaming app, which is entirely
- * player.js hydrating that div on a real front-end page load. Same
- * honest scoping already established for bh-contest's blocks.
- *
- * TypeScript pilot conversion — same posture as this plugin's own
- * stats-charts.ts, and the same local-ambient-types pattern
- * bh-contest-blocks.ts already established for this exact
- * registerBlockType/serverSideRender IIFE shape.
+ * Editor registration for 'bhs/player' (class-blocks.php). wp.serverSideRender
+ * shows the static mount div, not the interactive app. Edit this .ts and
+ * recompile; assets/js/bhs-blocks.js is generated.
  */
 
 type BHSElementType = unknown;
@@ -51,8 +39,7 @@ interface BHSBlocksWindow extends Window {
         icon: 'format-audio',
         category: 'widgets',
 
-        // No attributes — always the one app-wide player, same as the
-        // shortcode itself takes no atts.
+        // No attributes, like the shortcode.
         edit: function () {
             return el(ServerSideRender, { block: 'bhs/player' });
         },

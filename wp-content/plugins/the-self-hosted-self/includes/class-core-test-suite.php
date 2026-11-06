@@ -2,12 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The Test Runner (see class-test-runner.php) version of tests/TwoFactorTest.php
- * — same RFC 6238 Appendix B vectors, same reasoning, but expressed as
- * plain assertions runnable from the Debug Tools page on the site's own
- * PHP, instead of requiring PHPUnit/CLI. The PHPUnit version stays in
- * tests/ for real CI later; this is the "no CLI needed" version of the
- * same coverage for day-to-day use.
+ * Test Runner version of tests/TwoFactorTest.php (RFC 6238 vectors) and
+ * other core checks, runnable from Debug Tools without PHPUnit.
  */
 class OUS_CoreTestSuite {
     const RFC_TEST_SECRET_B32 = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
@@ -88,11 +84,8 @@ class OUS_CoreTestSuite {
             'base32 decode ignores stray dashes/spaces rather than corrupting'
         );
 
-        // Link-in-bio (ecosystem depth-pass Tier 2a) — BHI_Profiles::save()/
-        // get()'s links sanitization, exercised end-to-end against a real
-        // test user rather than reflection, since sanitize_links()/
-        // decode_links() are private and the save/get round trip IS the
-        // actual contract callers depend on.
+        // BHI_Profiles links sanitization, via the real save/get round trip
+        // (sanitize_links()/decode_links() are private).
         if (class_exists('BHI_Profiles') && class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_profile_links_tests());
         }
@@ -105,17 +98,11 @@ class OUS_CoreTestSuite {
     }
 
     /**
-     * BH_Mail (class-mail.php) — the shared send() every plugin's own
-     * notification/campaign/gift/contest-winner email now routes
-     * through instead of calling wp_mail() directly. Never lets a real
-     * email actually dispatch: pre_wp_mail (WP 5.7+) short-circuits the
-     * send and hands back the exact assembled args (to/subject/message/
-     * headers) instead, which is what these assertions check against —
-     * the same technique any test suite would need to verify an email
-     * WOULD have been sent correctly, without spamming a real inbox
-     * every time this suite runs.
+     * BH_Mail: pre_wp_mail short-circuits delivery and returns the assembled
+     * args, so assertions run without sending real email.
+     *
+     * @return array<int, mixed>
      */
-    /** @return array<int, mixed> */
     private static function run_mail_tests(): array {
         $rows = [];
 

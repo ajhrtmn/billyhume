@@ -1,9 +1,7 @@
 <?php
 if (!defined('ABSPATH')) exit;
 /**
- * Shared archive/page/search/404 header — same kicker + display title +
- * accent speed-line rule shape as bh-courses's .bhc-archive-header, so
- * theme-rendered titles read as the same system as plugin catalog pages.
+ * Shared archive/page/search/404 header (same shape as .bhc-archive-header).
  *
  * Args (via get_template_part('template-parts/page-header', null, $args)):
  *   kicker (string, optional)

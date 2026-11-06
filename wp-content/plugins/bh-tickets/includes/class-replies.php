@@ -45,14 +45,7 @@ class BHT_Replies {
         ), ARRAY_A);
     }
 
-    /**
-     * Staff reply -> notify the requester. Requester reply on an
-     * assigned ticket -> notify the assignee. Nothing to notify for a
-     * brand-new ticket with no assignee yet — there's no "all staff"
-     * notification target in this first pass (no dedicated
-     * ticket-manager role/list beyond the bhcore_manage_tickets
-     * capability, which could match several accounts or none).
-     */
+    /** Staff reply notifies the requester; requester reply notifies the assignee (if any). */
     private static function maybe_notify(int $ticket_id, int $actor_id, bool $is_staff): void {
         if (!class_exists('OUS_Notifications') || !class_exists('BHT_Tickets')) return;
         $ticket = BHT_Tickets::get($ticket_id);

@@ -2,13 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_TestRunner suite for bh-streaming — same convention as the rest
- * of the ecosystem's own class-test-suite.php files. This plugin had
- * ZERO test coverage before this pass. Covers BHS_ISRC's placeholder-
- * pattern/issuance logic, BHS_Jam's skip-vote threshold math (real
- * branching logic on a real DB-backed participant count), and
- * BHS_Recommendations' content-based scoring (artist/release/genre
- * weights) against real fixture tracks.
+ * OUS_TestRunner suite for bh-streaming: booklet, fan library, chapters,
+ * ISRC issuance, Jam skip-vote threshold, and recommendation scoring.
  */
 class BHS_TestSuite {
     const SEED_TAG = 'bhs_test_suite';
@@ -73,23 +68,19 @@ class BHS_TestSuite {
             }
         }
 
-        // Caching: calling ensure_url() again with NO content change
-        // must return the SAME attachment, not regenerate.
+        // Caching: no content change returns the same attachment.
         $url_again = BHS_Booklet::ensure_url($fixture_id);
         $rows[] = OUS_TestRunner::assert_same($attachment_id, (int) get_post_meta($fixture_id, '_bhs_booklet_attachment_id', true), 'ensure_url(): calling again with unchanged content reuses the cached attachment rather than regenerating.');
         $rows[] = OUS_TestRunner::assert_same($url, $url_again, 'ensure_url(): the returned URL is stable across repeated calls when content hasn\'t changed.');
 
-        // Regeneration: editing the content (matching what save() does —
-        // clearing the cached hash) produces a genuinely NEW attachment,
-        // not a stale one still reflecting the old text.
+        // Clearing the cached hash (as save() does) produces a new attachment.
         update_post_meta($fixture_id, '_bhs_liner_notes', 'Updated note — this should trigger real regeneration.');
-        delete_post_meta($fixture_id, '_bhs_booklet_content_hash'); // BHS_Booklet::save()'s own real invalidation step
+        delete_post_meta($fixture_id, '_bhs_booklet_content_hash'); // BHS_Booklet::save()'s invalidation step
         BHS_Booklet::ensure_url($fixture_id);
         $new_attachment_id = (int) get_post_meta($fixture_id, '_bhs_booklet_attachment_id', true);
         $rows[] = OUS_TestRunner::assert_true($new_attachment_id > 0 && $new_attachment_id !== $attachment_id, 'ensure_url(): editing the content and clearing the hash produces a genuinely new attachment, not the stale cached one.');
         $rows[] = OUS_TestRunner::assert_true(!get_post($attachment_id), 'ensure_url(): the OLD attachment was actually deleted after regeneration, not left as an orphaned file.');
 
-        // Cleanup.
         if ($new_attachment_id) wp_delete_attachment($new_attachment_id, true);
         wp_delete_post($fixture_id, true);
 
@@ -98,16 +89,8 @@ class BHS_TestSuite {
 
     /* ---------- BHS_FanLibrary: the fan-facing global-library feature ---------- */
 
-    // New feature (2026-08-21) — the "many plausible happy and unhappy
-    // paths and edge cases" standard AJ asked for applied deliberately:
-    // a clean add, a duplicate rejected as a real conflict (not a
-    // silent no-op or a second row), missing required fields, an
-    // oversized field beyond the column's real storage limit, deleting
-    // your own item, deleting an item that was never yours (or never
-    // existed — the same 404 either way, by design, since a caller
-    // can't distinguish the two and shouldn't be able to), and that a
-    // second, different user's library stays completely isolated from
-    // the first's — the actual point of this being a fan-scoped table.
+    // Covers add, duplicate conflict, missing fields, oversized field, own
+    // and foreign/missing delete (same 404 by design), and per-user isolation.
     /** @return array<int, array<string, mixed>> */
     private static function run_fan_library_tests(): array {
         if (!class_exists('BHS_FanLibrary')) return [];
@@ -118,11 +101,7 @@ class BHS_TestSuite {
         $previous_user_id = get_current_user_id();
         $admins = get_users(['role' => 'administrator', 'number' => 1, 'fields' => 'ID']);
         $user_a = $admins ? (int) $admins[0] : 0;
-        // A second, distinct user id for the isolation test below —
-        // doesn't need to be a real registered account, just a
-        // different numeric id than $user_a, since the query itself is
-        // a plain WHERE user_id = %d with no foreign-key/existence
-        // requirement on wp_users.
+        // Any distinct numeric id works; there's no FK to wp_users.
         $user_b = $user_a + 999900;
 
         if (!$user_a) {
@@ -146,8 +125,7 @@ class BHS_TestSuite {
         $rows[] = OUS_TestRunner::assert_true(!is_wp_error($add_ok), 'BHS_FanLibrary::add_item(): a complete, well-formed item is accepted.');
         $added_id = !is_wp_error($add_ok) ? $add_ok->get_data()['id'] : 0;
 
-        // Unhappy: the exact same feed_url + track_guid for the SAME
-        // user is a real conflict, not a silent duplicate row.
+        // Unhappy: same feed_url + track_guid for the same user is a conflict.
         $add_dup = BHS_FanLibrary::add_item($make_req([
             'feed_url' => 'https://example.test/ts-feed.xml', 'track_guid' => 'ts-guid-1',
             'title' => 'Test Suite Track', 'artist' => '', 'audio_url' => 'https://example.test/track.mp3',
@@ -158,16 +136,12 @@ class BHS_TestSuite {
         $add_missing = BHS_FanLibrary::add_item($make_req(['feed_url' => 'https://example.test/other-feed.xml', 'track_guid' => 'ts-guid-2']));
         $rows[] = OUS_TestRunner::assert_true(is_wp_error($add_missing) && $add_missing->get_error_code() === 'missing_fields', 'BHS_FanLibrary::add_item(): rejects an item missing title/audio_url rather than saving a broken row.');
 
-        // Edge case: a feed_url longer than the column's real
-        // varchar(191) storage limit — must be rejected with a clear
-        // reason, not silently truncated by MySQL or thrown as a raw
-        // DB error.
+        // Edge case: feed_url over varchar(191) is rejected with a clear reason.
         $long_url = 'https://example.test/' . str_repeat('x', 200) . '/feed.xml';
         $add_long = BHS_FanLibrary::add_item($make_req(['feed_url' => $long_url, 'track_guid' => 'ts-guid-3', 'title' => 'T', 'audio_url' => 'https://example.test/t.mp3']));
         $rows[] = OUS_TestRunner::assert_true(is_wp_error($add_long) && $add_long->get_error_code() === 'too_long', 'BHS_FanLibrary::add_item(): rejects a feed_url longer than the column can store, rather than a silent truncation or raw SQL error.');
 
-        // Isolation: a second user's library must never see the first
-        // user's items — the actual point of a fan-SCOPED table.
+        // Isolation: a second user never sees the first user's items.
         wp_set_current_user($user_b);
         $list_req = new \WP_REST_Request('GET', '/bhs/v1/fan-library');
         $list_b = BHS_FanLibrary::get_library($list_req);
@@ -182,17 +156,13 @@ class BHS_TestSuite {
             $rows[] = OUS_TestRunner::assert_true(!is_wp_error($del_ok), 'BHS_FanLibrary::remove_item(): deleting your own real item succeeds.');
         }
 
-        // Unhappy/edge: deleting an id that never existed (or isn't
-        // yours — indistinguishable by design, see this method's own
-        // comment) returns a real not_found, not a silent success.
+        // Unhappy: a missing or foreign id returns not_found.
         $del_missing_req = new \WP_REST_Request('DELETE', '/bhs/v1/fan-library/999999999');
         $del_missing_req->set_param('id', 999999999);
         $del_missing = BHS_FanLibrary::remove_item($del_missing_req);
         $rows[] = OUS_TestRunner::assert_true(is_wp_error($del_missing) && $del_missing->get_error_code() === 'not_found', 'BHS_FanLibrary::remove_item(): deleting a nonexistent id returns not_found rather than a silent success.');
 
-        // Cleanup — real DB rows this test suite itself created, same
-        // "leave no residue for the next suite run" discipline as
-        // every other method in this file.
+        // Cleanup: remove rows this test created.
         $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE user_id IN (%d, %d)", $user_a, $user_b));
         wp_set_current_user($previous_user_id);
         return $rows;
@@ -200,12 +170,6 @@ class BHS_TestSuite {
 
     /* ---------- BHS_Chapters: line parsing, sorting, resume position ---------- */
 
-    // Audit fix (2026-07-26): BHS_Chapters (long-form audio, ROADMAP-
-    // streaming-media-scope-and-blockchain.md Part 1 Phase 1) had zero
-    // test coverage since it shipped — live-verified in a browser this
-    // pass (real track, real chapter lines, real player), but the pure
-    // parsing/sorting logic deserves the same DB-backed real-fixture
-    // coverage every other suite in this file already has.
     /** @return array<int, array<string, mixed>> */
     private static function run_chapters_tests(): array {
         if (!class_exists('BHS_Chapters')) return [];
@@ -214,24 +178,13 @@ class BHS_TestSuite {
         $fixture_id = wp_insert_post(['post_type' => 'bhs_track', 'post_status' => 'draft', 'post_title' => 'BHS Test Suite Chapters Fixture'], true);
         if (is_wp_error($fixture_id)) return $rows;
 
-        // save()'s current_user_can('edit_post', $post_id) gate needs a
-        // real capable user in context — this CLI test-runner request
-        // has no logged-in user by default, unlike a real admin-screen
-        // save. Swapped in only for the duration of this test and
-        // restored after, same "don't leave global state changed for
-        // suites that run after this one" discipline as everywhere else
-        // real WP state gets touched in this file.
+        // save() checks edit_post, and the CLI runner has no user; swap one in
+        // for this test and restore it after.
         $previous_user_id = get_current_user_id();
         $admins = get_users(['role' => 'administrator', 'number' => 1, 'fields' => 'ID']);
         if ($admins) wp_set_current_user($admins[0]);
 
-        // save() is normally reached via save_post_bhs_track + a real
-        // nonce/capability check — the nonce is real (still required),
-        // only the auth CONTEXT is seeded above, since the pure parsing/
-        // sorting logic is what's under test, not the save-hook's own
-        // gate (already the same shape everywhere else in this
-        // ecosystem: real DB-backed fixtures, no HTTP round-trip needed
-        // to exercise the actual method).
+        // The nonce is real; only the auth context is seeded.
         $_POST['bhs_chapters_raw'] = "00:05 Chapter Two (out of order)\n00:00 Introduction\nnotachapterline\n00:03 Chapter One (out of order too)";
         $_POST['bhs_chapters_nonce'] = wp_create_nonce('bhs_save_chapters');
         BHS_Chapters::save($fixture_id);
@@ -245,8 +198,7 @@ class BHS_TestSuite {
         );
         $rows[] = OUS_TestRunner::assert_same('Introduction', $chapters[0]['label'] ?? null, 'save(): the 0:00 line\'s label parsed correctly');
 
-        // Malformed-only input: every line invalid should leave a clean
-        // empty array, not a partial/corrupt one.
+        // All-invalid input yields an empty array.
         $_POST['bhs_chapters_raw'] = "not a chapter\nalso not one";
         $_POST['bhs_chapters_nonce'] = wp_create_nonce('bhs_save_chapters');
         BHS_Chapters::save($fixture_id);
@@ -288,28 +240,21 @@ class BHS_TestSuite {
             'is_mock(): an empty string is correctly not mock'
         );
 
-        // issue()'s mock path — no real registrant configured, so this
-        // must always produce a MOCK_PATTERN-shaped code, and must never
-        // collide with an existing _bhs_audio_isrc... err, _bhs_isrc
-        // postmeta value already in use.
-        delete_option('bhs_isrc_registrant'); // ensure no real registrant is configured for this test
+        // Mock path (no registrant): must produce a MOCK_PATTERN-shaped code
+        // that doesn't collide with an existing _bhs_isrc value.
+        delete_option('bhs_isrc_registrant'); // ensure no registrant is configured
         $issued = BHS_ISRC::issue();
         $rows[] = OUS_TestRunner::assert_true(
             BHS_ISRC::is_mock($issued),
             'issue(): with no real registrant configured, issues a correctly-shaped mock/placeholder code'
         );
 
-        // Collision avoidance: seed a real postmeta row using the exact
-        // pattern issue() would generate for "this year", then confirm
-        // issue() doesn't hand back that same value again.
+        // Collision avoidance: seed this year's pattern and confirm issue() skips it.
         $fixture_post_id = wp_insert_post(['post_type' => 'bhs_track', 'post_status' => 'draft', 'post_title' => 'BHS Test Suite Fixture Track'], true);
         if (!is_wp_error($fixture_post_id)) {
             $seeded = 'ZZOUS' . gmdate('y') . '00001';
             update_post_meta($fixture_post_id, '_bhs_isrc', $seeded);
-            // 30 fresh issues should never happen to collide with the one
-            // seeded value if collision-checking is actually working — a
-            // regression that dropped the existence check would
-            // eventually (rarely, but non-zero probability) return it.
+            // A regression dropping the existence check would eventually return it.
             $collided = false;
             for ($i = 0; $i < 30; $i++) {
                 if (BHS_ISRC::issue() === $seeded) { $collided = true; break; }
@@ -333,12 +278,7 @@ class BHS_TestSuite {
 
         $needed = new ReflectionMethod('BHS_Jam', 'skip_votes_needed');
 
-        // 0 participants (a session that's just been created, or a race
-        // where the host row failed to insert — see the audit fix in
-        // create()) must still require at least 1 vote, never 0 — a 0
-        // threshold would mean "already skipped" the instant anyone
-        // calls vote_skip(), or worse, count as satisfied with no real
-        // votes at all.
+        // 0 participants must still require at least 1 vote.
         $wpdb->insert($sessions_t, ['invite_code' => 'TSTZERO', 'host_user_id' => 999901, 'control_mode' => 'vote_skip', 'state_json' => '{}', 'status' => 'active']);
         $session_id_zero = (int) $wpdb->insert_id;
         $rows[] = OUS_TestRunner::assert_same(1, $needed->invoke(null, $session_id_zero), 'skip_votes_needed(): 0 real participants still requires at least 1 vote (max(1, ...) floor), never 0');
@@ -349,9 +289,7 @@ class BHS_TestSuite {
         $wpdb->insert($participants_t, ['session_id' => $session_id_one, 'user_id' => 999902, 'display_name' => 'Test Host']);
         $rows[] = OUS_TestRunner::assert_same(1, $needed->invoke(null, $session_id_one), 'skip_votes_needed(): 1 participant needs 1 vote (ceil(1 * 0.5) = 1)');
 
-        // 3 participants — ceil(3 * 0.5) = 2, a real majority (not 1,
-        // not 3) — this is the exact case that would catch a wrong
-        // rounding direction (floor vs. ceil) regression.
+        // 3 participants: ceil(3 * 0.5) = 2; catches a floor/ceil regression.
         $wpdb->insert($sessions_t, ['invite_code' => 'TSTTHREE', 'host_user_id' => 999903, 'control_mode' => 'vote_skip', 'state_json' => '{}', 'status' => 'active']);
         $session_id_three = (int) $wpdb->insert_id;
         foreach ([999903, 999904, 999905] as $uid) {
@@ -367,7 +305,6 @@ class BHS_TestSuite {
         }
         $rows[] = OUS_TestRunner::assert_same(2, $needed->invoke(null, $session_id_four), 'skip_votes_needed(): 4 participants needs exactly 2 votes (ceil(4 * 0.5) = 2)');
 
-        // Cleanup.
         foreach ([$session_id_zero, $session_id_one, $session_id_three, $session_id_four] as $sid) {
             $wpdb->delete($participants_t, ['session_id' => $sid]);
             $wpdb->delete($sessions_t, ['id' => $sid]);
@@ -383,10 +320,8 @@ class BHS_TestSuite {
         if (!class_exists('BHS_Recommendations')) return [];
         $rows = [];
 
-        // Real fixture tracks: a seed track, a same-artist-and-release
-        // track (should score highest: 3 + 4 = 7), a same-artist-only
-        // track (score 3), and an unrelated track (score 0, excluded
-        // entirely — get_related() only returns tracks scoring > 0).
+        // Seed, same artist+release (score 7), same artist only (3), and an
+        // unrelated track (0, excluded since get_related() returns only > 0).
         $seed_id = wp_insert_post(['post_type' => 'bhs_track', 'post_status' => 'publish', 'post_title' => 'Seed Track'], true);
         $same_both_id = wp_insert_post(['post_type' => 'bhs_track', 'post_status' => 'publish', 'post_title' => 'Same Artist and Release'], true);
         $same_artist_id = wp_insert_post(['post_type' => 'bhs_track', 'post_status' => 'publish', 'post_title' => 'Same Artist Only'], true);
@@ -396,11 +331,8 @@ class BHS_TestSuite {
             return [['name' => 'BHS_TestSuite recommendations fixture creation failed', 'pass' => false, 'message' => '']];
         }
 
-        // A dummy _bhs_external_audio_url on every candidate — track_payload()
-        // (called inside get_related()) skips any unlocked track with NO
-        // resolvable audio URL at all, and these fixtures have no real
-        // attachment; a fake external URL is enough to make audio_url_for()
-        // resolve to something non-empty without needing a real upload.
+        // track_payload() skips unlocked tracks with no audio URL; a dummy
+        // external URL makes these fixtures resolvable without an upload.
         foreach ([$seed_id, $same_both_id, $same_artist_id, $unrelated_id] as $id) {
             update_post_meta($id, '_bhs_external_audio_url', 'https://example.test/' . $id . '.mp3');
         }
@@ -433,7 +365,6 @@ class BHS_TestSuite {
             'get_related(): a track sharing nothing (score 0) is correctly excluded entirely, not just ranked last'
         );
 
-        // Cleanup.
         foreach ([$seed_id, $same_both_id, $same_artist_id, $unrelated_id] as $id) {
             wp_delete_post($id, true);
         }

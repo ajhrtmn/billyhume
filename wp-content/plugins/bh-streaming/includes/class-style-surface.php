@@ -2,9 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Registers a representative preview of this plugin's own UI into
- * bh-style's gallery — same extension mechanism bh-contest uses, proving
- * the pattern actually works for more than one consuming plugin.
+ * Registers a preview of this plugin's UI into the core Styles gallery.
  */
 class BHS_StyleSurface {
     public static function init(): void {

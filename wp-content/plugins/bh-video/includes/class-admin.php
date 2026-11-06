@@ -2,11 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Genre selection needs no code here — registering bhv_genre with
- * show_ui true (class-post-types.php) already gives a standard
- * tag-style picker for free. Only the video-file upload and the
- * optional bhs_track link need a custom metabox, same division of
- * labor bh-streaming's own class-admin.php uses.
+ * Video-file and optional bhs_track metabox; genres use the standard taxonomy UI.
  */
 class BHV_Admin {
     public static function init(): void {
@@ -28,9 +24,7 @@ class BHV_Admin {
             'check_class'    => 'BHV_PostTypes',
             'description'    => 'A standalone video catalog and player, independent of bh-streaming\'s audio catalog.',
             'dashboard_link' => 'edit.php?post_type=bhv_video',
-            // See bh-feedback's own class-admin.php for why this must be
-            // listed here (this array fully replaces, not merges into,
-            // class-registry.php's hardcoded DEFAULTS entry).
+            // WHY: this array replaces (not merges into) class-registry.php's DEFAULTS entry.
             'bundled_zip'    => 'bh-video.zip',
         ];
         return $plugins;
@@ -57,11 +51,7 @@ class BHV_Admin {
         echo '<input type="hidden" id="bhv_video_id" name="bhv_video_id" value="' . esc_attr((string) $vid) . '">';
         echo '<button type="button" class="button" id="bhv_video_upload">' . ($vurl ? 'Replace video' : 'Upload video') . '</button></p>';
 
-        // Optional link back to a bhs_track — nullable by design (AJ's
-        // own call, scoping pass 2026-07-26): most videos WILL be tied
-        // to a song, but non-music video content isn't forced into a
-        // fake track relationship. Soft dependency: this whole field is
-        // simply absent if bh-streaming isn't active.
+        // Optional, nullable bhs_track link (non-music videos need none); absent without bh-streaming.
         if (post_type_exists('bhs_track')) {
             $tracks = get_posts(['post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => -1, 'orderby' => 'title', 'order' => 'ASC']);
             echo '<p><label><strong>Official video for track</strong> <span class="description">(optional)</span><br>';

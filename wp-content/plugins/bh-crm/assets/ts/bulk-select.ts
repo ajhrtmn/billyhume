@@ -1,14 +1,4 @@
-/**
- * bulk-select.js — ROADMAP-ux-polish-and-feature-parity-2026-07.md
- * Section 3: bulk actions on the person list (class-people.php). Pure
- * UX convenience on top of a form the browser already submits natively
- * (checkboxes + a submit button's own formaction) — this script never
- * touches submission itself, only the header "select all" checkbox and
- * the live "N selected" count.
- *
- * TypeScript pilot conversion — same posture as bh-crm's own
- * segment-builder.ts.
- */
+/** Person-list bulk actions: header select-all and live "N selected" count; the form submits natively. */
 (function () {
     'use strict';
 

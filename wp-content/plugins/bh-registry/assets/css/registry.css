@@ -4,11 +4,7 @@
     padding: 24px 16px;
     color: var(--bh-text, #EDDFCB);
 }
-/* Same "control panel" treatment as bh-courses' catalog filter bar
-   (courses.css) — ecosystem-wide consistency, not a one-off here: a
-   recessed surface-2 container instead of bare fields floating on the
-   page, pill-shaped inputs (radius:999px) matching the badge/button
-   vocabulary, and a visible focus ring. */
+/* Matches bh-courses' catalog filter bar (courses.css). */
 .bhr-search-row {
     display: flex;
     gap: 8px;
@@ -53,8 +49,7 @@
     gap: 16px;
     align-items: start;
 }
-/* Same resting-depth + hover-lift language as bh-courses' .bhc-course-card
-   — ecosystem-wide, not plugin-specific. */
+/* Matches bh-courses' .bhc-course-card depth/hover. */
 .bhr-card {
     background: var(--bh-surface, #220C0A);
     border: 1px solid var(--bh-border, #3D1B14);
@@ -89,9 +84,7 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
-/* Shape now comes from the shared .bh-badge component (class-style.php)
-   — markup carries both classes; this file only supplies the layout
-   spacing between badges (.bh-badge alone has no margin) and color. */
+/* Shape comes from the shared .bh-badge; this adds spacing and color only. */
 .bhr-badge { margin: 2px 4px 0 0; }
 .bhr-badge-verified {
     background: var(--bh-success-bg, rgba(29,185,84,0.15));
@@ -113,8 +106,7 @@
     cursor: pointer;
 }
 
-/* Inline reveal replacing a native prompt() — see registry.js's
-   bindReportButtons(). */
+/* Inline report form (see registry.js bindReportButtons()). */
 .bhr-report-form {
     margin-top: 8px;
     display: flex;
@@ -200,12 +192,7 @@
     background: var(--bh-surface-2, #2C120E);
     color: inherit;
 }
-/* Was a bare red-text rule with a hardcoded #b3261e -- one of 34 such
-   literals in three different values across the front end. The shared
-   .bh-alert component (BHY_Style::alert_css, LAYER 3) now carries the
-   treatment; this only keeps the spacing that is specific to sitting under
-   this form. Empty until JS fills it, so the component styling must not
-   apply to an empty box. */
+/* Styling comes from the shared .bh-alert; hidden while empty (JS fills it). */
 .bhr-form-error {
     margin-top: 8px;
 }
@@ -227,10 +214,6 @@
     margin-bottom: 10px;
 }
 
-/* This file had zero mobile breakpoints at all — every other front-end
-   stylesheet in this ecosystem has at least one. The grid/flex-wrap
-   already in use elsewhere means nothing was actually broken, but
-   padding/control sizing wasn't tailored to a narrow phone at all. */
 @media (max-width: 480px) {
     .bhr-app { padding: 16px 12px; }
     .bhr-search-row {

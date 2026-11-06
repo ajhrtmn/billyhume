@@ -2,25 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * A real "import my own music" path, distinct from class-feeds.php's
- * feed-based aggregator import. Where a feed import pulls tracks from a
- * remote source an admin has curated, THIS is a listener uploading
- * their own local files into their own personal library — the track
- * becomes a real bhs_track post, owned by that user (post_author),
- * flagged _bhs_source = 'local-import' so the rest of the catalog/
- * player code treats it exactly like any other track (same code path
- * bh-streaming already established for 'external' vs. local — see
- * class-post-types.php), while class-admin.php and class-api.php both
- * already know to treat a track's OWN owner as the only one who can
- * edit/remove it.
+ * Listener "import my own music": uploads become bhs_track posts owned by
+ * the uploader, flagged _bhs_source = 'local-import'.
  *
- * Requires 'upload_files' — the standard WordPress capability for
- * "can add media" (granted by default to Author and above, NOT
- * Subscriber). A site that wants every logged-in visitor to be able to
- * import their own local files needs to grant that one capability to
- * whatever role its listeners hold — a one-line `$role->add_cap(...)`
- * in a site-specific mu-plugin, not something this plugin should force
- * on every install by changing WordPress's own role defaults.
+ * Requires 'upload_files' (Author+ by default). Sites that want every
+ * listener to import must grant that capability to the listener role.
  */
 class BHS_Import {
     public static function register_routes(): void {
@@ -43,13 +29,8 @@ class BHS_Import {
         ]);
     }
 
-    // Accepts a single multipart file upload (field name 'audio') plus
-    // optional 'title'/'artist' fields. Uses WordPress's own
-    // media_handle_upload() — the same validated, capability-checked
-    // upload pipeline the block editor and classic media uploader use —
-    // rather than touching $_FILES directly, so file-type sniffing,
-    // upload-size limits, and the uploads-directory sandboxing all stay
-    // exactly what a real WordPress install already enforces.
+    // Single multipart upload ('audio') plus optional 'title'/'artist', via
+    // media_handle_upload() so core file-type, size, and path checks apply.
     /** @return \WP_REST_Response|\WP_Error */
     public static function import_local_file(\WP_REST_Request $req) {
         if (empty($_FILES['audio'])) {
@@ -60,10 +41,8 @@ class BHS_Import {
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/media.php';
 
-        // media_handle_upload() itself calls wp_check_filetype_and_ext(),
-        // which is what actually rejects anything that isn't a real,
-        // allowed audio mime type — not a manual extension check here
-        // that a renamed file could slip past.
+        // media_handle_upload() runs wp_check_filetype_and_ext(), which rejects
+        // non-audio files regardless of extension.
         $attachment_id = media_handle_upload('audio', 0);
         if (is_wp_error($attachment_id)) {
             return new WP_Error('upload_failed', $attachment_id->get_error_message(), ['status' => 400]);
@@ -92,30 +71,19 @@ class BHS_Import {
         update_post_meta($post_id, '_bhs_audio_id', $attachment_id);
         update_post_meta($post_id, '_bhs_source', 'local-import');
 
-        // Local-import is the exact upload path that has no ownership
-        // verification of any kind — see class-audio-hash.php's own
-        // docblock for what this does and doesn't catch.
+        // Local imports have no ownership verification; see class-audio-hash.php.
         if (class_exists('BHS_AudioHash')) BHS_AudioHash::hash_and_check($post_id, $attachment_id);
 
         return new WP_REST_Response(['success' => true, 'track' => BHS_API::track_payload(get_post($post_id))], 201);
     }
 
-    // Every logged-in user's own imported tracks — deliberately scoped
-    // to post_author = current user, same ownership model as playlists.
+    // The current user's own imports (post_author = current user).
     public static function get_my_imports(): \WP_REST_Response {
         return new WP_REST_Response(['success' => true, 'tracks' => array_map(['BHS_API', 'track_payload'], self::imports_for_user(get_current_user_id()))], 200);
     }
 
-    // Plain-array counterpart to get_my_imports() above, parameterized
-    // by an arbitrary user id rather than hardcoding the current user —
-    // added for bh-crm's Project Tracker Phase D ("link a card to an
-    // already-imported track, no copy"), which needs a specific
-    // person's imports from an admin context where the viewed person
-    // isn't necessarily the logged-in user. Returns real WP_Post
-    // objects, not a REST_Response, so any plugin can call this
-    // directly (the established class_exists()-guarded cross-plugin
-    // call convention this ecosystem already uses) without needing a
-    // round-trip through the REST layer.
+    // Same as get_my_imports() for any user id, returning WP_Post objects so
+    // other plugins (e.g. bh-crm) can call it directly without REST.
     /** @return \WP_Post[] */
     public static function imports_for_user(int $user_id): array {
         return get_posts([
@@ -131,8 +99,7 @@ class BHS_Import {
         if (!$post || $post->post_type !== 'bhs_track' || get_post_meta($id, '_bhs_source', true) !== 'local-import') {
             return new WP_Error('not_found', 'Import not found.', ['status' => 404]);
         }
-        // Only the user who imported it (or someone with edit_others_posts,
-        // i.e. an admin/editor) may remove it — never anyone else's.
+        // Only the importer (or edit_others_posts) may remove it.
         if ((int) $post->post_author !== get_current_user_id() && !current_user_can('edit_others_posts')) {
             return new WP_Error('forbidden', 'Not your import.', ['status' => 403]);
         }

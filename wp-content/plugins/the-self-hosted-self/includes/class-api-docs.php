@@ -2,48 +2,21 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Turns the REST routes this ecosystem already registers (BHI_Auth,
- * BHI_Reports, and anything any peer plugin registers via its own
- * register_rest_route() calls) into real, standard OpenAPI 3.0 —
- * generated from WordPress's own live route table
- * (rest_get_server()->get_routes()), not hand-maintained separately
- * and inevitably drifting from the actual code. Two ways to use it:
- *
- *   1. GET /wp-json/ous/v1/openapi.json — the raw spec, importable into
- *      Postman, Insomnia, real Swagger UI, or any other OpenAPI tool a
- *      dev already has.
- *   2. The Self-Hosted Self → API Docs — a plain, dependency-free in-admin
- *      viewer of the same spec (no Swagger-UI CDN pulled in, matching
- *      this ecosystem's "no build step, no external runtime
- *      dependency" convention — see OUS_Notifications' admin-bar
- *      handle fix for the same instinct applied elsewhere).
- *
- * Only routes under THIS ecosystem's own namespaces are included by
- * default (ous, bhi, bh-prefixed namespaces) — WordPress core's own huge
- * built-in route table (wp/v2/posts, etc.) would otherwise drown out the
- * actual ecosystem surface in noise nobody asked this page to document.
+ * Generates OpenAPI 3.0 from WordPress's live REST route table, limited to
+ * ecosystem namespaces (ous/, bhi/, bh*). Served as
+ * /wp-json/ous/v1/openapi.json and as a dependency-free Debug Tools viewer.
  */
 class OUS_ApiDocs {
     const RELEVANT_PREFIXES = ['ous/', 'bhi/', 'bh'];
 
     public static function init(): void {
-        // add_menu() (standalone admin.php?page=ous-api-docs page) is
-        // deliberately not hooked anymore — WordPress's own page-hook
-        // resolution fails for this specific standalone page
-        // (get_current_screen() resolves to the PARENT page's hook, not
-        // this one), denying access every time despite registration and
-        // capability both being correct.
+        // add_menu() is deliberately not hooked: WP's page-hook resolution
+        // denies the standalone page despite correct registration.
 
         // add_action('rest_api_init', [self::class, 'register_routes']);
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
     }
 
-    // Shows the is_locked() verdict and whether the submenu is actually
-    // present in the live $submenu global for this request, so
-    // "registered but still 404s" (a routing/caching problem, same
-    // family as BHI_Portal's rewrite-rule issue) is distinguishable
-    // from "never registered at all" (an is_locked() problem) without
-    // needing to click through to the 404 first.
     /**
      * @param array<string, mixed> $tools
      * @return array<string, mixed>
@@ -53,8 +26,7 @@ class OUS_ApiDocs {
         return $tools;
     }
 
-    // The reliable primary way to reach this content — renders the API
-    // docs inline on the Debug Tools page.
+    // The primary access path: API docs inline on Debug Tools.
     public static function render_debug_section(): void {
         self::render_content();
     }
@@ -73,13 +45,9 @@ class OUS_ApiDocs {
     public static function register_routes(): void {
         register_rest_route('ous/v1', '/openapi.json', [
             'methods' => 'GET',
-            'permission_callback' => '__return_true', // gated below by is_locked(), not by an auth check — same "dev tooling, not user data" reasoning as the admin menu above
+            'permission_callback' => '__return_true', // gated by is_locked() below; dev tooling, not user data
             'callback' => function () {
-                // Same production lock as the admin viewer — a live
-                // site's route map is dev/reference information, not
-                // something worth exposing to the open internet by
-                // default just because the admin viewer happens to be
-                // hidden. Overridable the same way (OUS_DEBUG_TOOLS_FORCE).
+                // Route map is dev info; hidden in production unless OUS_DEBUG_TOOLS_FORCE.
                 if (class_exists('OUS_Debug') && OUS_Debug::is_locked()) {
                     return new WP_Error('bhcore_api_docs_disabled', 'API docs are only available on non-production environments.', ['status' => 404]);
                 }
@@ -96,12 +64,10 @@ class OUS_ApiDocs {
     }
 
     /**
-     * Reads WordPress's own live, already-registered route table and
-     * reshapes it into OpenAPI 3.0 — every register_rest_route() call
-     * anywhere in the ecosystem (present or future) shows up here
-     * automatically, with zero separate documentation-maintenance step.
+     * Reshapes the live route table into OpenAPI 3.0.
+     *
+     * @return array<string, mixed>
      */
-    /** @return array<string, mixed> */
     public static function generate_spec(): array {
         $server = rest_get_server();
         $routes = $server->get_routes();
@@ -152,19 +118,14 @@ class OUS_ApiDocs {
     }
 
     private static function route_namespace(string $route, \WP_REST_Server $server): string {
-        // WordPress doesn't expose a route's namespace directly on the
-        // route table itself — it's derivable from the registered
-        // namespace index, which get_namespaces() does expose.
+        // The route table has no namespace field; match against get_namespaces().
         foreach ($server->get_namespaces() as $ns) {
             if (strpos(ltrim($route, '/'), $ns) === 0) return $ns;
         }
         return '';
     }
 
-    // WP's (?P<id>[\d]+) regex placeholders become OpenAPI's {id} —
-    // good enough for a docs viewer's readability even though it drops
-    // the actual validation regex (the "parameters" schema type above
-    // is where real type info still lives).
+    // (?P<id>...) placeholders become {id}; the validation regex is dropped.
     private static function to_openapi_path(string $route): string {
         return preg_replace('/\(\?P<([^>]+)>[^)]*\)/', '{$1}', $route);
     }
@@ -180,9 +141,7 @@ class OUS_ApiDocs {
         BHY_UI::shell_close();
     }
 
-    // The actual body content, shared by both the standalone page
-    // (render()) and the Debug Tools section (render_debug_section(),
-    // the reliable primary path — see that method's own comment).
+    // Shared by the standalone page and the Debug Tools section.
     private static function render_content(): void {
         $spec = self::generate_spec();
 
@@ -196,14 +155,8 @@ class OUS_ApiDocs {
             return;
         }
 
-        // WP core's own stock colors for 'post' and 'put'/'patch' fail white-on-
-        // background contrast for the badge below (measured: #00a32a 3.35:1,
-        // #dba617 2.22:1, both need 4.5:1) -- found by a full styles-audit sweep
-        // of this admin screen, 45 identical POST-badge failures on one page
-        // alone since this ecosystem registers that many routes. 'get' (#2271b1,
-        // 5.17:1) and 'delete' (#d63638, 4.73:1) already passed and are
-        // untouched. Darkened post/put to the nearest AA-passing shade of the
-        // same hue rather than picking arbitrary new colors.
+        // WHY: post/put are darkened from WP core's stock colours so white
+        // badge text meets 4.5:1.
         $method_colors = ['get' => '#2271b1', 'post' => '#007d14', 'put' => '#8e6c0f', 'delete' => '#d63638', 'patch' => '#8e6c0f'];
 
         $route_i = 0;

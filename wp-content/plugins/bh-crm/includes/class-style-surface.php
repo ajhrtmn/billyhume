@@ -2,52 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * 1.3.2 — direct response to a live screenshot showing the Design
- * Suite's canvas rendering an unrelated bh-contest demo page no matter
- * what CRM tree node was selected. Every OTHER plugin's own bhy_style_
- * surfaces registration (bh-contest/includes/class-style-surfaces.php,
- * bh-streaming/includes/class-style-surface.php, etc.) is a hand-
- * authored, hardcoded HTML mockup — genuinely fine for those, since
- * their real pages are outside wp-admin and can't be iframed directly.
- * This one is deliberately different: it renders the ACTUAL, LIVE
- * 'bh_crm_profile' surface's header/main/sidebar slots via BH_Element::
- * render_slot() — the exact same call class-people.php's real detail
- * page makes — so what you see in the canvas IS what you're building,
- * not a canned stand-in. Context id 0 is used (the tree/inspector's own
- * default surfaceContext for every surface until a real per-entity id
- * is picked — class-element-builder.php's own docblock), so this always
- * matches whatever the tree/inspector are showing by default.
- *
- * This is step one of DESIGN-SUITE-UNIFICATION-PLAN.md's "no special-
- * cased pages" direction (see that doc's own updated status note): a
- * real live-rendered page in the canvas, using the real slot data,
- * instead of a disconnected demo. It does NOT yet replace class-
- * people.php's own admin detail page with pure node-tree rendering —
- * that page still has its own fixed wp-admin chrome (identity header,
- * fields table, tags/notes editors, project tracker section) outside
- * BH_Element entirely, which is a separate, larger follow-up out of
- * scope here. What this DOES prove end-to-end: a slot's
- * content, once you add/style placements in it, shows up for real here
- * — no admin-only, no fabricated stand-in.
- *
- * DRY fix, the-self-hosted-self 3.4.48/3.4.50 QA pass: the-self-hosted-self's own
- * class-style-gallery.php later grew a GENERIC auto-story generator for
- * every registered BH_Element surface (BH_Element::render_surface_preview()),
- * keyed by each surface's REAL slug — but this file was still registering
- * its nicer, hand-styled version under a DIFFERENT key
- * ('bh-crm-profile-live'), so both ended up listed side by side in the
- * Live Views tab, showing near-duplicate content under two different
- * names. Fixed by registering under the surface's own real slug
- * ('bh_crm_profile') instead — class-style-gallery.php's auto-generator
- * explicitly skips creating a story for any key that already has a
- * hand-authored one, so this one nicer version now wins outright rather
- * than existing alongside a redundant plain fallback. This also means
- * this story's key now matches what the tree's own selection-sync
- * (element-builder.js's fireSelectionEvent()/'bhel:select-surface'
- * listener) actually looks for, so picking this Live View now correctly
- * selects the matching Surface node in the tree too — previously it
- * couldn't, since 'bh-crm-profile-live' was never a real surface slug
- * the tree recognized.
+ * Design Suite live view of the real 'bh_crm_profile' surface, rendered via BH_Element::render_slot() (context id 0).
+ * WHY: keyed by the surface's real slug, so the gallery's auto-story generator skips it and tree selection-sync matches.
  */
 class BHCRM_StyleSurface {
     public static function init(): void {
@@ -59,7 +15,7 @@ class BHCRM_StyleSurface {
      * @return array<string, mixed>
      */
     public static function register($surfaces): array {
-        if (!class_exists('BH_Element')) return $surfaces; // same guard every other BH_Element integration in this plugin uses
+        if (!class_exists('BH_Element')) return $surfaces;
         $surfaces['bh_crm_profile'] = [
             'group'  => 'CRM',
             'label'  => 'CRM profile page (live)',
@@ -69,15 +25,11 @@ class BHCRM_StyleSurface {
     }
 
     private static function css_url(): string {
-        return OUS_URL . 'assets/css/public-profile.css'; // real front-end profile styling (.bhi-profile*), not admin CSS — this is meant to look like the actual page, not the wp-admin detail view
+        return OUS_URL . 'assets/css/public-profile.css'; // front-end profile styling, so the preview looks like the public page
     }
 
     /** @return array{css_url:string, html:string|false} */
     public static function profile_preview(): array {
-        // 1.3.3 — updated for the single 'root' slot (register_element_
-        // surface()'s own docblock, "NO SPECIAL-CASED PAGES" Step 1) —
-        // was three separate render_slot() calls (header/main/sidebar),
-        // now one, matching the real page's own render_detail().
         $ctx = ['user_id' => 0];
         ob_start();
         ?>

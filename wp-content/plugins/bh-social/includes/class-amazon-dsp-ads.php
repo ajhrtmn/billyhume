@@ -2,30 +2,13 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Amazon DSP (advertising.amazon.com) — added in the same research
- * pass as Spotify/Samsung/Vizio. Amazon dropped its official self-serve
- * minimum spend in November 2025, but that's misleading in practice:
- * most practitioners report budgets under $5,000/month produce too
- * little delivery data for the platform's own optimization to work,
- * and $10-15k/month is the realistic floor for a usable campaign — a
- * different order of magnitude from Roku ($500) or Spotify ($250).
- * Included for completeness and honest budget signaling, not because
- * it's a realistic near-term fit for an independent artist's ad spend.
- *
- * Same API gap as the others in this file group: genuine DSP API
- * access exists but is gated to agencies/tool-providers with an
- * approved integration, not a plain self-serve REST endpoint a small
- * advertiser calls directly — draft-capture + handoff to Amazon's own
- * console, same shape as BHSO_RokuAds.
+ * Amazon DSP. API access is gated to approved integrators, so this captures
+ * drafts and hands off to Amazon's console, like BHSO_RokuAds.
  */
 class BHSO_AmazonDSP implements BH_AdsPlatform {
     const MANAGER_URL = 'https://advertising.amazon.com/solutions/products/amazon-dsp';
 
-    // Not a hard platform-enforced minimum (Amazon itself has none as
-    // of Nov 2025) — a soft, honestly-labeled warning threshold below
-    // which the campaign is very unlikely to gather enough delivery
-    // data to actually optimize, per the research this class's
-    // docblock cites.
+    // Soft warning threshold, not a platform minimum: below it campaigns rarely get enough delivery data.
     const PRACTICAL_MINIMUM_CENTS = 500000; // $5,000
 
     public function is_configured(): bool {
@@ -62,9 +45,7 @@ class BHSO_AmazonDSP implements BH_AdsPlatform {
         if (!$inserted) return new WP_Error('db_error', 'Could not save the draft — ' . $wpdb->last_error);
 
         $id = (int) $wpdb->insert_id;
-        // A soft warning, not a hard block — Amazon itself imposes no
-        // minimum, so rejecting the save would be dishonestly stricter
-        // than the platform actually is.
+        // Soft warning only; Amazon imposes no minimum.
         if ($data['budget_cents'] > 0 && $data['budget_cents'] < self::PRACTICAL_MINIMUM_CENTS) {
             return new WP_Error('below_practical_minimum', 'Draft saved (id ' . $id . '), but budgets under $5,000/month rarely generate enough delivery data for Amazon DSP to optimize — most practitioners recommend $10-15k/month as a realistic floor.', ['draft_id' => $id]);
         }

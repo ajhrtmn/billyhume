@@ -2,20 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Playlists — an ordered list of track IDs stored as post meta on a
- * bhs_playlist post, owned by whoever created it (post_author). Any
- * logged-in visitor can make one, not just the site admin — this is
- * listener-facing, not catalog management.
- *
- * Sharing: a playlist is private by default (_bhs_playlist_public unset)
- * — visible only to its owner. The owner can explicitly share it, which
- * generates a random, unguessable token (_bhs_playlist_share_token) and
- * flips it public; the token is what a share link actually uses, not
- * the raw numeric post ID, so a shared link can be revoked/rotated
- * (unshare, then share again) without that ever being confused with
- * "delete and recreate the playlist." /playlists/shared/{token} is the
- * one read-only, no-auth endpoint an unauthenticated recipient's
- * browser actually calls.
+ * Playlists: ordered track IDs in post meta on a bhs_playlist post owned by
+ * its creator. Private by default; sharing sets a random token used by the
+ * no-auth /playlists/shared/{token} endpoint, so links can be revoked
+ * independent of the post ID.
  */
 class BHS_Playlists {
     public static function register_routes(): void {
@@ -67,10 +57,8 @@ class BHS_Playlists {
         return new WP_REST_Response(['success' => true, 'playlists' => array_map(function ($p) { return self::payload($p, true); }, $posts)], 200);
     }
 
-    // Public-by-ID lookup, but only actually returns anything if the
-    // playlist is either shared (is_public) or the requester happens to
-    // be its own owner — a private playlist's numeric ID being
-    // guessable must not leak its contents.
+    // Returns only shared playlists or the requester's own, so a guessable
+    // ID never leaks a private playlist.
     /** @return \WP_REST_Response|\WP_Error */
     public static function get_one(\WP_REST_Request $req) {
         $post = get_post((int) $req->get_param('id'));
@@ -85,9 +73,7 @@ class BHS_Playlists {
         return new WP_REST_Response(['success' => true, 'playlist' => self::payload($post, $is_owner)], 200);
     }
 
-    // The actual link a recipient's browser hits — token-keyed rather
-    // than ID-keyed so it can be revoked (unshare, re-share) independent
-    // of the playlist's own identity.
+    // Token-keyed so a share can be revoked independent of the playlist ID.
     /** @return \WP_REST_Response|\WP_Error */
     public static function get_shared(\WP_REST_Request $req) {
         global $wpdb;
@@ -145,12 +131,8 @@ class BHS_Playlists {
         return new WP_REST_Response(['success' => true, 'playlist' => self::payload(get_post($playlist_id), true)], 200);
     }
 
-    // Flips back to private. Deliberately does NOT clear the stored
-    // token — re-sharing later reuses it. A site that wants a link to
-    // stop working PERMANENTLY (not just "until re-shared") should
-    // delete the meta directly; the common case here is "I made this
-    // public by accident, take it back down," where reusing the same
-    // token on the next share is the least surprising behavior.
+    // Back to private. The token is kept, so re-sharing reuses the same link;
+    // delete the meta to kill a link permanently.
     /** @return \WP_REST_Response|\WP_Error */
     public static function unshare(\WP_REST_Request $req) {
         $playlist_id = (int) $req->get_param('id');

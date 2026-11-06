@@ -1,14 +1,7 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/**
- * BH_WooCommerceProvider — the real, working implementation of
- * BH_CommerceProvider. Every method here is a pure move of what used to
- * live directly inside BH_Commerce's own method bodies (class-commerce.php,
- * before the provider-registry refactor) — same logic, byte-for-byte,
- * just relocated so BH_Commerce can dispatch to it instead of being it.
- * See BH_CommerceProvider's own docblock for the full reasoning.
- */
+/** WooCommerce implementation of BH_CommerceProvider. */
 class BH_WooCommerceProvider implements BH_CommerceProvider {
     public function available(): bool {
         return class_exists('WooCommerce');

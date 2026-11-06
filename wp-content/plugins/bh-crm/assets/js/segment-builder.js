@@ -1,27 +1,8 @@
 "use strict";
 /**
- * segment-builder.ts — ROADMAP-ux-polish-and-feature-parity-2026-07.md
- * Section 3: saved smart lists. Repeatable condition rows (field +
- * value) inside the "+ Build a new list" <details> panel
- * (class-people.php's render_segments_panel()). No build step at
- * runtime — TypeScript pilot (bh-crm's first), same posture as
- * the-self-hosted-self/assets/ts/*.ts: plain `tsc`, compiled to assets/js/
- * segment-builder.js, which is what's actually enqueued via
- * wp_enqueue_script(). Run `npm run build:bh-crm` after editing.
- * bhcrmSegmentFields (wp_localize_script) is BHCRM_Segments::FIELDS —
- * the same closed condition-type list the PHP side validates against,
- * so the picker can never offer something the server would reject.
- *
- * The live "N of M people match" preview (the-self-hosted-self 3.10+) is now
- * handled declaratively by Datastar attributes on #bhcrm-segment-
- * conditions (data-on:input/data-on:change, class-people.php's
- * render_segments_panel()) — this file only builds/removes condition
- * rows. Datastar's own event listeners pick up newly-inserted rows via
- * ordinary event bubbling, so addRow() needs no Datastar-specific code
- * at all. render_segments_panel() falls back to the OLD plain-fetch
- * preview markup (#bhcrm-segment-preview) on an the-self-hosted-self core older
- * than 3.10 (no OUS_Hypermedia) — that fallback is handled below by
- * simply checking whether that element exists.
+ * Repeatable segment condition rows (BHCRM_People::render_segments_panel()).
+ * bhcrmSegmentFields is BHCRM_Segments::FIELDS, the same list the server validates against.
+ * The live match count is Datastar-driven when available; otherwise the #bhcrm-segment-preview fetch fallback below runs.
  */
 (function () {
     'use strict';
@@ -38,7 +19,7 @@
         var previewTimer = null;
         function schedulePreview() {
             if (!previewEl)
-                return; // Datastar markup: nothing to do, its own data-on attributes already fire on the same bubbled events
+                return; // Datastar markup handles the preview itself
             if (previewTimer)
                 clearTimeout(previewTimer);
             previewTimer = setTimeout(runPreview, 350);
@@ -91,8 +72,7 @@
             function renderValueInput() {
                 valueWrap.innerHTML = '';
                 if (select.value === 'has_project') {
-                    // No value needed — "has a project" is true/false by
-                    // its own existence as a condition row.
+                    // has_project needs no value.
                     var hidden = document.createElement('input');
                     hidden.type = 'hidden';
                     hidden.name = 'conditions[' + i + '][value]';
@@ -131,6 +111,6 @@
             container.appendChild(row);
         }
         addBtn.addEventListener('click', addRow);
-        addRow(); // start with one condition row — an empty builder with zero rows is a dead end
+        addRow(); // start with one row
     });
 })();

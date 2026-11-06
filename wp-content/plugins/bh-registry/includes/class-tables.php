@@ -1,10 +1,7 @@
 <?php
 /**
- * Physical table names for this plugin — the only place they are written.
- *
- * Named accessors rather than a generic get($key): a mistyped method is a
- * fatal, where a mistyped key would degrade into a query against a table
- * that doesn't exist.
+ * Physical table names for this plugin, the only place they are written.
+ * WHY named accessors: a mistyped method is a fatal, a mistyped key would query a missing table.
  *
  * @package BH_Registry
  */

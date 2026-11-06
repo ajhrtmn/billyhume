@@ -2,26 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Self-serves THIS site's own domain-ownership proof file at
- * https://{this-host}/.well-known/bh-registry-verify.txt via a WP
- * rewrite rule, so submitting this site's own feed to ANOTHER site's
- * registry doesn't require raw filesystem/SSH access outside
- * wp-content — confirmed genuinely unavailable this session on a real
- * Wasmer-hosted production install (wp-admin-only access), and a real
- * blocker on plenty of ordinary shared hosting too.
- *
- * This is NOT the same token as the per-submission challenge
- * BHR_Verification::check_domain_ownership() asks OTHER sites'
- * submitters to publish on THEIR OWN domains — that mechanism is
- * completely unchanged and still just an HTTP GET against whatever
- * host a submission claims. This class only changes what answers that
- * GET on THIS site, for when THIS site is the one submitting itself
- * elsewhere.
- *
- * A real static file at the same path still wins if one exists —
- * ordinary Apache/Nginx rewrite rules only engage for paths that don't
- * already resolve to a real file, so an admin who CAN drop a real file
- * loses nothing by this also existing.
+ * Serves this site's /.well-known/bh-registry-verify.txt via a rewrite rule, so proving ownership
+ * needs no filesystem access. A real static file at that path still wins.
  */
 class BHR_WellKnown {
     const REWRITE_PATTERN = '^\.well-known/bh-registry-verify\.txt$';
@@ -32,15 +14,8 @@ class BHR_WellKnown {
     public static function init(): void {
         add_action('init', [self::class, 'add_rewrite'], 20);
         add_filter('query_vars', [self::class, 'add_query_var']);
-        // Priority 0, plus the canonical-redirect suppressor below:
-        // WordPress was 301-ing this to a trailing-slash URL. Fetching
-        // clients that don't follow redirects (a perfectly reasonable
-        // posture for a security check) would see the redirect instead
-        // of the token and conclude domain ownership had failed. Our
-        // own checker passes 'redirection' => 2 so it coped, but
-        // relying on every other implementation to follow a redirect
-        // on a proof-of-control file is exactly the kind of fragility
-        // worth removing.
+        // WHY: priority 0 plus the canonical-redirect suppressor; checkers that don't follow a
+        // trailing-slash 301 would otherwise see no token.
         add_action('template_redirect', [self::class, 'maybe_serve'], 0);
         add_filter('redirect_canonical', [self::class, 'suppress_canonical_redirect'], 10, 2);
     }
@@ -88,22 +63,8 @@ class BHR_WellKnown {
     }
 
     /**
-     * Every token this file legitimately proves, one per line —
-     * check_domain_ownership() already matches line-by-line, so a list
-     * works exactly like a single value did.
-     *
-     * Contents: this site's own outbound identity token, PLUS the
-     * challenge token of any link in our own registry whose URL points
-     * at THIS host. That second part is what makes self-registration
-     * automatic: a site submitting its own feed to its own registry
-     * would otherwise be handed a challenge token it had no way to
-     * publish, and could never verify itself.
-     *
-     * Not a hole in the trust model: we only ever auto-publish tokens
-     * for URLs on our own domain, which is precisely the thing this
-     * file exists to prove we control. A token for someone ELSE's
-     * domain is never served here, and a remote artist still has to
-     * publish their own token on their own domain exactly as before.
+     * Tokens served one per line: this site's identity token plus challenge tokens of local links on THIS host.
+     * WHY: only tokens for our own domain are ever served, so self-registration can't vouch for anyone else.
      *
      * @return array<int, string>
      */
@@ -128,11 +89,7 @@ class BHR_WellKnown {
         return array_values(array_unique(array_filter($tokens)));
     }
 
-    /**
-     * This site's own outbound identity token — generated once on
-     * first read, admin-visible/regenerable from the Registry
-     * Submissions screen (see BHR_Admin's "This Site's Identity" box).
-     */
+    /** This site's outbound identity token, generated on first read (regenerable in BHR_Admin). */
     public static function token(): string {
         $token = get_option(self::TOKEN_OPTION, '');
         if (!$token && class_exists('BHR_Verification')) {

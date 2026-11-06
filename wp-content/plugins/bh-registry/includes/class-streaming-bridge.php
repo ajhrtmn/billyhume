@@ -2,32 +2,15 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Entirely optional, entirely one-directional convenience: IF
- * bh-streaming happens to be active on this same site, add a "Feature
- * an artist from the Registry" helper on its Feed Sources screen so an
- * admin can search this registry and prefill a bhs_feed_source's feed
- * URL from GET /bhr/v1/artists/{id}/feed-url, instead of copy-pasting a
- * URL by hand between two admin screens.
- *
- * bh-registry never requires bh-streaming — this whole class only does
- * anything if BHS_Player already exists, checked on plugins_loaded (see
- * bh-registry.php), the same rule every cross-plugin check in this
- * ecosystem follows. Delete bh-streaming, and this plugin (browsing,
- * search, submission, verification) is completely unaffected.
+ * Optional bh-streaming integration: search/browse the registry from Feed Sources and add an artist's feed.
+ * WHY: only active when BHS_Player exists (checked on plugins_loaded); bh-registry never requires bh-streaming.
  */
 class BHR_StreamingBridge {
     public static function init(): void {
         if (!class_exists('BHS_Player')) return;
         add_action('add_meta_boxes', [self::class, 'add_meta_box']);
 
-        // Real gap found in a direct vision check (2026-08-21): the
-        // meta-box above is search-only — an admin has to already know
-        // an artist's name. Being registered never surfaced anyone
-        // automatically, only made them findable if searched for. This
-        // is the actual "browse the global library and curate from it"
-        // experience — one click adds a registry artist as a real
-        // bhs_feed_source and triggers an immediate sync, rather than
-        // making the admin hand-create a post and copy a URL in first.
+        // Browse-all library: one click adds a registry artist as a bhs_feed_source and syncs it.
         if (class_exists('BHS_Feeds')) {
             add_action('admin_menu', [self::class, 'add_browse_page']);
             add_action('admin_post_bhr_add_from_registry', [self::class, 'handle_add_from_registry']);
@@ -115,7 +98,7 @@ class BHR_StreamingBridge {
         <?php
     }
 
-    /* ---------- browse-all library (2026-08-21) ---------- */
+    /* ---------- browse-all library ---------- */
 
     public static function add_browse_page(): void {
         add_submenu_page(
@@ -124,9 +107,7 @@ class BHR_StreamingBridge {
         );
     }
 
-    // Every feed URL already in this site's own library, so the browse
-    // grid can show "Already added" instead of inviting a duplicate
-    // bhs_feed_source for the same artist.
+    // Feed URLs already in the library, so the grid shows "Already added" instead of a duplicate.
     /** @return array<string, bool> feed URL => true */
     private static function existing_feed_urls(): array {
         $sources = get_posts(['post_type' => 'bhs_feed_source', 'post_status' => 'publish', 'posts_per_page' => -1, 'fields' => 'ids']);
@@ -138,10 +119,7 @@ class BHR_StreamingBridge {
         return $out;
     }
 
-    // Internal REST dispatch (WordPress core's own rest_do_request()) —
-    // reuses BHR_API::list_artists()'s real query/verification logic
-    // exactly as the public endpoint does, rather than duplicating the
-    // SQL here. No network round-trip; this is a same-process call.
+    // In-process rest_do_request() so the public endpoint's query logic is reused, not duplicated.
     /** @return array<int, array<string, mixed>> */
     private static function browse_artists(): array {
         $req = new WP_REST_Request('GET', '/bhr/v1/artists');
@@ -218,9 +196,7 @@ class BHR_StreamingBridge {
 
         if (!is_wp_error($post_id)) {
             update_post_meta($post_id, '_bhs_feed_url', esc_url_raw($feed_url));
-            // The real, immediate sync — same public entry point the
-            // twice-daily cron and OUS_Jobs fan-out both already use
-            // (class-feeds.php), not a duplicated fetch/parse here.
+            // Same sync entry point the cron uses.
             if (class_exists('BHS_Feeds')) BHS_Feeds::sync_one_job(['feed_id' => $post_id]);
         }
 

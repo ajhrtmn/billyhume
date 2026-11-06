@@ -2,73 +2,16 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BHCRM_Subtasks — a real, dedicated nested-tracking view for a sticky
- * card's sub-tasks, replacing Content Studio for this purpose entirely.
- * Content Studio is a generic WordPress block-editor canvas with no
- * board/column concept and no rollup display — a mismatch for "track
- * progress on nested boards," which is what this class actually builds.
+ * Nested kanban view for a sticky card's sub-tasks: every tree level renders as a full board.
  *
- * REAL KANBAN AT EVERY LEVEL, not a flat checklist. Every level of a
- * card's sub-task tree renders as a full multi-column board (drag
- * between columns, per-
- * column add), reusing the exact same visual/interaction language as
- * the top-level project board (kanban-board.css/.js) rather than
- * inventing a second look. All levels share ONE column vocabulary —
- * the parent project's own columns_config
- * (BHCRM_Projects::get($project_id)['columns_config']) — not a
- * separately configurable column set per nesting level; that's a
- * deliberate scoping choice (one shared set of stages for the whole
- * project, matching how the top-level board's own columns already
- * work), not an oversight.
- *
- * NO STALLED-CARD BADGE here, unlike the top-level board (audit
- * question, 2026-07-25 — resolving it rather than leaving it silent):
- * stall detection (class-projects.php's stalled_cards_for_board())
- * keys off the PROJECT row's own updated_at column, but a sub-card is a
- * 'bhcrm/sub-card' block attrs entry (title/notes/done/column/uid) with
- * no per-node timestamp at all in its schema — there is currently no
- * data this level of nesting could even compute staleness FROM, not a
- * deliberate feature cut. Adding a real 'updated_at' attr to sub-cards
- * (bumped on save_field()/handle_reorder()) would be the actual
- * prerequisite before a nested stalled-card badge could exist.
- *
- * DATA MODEL: unchanged from class-projects.php's own docblock — a
- * sticky card's sub-tasks are a BH_Content tree of 'bhcrm/sub-card'
- * blocks (title/notes/done/column), stored at ('bh_element',
- * $card['content_context_id']). This class adds two new schema attrs
- * to that block type: 'uid' (a short random string, assigned once at
- * creation — the stable per-node identifier a BH_Content tree
- * otherwise lacks entirely) and 'column' (which of the project's
- * columns this node currently sits in). See
- * BHCRM_Projects::register_content_block_type() for the schema itself.
- *
- * NAVIGATION: a $path (array of uids from the card's own root down to
- * the currently-viewed node) drives which level of the tree is shown.
- * Carried as a comma-joined 'subtask_path' query arg. A real
- * breadcrumb (render_breadcrumb()) shows the full chain back to the
- * card itself, collapsing past BREADCRUMB_COLLAPSE_AT segments so it
- * never grows unbounded sideways.
- *
- * PROGRESS ROLLUP: reuses BHCRM_Projects::rollup_counts() exactly —
- * that method already walks a raw tree counting done/total
- * recursively regardless of which column a node sits in; this class
- * just calls it at whatever depth is currently being viewed, so "the
- * parent's progress = aggregate of its children" is true at EVERY
- * level.
- *
- * SCOPING NOTE, disclosed rather than silently half-built: linking a
- * sub-task to people/things is not yet supported. A sub-task has no
- * stable INTEGER id of its own (BHCRM_Links' from_id/to_id columns
- * are bigint, and a BH_Content tree node's only stable identifier is
- * the string 'uid' this class adds) — bridging
- * that cleanly is a real, separate design decision left for a
- * follow-up. Notes (freeform detail) are fully supported today via
- * the block's own existing 'notes' attr.
+ * - Sub-tasks are 'bhcrm/sub-card' nodes in the card's BH_Content tree ('bh_element', content_context_id),
+ *   each with a stable 'uid' attr; all levels share the project's columns_config.
+ * - The viewed level is a uid path, carried as the comma-joined 'subtask_path' query arg.
+ * - Sub-cards have no timestamps, so there is no stalled badge here; they can't be linked via
+ *   BHCRM_Links either (its ids are integers, a node only has a string uid).
  */
 class BHCRM_Subtasks {
-    // A quiet heads-up once a card's WHOLE tree (every level, every
-    // column) gets big enough that it's probably time to split into a
-    // separate project — never a hard limit, there is no max depth.
+    // Soft warning when a card's whole tree is big enough to be its own project; not a limit.
     const SIZE_WARNING_THRESHOLD = 50;
     // Past this many breadcrumb segments the middle collapses to "…".
     const BREADCRUMB_COLLAPSE_AT = 5;
@@ -83,13 +26,9 @@ class BHCRM_Subtasks {
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
     }
 
-    /** Only on this exact view (?page=bh-crm&project_id=&card_id=) — same gate posture BHCRM_Projects::maybe_enqueue() already uses. */
+    /** Only on ?page=bh-crm&card_id=. Reuses the top-level board's stylesheet. */
     public static function maybe_enqueue(string $hook): void {
         if (empty($_GET['page']) || $_GET['page'] !== 'bh-crm' || empty($_GET['card_id'])) return;
-        // Reuses the top-level board's own stylesheet — same
-        // .bhcrm-kanban-* classes, so a sub-task board looks and
-        // behaves identically to the project board, not a second
-        // visual language.
         wp_enqueue_style('bhcrm-kanban-board', BHCRM_URL . 'assets/css/kanban-board.css', [], BHCRM_VER);
         wp_enqueue_script('sortablejs', BHCRM_URL . 'assets/js/vendor/sortable.min.js', [], '1.15.6', true);
         wp_enqueue_script('bhcrm-subtasks', BHCRM_URL . 'assets/js/subtasks.js', ['sortablejs'], BHCRM_VER, true);
@@ -110,7 +49,7 @@ class BHCRM_Subtasks {
         return implode(',', $path);
     }
 
-    /** The project's own column vocabulary — shared by every nesting level (see class docblock). */
+    /** The project's columns, shared by every nesting level. */
     /** @return array<int, string> */
     private static function project_columns(int $project_id): array {
         $project = class_exists('BHCRM_Projects') ? BHCRM_Projects::get($project_id) : null;
@@ -118,12 +57,7 @@ class BHCRM_Subtasks {
         return $columns ?: (class_exists('BHCRM_Projects') ? BHCRM_Projects::DEFAULT_COLUMNS : ['To Do', 'In Progress', 'Review', 'Done']);
     }
 
-    /**
-     * Locates the node at $path within $tree (by uid chain) and
-     * returns a REFERENCE to it so the caller can mutate its
-     * 'children' array in place before the whole tree is re-saved as
-     * one document (BH_Content's own storage contract).
-     */
+    /** Returns a reference to the node at $path so callers can mutate it before re-saving the whole tree. */
     /**
      * @param array<int, array<string, mixed>> $tree
      * @param array<int, string> $path
@@ -160,15 +94,8 @@ class BHCRM_Subtasks {
     }
 
     /**
-     * Self-healing: assigns a real uid to any node whose 'uid' attr is
-     * missing/blank (seed/imported/migrated data can end up this way —
-     * every UI-created card gets one via wp_generate_password() in
-     * add_subtask(), but old bad data doesn't). Blank uids collide with
-     * each other as array keys wherever this class indexes children by
-     * uid (see handle_reorder()'s $by_uid), silently dropping siblings
-     * on the next save — fixing it here, before any handler reads the
-     * tree, means bad data self-heals on first touch instead of staying
-     * a live landmine.
+     * Assigns a uid to any node missing one.
+     * WHY: blank uids collide as array keys when children are indexed by uid, dropping siblings on save.
      */
     /** @param array<int, array<string, mixed>> $tree */
     private static function backfill_uids(array &$tree): bool {
@@ -186,7 +113,7 @@ class BHCRM_Subtasks {
         return $changed;
     }
 
-    /** Loads the card's tree and persists a uid backfill (see backfill_uids()) if one was needed. */
+    /** Loads the card's tree and persists a uid backfill if one was needed. */
     /** @return array<int, array<string, mixed>> */
     private static function load_tree(int $content_id): array {
         $tree = class_exists('BH_Content') ? BH_Content::get('bh_element', $content_id) : [];
@@ -198,23 +125,8 @@ class BHCRM_Subtasks {
     }
 
     /**
-     * Pure reorder core for handle_reorder() — rebuilds $children to
-     * match the posted $layout (a list of {uid, column} pairs) and
-     * flips 'done' for anything dropped into the last column. Split out
-     * from handle_reorder() itself so it's testable the same way as
-     * this class's other tree helpers, without needing a fake AJAX
-     * request/nonce.
-     *
-     * Blank-uid nodes are kept OUT of the uid index rather than keyed
-     * by '' — load_tree() backfills real uids on read so this should
-     * never happen in practice, but if it ever does, indexing two
-     * blank-uid siblings under the same '' key would collide (the
-     * second overwrites the first) and then get silently unset once,
-     * permanently dropping the other sibling on this save. Blank-uid
-     * nodes can't be addressed by the posted layout anyway, so they
-     * just ride along unchanged at the end rather than risk deletion.
-     *
-     * Returns [$reordered_children, $state_changed].
+     * Rebuilds $children to match the posted {uid, column} layout; marks done anything dropped in the last column.
+     * Nodes missing from the layout, and blank-uid nodes (never keyed by ''), are appended rather than dropped.
      */
     /**
      * @param array<int, array<string, mixed>> $children
@@ -234,17 +146,11 @@ class BHCRM_Subtasks {
             $by_uid[$node_uid] = $node;
         }
 
-        // Last column in the project's own list is treated as "done"
-        // — same convention Track-It (and every other kanban tool)
-        // uses, and matches this project's own DEFAULT_COLUMNS ending
-        // in 'Done'. Deliberately one-directional — dropping INTO the
-        // done column marks it done; dragging back
-        // OUT does not un-mark it, so reorganizing columns can never
-        // silently erase a completion someone set on purpose.
+        // WHY: one-directional — dropping into the last column marks done; dragging out never un-marks.
         $done_column = end($columns);
 
         $reordered = [];
-        $state_changed = false; // did any card's done-ness flip? — see below.
+        $state_changed = false; // did any card's done-ness flip?
         foreach ($layout as $entry) {
             $node_uid = sanitize_text_field($entry['uid'] ?? '');
             $column = sanitize_text_field($entry['column'] ?? '');
@@ -277,11 +183,7 @@ class BHCRM_Subtasks {
         return $count;
     }
 
-    /**
-     * QA fix: a placement's decoded 'config' isn't a flat {title: 'x'}
-     * map — BH_Element stores each attr as {literal: 'x'} (or
-     * {source: ...} for a bound value).
-     */
+    /** WHY: BH_Element stores each attr as {literal: 'x'} (or {source: ...}), not a flat value. */
     /** @param array<string, mixed> $card */
     private static function card_title(array $card): string {
         return (string) ($card['config']['attrs']['title']['literal'] ?? '');
@@ -331,9 +233,7 @@ class BHCRM_Subtasks {
             self::render_progress_bar($done_count, $total_count);
         }
 
-        // Phase B — fixes/feedback belong to the CARD itself, not to
-        // any one sub-task node, so these only render at the root of
-        // its tree ($path empty), never on a nested sub-task level.
+        // The card log belongs to the card, so it only renders at the tree root.
         if (!$path && class_exists('BHCRM_CardLog')) {
             BHCRM_CardLog::render($project_id, $uid, $card_id);
         }
@@ -342,14 +242,7 @@ class BHCRM_Subtasks {
         self::render_bulk_add_form($project_id, $uid, $card_id, $path, $columns);
     }
 
-    /**
-     * A real visual progress bar, replacing the previous plain "X/Y
-     * done" text with a filled bar plus the
-     * same count, both driven by the exact same recursive
-     * BHCRM_Projects::rollup_counts() this class already used for the
-     * text-only version. $mini renders a smaller variant sized for
-     * inside a card rather than across the top of a whole board.
-     */
+    /** Progress bar with done/total count; $mini is the in-card variant. */
     private static function render_progress_bar(int $done, int $total, bool $mini = false): void {
         if ($total <= 0) return;
         $pct = class_exists('BHCRM_Projects') ? BHCRM_Projects::progress_percent($done, $total) : (int) round(($done / $total) * 100);
@@ -360,12 +253,7 @@ class BHCRM_Subtasks {
            . '</div>';
     }
 
-    /**
-     * Full chain from the card itself down to the current $path — past
-     * BREADCRUMB_COLLAPSE_AT segments the middle collapses to a single
-     * "…" (itself a link back to the first collapsed level, not a dead
-     * end).
-     */
+    /** Breadcrumb from the card down to $path; long chains collapse the middle to a linked "…". */
     /**
      * @param array<string, mixed> $card
      * @param array<int, array<string, mixed>> $tree
@@ -399,7 +287,7 @@ class BHCRM_Subtasks {
         echo '<p class="description">' . implode(' &rsaquo; ', $html_crumbs) . '</p>';
     }
 
-    /** The board itself — one column per project column, cards grouped by their own 'column' attr, drag between columns via subtasks.js. */
+    /** One column per project column; drag handled by subtasks.js. */
     /**
      * @param array<int, string> $path
      * @param array<int, array<string, mixed>> $children
@@ -409,7 +297,7 @@ class BHCRM_Subtasks {
         $by_column = array_fill_keys($columns, []);
         foreach ($children as $node) {
             $col = $node['attrs']['column'] ?? '';
-            if (!isset($by_column[$col])) $col = $columns[0]; // unknown/blank column (e.g. pre-column-attr data) falls back to the first column rather than being silently dropped
+            if (!isset($by_column[$col])) $col = $columns[0]; // unknown/blank column falls back to the first, never dropped
             $by_column[$col][] = $node;
         }
 
@@ -425,11 +313,6 @@ class BHCRM_Subtasks {
             $cards_in_col = $by_column[$col];
             echo '<div class="bhcrm-kanban-column" data-column="' . esc_attr($col) . '">';
             echo '<div class="bhcrm-kanban-column-header">' . esc_html($col) . ' <span class="bhcrm-kanban-column-count">(' . count($cards_in_col) . ')</span>';
-            // Audit fix (2026-07-25): the drop-into-Done-autocompletes /
-            // drag-out-doesn't-un-complete convention (handle_reorder()'s
-            // own one-directional design) was previously only explained
-            // in code comments, invisible to whoever's actually using
-            // the board.
             if ($col === $done_column) {
                 echo ' <span class="bhcrm-kanban-column-hint" title="Dropping a card here marks it done. Dragging it back out does not un-mark it.">&#9432;</span>';
             }
@@ -461,10 +344,7 @@ class BHCRM_Subtasks {
         $base = self::base_url($project_id, $uid, $card_id);
         $child_path_str = self::path_to_string(array_merge($path, [$node_uid]));
 
-        // data-node-uid is what subtasks.js reads on drag-end (to
-        // report column/order) AND on title/description edit (to know
-        // which node a fetch-based save call is for) — the one stable
-        // handle this whole feature is built on.
+        // subtasks.js reads data-node-uid for both reorder and inline-edit saves.
         echo '<div class="bhcrm-kanban-card' . ($done ? ' is-done' : '') . '" data-node-uid="' . esc_attr($node_uid) . '">';
         echo '<div class="bhcrm-kanban-card-drag-handle" title="Drag to reorder or move columns">&#8942;&#8942;</div>';
 
@@ -478,36 +358,21 @@ class BHCRM_Subtasks {
         wp_nonce_field('bhcrm_subtask_' . $node_uid);
         echo '<button type="submit" class="button button-small" title="Toggle done" style="padding:0 4px;min-height:auto;line-height:1.6;">' . ($done ? '&#9745;' : '&#9744;') . '</button>';
         echo '</form>';
-        // Inline-editable title, matching the top-level board's own live-editable card title
-        // (kanban-board.js's renderCard()) exactly rather than a
-        // separate collapsed edit form. Saves on blur/Enter via
-        // fetch(), no page reload — subtasks.js wires the change event.
+        // Saved on change via fetch() by subtasks.js.
         echo '<input type="text" class="bhcrm-subtask-title-input' . ($done ? ' is-done' : '') . '" value="' . esc_attr($title) . '">';
         echo '</div>';
 
         if ($child_total > 0) self::render_progress_bar($child_done, $child_total, true);
 
-        // Description field — the block's existing 'notes' attr, just always visible
-        // and directly editable now instead of hidden behind a
-        // collapsed "Edit" toggle.
+        // The block's 'notes' attr.
         echo '<textarea class="bhcrm-subtask-desc-input" rows="2" placeholder="Add a description…">' . esc_textarea(wp_strip_all_tags($notes)) . '</textarea>';
         echo '<span class="bhcrm-subtask-save-status description"></span>';
 
         echo '<div class="bhcrm-kanban-card-actions">';
-        // Audit fix (2026-07-25): "Open board ->" gave no signal of
-        // whether there was anything inside before clicking — the "(0)"
-        // vs "(N)" the progress bar above already implies when total > 0
-        // now shows explicitly here too, including the 0 case it didn't
-        // cover, so a user isn't drilling into empty boards blind.
         echo '<a class="button button-small" href="' . esc_url($base . '&subtask_path=' . urlencode($child_path_str)) . '">Open board (' . (int) $child_total . ') &rarr;</a>';
 
         $delete_url = wp_nonce_url($base . '&subtask_path=' . urlencode(self::path_to_string($path)), 'bhcrm_subtask_delete_' . $node_uid);
-        // Audit fix (2026-07-25): replaced the native confirm() with the
-        // same arm/disarm double-click pattern the top-level board uses
-        // (kanban-board.js) — a native confirm() is explicitly banned
-        // elsewhere in this codebase (blocking dialog, worse UX, a known
-        // hazard for automated QA tooling); this brings the nested board
-        // in line instead of being the one inconsistent place left.
+        // Two-click arm/confirm handled in subtasks.js; no native confirm().
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="bhcrm-subtask-delete-form" style="display:inline;">';
         echo '<input type="hidden" name="action" value="bhcrm_subtask_delete">';
         echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '"><input type="hidden" name="user_id" value="' . (int) $uid . '"><input type="hidden" name="card_id" value="' . (int) $card_id . '">';
@@ -534,11 +399,7 @@ class BHCRM_Subtasks {
         echo '</form>';
     }
 
-    /**
-     * Bulk add — a "one per line" textarea, all landing in one chosen
-     * column, matching the pattern already used elsewhere in this
-     * codebase (segment conditions, project columns).
-     */
+    /** Bulk add: one title per line, all into one chosen column. */
     /**
      * @param array<int, string> $path
      * @param array<int, string> $columns
@@ -638,21 +499,8 @@ class BHCRM_Subtasks {
     }
 
     /**
-     * Cross-column drag-reorder — called via fetch() from subtasks.js
-     * after a SortableJS drop, NOT a plain form (this view can render
-     * inside admin contexts where a nested &lt;form&gt; silently breaks
-     * — see bh-contest's reject-form bug this same session for the
-     * exact failure mode). Takes 'layout', a JSON array of
-     * {uid, column} pairs covering every card currently on the board,
-     * in final on-screen order (column loop, then per-column DOM
-     * order — same reconstruction kanban-board.js's own
-     * reorderFromDom() uses for the top-level board), and rebuilds
-     * this level's children array to match: each node's 'column' attr
-     * is set from the posted layout, and array order follows it too.
-     * Any uid NOT present in the posted layout (shouldn't normally
-     * happen — the client posts every visible card — but guards a
-     * stale/partial request racing a concurrent add()) is appended at
-     * the end rather than silently dropped.
+     * Drag-reorder via fetch() from subtasks.js. 'layout' is a JSON array of {uid, column}
+     * for every card in on-screen order; see apply_reorder().
      */
     public static function handle_reorder(): void {
         check_ajax_referer('bhcrm_subtask_reorder', 'nonce');
@@ -675,12 +523,7 @@ class BHCRM_Subtasks {
 
         BH_Content::save('bh_element', $content_id, $tree);
 
-        // 'state_changed' tells the client whether a card just got
-        // auto-completed by this drop — the only case that affects
-        // anything OUTSIDE this board (every ancestor card's own
-        // recursive progress bar, elsewhere on the page). Plain
-        // reordering within/between non-done columns doesn't need a
-        // full-page reload to reflect correctly — see subtasks.js.
+        // state_changed = a card was auto-completed, so the client reloads to refresh ancestor progress.
         wp_send_json_success(['state_changed' => $state_changed]);
     }
 
@@ -704,14 +547,7 @@ class BHCRM_Subtasks {
         self::redirect_back($project_id, $uid, $card_id, $path);
     }
 
-    /**
-     * Fetch-based, not a page-reload form — AJAX-style save for the
-     * inline-editable title/description fields. Same shared per-page nonce
-     * handle_reorder() already uses (localized once as cfg.nonce,
-     * covering every JS-driven mutation on this view) rather than a
-     * per-node nonce field, since there's no real `<form>` submitting
-     * this anymore.
-     */
+    /** Fetch-based save for inline title/notes edits; shares the per-page reorder nonce. */
     public static function handle_save(): void {
         check_ajax_referer('bhcrm_subtask_reorder', 'nonce');
         $project_id = (int) ($_POST['project_id'] ?? 0);

@@ -2,25 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The free, engine-agnostic BHL_Chat implementation — same proven
- * 2-4s-interval client polling pattern as bh-streaming's own
- * class-jam.php (chosen there, and here, specifically because it
- * "runs on ordinary shared hosting," per Jam's own docblock), rather
- * than anything requiring its own always-on process. Unlike Owncast's
- * bundled chat (tied to that one server) or BHL_WorkersChat (needs a
- * paid Cloudflare plan), this needs zero external dependency at all —
- * available regardless of which video engine is active, and the
- * default chat for the 'cloudflare' engine key specifically because
- * Cloudflare Stream Live has no chat of its own.
- *
- * Messages are scoped to a bhl_stream post id, so a broadcast's chat
- * history stays attached to that specific stream rather than one
- * global firehose. Moderation mirrors Jam's own kick mechanism
- * exactly: a transient-based block, not a permanent ban record — same
- * "cheap, good-enough, no new schema" call Jam already made.
+ * Free, engine-agnostic chat using client polling (works on shared hosting).
+ * Messages are scoped to a bhl_stream post; muting is a self-expiring transient.
  */
 class BHL_PollingChat implements BHL_Chat {
-    const MUTE_SECONDS = 600; // 10 minutes, same order of magnitude as Jam's KICK_REJOIN_BLOCK_SECONDS
+    const MUTE_SECONDS = 600;
 
     public static function init(): void {
         add_action('rest_api_init', [self::class, 'register_routes']);
@@ -44,16 +30,9 @@ class BHL_PollingChat implements BHL_Chat {
         ]);
         register_rest_route('bhl/v1', '/chat/(?P<stream_id>\d+)/mute', [
             'methods' => 'POST', 'callback' => [self::class, 'mute_user'],
-            // Same capability this ecosystem already uses to gate
-            // moderation-adjacent actions elsewhere (comment moderation
-            // is the closest built-in WP equivalent to "can silence
-            // another user's public post") — not a bespoke new role.
             'permission_callback' => fn() => current_user_can('moderate_comments'),
         ]);
-        // ROADMAP-obs-integration.md Phase 3 — the automation bridge
-        // relays Twitch/YouTube chat here. Token-gated like Phase 2's
-        // /automation/events, not is_user_logged_in(): the bridge runs
-        // inside OBS's own embedded Chromium, no WP session to check.
+        // WHY: the OBS bridge relays Twitch/YouTube chat here with no WP session, so it's token-gated.
         register_rest_route('bhl/v1', '/chat/(?P<stream_id>\d+)/relay', [
             'methods' => 'POST', 'callback' => [self::class, 'relay_message'], 'permission_callback' => '__return_true',
         ]);
@@ -82,9 +61,7 @@ class BHL_PollingChat implements BHL_Chat {
                 $stream_id, $after_id
             ));
         } else {
-            // First fetch — most recent 50, then re-ordered oldest-first
-            // for display, same "show recent history, not the whole
-            // stream's chat since the beginning" convention any chat UI uses.
+            // First fetch: most recent 50, oldest-first.
             $rows = $wpdb->get_results($wpdb->prepare(
                 'SELECT id, user_id, display_name, message, source, created_at FROM ' . self::table() . ' WHERE stream_id = %d ORDER BY id DESC LIMIT 50',
                 $stream_id
@@ -127,9 +104,6 @@ class BHL_PollingChat implements BHL_Chat {
         return new WP_REST_Response(['success' => true, 'id' => (int) $wpdb->insert_id], 200);
     }
 
-    // Same transient-based block Jam's own kick() uses (class-jam.php)
-    // rather than a permanent ban record — cheap, good-enough, and
-    // self-expiring, matching Jam's own reasoning exactly.
     /** @return \WP_REST_Response|\WP_Error */
     public static function mute_user(\WP_REST_Request $req) {
         $target = (int) $req->get_param('target_user_id');
@@ -140,14 +114,7 @@ class BHL_PollingChat implements BHL_Chat {
 
     const RELAY_SOURCES = ['twitch', 'youtube'];
 
-    // Phase 3's own insertion point for externally-sourced chat — see
-    // register_routes()' own comment for why this is token-gated rather
-    // than the logged-in-user path post_message() uses. rate_limited()
-    // above keys off get_current_user_id(), meaningless for a relay
-    // with no WP user behind it, so this uses its own flat per-stream
-    // ceiling instead — bounds worst-case abuse if a bridge page/token
-    // is ever compromised, without needing per-external-user identity
-    // this ecosystem has no way to verify anyway.
+    // WHY: rate_limited() keys off the WP user, which a relay lacks, so a flat per-stream cap is used.
     /** @return \WP_REST_Response|\WP_Error */
     public static function relay_message(\WP_REST_Request $req) {
         $stream_id = (int) $req->get_param('stream_id');

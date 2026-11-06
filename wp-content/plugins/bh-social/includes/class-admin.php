@@ -2,20 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Dedicated settings screen (not folded into OUS_MediaWizard, unlike
- * bh-live's engine setup) — social/marketing integrations are a
- * distinct concern from storage/CDN/media setup, and each platform
- * needs its own OAuth-app credentials a media wizard step has no
- * natural place for.
- *
- * Organic platforms (YouTube/Twitch/Meta/TikTok) each get explicit,
- * named handlers — their credential shape and post-connect actions
- * differ enough (YouTube: upload a video; Twitch: send a chat
- * announcement) that a generic handler would need per-platform
- * branching anyway. The five BH_AdsPlatform implementations, by
- * contrast, share one identical draft shape (name/budget/dates/
- * targeting notes), so THOSE go through one real generic,
- * platform-key-driven handler instead of five near-duplicates.
+ * BH Social settings screen. Organic platforms get named handlers (their
+ * actions differ); the ads platforms share one generic draft handler.
  */
 class BHSO_Admin {
     public static function init(): void {
@@ -65,10 +53,7 @@ class BHSO_Admin {
         add_menu_page('BH Social', 'BH Social', 'manage_options', 'bh-social', [self::class, 'render'], 'dashicons-share', 58);
     }
 
-    // ous-admin.css owns .ous-badge/.ous-badge-alpha etc. (the-self-hosted-self's
-    // class-dashboard.php only enqueues it on its OWN pages) — this
-    // page needs the same stylesheet for OUS_Badge::render() below to
-    // actually render styled, not just as plain unstyled text.
+    // OUS_Badge needs ous-admin.css, which core only enqueues on its own pages.
     public static function enqueue_assets(string $hook): void {
         if (strpos($hook, 'bh-social') === false) return;
         wp_enqueue_style('ous-admin', OUS_URL . 'assets/css/admin.css', [], OUS_VER);
@@ -246,10 +231,7 @@ class BHSO_Admin {
             'attachment_id'   => wp_unslash($_POST['attachment_id'] ?? 0),
         ]);
 
-        // BHSO_AmazonDSP intentionally returns a WP_Error even on a
-        // successful save, carrying draft_id in its error data, so a
-        // soft "this will underperform" warning can surface without
-        // blocking the save the way a hard validation failure does.
+        // BHSO_AmazonDSP returns a WP_Error carrying draft_id on a successful save to surface a soft warning.
         if (is_wp_error($result)) {
             $data = $result->get_error_data();
             $saved = is_array($data) && !empty($data['draft_id']);

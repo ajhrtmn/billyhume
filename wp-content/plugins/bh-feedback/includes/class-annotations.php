@@ -2,21 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Timestamped waveform annotations — the "third tier" ROADMAP-
- * feedback-and-courses-v2.md originally deferred, shipped 2026-08-26 as
- * a FEATURE of the existing 'detailed' tier rather than a new priced
- * tier (explicit decision — a 'detailed' review can now include
- * timestamp-anchored notes on the waveform, on top of the existing
- * plain-text review body, for the same price).
- *
- * Authorship rule (explicit decision): only the request's reviewer
- * (whoever's currently claimed it, per BHF_Queue) can drop a NEW
- * top-level marker — this is a paid, one-expert-giving-feedback
- * relationship, not an open comment thread. The submitter (post_author)
- * can reply under an existing marker once it exists, but can't start
- * new ones. A marker only makes sense once the review has actually
- * started, so the reviewer check reuses BHF_Queue's own "are you the
- * current reviewer of record" logic rather than duplicating it.
+ * Timestamped waveform annotations, part of the 'detailed' tier. Only the
+ * current reviewer (per BHF_Queue) may add top-level markers; the reviewer
+ * and the submitter may reply under an existing marker.
  */
 class BHF_Annotations {
     public static function init(): void {
@@ -70,9 +58,7 @@ class BHF_Annotations {
         $submitter_id = (int) get_post_field('post_author', $request_id);
 
         if ($parent_id === 0) {
-            // New top-level marker — reviewer of record only, and only
-            // while they actually hold the claim (matches BHF_Queue's
-            // own "who's allowed to act on this request right now").
+            // New top-level marker: reviewer of record, while holding the claim.
             if ($user_id !== $reviewer_id || $reviewer_id === 0) {
                 return new WP_Error('bhf_annotation_not_reviewer', 'Only the reviewer currently working on this request can add a new marker.');
             }
@@ -80,9 +66,7 @@ class BHF_Annotations {
                 return new WP_Error('bhf_annotation_bad_timestamp', 'A new marker needs a valid timestamp.');
             }
         } else {
-            // Reply — the reviewer of record or the original submitter,
-            // and only under a marker that genuinely belongs to this
-            // request (never let a reply attach to a stray/foreign id).
+            // Reply: reviewer or submitter, only under a marker of this request.
             $parent = $wpdb->get_row($wpdb->prepare(
                 "SELECT id FROM " . BHF_Tables::annotations() . " WHERE id = %d AND request_id = %d AND parent_id = 0",
                 $parent_id, $request_id
@@ -91,7 +75,7 @@ class BHF_Annotations {
             if ($user_id !== $reviewer_id && $user_id !== $submitter_id) {
                 return new WP_Error('bhf_annotation_not_allowed', 'Only the reviewer and the person who submitted this track can reply here.');
             }
-            $timestamp_seconds = null; // replies inherit the parent's timestamp for display, never store their own
+            $timestamp_seconds = null; // replies inherit the parent's timestamp
         }
 
         $ok = $wpdb->insert(BHF_Tables::annotations(), [
@@ -103,19 +87,12 @@ class BHF_Annotations {
         ]);
         if (!$ok) return new WP_Error('bhf_annotation_db_error', 'Could not save that note — try again.');
 
-        // Captured immediately, before anything else touches $wpdb —
-        // OUS_Notifications::notify() below does its own INSERT
-        // internally, which silently overwrites $wpdb->insert_id if
-        // read afterward (caught by this class's own real-DB
-        // verification: a reply's parent lookup failed with "marker no
-        // longer exists" because the id this method had returned for
-        // the marker was actually the notifications table's row id).
+        // WHY: read insert_id immediately; OUS_Notifications::notify() below
+        // does its own INSERT and overwrites $wpdb->insert_id.
         $new_id = (int) $wpdb->insert_id;
 
         if ($parent_id === 0 && class_exists('OUS_Notifications') && $submitter_id) {
-            // Notify on the FIRST marker of a review pass, not every one —
-            // a detailed review can drop a dozen markers; one notification
-            // for "feedback is coming in" is useful, a dozen pings isn't.
+            // Notify only on the first marker of a review pass, not each one.
             $marker_count = (int) $wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*) FROM " . BHF_Tables::annotations() . " WHERE request_id = %d AND parent_id = 0", $request_id
             ));

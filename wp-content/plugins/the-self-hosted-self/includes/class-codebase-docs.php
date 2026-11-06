@@ -1,47 +1,20 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
-// OUS_Debug::GROUP_REFERENCE (Debug Tools reorganization pass — see
-// class-debug.php's own docblock), filing this under "Reference &
-// Docs" instead of the default bucket. No other change.
-
 /**
- * Compiles the hand-written codebase curriculum (CODEBASE-WALKTHROUGH.md,
- * one directory above the plugins themselves) into an in-admin, browsable
- * reference — AND keeps its file:line references honest by fetching the
- * REAL, CURRENT contents of the referenced file live, on click, rather
- * than trusting a snippet that was pasted into the doc once and can go
- * stale the moment the underlying code changes.
- *
- * Deliberately does NOT duplicate OUS_ApiDocs' viewer or pull in a
- * Swagger-UI bundle — that page already generates real OpenAPI 3.0 live
- * from the route table and is linked from the top of this one, keeping
- * this ecosystem's existing "no external JS/CDN, no build step" viewer
- * convention intact rather than quietly replacing it. This class is
- * specifically the CODE-LEVEL walkthrough, not the endpoint reference.
- *
- * Same production lock as API Docs/Debug Tools (OUS_Debug::is_locked()) —
- * this is dev/reference tooling, not something a real visitor ever needs.
+ * Renders CODEBASE-WALKTHROUGH.md (plugins root) as a Debug Tools section,
+ * with every referenced file viewable live via AJAX so snippets never go
+ * stale. Endpoint reference lives in OUS_ApiDocs, not here.
  */
 class OUS_CodebaseDocs {
-    // Only files inside the plugins root are ever readable through the
-    // live-snippet endpoint below, and only these extensions — never
-    // wp-config.php, never anything outside this directory tree, no
-    // matter what a crafted request asks for.
+    // WHY: the snippet endpoint only reads these extensions, and only inside
+    // the plugins root.
     const ALLOWED_EXTENSIONS = ['php', 'md'];
 
     public static function init(): void {
-        // add_menu() (standalone admin.php?page=ous-codebase-docs page)
-        // is deliberately not hooked anymore — WordPress's own page-hook
-        // resolution fails for this specific standalone page
-        // (get_current_screen() resolves to the PARENT page's hook, not
-        // this one), denying access every time despite registration and
-        // capability both being correct. See VISION.md's "New dev/
-        // admin-only pages default to a Debug Tools SECTION" entry. The
-        // real, working access point is register_debug_section() below.
-        // add_menu() itself is left defined (not deleted) in case a
-        // future fix for the underlying WordPress issue re-enables it.
+        // add_menu() is deliberately not hooked: WP's page-hook resolution
+        // denies the standalone page. The Debug Tools section is the access
+        // point; add_menu() stays defined for a future re-enable.
         add_action('wp_ajax_ous_codebase_docs_snippet', [self::class, 'ajax_snippet']);
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
     }
@@ -60,26 +33,7 @@ class OUS_CodebaseDocs {
     }
 
     public static function add_menu(): void {
-        // Diagnostic: add_submenu_page() returns a real hook_suffix even
-        // when the current user lacks the registered capability — WP's
-        // actual access gate for that case is a separate internal check
-        // (current_user_can() re-evaluated when the page is requested),
-        // so a successful-looking registration log doesn't rule this out.
-        // The is_locked() gate around registration itself is removed —
-        // this and OUS_ApiDocs were the only two pages in the ecosystem
-        // that conditionally skipped their own add_submenu_page() call.
-        // Every other page (Debug Tools, Job Queue, every peer plugin's
-        // admin screens) registers unconditionally; is_locked() exists to
-        // gate destructive seed/reset actions, not a read-only viewer
-        // page's mere existence in the menu. The conditional registration
-        // path denied access even on requests where logging proved
-        // registration had succeeded and current_user_can('manage_options')
-        // was true — the conditional path itself, not a logic bug in
-        // is_locked(), was the problem. Registering unconditionally, like
-        // every other working page, removes that asymmetry. Un-throttled
-        // and includes the request URI so the entry is unambiguous in
-        // Console & Logs, not lost among every other admin page load
-        // also triggering this same admin_menu callback.
+        // Registers unconditionally and logs the hook suffix for diagnosis.
         $hook = add_submenu_page('ous-debug', 'Codebase Docs', 'Codebase Docs', 'manage_options', 'ous-codebase-docs', [self::class, 'render']);
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('info', 'add_submenu_page() for Codebase Docs returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'") . ' | current_user_can(manage_options): ' . (current_user_can('manage_options') ? 'TRUE' : 'FALSE'), [
@@ -90,7 +44,6 @@ class OUS_CodebaseDocs {
     }
 
     private static function plugins_root(): string|false {
-        // the-self-hosted-self/includes/class-codebase-docs.php -> .../plugins
         return realpath(OUS_PATH . '../');
     }
 
@@ -107,9 +60,7 @@ class OUS_CodebaseDocs {
         BHY_UI::shell_close();
     }
 
-    // The actual body content, shared by both the standalone page (render())
-    // and the Debug Tools section (render_section()) — factored out so
-    // neither wraps the other in a second, nested page shell.
+    // Shared by the standalone page and the Debug Tools section.
     private static function render_content(): void {
         echo '<p class="description">Looking for endpoint-by-endpoint API reference instead? <a href="#ous-section-api-docs">Open API Docs</a> (the section further down this page) — generated live from this site\'s own registered REST routes.</p>';
 
@@ -132,12 +83,8 @@ class OUS_CodebaseDocs {
     /* ---------------- markdown -> HTML, deliberately small ---------------- */
 
     /**
-     * A purpose-built, minimal Markdown renderer — not a general-purpose
-     * parser. Handles exactly what CODEBASE-WALKTHROUGH.md actually uses:
-     * headers, fenced code blocks, inline code, bold, links, and
-     * paragraphs/line breaks. No Composer dependency pulled in for this —
-     * the doc's own shape is simple and stable enough that a ~40-line
-     * renderer is the right amount of machinery, not an under-build.
+     * Minimal Markdown renderer covering only what the walkthrough uses:
+     * headers, fenced code, inline code, bold, links, paragraphs.
      */
     private static function render_markdown(string $md): string {
         $lines = explode("\n", $md);
@@ -163,7 +110,7 @@ class OUS_CodebaseDocs {
 
             if (preg_match('/^(#{1,3})\s+(.*)$/', $line, $m)) {
                 $flush_paragraph();
-                $level = strlen($m[1]) + 2; // # -> h3, ## -> h4, ### -> h5 (stays under the page's own h1/h2 chrome)
+                $level = strlen($m[1]) + 2; // # -> h3, keeping under the page's h1/h2
                 $text = self::inline_markdown($m[2]);
                 $anchor = sanitize_title($m[2]);
                 $html .= "<h{$level} id=\"" . esc_attr($anchor) . "\" style=\"scroll-margin-top:90px;\">{$text}</h{$level}>";
@@ -180,10 +127,7 @@ class OUS_CodebaseDocs {
 
             $paragraph[] = trim($line);
 
-            // Any line mentioning a real file inside this ecosystem gets a
-            // "view live" affordance right under it — this is the part
-            // that actually ties the doc back to the current code instead
-            // of just being static prose about it.
+            // A line mentioning an ecosystem file gets a "view live code" toggle.
             if (preg_match_all('/`?([a-z0-9_-]+(?:\/[a-z0-9_.-]+)+\.(?:php|md))`?/i', $line, $file_matches)) {
                 foreach (array_unique($file_matches[1]) as $ref) {
                     if (self::path_is_safe($ref)) {
@@ -244,12 +188,8 @@ class OUS_CodebaseDocs {
         $root = self::plugins_root();
         $full = realpath($root . '/' . $rel);
 
-        // The realpath()-then-strpos() check is the actual security
-        // boundary here: it resolves any ../ traversal FIRST, then
-        // confirms the resolved path still lives inside the plugins root
-        // — a crafted $rel like "../../wp-config.php" resolves outside
-        // that root and gets rejected, regardless of what string it
-        // contained before resolution.
+        // WHY: realpath() resolves ../ first, then the resolved path must
+        // still be inside the plugins root; this is the security boundary.
         if (!$full || !$root || strpos($full, $root) !== 0 || !is_readable($full)) {
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('warning', 'Codebase Docs snippet request rejected — resolved path outside plugins root or unreadable.', [

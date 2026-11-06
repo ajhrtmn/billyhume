@@ -2,12 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * This plugin's contribution to BHI_Portal (the-self-hosted-self's
- * `bhi_portal_panels` filter). One panel, two sections: "My requests"
- * (every logged-in user — the submitter side, always shown) and
- * "Reviewer queue" (only rendered at all for an account holding
- * `bhcore_review_submissions` — obvious-or-gone, same as every other
- * capability-gated section in this ecosystem's portal).
+ * Portal panel (bhi_portal_panels): "My requests" for every user, and
+ * "Reviewer queue" only for accounts with `bhcore_review_submissions`.
  */
 class BHF_PortalPanel {
     public static function init(): void {
@@ -15,8 +11,7 @@ class BHF_PortalPanel {
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
     }
 
-    // Same "portal is a virtual page, gate on its query var" pattern
-    // bh-contest's own class-portal-panel.php already established.
+    // The portal is a virtual page; gate on its query var.
     public static function maybe_enqueue(): void {
         if (!class_exists('BHI_Portal') || !get_query_var(BHI_Portal::QUERY_VAR)) return;
         wp_enqueue_script('bhf-feedback', BHF_URL . 'assets/js/feedback.js', [], BHF_VER, true);
@@ -27,11 +22,8 @@ class BHF_PortalPanel {
     }
 
     /**
-     * Renders the waveform + marker overlay + thread panel for one
-     * request — shared by the reviewer's claimed-request card (where
-     * canMark is true) and the submitter's completed-request card
-     * (read + reply only). 'detailed' tier only — see
-     * BHF_Annotations::tier_supports_annotations()'s own docblock.
+     * Waveform + markers + thread panel for one 'detailed' request; canMark
+     * is true for the reviewer, read+reply only for the submitter.
      */
     private static function render_waveform(\WP_Post $request, bool $can_mark): void {
         if (!class_exists('BHF_Annotations') || !BHF_Annotations::tier_supports_annotations($request->ID)) return;
@@ -98,10 +90,7 @@ class BHF_PortalPanel {
                 echo '<div class="bhf-request-card">';
                 echo '<h3>' . esc_html($request->post_title) . '</h3>';
                 echo '<p><span class="bh-badge bhf-badge bhf-badge-' . esc_attr($status) . '">' . esc_html(ucfirst($status)) . '</span> — ' . esc_html(BHF_Pricing::label_for($tier)) . '</p>';
-                // Audit fix (2026-07-25): the claim/release/complete state
-                // machine already tracks _bhf_claimed_at, but a submitter
-                // never saw it — the "claimed" badge looked identical in
-                // meaning to "open" beyond its text label alone. Surface it.
+                // Show when the request was claimed, not just the badge.
                 if ($status === BHF_PostTypes::STATUS_CLAIMED) {
                     $claimed_at = get_post_meta($request->ID, '_bhf_claimed_at', true);
                     if ($claimed_at) {

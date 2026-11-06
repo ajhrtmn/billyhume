@@ -2,11 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_TestRunner suite for bh-video — same convention as every other
- * plugin's own class-test-suite.php. Covers BHV_Chapters' parsing/
- * sorting/resume-position logic (a direct port of BHS_Chapters, same
- * coverage shape as bh-streaming's own run_chapters_tests()) and
- * BHV_API's payload/list-filtering logic against real fixture posts.
+ * OUS_TestRunner suite for BHV_Chapters (parsing, sorting, resume) and BHV_API (payload, list filtering).
  */
 class BHV_TestSuite {
     public static function init(): void {
@@ -43,10 +39,7 @@ class BHV_TestSuite {
         $fixture_id = wp_insert_post(['post_type' => 'bhv_video', 'post_status' => 'draft', 'post_title' => 'BHV Test Suite Chapters Fixture'], true);
         if (is_wp_error($fixture_id)) return $rows;
 
-        // save()'s current_user_can('edit_post', $post_id) gate needs a
-        // real capable user in context — this CLI test-runner request
-        // has no logged-in user by default. Swapped in only for the
-        // duration of this test and restored after.
+        // save() checks edit_post, so swap in a capable user for this test only.
         $previous_user_id = get_current_user_id();
         $admins = get_users(['role' => 'administrator', 'number' => 1, 'fields' => 'ID']);
         if ($admins) wp_set_current_user($admins[0]);
@@ -91,11 +84,7 @@ class BHV_TestSuite {
         $without_video_id = wp_insert_post(['post_type' => 'bhv_video', 'post_status' => 'publish', 'post_title' => 'BHV Suite Video Without File'], true);
         if (is_wp_error($with_video_id) || is_wp_error($without_video_id)) return $rows;
 
-        // A real attachment isn't needed to exercise video_url_for()'s
-        // own logic — an obviously-nonexistent attachment ID exercises
-        // the same wp_get_attachment_url() code path as a real one
-        // (it just returns an empty string for a missing attachment,
-        // same as a video post that was never given a file at all).
+        // A nonexistent attachment ID exercises the same path (empty URL) as a video with no file.
         update_post_meta($with_video_id, '_bhv_attachment_id', 999999999);
         wp_set_post_terms($with_video_id, ['Rock'], 'bhv_genre');
 

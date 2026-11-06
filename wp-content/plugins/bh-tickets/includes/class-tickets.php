@@ -2,14 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BHT_Tickets — core CRUD, and this plugin's OUS_Integration built-in
- * default (see bh-tickets.php's registration). Every ticket belongs to
- * a real wp_user (bh-crm's own identity model — a person IS a
- * wp_users row, per CLAUDE.md); no separate contact/identity system,
- * same reasoning that ruled out FluentCRM/Groundhogg for the marketing
- * layer applies here too. A ticket links to its requester via
- * BHCRM_Links (already-existing generic typed relationship table) when
- * bh-crm is active — entirely optional, this plugin works standalone.
+ * Ticket CRUD; also this plugin's OUS_Integration built-in default.
+ * Every ticket belongs to a wp_user; linked to the requester via BHCRM_Links when bh-crm is active.
  */
 class BHT_Tickets {
     const STATUSES = ['open' => 'Open', 'pending' => 'Pending', 'resolved' => 'Resolved', 'closed' => 'Closed'];
@@ -39,8 +33,7 @@ class BHT_Tickets {
         $ticket_id = (int) $wpdb->insert_id;
         if (!$ticket_id) return new WP_Error('db_error', 'Could not create the ticket.');
 
-        // The opening message is itself the first reply — one thread,
-        // no separate "ticket body" field to keep in sync with replies.
+        // The opening message is the first reply; there is no separate body field.
         if (class_exists('BHT_Replies')) {
             BHT_Replies::add($ticket_id, $user_id, $body, false);
         }
@@ -61,22 +54,7 @@ class BHT_Tickets {
         return $ticket_id;
     }
 
-    // Real gap found in a functional-depth audit: BHT_Replies'
-    // maybe_notify() already handles staff-reply and requester-reply
-    // notifications, but its own doc comment openly says a brand-new,
-    // unassigned ticket notifies nobody — "no dedicated ticket-manager
-    // role/list beyond the bhcore_manage_tickets capability." That gap
-    // was never actually closed: bht/ticket_created fires for the
-    // event log but nothing ever listened to it for notification
-    // purposes. A support plugin whose own description promises "staff
-    // triage from wp-admin" needs staff to actually find out a ticket
-    // exists — closing it here rather than leaving new tickets
-    // invisible until someone happens to check the list. Notifies
-    // every account holding bhcore_manage_tickets (there's still no
-    // dedicated ticket-manager role/list to narrow it further — the
-    // same real constraint the reply-notification code already
-    // documented), skipping the creator themself in case a staff
-    // member opens a ticket on their own behalf.
+    // New tickets notify every bhcore_manage_tickets holder except the creator (no narrower staff list exists).
     private static function notify_staff_new_ticket(int $ticket_id, int $creator_id, string $subject): void {
         if (!class_exists('OUS_Notifications')) return;
         $staff = get_users(['capability' => 'bhcore_manage_tickets']);
@@ -94,11 +72,7 @@ class BHT_Tickets {
     }
 
     /**
-     * $wpdb returns every column as a string, including bigint keys. Callers
-     * that compare an id strictly -- in_array($id, array_column($rows,'id'), true)
-     * is the one the test suite does -- then never match, because "12" !== 12.
-     * Normalising here rather than at each call site is what makes the
-     * array<int,...> shapes these methods document actually true.
+     * WHY: $wpdb returns ids as strings; cast here so strict id comparisons match.
      *
      * @param array<string, mixed> $row
      * @return array<string, mixed>
@@ -175,9 +149,7 @@ class BHT_Tickets {
     }
 
     /**
-     * Optional enrichment of bh-crm's person view — same
-     * bh_crm_activity_summary contract every other peer plugin uses,
-     * harmless to register even if bh-crm is never active.
+     * bh_crm_activity_summary section for bh-crm's person view.
      * @param array<int, array<string, mixed>> $sections
      * @return array<int, array<string, mixed>>
      */

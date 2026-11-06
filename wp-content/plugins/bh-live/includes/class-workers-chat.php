@@ -2,33 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The real-time, paid-tier chat option — true WebSocket delivery via a
- * Cloudflare Worker + Durable Object (assets/worker/chat-worker.js),
- * deployed to the user's OWN Cloudflare account by this class rather
- * than a service bh-live itself runs. Same "administered from the WP
- * plugin, hosted elsewhere" posture as BHL_FlyProvisioner, just for
- * chat instead of the video server.
- *
- * Reuses the Cloudflare account_id/api_token already entered for
- * BHL_CloudflareStreamEngine (one Cloudflare login, not two separate
- * credential forms) — only adds its own script_name and
- * workers_subdomain fields, the latter because Cloudflare's Workers
- * REST API has no endpoint to look up an account's own workers.dev
- * subdomain slug (confirmed against their docs 2026-07-26); it's
- * entered once, same treatment as Cloudflare Stream's own
- * "customer code" field.
- *
- * Real, stated-honestly limitations (see chat-worker.js's own
- * docblock for the fullest version): v1 is anonymous and unmoderated
- * — no bridge from WordPress identity/capabilities into the deployed
- * Worker exists yet — and one specific detail of the deploy request
- * (the Content-Type Cloudflare expects on an ES-module script part,
- * "application/javascript+module") could NOT be confirmed against
- * Cloudflare's own docs in this session (their multipart-upload page
- * doesn't state it) — it's asserted from general knowledge of their
- * API, not verified here the way every other request shape in this
- * plugin was. Flagged plainly rather than presented as equally solid;
- * a real deploy attempt is the way to confirm it.
+ * Real-time WebSocket chat via a Cloudflare Worker + Durable Object
+ * (assets/worker/chat-worker.js), deployed to the user's own Cloudflare account.
+ * Reuses BHL_CloudflareStreamEngine's credentials. Anonymous and unmoderated.
  */
 class BHL_WorkersChat implements BHL_Chat {
     const SCRIPT_ASSET_PATH = 'assets/worker/chat-worker.js';
@@ -54,12 +30,7 @@ class BHL_WorkersChat implements BHL_Chat {
         update_option('bhl_workers_settings', $existing);
     }
 
-    // Deliberately reads BHL_CloudflareStreamEngine's OWN settings
-    // rather than duplicating account_id/api_token storage — one
-    // Cloudflare credential, shared by both classes. This does mean
-    // BHL_WorkersChat has a soft dependency on that class existing,
-    // same as anything else in this plugin that reads another class's
-    // settings() directly.
+    // One Cloudflare credential, shared with BHL_CloudflareStreamEngine.
     /** @return array<string, mixed> */
     private static function cloudflare_credentials(): array {
         return class_exists('BHL_CloudflareStreamEngine') ? BHL_CloudflareStreamEngine::settings() : ['account_id' => '', 'api_token' => ''];
@@ -92,21 +63,15 @@ class BHL_WorkersChat implements BHL_Chat {
         $data = json_decode(wp_remote_retrieve_body($response), true);
         if ($code < 200 || $code >= 300 || empty($data['success'])) {
             $message = is_array($data) && !empty($data['errors'][0]['message']) ? $data['errors'][0]['message'] : ('Cloudflare API returned HTTP ' . $code);
-            // Status carried as error data — undeploy() needs to tell a
-            // real failure apart from "already gone" (404), same as
-            // BHL_FlyProvisioner::request()'s own reasoning.
+            // WHY: undeploy() reads the status to treat 404 as "already gone".
             return new WP_Error('cloudflare_api_error', $message, ['status' => $code]);
         }
         return $data['result'] ?? [];
     }
 
     /**
-     * Hand-built multipart/form-data body — WordPress's HTTP API has
-     * no helper for arbitrary named multipart parts (only the file-
-     * upload-specific one), so this constructs it directly per
-     * Cloudflare's own documented shape (confirmed 2026-07-26): a
-     * 'metadata' JSON part plus one part named exactly like
-     * main_module, containing the script.
+     * Hand-built multipart body (WP's HTTP API has no helper for named parts):
+     * a 'metadata' JSON part plus one part named exactly like main_module.
      */
     /** @param array<string, mixed> $metadata */
     private static function build_multipart_body(string $boundary, array $metadata, string $script): string {
@@ -118,9 +83,7 @@ class BHL_WorkersChat implements BHL_Chat {
 
         $body .= '--' . $boundary . "\r\n";
         $body .= 'Content-Disposition: form-data; name="' . self::MAIN_MODULE . '"; filename="' . self::MAIN_MODULE . "\"\r\n";
-        // See this class's own docblock: this Content-Type is asserted
-        // from general knowledge, not confirmed against Cloudflare's
-        // docs this session.
+        // Not confirmed against Cloudflare's docs; verify on a real deploy.
         $body .= "Content-Type: application/javascript+module\r\n\r\n";
         $body .= $script . "\r\n";
 
@@ -129,11 +92,7 @@ class BHL_WorkersChat implements BHL_Chat {
     }
 
     /**
-     * Deploys assets/worker/chat-worker.js to the configured Cloudflare
-     * account, then enables its workers.dev subdomain so it's publicly
-     * reachable. Idempotent — re-running this re-uploads the same
-     * script (a "redeploy" action), same shape a version-bump would
-     * naturally want anyway.
+     * Uploads the worker script and enables its workers.dev subdomain. Idempotent.
      */
     /** @return array{url:string}|\WP_Error */
     public function deploy() {
@@ -179,20 +138,8 @@ class BHL_WorkersChat implements BHL_Chat {
     }
 
     /**
-     * Live-robustness audit addition (2026-08-26): there was previously
-     * NO way to tear this down at all — once deployed, the Worker (a
-     * real, publicly reachable, anonymous-and-unmoderated chat
-     * endpoint per this class's own docblock) stayed live on the
-     * user's Cloudflare account forever, with no admin-UI path back,
-     * even after switching the site's active chat engine to something
-     * else. Switching away only stopped this plugin from LINKING to it
-     * — the Worker itself kept running and kept accepting anonymous
-     * chat messages at its public workers.dev URL indefinitely, an
-     * orphaned attack surface nobody would think to go check Cloudflare's
-     * own dashboard for. A 404 (already deleted directly via Cloudflare's
-     * dashboard) is treated as success, same "already achieved the goal
-     * state" reasoning BHL_FlyProvisioner::destroy() uses for the exact
-     * same shape of problem.
+     * Deletes the deployed Worker so no orphaned public chat endpoint remains.
+     * A 404 (already deleted) counts as success.
      *
      * @return true|\WP_Error
      */

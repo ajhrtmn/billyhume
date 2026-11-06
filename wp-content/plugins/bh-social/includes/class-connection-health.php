@@ -2,29 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Real connection-health tracking, added after a live-robustness audit
- * found a genuine gap: every platform's get_status() only ever checked
- * "do we have a stored refresh_token" — never whether the token still
- * actually WORKS. A revoked/expired token (Google OAuth apps left in
- * "Testing" publish mode — the default until an app is submitted for
- * verification — have refresh tokens that expire after just 7 days of
- * inactivity) would leave the settings page showing a green "Connected"
- * badge indefinitely while the twice-daily stats-pull job quietly fails
- * forever, visible only in the generic Debug Tools job-failure table
- * nobody proactively checks.
- *
- * Deliberately NOT a new table — piggybacks on each platform's own
- * settings option (`bhso_{platform}_settings`), the same option
- * cross_post()/pull_stats() already read/write, so no new schema and
- * no extra query on the settings page render path.
- *
- * `track()` is the one call site each platform's cross_post()/
- * pull_stats() wrapper needs — see e.g. class-youtube-platform.php's
- * public cross_post()/pull_stats() methods, which now delegate to a
- * renamed do_*() method and call track() once on the way out. Covers
- * every internal failure path (token refresh, HTTP error, non-2xx API
- * response) without needing a record call at each individual early
- * return inside those methods.
+ * Tracks whether each platform's token still works (not just that one is stored),
+ * in the platform's own bhso_{platform}_settings option. Platforms call track()
+ * once from their public cross_post()/pull_stats() wrappers.
  */
 class BHSO_ConnectionHealth {
     /** @param true|\WP_Error $result */
@@ -43,12 +23,7 @@ class BHSO_ConnectionHealth {
     }
 
     /**
-     * True only when the most recent OUTCOME was a failure — a platform
-     * that's never been called since connecting (both fields empty) is
-     * NOT broken, just untested yet; that's a deliberate optimistic
-     * default, not a false negative, since 'connected' already meant
-     * "we have a token" before this class existed and a freshly
-     * connected platform shouldn't regress to a scarier-looking state.
+     * True only when the most recent outcome was a failure; never-called counts as healthy.
      *
      * @param array<string, mixed> $settings This platform's own settings() array.
      */

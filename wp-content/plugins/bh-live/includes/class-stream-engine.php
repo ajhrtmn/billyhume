@@ -2,19 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The abstraction the whole video/live scoping decision hinges on
- * (wondrous-mixing-forest.md, "Decided: Owncast for v1 ... behind
- * bh-live's own abstraction so OvenMediaEngine ... is a swap-in later,
- * not a rewrite"). Anything that reads live status or renders an embed
- * goes through this interface, never talks to Owncast's REST API
- * directly — a future BHL_OvenMediaEngine implementing the same
- * contract is the entire migration.
- *
- * Deliberately small: get the current live/offline status, get an
- * embeddable player, and (where the underlying engine actually
- * supports it) force-disconnect a stream. There is no start_stream()
- * — see BHL_OwncastEngine's own docblock for why that's not a fake
- * omission but an honest reflection of how RTMP ingest actually works.
+ * Video engine contract: everything reading live status or rendering an embed
+ * goes through this, never a specific server's API. No start_stream(): a stream
+ * starts when the broadcaster's software connects to RTMP ingest.
  */
 interface BHL_StreamEngine {
     /** @return array{online:bool, viewer_count:int, stream_title:string}|\WP_Error */
@@ -26,25 +16,8 @@ interface BHL_StreamEngine {
 }
 
 /**
- * v1's only implementation. Owncast is a real, self-hosted "your own
- * Twitch" server (AGPL, github.com/owncast/owncast) — RTMP ingest,
- * chat, and a web player all bundled in one deployable unit, chosen
- * specifically for how little there is to stand up before a first real
- * stream works (AJ's own call, 2026-07-26 scoping pass). It runs on
- * its OWN dedicated box, never on this WordPress install's own shared
- * hosting — a real-time media server is a different operational
- * animal than PHP/MySQL, the same "thin integration, not a reinvented
- * client" posture OUS_MediaWizard already takes toward Advanced Media
- * Offloader.
- *
- * What this class deliberately does NOT do: start a broadcast. Owncast
- * has no "start streaming" REST call — a stream begins the moment
- * OBS/streaming software connects to the server's RTMP endpoint using
- * the configured stream key, entirely outside WordPress's control.
- * disconnect() is the one real write action Owncast's admin API
- * exposes (POST /api/admin/disconnect — forcibly ends whatever is
- * currently live), gated on an access token because it's a genuine
- * admin action, not a public one.
+ * Owncast engine (self-hosted RTMP ingest, chat and player), running on its own
+ * box, not the WP host. disconnect() uses the token-gated admin API.
  */
 class BHL_OwncastEngine implements BHL_StreamEngine {
     public function is_configured(): bool {
@@ -60,15 +33,12 @@ class BHL_OwncastEngine implements BHL_StreamEngine {
     public static function save_settings(string $server_url, ?string $access_token = null): void {
         $existing = self::settings();
         $clean = ['server_url' => untrailingslashit(esc_url_raw($server_url))];
-        // A blank token field means "keep what's already saved" — the
-        // settings screen never re-displays a saved token, same rule
-        // OUS_MediaWizard's own credential fields already use.
+        // Blank token keeps the saved one (the form never re-displays it).
         $clean['access_token'] = ($access_token === null || $access_token === '') ? $existing['access_token'] : sanitize_text_field($access_token);
         update_option('bhl_owncast_settings', $clean);
     }
 
-    // Owncast's own real, public, no-auth-required status endpoint —
-    // documented at owncast.online/docs/api/#get-current-broadcast-status.
+    // Owncast's public, unauthenticated status endpoint.
     /** @return array{online:bool, viewer_count:int, stream_title:string}|\WP_Error */
     public function get_status() {
         $s = self::settings();
@@ -89,11 +59,7 @@ class BHL_OwncastEngine implements BHL_StreamEngine {
         ];
     }
 
-    // Owncast's own bundled embed routes — a real, documented feature
-    // (owncast.online/docs/embed/), not a custom player being built
-    // here. video-only embed; the bundled chat has its own /embed/chat
-    // route, left for bh-live's future chat-abstraction work rather
-    // than wired in this scaffold.
+    // Owncast's bundled video-only embed; chat is served separately via BHL_OwncastChat.
     public function get_embed_html(): string {
         $s = self::settings();
         if (empty($s['server_url'])) return '';

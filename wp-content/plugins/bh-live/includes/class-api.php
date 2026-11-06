@@ -2,9 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Read-only public API — /bhl/v1/status (current live state) and
- * /bhl/v1/replays (past ended-with-replay streams that actually have a
- * replay file attached). Mirrors BHS_API/BHV_API's shape.
+ * Read-only public API: /bhl/v1/status and /bhl/v1/replays.
  */
 class BHL_API {
     public static function register_routes(): void {
@@ -16,15 +14,8 @@ class BHL_API {
         ]);
     }
 
-    // The REST response reads the CURRENT bhl_stream record (fast, no
-    // network call) rather than calling the active engine's
-    // get_status() directly on every page load — BHL_Streams' own
-    // polling job is what keeps that record in sync with the real
-    // engine's status, same "poll on a schedule, read the cached
-    // result on request" split bh-streaming's own feed-health checks
-    // already use. Which engine is "active" (Owncast vs Cloudflare
-    // Stream Live) only matters for get_embed_html()/chat below — the
-    // bhl_stream record itself is engine-agnostic.
+    // Reads the cached bhl_stream record (kept in sync by BHL_Streams' polling)
+    // rather than calling the engine on every request.
     public static function get_status(): \WP_REST_Response {
         $current = class_exists('BHL_Streams') ? BHL_Streams::current_live_stream() : null;
         if (!$current) {
@@ -40,10 +31,7 @@ class BHL_API {
             'started_at'      => get_post_meta($current->ID, '_bhl_started_at', true),
             'stream_id'       => $current->ID,
             'embed_html'      => $engine ? $engine->get_embed_html() : '',
-            // Chat is deliberately SEPARATE fields from embed_html, not
-            // baked into it — the whole point of abstracting it
-            // separately (class-chat.php's own docblock) is that a
-            // future chat swap only ever touches these two fields.
+            // Chat is kept in its own fields so a chat swap never touches embed_html.
             'chat_type'       => $chat_render['type'],
             'chat_embed_html' => $chat_render['html'],
         ], 200);

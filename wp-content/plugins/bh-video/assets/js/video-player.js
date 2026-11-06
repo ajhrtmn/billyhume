@@ -6,12 +6,7 @@
     function el(id) { return document.getElementById(id); }
 
     function fetchVideos() {
-        // WordPress's REST cookie-auth deliberately treats a request as
-        // anonymous unless X-WP-Nonce is present (rest_cookie_check_errors()
-        // sets current user to 0 with no nonce at all, precisely to stop a
-        // random page from silently riding a visitor's cookie) — so a
-        // logged-in listener's resumeSeconds would always read back 0
-        // without this header, even though the DB value is really there.
+        // WHY: WP REST treats cookie requests without X-WP-Nonce as anonymous, so resume would read 0.
         return fetch(BHVData.rest + 'videos', { headers: { 'X-WP-Nonce': BHVData.nonce } })
             .then(function (r) { return r.json(); })
             .then(function (res) { return (res && res.success) ? res.videos : []; })
@@ -84,10 +79,7 @@
         });
     }
 
-    // Only seeks once metadata is available, and only on the FIRST play
-    // this page load — never autoplays, just picks up where a logged-in
-    // listener already left off (same rule as bh-streaming's own
-    // maybeResumeSeek in player.js).
+    // Seeks to the saved position once, on first play after metadata loads; never autoplays.
     function maybeResumeSeek(v, videoEl) {
         if (!v.resumeSeconds || v.resumeSeconds < 5) return;
         function onLoaded() {
@@ -97,9 +89,7 @@
         videoEl.addEventListener('loadedmetadata', onLoaded);
     }
 
-    // Throttled to once per 10s of real playback, same as bh-streaming's
-    // own maybeSaveResumePosition — a convenience, not something that
-    // needs sub-second accuracy.
+    // Throttled to once per 10s of playback.
     function maybeSaveResumePosition(videoEl) {
         if (!window.BHVData || !BHVData.loggedIn || !currentVideoId) return;
         if (videoEl.paused) return;

@@ -2,38 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * A real, minimal ActivityPub actor for this registry — the third and
- * last of the three discovery layers, and the only one capable of
- * true zero-prior-knowledge discovery through infrastructure that
- * already operates at internet scale: Fediverse relays. A relay is
- * itself an Actor; a server subscribes by sending it a signed Follow,
- * and the relay then Announces activity from EVERY other subscriber
- * back to it. Two bh-registry installs that have never heard of each
- * other, both subscribed to any common public relay, discover each
- * other automatically — no seed list, no shared secret, no manual
- * coordination on either side.
+ * Minimal ActivityPub actor that announces and discovers registry manifests via Fediverse relays.
+ * Discovered URLs go through the shared BHR_Crawl::maybe_add_discovered_peer() validation path.
  *
- * Scope is deliberately narrow: this actor exists to announce and
- * discover REGISTRY MANIFESTS, not to be a general-purpose social
- * account. It has no followers collection worth speaking of, posts no
- * user content, and implements exactly the surface a relay
- * relationship needs — WebFinger discovery, an actor document with a
- * public key, a signature-verified inbox, and signed outbound
- * Follow/Announce. Everything it discovers funnels into the SAME
- * BHR_Crawl::maybe_add_discovered_peer() pipeline the crawl and
- * search-index layers already use — one shared validation path
- * (SSRF guard, reachability, real-manifest check), one peers table,
- * one verification model. No layer gets its own trust tier.
- *
- * ON by default (direct product decision: discovery should work out of
- * the box, not wait on a switch). That is safe because "enabled" alone
- * does nothing outbound — sync_relay() returns immediately unless a
- * relay URL is also configured, so a fresh install federates with
- * nobody until someone names a relay. What being enabled DOES do is
- * make the inbox live, which is fine: every request to it must carry a
- * valid, fresh HTTP Signature from the key its own claimed actor
- * publishes, and unsigned/forged/replayed requests are rejected with a
- * 401 before any parsing or DB work (verified live).
+ * WHY on by default: being enabled does nothing outbound until a relay URL is set, and the
+ * inbox rejects any request without a valid, fresh HTTP Signature before parsing.
  */
 class BHR_ActivityPub {
     const ACTOR_SLUG = 'bh-registry';
@@ -52,21 +25,8 @@ class BHR_ActivityPub {
     }
 
     /**
-     * Real bug caught during live verification, and a genuinely
-     * federation-breaking one: WordPress's redirect_canonical() was
-     * 301-ing /bh-registry/actor to /bh-registry/actor/ (trailing
-     * slash). Three separate problems, worst last:
-     *   1. The actor document's own `id` has no trailing slash, so the
-     *      canonical URL and the advertised id disagreed — remote
-     *      servers key off `id` and would see a mismatch.
-     *   2. HTTP Signatures cover (request-target), i.e. the exact path.
-     *      A redirect changes the path, so any signature verified
-     *      against the redirected URL fails.
-     *   3. Worst: a relay POSTing an Announce to /bh-registry/inbox
-     *      would receive a 301, and HTTP clients do NOT re-POST a body
-     *      after a redirect. Inbox delivery would have failed silently
-     *      — the exact "federation mysteriously does nothing" bug that
-     *      is nearly impossible to diagnose from the receiving end.
+     * WHY: a trailing-slash 301 breaks federation — the actor `id` would mismatch, signatures
+     * cover the exact path, and HTTP clients do not re-POST a body to an inbox after a redirect.
      *
      * @param string|false $redirect_url
      * @param string       $requested_url
@@ -77,12 +37,7 @@ class BHR_ActivityPub {
         return $redirect_url;
     }
 
-    /**
-     * Whether this PHP build can actually do the RSA work HTTP
-     * Signatures require. Checked before any openssl_* call in this
-     * layer — a missing extension must degrade to "relay federation
-     * unavailable", never to a fatal.
-     */
+    /** Whether openssl can do the RSA work HTTP Signatures need; a missing extension must degrade, never fatal. */
     public static function crypto_available(): bool {
         return function_exists('openssl_pkey_new')
             && function_exists('openssl_pkey_export')
@@ -115,9 +70,7 @@ class BHR_ActivityPub {
     }
 
     /**
-     * Lazily generates (once) and returns this site's RSA keypair.
-     * Stored in wp_options, autoload off — the private key never
-     * leaves this site and is never exposed by any endpoint.
+     * Lazily generates and returns this site's RSA keypair; the private key is never exposed by any endpoint.
      *
      * @return array{public:string, private:string}
      */
@@ -127,10 +80,6 @@ class BHR_ActivityPub {
             return $stored;
         }
 
-        // Not every PHP build ships openssl — notably some
-        // WASM/container runtimes. Without it this layer simply can't
-        // do signed federation, but it must degrade quietly rather
-        // than fatal the whole site on a plugin load.
         if (!self::crypto_available()) return ['public' => '', 'private' => ''];
 
         $res = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
@@ -171,11 +120,7 @@ class BHR_ActivityPub {
         $what = get_query_var('bhr_ap');
         if (!$what) return;
 
-        // The actor/webfinger documents are harmless to serve always.
-        // The inbox is live by default (see this class's docblock) but
-        // still respects an admin who has explicitly turned the layer
-        // off — 404 rather than accepting federation traffic a site
-        // has deliberately opted out of.
+        // Actor/webfinger are always served; the inbox 404s when the admin disabled the layer.
         if ($what === 'inbox' && !self::enabled()) {
             status_header(404);
             exit;
@@ -191,13 +136,7 @@ class BHR_ActivityPub {
 
     /* ---------- endpoints ---------- */
 
-    /**
-     * The canonical `acct:` handle for this site's registry actor.
-     * Includes a non-standard port when one is present — a real
-     * deployment on 443 gets a clean `acct:bh-registry@example.com`,
-     * while a dev install on :10008 stays actually addressable rather
-     * than advertising a handle that can't be resolved back.
-     */
+    /** Canonical `acct:` handle; includes a non-standard port so dev installs stay resolvable. */
     public static function acct_handle(): string {
         $parts = wp_parse_url(home_url());
         $host = $parts['host'] ?? '';
@@ -211,9 +150,7 @@ class BHR_ActivityPub {
         $resource = isset($_GET['resource']) ? sanitize_text_field(wp_unslash($_GET['resource'])) : '';
         $canonical = self::acct_handle();
 
-        // Accept the bare-host form too, so a client that strips a
-        // non-standard port (or a site later moving to a standard one)
-        // still resolves rather than silently 404-ing.
+        // Also accept the bare-host form, for clients that strip a non-standard port.
         $bare_host = wp_parse_url(home_url(), PHP_URL_HOST);
         $accepted = array_unique([$canonical, 'acct:' . self::ACTOR_SLUG . '@' . $bare_host]);
 
@@ -246,8 +183,6 @@ class BHR_ActivityPub {
         echo wp_json_encode([
             '@context'          => self::CONTEXT,
             'id'                => self::actor_id(),
-            // 'Service' rather than 'Person' — this is explicitly an
-            // automated directory participant, not a human account.
             'type'              => 'Service',
             'preferredUsername' => self::ACTOR_SLUG,
             'name'              => get_bloginfo('name') . ' — Registry',
@@ -255,9 +190,7 @@ class BHR_ActivityPub {
             'inbox'             => self::inbox_url(),
             'outbox'            => home_url('/' . self::ACTOR_SLUG . '/outbox'),
             'url'               => home_url('/'),
-            // A non-standard but harmless extension property: any other
-            // bh-registry install reading this actor gets the manifest
-            // URL directly, without needing to guess the path.
+            // Non-standard extension so peer installs get the manifest URL directly.
             'bhrManifest'       => home_url('/wp-json/bhr/v1/peers/manifest'),
             'publicKey'         => [
                 'id'           => self::key_id(),
@@ -267,12 +200,7 @@ class BHR_ActivityPub {
         ]);
     }
 
-    /**
-     * Signature-verified inbox. Everything an unauthenticated caller
-     * can do here is bounded to: nothing. A request without a valid,
-     * fresh, correctly-scoped signature from the key its own claimed
-     * actor publishes is rejected before any parsing or DB work.
-     */
+    /** Signature-verified inbox; unsigned, stale, or forged requests are rejected before any parsing or DB work. */
     private static function serve_inbox(): void {
         $body = file_get_contents('php://input');
         if (strlen((string) $body) > 100000) { // 100KB — a relay Announce is tiny
@@ -289,9 +217,7 @@ class BHR_ActivityPub {
             exit;
         }
 
-        // Digest must match the actual body — otherwise a valid
-        // signature over a stale digest could be paired with swapped
-        // content.
+        // WHY: otherwise a valid signature over a stale digest could be paired with swapped content.
         $digest_header = $headers['Digest'] ?? ($headers['digest'] ?? '');
         if ($digest_header && !hash_equals(BHR_HttpSignature::digest((string) $body), $digest_header)) {
             status_header(401);
@@ -331,9 +257,6 @@ class BHR_ActivityPub {
         $type = (string) ($activity['type'] ?? '');
 
         if ($type === 'Accept') {
-            // Relay accepted our Follow — record it so the admin screen
-            // can show a real connected/pending state rather than
-            // guessing.
             $state = get_option(self::FOLLOW_STATE_OPTION, []);
             $state['status'] = 'accepted';
             $state['accepted_at'] = current_time('mysql');
@@ -350,26 +273,17 @@ class BHR_ActivityPub {
 
         if ($type !== 'Announce' && $type !== 'Create') return;
 
-        // The actual discovery payoff: pull any candidate registry
-        // base_url out of the activity and hand it to the SAME shared
-        // pipeline every other layer uses. Nothing here is trusted —
-        // maybe_add_discovered_peer() re-runs the full SSRF guard,
-        // URL validation, and live manifest check before anything is
-        // stored.
+        // Nothing here is trusted: maybe_add_discovered_peer() re-runs the SSRF guard and manifest check.
         foreach (self::extract_candidate_urls($activity) as $candidate) {
             if (class_exists('BHR_Crawl')) {
-                // hop 0 — a relay hit is genesis-equivalent, not
-                // chained through an existing peer's hop count.
+                // Hop 0: a relay hit is genesis-equivalent.
                 BHR_Crawl::maybe_add_discovered_peer($candidate, 0);
             }
         }
     }
 
     /**
-     * Pulls plausible registry base_urls out of an inbound activity.
-     * Handles both a direct object URL and our own bhrManifest
-     * extension property, and tolerates the object being either an
-     * embedded array or a bare URL string (both are legal AP).
+     * Pulls plausible registry base_urls out of an activity; the object may be an array or a bare URL string.
      *
      * @param array<string, mixed> $activity
      * @return array<int, string>
@@ -383,8 +297,7 @@ class BHR_ActivityPub {
             if (!$url) return;
             $suffix = '/wp-json/bhr/v1/peers/manifest';
             $pos = strpos($url, $suffix);
-            // Accept either a direct manifest URL (strip to base) or an
-            // actor/object URL on a host we can probe for one.
+            // A manifest URL is stripped to its base; any other URL is reduced to its origin.
             if ($pos !== false) {
                 $found[] = substr($url, 0, $pos);
                 return;
@@ -412,13 +325,7 @@ class BHR_ActivityPub {
 
     /* ---------- outbound ---------- */
 
-    /**
-     * Daily job: keeps the relay relationship alive. Sends a Follow if
-     * we've never successfully subscribed, then Announces this site's
-     * own manifest so other subscribers can discover us. Both are
-     * signed; neither runs unless the admin enabled the layer and
-     * named a relay.
-     */
+    /** Daily job: Follows the relay if not yet accepted, then Announces this site's manifest. */
     public static function sync_relay(): void {
         if (!self::enabled()) return;
         $relay = self::relay_url();
@@ -428,8 +335,6 @@ class BHR_ActivityPub {
         $state = get_option(self::FOLLOW_STATE_OPTION, []);
         $followed_url = $state['relay_url'] ?? '';
 
-        // Re-follow if never followed, or if the admin changed which
-        // relay we point at.
         if (($state['status'] ?? '') !== 'accepted' || $followed_url !== $relay) {
             self::send_follow($relay);
         }
@@ -443,8 +348,7 @@ class BHR_ActivityPub {
             'id'       => self::actor_id() . '#follow-' . time(),
             'type'     => 'Follow',
             'actor'    => self::actor_id(),
-            // The de-facto convention every major relay implementation
-            // accepts for "subscribe me to the firehose".
+            // De-facto relay convention for "subscribe me to the firehose".
             'object'   => 'https://www.w3.org/ns/activitystreams#Public',
         ];
 
@@ -473,10 +377,7 @@ class BHR_ActivityPub {
     }
 
     /**
-     * Signed POST to a remote inbox. The relay URL an admin configures
-     * may be the relay's actor URL or its inbox directly — resolve the
-     * real inbox from the actor document when needed rather than
-     * assuming a path.
+     * Signed POST to a remote inbox; $target may be an actor URL or an inbox URL.
      *
      * @param array<string, mixed> $activity
      */
@@ -531,7 +432,6 @@ class BHR_ActivityPub {
     }
 
     private static function resolve_inbox(string $target): string {
-        // Already an inbox URL — use as-is.
         if (substr($target, -6) === '/inbox') return $target;
 
         $res = wp_remote_get($target, [
@@ -553,11 +453,7 @@ class BHR_ActivityPub {
         return $inbox;
     }
 
-    /**
-     * Fetches the public key for a keyId, following the standard
-     * "keyId is the actor URL plus a fragment" convention. SSRF-guarded
-     * like every other outbound fetch in this plugin.
-     */
+    /** Fetches the public key for a keyId (actor URL plus fragment), SSRF-guarded. */
     private static function fetch_actor_public_key(string $key_id): string {
         if (!$key_id) return '';
         $actor_url = strtok($key_id, '#');

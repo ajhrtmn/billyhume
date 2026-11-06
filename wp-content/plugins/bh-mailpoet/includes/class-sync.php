@@ -2,34 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The actual bh-crm -> MailPoet mapping. Every public entry point here
- * is guarded by class_exists('\MailPoet\API\API') so this class is a
- * harmless no-op with MailPoet absent — same posture as every other
- * class_exists()-guarded cross-plugin touch in this ecosystem.
- *
- * Runtime-verified against a real, official MailPoet install (5.36.0)
- * as of bh-mailpoet 1.1.4 — see that version's changelog entry for the
- * full verification (every method signature below matched exactly
- * against MailPoet's own installed source, and a real Debug Tools sync
- * run produced 92 synced/0 failed with subscriber rows confirmed
- * directly in MailPoet's own database). \MailPoet\API\API::MP('v1')'s
- * method names/signatures used below (getLists, addList, getSubscriber,
- * addSubscriber, subscribeToList, unsubscribeFromLists) are MailPoet's
- * documented public API surface, now confirmed to match the real
- * installed plugin too.
+ * bh-crm -> MailPoet mapping via MailPoetAPIAPI::MP('v1'). Every entry point is a no-op without MailPoet.
  */
 class BHMP_Sync {
     public static function init(): void {
-        // Bug fix (Phase 4 dead-code triage): remove_contact() existed,
-        // fully implemented and documented as "the account deletion...
-        // path," but was never actually wired to anything — WordPress's
-        // own delete_user fires before the user row is removed (so
-        // get_userdata() inside remove_contact() still resolves), and
-        // nothing in this ecosystem currently listens for it at all.
-        // Deleting a WP account left that person's MailPoet subscription
-        // untouched indefinitely. remove_contact() itself no-ops
-        // harmlessly (class_exists('\MailPoet\API\API') guard) when
-        // MailPoet isn't installed, so this hook is safe unconditionally.
+        // delete_user fires before the row is removed, so get_userdata() still resolves in remove_contact().
         add_action('delete_user', static function (int $user_id): void {
             self::remove_contact($user_id);
         });
@@ -46,13 +23,7 @@ class BHMP_Sync {
         }
     }
 
-    /**
-     * Finds (or creates) the one list this plugin syncs into, by name —
-     * cached for the request since sync_all() calls this once per
-     * contact otherwise. Name is filterable (bhmp_list_name) so a future
-     * pass mapping bh-crm segments to distinct lists doesn't need this
-     * method to change shape, just what it's called with.
-     */
+    /** Finds or creates the sync list by name (filterable via bhmp_list_name), cached per request. */
     /** @var array<string, int|string> */
     private static $list_id_cache = [];
 
@@ -78,14 +49,7 @@ class BHMP_Sync {
         }
     }
 
-    /**
-     * Upserts one bh-crm contact into MailPoet, on whatever list
-     * get_or_create_list_id() resolves to. Pulls email/display name from
-     * WP_User (the only place either genuinely lives) and first/last
-     * name from BHI_Profiles' real_name field if set (split on the
-     * first space — a real name field, not separate first/last columns,
-     * so this is a best-effort split, not authoritative).
-     */
+    /** Upserts one contact; first/last name is a best-effort split of BHI_Profiles' real_name. */
     public static function sync_contact(int $user_id): bool {
         $api = self::api();
         if (!$api) return false;
@@ -112,34 +76,15 @@ class BHMP_Sync {
             try {
                 $existing = $api->getSubscriber($user->user_email);
             } catch (\Throwable $e) {
-                $existing = null; // not found — normal for a first-time sync, not an error
+                $existing = null; // normal for a first-time sync
             }
 
             if ($existing) {
-                // BUG FIX (2026-08-26): subscribeToList() unconditionally
-                // moves a subscriber back to 'subscribed' regardless of
-                // their PRIOR status — confirmed by reading MailPoet's
-                // own Subscribers::subscribeToLists() (lib/API/MP/v1/
-                // Subscribers.php): it only skips the status write if
-                // the subscriber is ALREADY 'subscribed', never checks
-                // for 'unsubscribed'. This plugin calls sync_contact()
-                // constantly (7 BH_Event types, WooCommerce order
-                // completion, entitlement grants, every profile update,
-                // the daily full resync) — every single one of those
-                // was silently re-subscribing anyone who had ever
-                // clicked unsubscribe, the moment they next logged in,
-                // voted, bought something, or got a wallet credit. A
-                // real, ongoing consent violation, not a one-time bug.
-                // Fix: never call subscribeToList() for a subscriber
-                // whose global status (or, more narrowly, whose status
-                // on THIS specific list) is already 'unsubscribed' —
-                // contact info (name) still gets nothing to update here
-                // since MailPoet has no separate "update without
-                // resubscribing" call, but that's an acceptable trade
-                // vs. silently overriding an explicit opt-out.
+                // WHY: subscribeToList() re-subscribes anyone previously unsubscribed, and sync runs constantly,
+                // so never call it for an unsubscribed subscriber (global or on this list). Consent wins.
                 if (self::is_unsubscribed($existing, $list_id)) {
                     self::log('info', 'Skipped resubscribing a contact who previously unsubscribed.', ['user_id' => $user_id]);
-                    return true; // not an error — respecting an explicit unsubscribe is success, not failure
+                    return true; // respecting an unsubscribe counts as success
                 }
                 $api->subscribeToList($existing['id'], $list_id, ['send_confirmation_email' => false]);
             } else {
@@ -167,11 +112,7 @@ class BHMP_Sync {
     }
 
     /**
-     * Full resync — every bh-crm "active" contact (BHCRM_People's own
-     * aggregation, already merges profile-having users plus whatever any
-     * plugin contributes via bh_crm_active_user_ids; reused rather than
-     * reimplemented). Used by BHMP_ScheduledSync's daily sweep and the
-     * Debug Tools "Sync now" button.
+     * Full resync of every BHCRM_People::active_user_ids() contact.
      *
      * @return array{synced:int, failed:int, skipped_no_mailpoet:bool}
      */
@@ -188,10 +129,7 @@ class BHMP_Sync {
             } else {
                 $failed++;
             }
-            // Same safety-net reasoning as sync_contact() itself getting
-            // a daily resync — a tag edit made through some path other
-            // than BHCRM_Tags::handle_save() (bulk-tag action, a future
-            // API) might not always reach bhcrm/tags_saved.
+            // Tags can change by paths that skip bhcrm/tags_saved (e.g. bulk tagging).
             if (class_exists('BHCRM_Tags')) self::sync_tags($user_id, BHCRM_Tags::get($user_id));
         }
 
@@ -201,22 +139,11 @@ class BHMP_Sync {
         return ['synced' => $synced, 'failed' => $failed, 'skipped_no_mailpoet' => false];
     }
 
-    // Namespaced so this plugin only ever adds/removes tags IT applied —
-    // a tag a human added directly in MailPoet's own UI (for MailPoet-
-    // only purposes, unrelated to bh-crm) is never touched by the diff
-    // in sync_tags() below, since it won't start with this prefix.
+    // WHY: prefix marks tags this plugin applied, so sync_tags() never touches tags added in MailPoet directly.
     const TAG_PREFIX = 'BH-CRM: ';
 
     /**
-     * Mirrors bh-crm's free-text tags (BHCRM_Tags) onto the same
-     * MailPoet subscriber sync_contact() maintains, via MailPoet's own
-     * Tags API (tagSubscriber()/untagSubscriber()) — lets a MailPoet
-     * campaign/automation segment by bh-crm tag (e.g. "contest winner",
-     * "vinyl backer") without this plugin inventing its own segment
-     * concept. Driven by the bhcrm/tags_saved BH_Event's own payload
-     * (see BHMP_InstantSync::sync_from_event()) — no extra DB read of
-     * bh-crm's tag storage needed, the event already carries the full
-     * current tag list for that person.
+     * Mirrors bh-crm tags onto the MailPoet subscriber via MailPoet's Tags API.
      *
      * @param string[] $tags The person's full current bh-crm tag list (not a delta) — same shape bhcrm/tags_saved's payload carries.
      */
@@ -234,7 +161,7 @@ class BHMP_Sync {
             } catch (\Throwable $e) {
                 $existing = null;
             }
-            if (!$existing) return false; // not a MailPoet subscriber yet — sync_contact() creates them; nothing to tag until then
+            if (!$existing) return false; // not a subscriber yet; sync_contact() creates them
 
             $current_tag_names = array_map(static fn($t) => (string) ($t['name'] ?? ''), $existing['tags'] ?? []);
             $current_managed = array_values(array_filter($current_tag_names, static fn($n) => str_starts_with($n, self::TAG_PREFIX)));
@@ -271,7 +198,7 @@ class BHMP_Sync {
             }
             return true;
         } catch (\Throwable $e) {
-            return false; // already absent, or MailPoet-side error — either way, nothing more to do
+            return false; // already absent, or a MailPoet error
         }
     }
 

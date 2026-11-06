@@ -2,36 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The actual trust mechanism the whole registry depends on. Two
- * genuinely separate questions, checked independently:
- *
- * 1. OWNERSHIP — does whoever submitted this link actually control the
- *    domain it points at? Answered with a well-known file challenge:
- *    at submission time we generate a random token and ask the
- *    submitter to publish it at
- *    https://{host}/.well-known/bh-registry-verify.txt
- *    A domain-level file (not something embedded in the ActivityPub
- *    actor or the feed itself) so the SAME proof-of-control mechanism
- *    works identically regardless of protocol — an artist proves they
- *    control the domain once, not once per protocol.
- *
- * 2. OPENNESS — is the submitted URL actually the open protocol it
- *    claims to be, not just an arbitrary URL that happens to return
- *    200 OK? For 'feed', this is bh-streaming's own
- *    validate_is_open_feed() check (real enclosure required) —
- *    duplicated here rather than shared as a hard dependency, since this
- *    plugin must not require bh-streaming to exist. If this logic drifts
- *    between the two plugins, lifting it into the core (the-self-hosted-self) as
- *    a shared BHY_OpenFeed helper is the right long-term fix — flagged
- *    here, not done, since that's a core-plugin change outside this
- *    plugin's own boundary. For 'activitypub', it's WebFinger + actor
- *    discovery per the ActivityPub spec — any compliant server, not a
- *    Funkwhale-specific check.
- *
- * A link only ever becomes 'verified' when BOTH checks pass. Either one
- * failing is 'failed', with the reason kept server-side (not exposed
- * over the public API) so a rejected submission isn't handed a roadmap
- * for gaming the check.
+ * The registry's trust mechanism: a link is verified only when BOTH checks pass.
+ *  1. Ownership: the token is published at https://{host}/.well-known/bh-registry-verify.txt (protocol-independent).
+ *  2. Openness: a real feed with an enclosure, or a spec-shaped ActivityPub actor.
+ * WHY: failure reasons stay server-side so rejected submitters get no roadmap for gaming the check.
  */
 class BHR_Verification {
     const TOKEN_LENGTH = 32;
@@ -40,11 +14,7 @@ class BHR_Verification {
         return wp_generate_password(self::TOKEN_LENGTH, false, false);
     }
 
-    /**
-     * Runs both checks for a single link row (an object with ->id,
-     * ->url, ->protocol, ->verification_token) and persists the result.
-     * Returns true if the link is now verified, false otherwise.
-     */
+    /** Runs both checks for one link row, persists the result, and returns whether it is now verified. */
     public static function verify_link(\stdClass $link): bool {
         global $wpdb;
         $table = BHR_Tables::links();
@@ -74,12 +44,7 @@ class BHR_Verification {
             'fail_count'           => (int) $link->fail_count + 1,
         ], ['id' => $link->id]);
 
-        // The reason itself is deliberately never exposed over the
-        // public API (see this class's own docblock — no roadmap for
-        // gaming the check) but it's exactly the kind of thing a site
-        // operator debugging "why won't my link verify" support request
-        // needs to see somewhere, so it lands in the private console
-        // instead of nowhere at all.
+        // Private console only; never exposed over the public API.
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('info', 'Link verification failed', [
                 'link_id' => $link->id, 'url' => $link->url,
@@ -89,11 +54,7 @@ class BHR_Verification {
         return false;
     }
 
-    // A pending artist becomes active the moment it has at least one
-    // verified link — that's the actual bar for "shown in public
-    // browse/search," not an admin approval step (this registry is
-    // self-serve by design; admin review exists for abuse handling, not
-    // as a required gate — see class-admin.php).
+    // One verified link activates an artist; there is no admin approval gate (self-serve by design).
     private static function maybe_activate_artist(int $artist_id): void {
         global $wpdb;
         $artists = BHR_Tables::artists();
@@ -118,27 +79,12 @@ class BHR_Verification {
 
         $challenge_url = 'https://' . $host . '/.well-known/bh-registry-verify.txt';
 
-        // SSRF guard (live-robustness audit fix, 2026-08-26): $link->url
-        // is a fully public, self-serve submission (POST /submissions,
-        // see BHR_Crawl's own docblock) — the exact same "server makes
-        // an outbound request to an arbitrary attacker-supplied URL"
-        // shape BHR_Crawl::is_safe_external_url() was built to guard
-        // against for peer manifests. This call site (and the two
-        // others below, check_activitypub_actor()/check_open_feed())
-        // had NO such guard until this fix — an unauthenticated
-        // submission could point this server at an internal service or
-        // a cloud metadata endpoint (169.254.169.254) and this class
-        // would happily fetch it. Reuses BHR_Crawl's existing,
-        // DNS-resolution-aware check rather than duplicating it.
+        // WHY: the URL comes from an unauthenticated submission, so SSRF-guard every outbound fetch.
         if (!class_exists('BHR_Crawl') || !BHR_Crawl::is_safe_external_url($challenge_url)) return false;
 
         $res = wp_remote_get($challenge_url, ['timeout' => 8, 'redirection' => 2]);
         if (is_wp_error($res) || wp_remote_retrieve_response_code($res) !== 200) {
-            // Previously discarded — an artist whose domain-ownership
-            // check fails just sees "not verified" with no way (for them
-            // or an admin) to tell "you never uploaded the challenge
-            // file" apart from "our own request to your server timed
-            // out/errored," which are very different next steps.
+            // Logged so an admin can tell a missing challenge file from a network error.
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('info', 'Domain ownership challenge fetch failed.', [
                     'challenge_url' => $challenge_url,
@@ -150,8 +96,7 @@ class BHR_Verification {
         }
 
         $body = trim(wp_remote_retrieve_body($res));
-        // Exact-match on a line, not a substring-of-arbitrary-page —
-        // this file's only job is to hold this one token.
+        // Exact line match, not a substring of an arbitrary page.
         foreach (preg_split('/\r?\n/', $body) as $line) {
             if (trim($line) === $token) return true;
         }
@@ -160,14 +105,9 @@ class BHR_Verification {
 
     /* ---------- openness: feed ---------- */
 
-    // Mirrors bh-streaming's class-feeds.php validate_is_open_feed()
-    // exactly: requires at least one item with a real enclosure, using
-    // fetch_feed() (WordPress core's own SimplePie-based parser) rather
-    // than custom XML parsing.
+    // Mirrors bh-streaming's validate_is_open_feed() (duplicated, not depended on); keep the two in sync.
     /** @return array{valid:bool, metadata:array<string, mixed>} */
     private static function check_open_feed(string $url): array {
-        // SSRF guard — see check_domain_ownership()'s own comment for
-        // the full reasoning; same fix, same reused BHR_Crawl check.
         if (!class_exists('BHR_Crawl') || !BHR_Crawl::is_safe_external_url($url)) return ['valid' => false, 'metadata' => []];
 
         require_once ABSPATH . WPINC . '/feed.php';
@@ -197,17 +137,9 @@ class BHR_Verification {
 
     /* ---------- openness: ActivityPub ---------- */
 
-    // Actor discovery per the ActivityPub spec: fetch the URL with
-    // Accept: application/activity+json (falling back to
-    // application/ld+json) and require it to look like a real actor —
-    // a recognized Actor type plus an outbox — rather than trusting any
-    // JSON blob. This is protocol-open by construction: any server
-    // returning a spec-shaped actor document passes identically,
-    // Funkwhale included but never assumed.
+    // Requires a spec-shaped actor (a recognized Actor type plus an outbox), from any compliant server.
     /** @return array{valid:bool, metadata:array<string, mixed>} */
     private static function check_activitypub_actor(string $url): array {
-        // SSRF guard — see check_domain_ownership()'s own comment for
-        // the full reasoning; same fix, same reused BHR_Crawl check.
         if (!class_exists('BHR_Crawl') || !BHR_Crawl::is_safe_external_url($url)) return ['valid' => false, 'metadata' => []];
 
         $res = wp_remote_get($url, [
@@ -241,10 +173,7 @@ class BHR_Verification {
         ]];
     }
 
-    // Re-checks every link belonging to one artist — used when an admin
-    // restores a previously-rejected artist (see class-admin.php), so
-    // restoring doesn't just flip a flag without re-confirming the
-    // underlying links are still actually valid.
+    // Re-checks all of an artist's links, e.g. when an admin restores a rejected artist.
     public static function recheck_artist(int $artist_id): void {
         global $wpdb;
         $links = $wpdb->get_results($wpdb->prepare(
@@ -257,22 +186,8 @@ class BHR_Verification {
 
     /* ---------- periodic re-check ---------- */
 
-    // A "verified" badge that's never re-checked stops meaning anything
-    // the moment control lapses (domain sold, DNS changed, well-known
-    // file deleted). Runs daily via bh-registry.php's cron hook, capped
-    // per run so a large registry doesn't try to re-check everything in
-    // one page-load-triggered WP-Cron tick.
-    //
-    // If the core's job queue is active (the-self-hosted-self 3.2.0+ — see
-    // OUS_Jobs), each link gets its own queued job instead of all 50
-    // running inline in this one cron tick: one slow/hanging feed check
-    // can no longer block the rest of the batch, and a failed check
-    // gets the queue's own retry/backoff for free. Falls back to the
-    // original all-inline behavior if the job queue isn't there —
-    // bh-registry depends only on the-self-hosted-self's CORE presence, never on
-    // any particular optional feature inside it, so this degrades
-    // gracefully on an older core the same way every other optional
-    // integration in this ecosystem does.
+    // Daily re-check so a lapsed domain loses its badge; capped at the 50 oldest per run.
+    // One OUS_Jobs job per link when available (a hanging check can't block the batch), else inline.
     public static function recheck_all(): void {
         global $wpdb;
         $table = BHR_Tables::links();
@@ -293,10 +208,7 @@ class BHR_Verification {
         }
     }
 
-    // The per-link unit of work OUS_Jobs actually calls — registered as
-    // a handler in bh-registry.php's own bootstrap, guarded by the same
-    // class_exists() check, so this method existing costs nothing on a
-    // core version without the job queue.
+    // OUS_Jobs handler for 'bhr_recheck_one_link'.
     /** @param array<string, mixed> $args */
     public static function recheck_one(array $args): void {
         $link_id = (int) ($args['link_id'] ?? 0);

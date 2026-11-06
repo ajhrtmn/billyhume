@@ -2,32 +2,19 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Signed, private video delivery — the "the content is for sale, it must
- * not be a shareable link" layer that sits ON TOP of storage/offload
- * (OUS_MediaWizard / Advanced Media Offloader, which only ever make a
- * bucket file *public*).
- *
- * Two providers, one contract. A feature plugin (bh-courses today) asks
- * for a URL *at render time, after its own access gate has already
- * passed*, and gets back a URL that stops working within a few hours and
- * can't be reused off-site:
+ * Signed, expiring private-video URLs layered on top of storage/offload, minted at render
+ * time after the caller's own access gate has passed:
  *
  *   BHY_MediaToken::sign_bunny($video_guid)  -> a tokenised Bunny embed URL
  *   BHY_MediaToken::sign_r2($object_key)     -> a tokenised URL to the R2 Worker
  *
- * Both return null when the provider isn't configured, so a caller can
- * `?: fall back` to an "ask the site owner to finish media setup" notice
- * instead of a broken player — same optional-enhancement posture every
- * other cross-cutting service here takes.
- *
- * Settings live on the Media & CDN Setup page (OUS_MediaWizard) via its
- * `ous_media_setup_after` hook, not a second screen.
+ * Both return null when the provider isn't configured, so callers can show a setup notice.
+ * Settings render on the Media & CDN Setup page via its `ous_media_setup_after` hook.
  */
 class BHY_MediaToken {
 
     const OPTION = 'bhy_media_token_settings';
-    /** How long a freshly-minted link stays valid. A lesson sitting open
-     *  longer than this re-mints on the next step change / reload. */
+    /** How long a freshly-minted link stays valid. */
     const DEFAULT_TTL = 4 * HOUR_IN_SECONDS;
 
     public static function init(): void {
@@ -44,9 +31,7 @@ class BHY_MediaToken {
             'bunny_library_id'  => (string) ($s['bunny_library_id'] ?? ''),
             // Signs playback embed URLs (Library → API → Token Authentication Key).
             'bunny_token_key'   => (string) ($s['bunny_token_key'] ?? ''),
-            // Manages videos: list / create / presign resumable upload
-            // (Library → API → the "API Key" / AccessKey). Optional — set
-            // it to get the in-editor Bunny library picker + uploader.
+            // Video-management API key (list / create / presign upload). Optional: enables the editor picker + uploader.
             'bunny_api_key'     => (string) ($s['bunny_api_key'] ?? ''),
             'r2_worker_url'     => (string) ($s['r2_worker_url'] ?? ''),
             'r2_signing_secret' => (string) ($s['r2_signing_secret'] ?? ''),
@@ -83,10 +68,7 @@ class BHY_MediaToken {
     }
 
     /**
-     * Presigned signature for a Bunny TUS resumable upload. The client
-     * (tus-js-client) sends this as the AuthorizationSignature /
-     * AuthorizationExpire metadata; Bunny accepts the direct upload
-     * without the API key ever reaching the browser.
+     * Presigned signature for a Bunny TUS resumable upload, so the API key never reaches the browser.
      *   signature = sha256( library_id + api_key + expiry + video_guid )
      *
      * @return array{signature:string,expires:int,library_id:string,video_guid:string,endpoint:string}|null
@@ -110,10 +92,7 @@ class BHY_MediaToken {
     /* ---------------- signing ---------------- */
 
     /**
-     * Bunny Stream "embed view token". The string hashed is
-     * {token_authentication_key}{video_guid}{expiry}; SHA-256, lowercase
-     * hex. Filterable in case Bunny changes the recipe — the caller
-     * shouldn't have to.
+     * Bunny Stream embed view token: sha256(token_key . video_guid . expiry), lowercase hex.
      *
      * @return string|null full https://iframe.mediadelivery.net/... URL
      */
@@ -127,12 +106,7 @@ class BHY_MediaToken {
         $token = hash('sha256', $s['bunny_token_key'] . $video_guid . $expiry);
         $token = (string) apply_filters('bhy_media_token_bunny', $token, $video_guid, $expiry, $s['bunny_token_key']);
 
-        // responsive=true — fill our 16:9 wrapper instead of letterboxing
-        // to Bunny's own fixed frame. autoplay=false EXPLICITLY — a
-        // lesson video is something the student chooses to start, and
-        // passing it beats relying on the Bunny library's own Autoplay
-        // toggle being set the way we want. Filterable for the rare
-        // caller that does want it (e.g. a hero/trailer context).
+        // responsive fills our 16:9 wrapper; autoplay is explicitly false (filterable for trailers).
         $params = apply_filters('bhy_media_token_bunny_params', [
             'token'      => $token,
             'expires'    => $expiry,

@@ -2,47 +2,19 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Duplicate-audio detection — a real, cheap first step toward the
- * bigger "does someone own what they uploaded" problem, without taking
- * on a third-party fingerprinting service. Hashes the actual audio
- * FILE bytes (sha1) for any track whose audio lives on THIS server —
- * local-import uploads and admin-added catalog tracks alike — and
- * flags when the same exact file shows up under a different account.
- *
- * Deliberately does NOT attempt this for externally-aggregated tracks
- * (`_bhs_source = 'external'`): those are a remote URL this site never
- * downloads a copy of (see class-feeds.php's own note on why — "a link
- * to featured content, not a copy of it"), and downloading a full audio
- * file on every cron sync purely to hash it would contradict that
- * design and be a real bandwidth/storage cost for no benefit this site
- * actually needs.
- *
- * This is a same-file-bytes check, not audio fingerprinting — it won't
- * catch a re-encoded/re-compressed copy of the same recording (that's
- * exactly what real fingerprinting would need to do, and exactly why
- * this is flagged as a "stepping stone," not a replacement, in the
- * roadmap doc). It WILL catch the common, cheap case: someone
- * literally re-uploading the same file another account already has.
+ * Duplicate-audio detection: sha1 of locally stored file bytes, flagged when
+ * the same file appears under another account. External tracks are skipped
+ * (never downloaded). Not fingerprinting: re-encoded copies won't match.
  */
 class BHS_AudioHash {
-    // Called after any bhs_track's _bhs_audio_id is set/changed —
-    // currently wired from class-import.php's local-import path.
-    // Safe to call again later from class-admin.php's own catalog save
-    // if admin-added tracks should be checked too; the check itself
-    // doesn't care where the track came from, only that a real file
-    // exists on this server for it.
+    // Called after a track's audio attachment is set (currently from class-import.php).
     public static function hash_and_check(int $post_id, int $attachment_id): void {
         $path = get_attached_file($attachment_id);
         if (!$path || !file_exists($path)) return;
 
         $hash = sha1_file($path);
         if (!$hash) {
-            // Error-handling audit gap: this silent early return meant a
-            // corrupt/unreadable audio file simply never got duplicate-
-            // checked, with zero record anywhere of why — an admin
-            // investigating a suspicious re-upload that DIDN'T get
-            // flagged had no way to tell "genuinely a new file" apart
-            // from "the hash check itself silently failed."
+            // Log unreadable files so a missed duplicate check isn't silent.
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('warning', 'Audio duplicate-check skipped: sha1_file() failed on an existing, readable path.', [
                     'post_id' => $post_id, 'attachment_id' => $attachment_id, 'path' => $path,
@@ -53,14 +25,7 @@ class BHS_AudioHash {
         update_post_meta($post_id, '_bhs_audio_hash', $hash);
 
         global $wpdb;
-        // post_type IN ('bhs_track', 'bhs_video') — widened from
-        // bhs_track-only when video (ROADMAP-streaming-media-scope-and-
-        // blockchain.md Part 5, Phase 2) started reusing this same
-        // hash-and-check call for video uploads via
-        // BHS_VideoPostTypes::import_local_video(). The check itself
-        // only ever hashes raw file bytes, so it was already medium-
-        // agnostic in practice — this just stops the query from
-        // silently ignoring the other post type's own hash rows.
+        // Includes bhs_video: the hash check is medium-agnostic.
         $matches = $wpdb->get_col($wpdb->prepare(
             "SELECT p.ID FROM {$wpdb->posts} p
              INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = '_bhs_audio_hash' AND m.meta_value = %s
@@ -73,11 +38,9 @@ class BHS_AudioHash {
         $cross_account_matches = array_filter($matches, function ($mid) use ($this_author) {
             return (int) get_post($mid)->post_author !== $this_author;
         });
-        if (!$cross_account_matches) return; // same person re-importing their own file isn't suspicious
+        if (!$cross_account_matches) return; // re-importing your own file isn't suspicious
 
-        // Flag both sides — an admin reviewing either track should see
-        // the conflict, not just whichever one happened to be uploaded
-        // second.
+        // Flag both tracks so either one shows the conflict.
         update_post_meta($post_id, '_bhs_duplicate_audio_flag', wp_json_encode(array_values($cross_account_matches)));
         foreach ($cross_account_matches as $other_id) {
             $existing = json_decode((string) get_post_meta($other_id, '_bhs_duplicate_audio_flag', true), true);
@@ -88,17 +51,11 @@ class BHS_AudioHash {
             }
         }
 
-        // Same "surface it, don't auto-act" philosophy as every other
-        // flag in this ecosystem — a human (an admin browsing the
-        // catalog, or bh-crm's activity view if something hooks in here
-        // later) decides whether this is a real problem or two people
-        // who happen to both have rights to the same file.
+        // Surface only; a human decides whether it's a real problem.
         do_action('bhs_duplicate_audio_flagged', $post_id, $cross_account_matches);
     }
 
-    // Small admin-list-table helper — shows a visible warning on the
-    // Tracks screen rather than requiring an admin to know to look for
-    // hidden postmeta.
+    // Shows the duplicate warning on the Tracks list screen.
     public static function flag_notice_html(int $post_id): string {
         $matches = json_decode((string) get_post_meta($post_id, '_bhs_duplicate_audio_flag', true), true);
         if (!$matches) return '';

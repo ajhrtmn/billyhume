@@ -2,13 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Paid ad-campaign platforms — deliberately a separate interface from
- * BH_SocialPlatform, not one more implementation of it. Cross-posting
- * organic content and buying ad inventory are genuinely different
- * shapes: different auth (billing-scoped, not just content scopes),
- * different data (budget/targeting/creative, not caption/attachment),
- * and — for Roku specifically — no confirmed self-serve REST API to
- * call at all (see BHSO_RokuAds's own docblock).
+ * Paid ad-campaign platforms; separate from BH_SocialPlatform because auth,
+ * data shape and API availability all differ.
  */
 interface BH_AdsPlatform {
     public function is_configured(): bool;

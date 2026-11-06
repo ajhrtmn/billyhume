@@ -2,10 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Same plain-array-registry-plus-factory shape as BHL_EngineRegistry —
- * only one real entry (YouTube) today, but Twitch/Meta/TikTok each land
- * here as one more PLATFORMS row + implementation class, no changes to
- * this file's own logic.
+ * Registry and factory for BH_SocialPlatform implementations.
  */
 class BHSO_PlatformRegistry {
     const PLATFORMS = [

@@ -2,20 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Samsung Ads (news.samsung.com/Samsung DSP) — added in the same
- * research pass as Spotify/Amazon/Vizio. Samsung DOES have a
- * self-serve DSP, but real self-serve access for a small/independent
- * advertiser is effectively gated behind existing DSP relationships —
- * Samsung's own 2026 announcements describe automated buying through
- * integrations with The Trade Desk and Google DV360, not a direct
- * small-advertiser signup console the way Spotify Ad Studio or Roku
- * Ads Manager have. No published minimum spend or public self-serve
- * REST API for a standalone advertiser was found.
- *
- * Included for completeness/honest signaling rather than as a
- * realistic near-term channel — draft-capture + handoff to Samsung
- * Ads' own site, same shape as the other BH_AdsPlatform
- * implementations, so the gap is visible in the UI rather than silent.
+ * Samsung Ads. Self-serve access runs through third-party DSPs with no public
+ * API, so this captures drafts and hands off, like the other BH_AdsPlatform classes.
  */
 class BHSO_SamsungAds implements BH_AdsPlatform {
     const MANAGER_URL = 'https://www.samsung.com/us/business/samsungads/';

@@ -2,30 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BHY_Customizer — Phase 3 of the Design Suite work (see class-style.php's
- * component_tokens() docblock and bh-courses/bh-contest/bh-monetization-woo
- * for Phase 1/2, the token registrations this reads). Extends WordPress's
- * OWN native Customizer (WP_Customize_Manager) rather than building a
- * bespoke click-to-select canvas — AJ's own suggestion, and a far smaller
- * surface than reinventing live in-context editing from scratch: every
- * control here is a real wp.customize() setting, previewed via postMessage
- * against the actual rendered page, and saved through the exact same
- * bhy_style_settings option the Design Suite admin page reads and writes
- * (WP Customize's native array-syntax option settings — e.g.
- * "bhy_style_settings[components][badge][radius]" — deep-merge into that
- * option on save; nothing here is a second, parallel storage mechanism).
- *
- * Deliberately scoped to the same token surface as component_tokens()/
- * custom_sliders()/custom_fonts() — the granular, per-real-UI-piece
- * controls that actually make sense to preview against a live page. Global
- * scheme editing (colors, quick themes, font pickers) stays the Design
- * Suite admin page's job; that page is the "browse everything at once"
- * tool, this is the "tweak this one thing while looking at it" tool. Each
- * links to the other (see BHY_Gallery::render()'s "Open Live Editor"
- * button, and the Customizer's native `return` URL param wired below) so
- * switching between them is a single click either direction, using WP's
- * own built-in Close-button-returns-to-`return`-URL behavior rather than
- * a custom-built toggle.
+ * Design Suite controls inside WordPress's native Customizer, previewed via
+ * postMessage and saved to the same bhy_style_settings option the Design
+ * Suite page uses (array-syntax setting ids deep-merge on save).
+ * Scope: per-component tokens, plugin sliders/fonts and custom CSS; global
+ * scheme editing stays on the Design Suite page.
  */
 class BHY_Customizer {
     public static function init() {
@@ -60,29 +41,15 @@ class BHY_Customizer {
             }
         }
 
-        // The Customizer-side counterpart of the Design Suite admin
-        // page's "Custom CSS" textarea (BHY_Gallery::render_controls())
-        // — same option key, same trust boundary, WP core's own
-        // Code Editor control (used by its native "Additional CSS"
-        // feature) rather than inventing our own. 'selective_refresh'
-        // isn't used since a full stylesheet replace on every keystroke
-        // via postMessage (see enqueue_preview_script()'s dedicated
-        // binding for this one setting, kept out of the generic schema
-        // loop since it's not a --bh-* variable) is simpler and just as
-        // fast for a single <style> tag swap.
+        // Counterpart of the Design Suite page's Custom CSS section.
         $wp_customize->add_section('bhy_live_custom_css', [
             'title'       => 'Custom CSS',
             'panel'       => 'bhy_live_design',
             'description' => 'For anything the Component sections above don\'t cover. Right-click an element in the preview for "Add custom rule for this element" (starts a rule below, prefilled) or "Copy CSS selector" (for the Advanced box).',
         ]);
 
-        // The visual rule editor — same one as the Design Suite admin
-        // page's "Custom CSS" section (BHY_Gallery::render_css_rule_
-        // row()), rebuilt as a real control so it lives directly in the
-        // Customizer too ("Both sides should be able to have acces to
-        // the rule builder" — AJ). Both write the exact same
-        // custom_css_rules option key through the exact same
-        // BHY_Style::sanitize_custom_css_rules() sanitizer.
+        // Same visual rule editor as the Design Suite page; both write
+        // custom_css_rules through BHY_Style::sanitize_custom_css_rules().
         if (class_exists('BHY_Style')) {
             require_once __DIR__ . '/class-customize-css-rules-control.php';
             $wp_customize->add_setting('bhy_style_settings[custom_css_rules]', [
@@ -98,15 +65,8 @@ class BHY_Customizer {
             ]));
         }
 
-        // The raw-text escape hatch underneath the rule editor — same
-        // option key/trust boundary as the Design Suite admin page's own
-        // "Advanced / raw CSS" textarea, WP core's own Code Editor
-        // control (used by its native "Additional CSS" feature) rather
-        // than inventing our own. 'selective_refresh' isn't used since a
-        // full stylesheet replace on every keystroke via postMessage
-        // (see enqueue_preview_script()'s dedicated binding for this one
-        // setting) is simpler and just as fast for a single <style> tag
-        // swap.
+        // Raw-CSS escape hatch using WP core's Code Editor control; the
+        // preview script swaps the <style> tag via postMessage.
         if (class_exists('WP_Customize_Code_Editor_Control')) {
             $wp_customize->add_setting('bhy_style_settings[custom_css]', [
                 'type'              => 'option',
@@ -275,20 +235,10 @@ class BHY_Customizer {
         }
         wp_localize_script('bhy-customizer-preview', 'bhyCustomizerSchema', $schema);
 
-        // Click-to-select / right-click ancestor picker: a plugin that
-        // wants its component "clickable" in the live preview declares
-        // a 'selector' on its component_tokens() group (the real CSS
-        // selector for that component's root element — e.g. '.bh-badge',
-        // '.bhc-course-sidebar'). This is intentionally the full extent
-        // of the "click an element to edit it" feature: a click walks up
-        // the DOM from the click point, finds the nearest ancestor
-        // matching any registered selector, and jumps the CONTROLS pane
-        // to that group's section — no floating inspector panel, no
-        // persistent overlay, no linked-component/instance system (the
-        // page-builder saga's actual mistake, per CLAUDE.md). Right-click
-        // does the same walk but collects EVERY matching ancestor (for
-        // nested components — a badge inside a card) and shows a small
-        // native-styled menu to pick which one's section to jump to.
+        // Components that declare a 'selector' become clickable in the
+        // preview: click jumps to the nearest matching group's section,
+        // right-click lists every matching ancestor. Deliberately no
+        // inspector/overlay/instance system.
         $selectors = [];
         foreach (BHY_Style::component_tokens() as $group => $def) {
             if (!empty($def['selector'])) {
@@ -312,10 +262,8 @@ class BHY_Customizer {
     }
 
     /**
-     * Where the "Open Live Editor" button (BHY_Gallery::render()) sends
-     * the admin. A plugin whose surfaces are the main thing worth editing
-     * in context (bh-courses' catalog, say) can override this to its own
-     * real front-end page instead of the site home.
+     * Preview URL for "Open Live Editor"; filterable so a plugin can point
+     * it at its own front-end page.
      */
     public static function default_preview_url(): string {
         return apply_filters('bhy_customizer_default_preview_url', home_url('/'));

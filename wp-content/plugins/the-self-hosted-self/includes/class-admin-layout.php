@@ -2,51 +2,14 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_AdminLayout — a shared, pure-CSS fix for a real pattern across
- * this ecosystem: several custom post types (bh_contest, bh_submission,
- * bhm_tier, bh_course) still use WordPress's default two-column
- * post-edit chrome — one narrow stacked column of meta boxes plus a
- * fixed ~280px sidebar — on screens with far more horizontal room than
- * that layout ever uses. The sidebar's own "Contest Rules & Results"
- * box was visibly overflowing its column with real content (submission
- * window fields, contact-info checkboxes, a Discord webhook field),
- * while the main column sat mostly empty to its right.
- *
- * This does NOT move any meta box between 'normal'/'side' registration
- * context (that's a DOM-container change, not a CSS one, and would
- * mean re-deciding which box belongs where in every affected plugin).
- * Instead: normal-context boxes flow into a real CSS grid
- * (#normal-sortables), and the sidebar column widens substantially on
- * wide viewports — both changes WordPress's own metabox drag-reorder
- * JS (postboxes.js, jQuery UI Sortable) tolerates fine, since it only
- * ever reorders DOM nodes, never assumes a fixed single-column layout.
- * Below OUS_AdminLayout::BREAKPOINT this is a complete no-op — narrow
- * viewports keep WordPress's own default single-column layout exactly
- * as before.
- *
- * Opt-in per post type via the 'ous_wide_admin_layout_post_types'
- * filter (default list below) — any plugin can add its own post type
- * without touching this file, same zero-central-registration shape
- * OUS_Notifications/OUS_Jobs/ous_debug_tools already use elsewhere in
- * this ecosystem.
+ * Pure-CSS wide layout for CPT edit screens: flattens WP's meta box
+ * containers into a multi-column card layout. Meta box contexts and
+ * postboxes.js drag-reorder are untouched; below BREAKPOINT nothing changes.
+ * Opt in via the 'ous_wide_admin_layout_post_types' filter.
  */
 class OUS_AdminLayout {
-    // 1200px was an all-or-nothing gate, not a graceful degradation
-    // point — the masonry treatment below (`columns: 360px 3`) is
-    // already fluid on its own (the browser computes
-    // min(3, floor(available_width / 360)) columns, collapsing to 2
-    // then 1 as the viewport narrows, no media query needed for that
-    // part). The only thing gated on this constant is whether the
-    // nicer card treatment applies at all — so anywhere between
-    // roughly 850px (WordPress's own admin sidebar collapse point) and
-    // 1200px got the old cramped stock two-column layout back, the
-    // exact "sidebar overflowing, main column empty" problem this
-    // class exists to fix. Lowered to WordPress core's own admin-menu
-    // collapse breakpoint (782px, where wp-admin's sidebar itself
-    // already goes icon-only) — below that is genuinely mobile/tablet
-    // territory where WP's own plain stacked default is the right
-    // call; everything wider now gets the masonry treatment.
-    const BREAKPOINT = 782; // px — below this, WordPress's own default layout is left untouched
+    // WP core's admin-menu collapse point; the column layout itself is fluid.
+    const BREAKPOINT = 782; // px
 
     public static function init(): void {
         add_action('admin_head-post.php', [self::class, 'maybe_print_css']);

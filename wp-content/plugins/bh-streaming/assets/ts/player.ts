@@ -1,27 +1,7 @@
-// BH Streaming player — full feature set. Organized into clearly
-// separated sections since this file covers a lot of ground: state,
-// rendering per view, the playback/queue engine, Media Session
-// (unchanged in spirit from the original MVP — see the note there about
-// the current iOS background-audio limitation, still true here), and
-// likes/playlists/volume/related-tracks as additive layers on top.
-//
-// TypeScript pilot conversion — the harder of the two deferred large
-// player files (bh-contest's own class-shaped player.js converted
-// first). No class to hang types on here: this stays the same one
-// flat IIFE the original was, with every `var`/function inside it
-// given a real type instead of restructuring into a class just to make
-// typing easier — that would be a much bigger, riskier diff than this
-// pilot's actual goal. Same posture as every other TS-pilot file:
-// plain `tsc`, no bundler, compiled assets/js/player.js is committed
-// since the live site runs no build step. Run `npm run build:bh-streaming`
-// after editing.
-//
-// BHSData/BHCoreToast are real globals assigned by wp_localize_script/
-// class-toast.php's own enqueue — declared ambient below rather than
-// window-cast at every call site, since the original code already
-// read them both ways (`window.BHSData &&` for the truthy check,
-// bare `BHSData.foo` for the read) — same object either way, so this
-// collapses both spellings onto the one bare-global form throughout.
+// BH Streaming player: state, per-view rendering, playback/queue engine,
+// Media Session, likes/playlists/volume, EQ/visualizer, and Jam.
+// Edit this .ts and recompile; assets/js/player.js is generated.
+// BHSData/BHCoreToast are globals from wp_localize_script/class-toast.php.
 
 interface BHSDataShape {
     rest?: string;
@@ -137,13 +117,8 @@ interface BHSJam {
     var app = document.getElementById('bhs-app');
     if (!app) return;
 
-    // Non-null cast helper — every ID below is part of this plugin's
-    // own server-rendered shortcode template, always present together
-    // with #bhs-app (already confirmed present by the guard above).
-    // The handful of genuinely-conditional elements (bhs-quality-toggle,
-    // the password-toggle button, bhs-np-chapters) keep their original
-    // nullable `document.getElementById(...)` form and their own
-    // `if (x)` guard, unchanged from the source.
+    // Non-null cast helper for IDs that the shortcode template always renders.
+    // Genuinely optional elements use a plain getElementById + null guard.
     function byId<T extends HTMLElement = HTMLElement>(id: string): T {
         return document.getElementById(id) as T;
     }
@@ -191,22 +166,15 @@ interface BHSJam {
     var queue: BHSTrack[] = [];          // the ordered list of track objects currently being played through
     var queueIndex = -1;
 
-    // Jam state — see class-jam.php for the server side of this.
-    // `jam.active` gates most local input (shuffle/prev/next/seek/queue
-    // clicks) to host-only while a session is running; a non-host
-    // participant's UI becomes a mirror driven by jamApplyState(),
-    // not local clicks.
+    // Jam state (server side: class-jam.php). While active, a non-host's
+    // transport is driven by jamApplyState(), not local clicks.
     var jam: BHSJam = {
         active: false, isHost: false, code: null, controlMode: 'host',
         pollTimer: null, suppressNextPositionSync: false,
     };
-    // The one and only playback element — always plays every track
-    // directly and unrouted, regardless of CORS. Deliberately NEVER
-    // passed to createMediaElementSource(); see the EQ/visualizer
-    // section below for why a SEPARATE shadow element carries that risk
-    // instead, so a mis-configured or third-party host (common for
-    // aggregated/external tracks — see class-feeds.php) can never cause
-    // actual playback to go silent.
+    // WHY: the primary playback element is never passed to
+    // createMediaElementSource(), so a non-CORS external host can't silence
+    // playback. EQ/visualizer use a separate shadow element (see below).
     var audio = new Audio();
     var currentQuality: string | null = null;   // null = whatever track.url already is (the track's own default)
     var currentTrackLyrics: BHSLyricLine[] | null = null; // parsed LRC lines for the track currently playing, if any
@@ -224,11 +192,7 @@ interface BHSJam {
         return h;
     }
 
-    // BHCoreToast (the-self-hosted-self core, loaded on every front-end page — see
-    // class-toast.php's enqueue_assets(), hooked to wp_enqueue_scripts
-    // unconditionally) replaces every alert() this player used to block
-    // on for a plain "log in to do that" notice. Same typeof guard every
-    // other call site in this ecosystem uses.
+    // BHCoreToast is loaded by core on every front-end page; guard anyway.
     function notify(msg: string, isError?: boolean): void {
         if (typeof BHCoreToast !== 'undefined' && BHCoreToast) { BHCoreToast.show(msg, isError ? 'error' : 'success'); } else { alert(msg); }
     }
@@ -247,13 +211,8 @@ interface BHSJam {
 
     function trackCardHtml(t: BHSTrack): string {
         var liked = likedIds.indexOf(t.id) !== -1;
-        // A featured/external track's playability depends on ANOTHER
-        // site's host staying up (bh-streaming never re-hosts it — see
-        // BHS_Feeds) — 'degraded'/'down' surface that honestly here
-        // rather than the listener only finding out by hitting play and
-        // getting silence. Never hidden outright even when 'down': the
-        // catalog entry (and its metadata) staying visible is the point,
-        // it's just clearly labeled as currently unreachable.
+        // External tracks depend on another site's host; show 'degraded'/'down'
+        // honestly but never hide the catalog entry.
         var healthBadge = '';
         if (t.source_health === 'down') healthBadge = '<span class="bhs-badge bhs-badge-down">Unavailable</span>';
         else if (t.source_health === 'degraded') healthBadge = '<span class="bhs-badge bhs-badge-degraded">Unreliable</span>';
@@ -276,15 +235,8 @@ interface BHSJam {
 
         if (currentView === 'all') {
             var tracks = filteredTracks();
-            // UX-AUDIT-2026-07.md's cited finding — this bare
-            // "No tracks match." replaced with the shared, server-
-            // rendered empty-state component (BHSData.emptyState*,
-            // BHY_Style::empty_state_html()), one source of truth with
-            // every other front-end empty state in the ecosystem
-            // instead of a second, bespoke JS string. Filtered vs.
-            // zero-data is derivable right here (a search term or genre
-            // is active) — same distinction bh-courses' catalog already
-            // makes server-side.
+            // Shared empty-state component (BHSData.emptyState*); filtered vs.
+            // zero-data is decided by whether a search term or genre is active.
             var isFiltered = !!(searchInput.value.trim() || genreFilter.value);
             library.innerHTML = tracks.length
                 ? '<div class="bhs-grid">' + tracks.map(trackCardHtml).join('') + '</div>'
@@ -322,11 +274,8 @@ interface BHSJam {
                 var id = parseInt(card.dataset.id || '', 10);
                 var index = list.findIndex(function (t) { return t.id === id; });
                 var t = list[index];
-                // A locked track never has a playable url at all (see
-                // class-api.php's track_payload) — clicking it shows
-                // whatever paywall notice the monetization plugin
-                // supplied (bh-monetization-woo's own "become a
-                // supporter" markup) instead of attempting playback.
+                // Locked tracks have no playable url (class-api.php track_payload);
+                // show the monetization plugin's paywall notice instead.
                 if (t && t.locked) { showLockNotice(t); return; }
                 playQueue(list, index);
             });
@@ -354,8 +303,6 @@ interface BHSJam {
     }
 
     function renderPlaylistsView(): void {
-        // Audit fix (2026-07-25): migrated onto the shared empty-state
-        // component, matching every other tab (BHSData.emptyState*).
         if (!loggedIn) { library.innerHTML = (BHSData && BHSData.emptyStatePlaylistsLoggedOut) || '<p class="bhs-empty">Log in to create playlists.</p>'; return; }
         if (!myPlaylists.length) { library.innerHTML = (BHSData && BHSData.emptyStatePlaylistsEmpty) || '<p class="bhs-empty">No playlists yet — use the + button on a track while it\'s playing to start one.</p>'; return; }
 
@@ -397,17 +344,8 @@ interface BHSJam {
 
     /* ---------- deep-linking a single track (OUS_Search's own real destination) ---------- */
 
-    // ROADMAP-search-and-revisions.md's own honest flag: tracks/releases
-    // have no canonical per-item URL at all, only ever reachable through
-    // this shortcode's client-rendered SPA — a search result had nowhere
-    // real to link to. Same query-param-read-on-load shape
-    // maybeOpenSharedPlaylist() already established for exactly this
-    // kind of "arrive here from outside already knowing what you want"
-    // case. Deliberately does NOT auto-play (browser autoplay policy
-    // would silently block it anyway, and starting audio without an
-    // explicit click is bad UX regardless) — shows just that one track,
-    // ready to play with the same real click-to-play path every other
-    // card already uses.
+    // Tracks have no canonical per-item URL, so search results deep-link here
+    // via a query param. WHY: never auto-plays (autoplay policy, and bad UX).
     function maybeOpenTrackDeepLink(): boolean {
         var params = new URLSearchParams(window.location.search);
         var trackId = parseInt(params.get('bhs_track') || '', 10);
@@ -415,9 +353,6 @@ interface BHSJam {
 
         var track = allTracks.find(function (t) { return t.id === trackId; });
         if (!track) {
-            // Audit fix (2026-07-25): a dead-end deep link had no way
-            // back except the browser's own Back button — same pattern
-            // showLockNotice()/openRelease() already use.
             library.innerHTML = '<button type="button" class="bhs-back" id="bhs-back-from-deep-link">&larr; Back to library</button><p class="bhs-empty">That track isn\'t available.</p>';
             byId<HTMLButtonElement>('bhs-back-from-deep-link').addEventListener('click', renderView);
             return true;
@@ -443,10 +378,7 @@ interface BHSJam {
                     return;
                 }
                 var playlist = res.data.playlist;
-                // Shared tracks might reference tracks not in this
-                // viewer's own /tracks list only if this were a
-                // cross-site share — same-site shares always resolve
-                // fully since allTracks already covers the whole catalog.
+                // Same-site shares always resolve, since allTracks covers the catalog.
                 var tracks = playlist.track_ids.map(function (id) { return allTracks.find(function (t) { return t.id === id; }); }).filter(Boolean) as BHSTrack[];
                 library.innerHTML = '<h2 class="bhs-release-title">' + esc(playlist.title) + ' <span class="bhs-badge">Shared playlist</span></h2>'
                     + '<div class="bhs-grid">' + tracks.map(trackCardHtml).join('') + '</div>';
@@ -458,12 +390,8 @@ interface BHSJam {
 
     /* ---------- playback + queue ---------- */
 
-    // Shuffle only ever reorders the UPCOMING portion of the queue
-    // (indices after queueIndex) — history (what's already played,
-    // indices before queueIndex) stays exactly as played, Apple-Music
-    // style. originalOrder remembers the pre-shuffle sequence so turning
-    // shuffle back off restores it for whatever hasn't played yet,
-    // rather than re-randomizing again or losing the original order.
+    // Shuffle only reorders the upcoming part of the queue (after queueIndex);
+    // originalOrder lets un-shuffling restore what hasn't played yet.
     var shuffleOn = false;
     var originalOrder: BHSTrack[] | null = null;
 
@@ -496,9 +424,6 @@ interface BHSJam {
         if (shuffleOn) {
             applyShuffle();
         } else if (originalOrder) {
-            // Restore original relative order for whatever's still ahead
-            // of us; already-played history and the current track stay
-            // exactly where they are — shuffle never rewrites the past.
             var playedIds = queue.slice(0, queueIndex + 1).map(function (t) { return t.id; });
             var remaining = originalOrder.filter(function (t) { return playedIds.indexOf(t.id) === -1; });
             queue = queue.slice(0, queueIndex + 1).concat(remaining);
@@ -515,14 +440,11 @@ interface BHSJam {
         if (!t) return;
 
         currentQuality = null; // a fresh track always starts from its default encode
-        shadowUrlOverride = null; // don't let a previous track's quality-URL override leak into this one (see switchToQuality)
+        shadowUrlOverride = null; // don't leak a previous track's quality-URL override (see switchToQuality)
         audio.src = t.url;
         audio.play().catch(function () { /* needs a user gesture first — the click that got us here counts */ });
-        // A 402 here means a monetization plugin (if any) declined the
-        // play — e.g. pay-per-play with an empty wallet. bh-streaming
-        // itself has no idea what that means beyond "stop and say so";
-        // the actual reason/message comes from whatever's hooked into
-        // bhs_track_play_denied_message server-side.
+        // 402 = a monetization plugin declined the play (e.g. empty wallet);
+        // the message comes from bhs_track_play_denied_message server-side.
         fetch(rest + 'tracks/' + t.id + '/play', { method: 'POST' })
             .then(function (r) { if (r.status === 402) return r.json().then(function (d) { throw new Error(d.message || 'Payment required.'); }); return; })
             .catch(function (err) {
@@ -542,10 +464,8 @@ interface BHSJam {
         qualityToggleBtn && (qualityToggleBtn.style.display = (t.qualities && t.qualities.length) ? '' : 'none');
         renderLyricsFor(t);
         renderQualityFor(t);
-        // If the EQ/visualizer graph is already engaged (the listener
-        // turned it on for a previous track), re-evaluate whether THIS
-        // new track is safe to route through it — see the EQ/visualizer
-        // section below for why this can't just carry over blindly.
+        // Re-check whether this new track is safe to route through an engaged
+        // EQ/visualizer graph; eligibility can't carry over between tracks.
         onTrackChangedForAudioGraph(t);
 
         updateMediaSession(t);
@@ -565,12 +485,8 @@ interface BHSJam {
         if (queueIndex < queue.length - 1) { queueIndex++; playCurrent(); if (jam.active && jam.isHost) jamPushState(); }
     }
 
-    // Apple-Music-style split: a "History" section (already played,
-    // oldest first, most-recent nearest the now-playing divider) and an
-    // "Up Next" section (what's coming, respecting shuffle if it's on).
-    // Same rendering is reused as-is for a Jam session's shared queue —
-    // Jam just keeps `queue`/`queueIndex` in sync with the host instead
-    // of the local click handlers driving them (see jamApplyState()).
+    // History (already played) and Up Next sections. Also renders a Jam
+    // session's shared queue, which jamApplyState() keeps in sync.
     function renderQueuePanel(): void {
         var history = queue.slice(0, queueIndex);
         var current = queue[queueIndex];
@@ -592,9 +508,7 @@ interface BHSJam {
         queueList.innerHTML = html;
         queueList.querySelectorAll<HTMLElement>('.bhs-queue-item').forEach(function (item) {
             item.addEventListener('click', function () {
-                // In a Jam session, only the host can jump the queue —
-                // a participant's queue view is a read-only mirror of
-                // whatever the host is actually playing (see jamApplyState).
+                // In a Jam, only the host can jump the queue.
                 if (jam.active && !jam.isHost) return;
                 queueIndex = parseInt(item.dataset.index || '', 10);
                 playCurrent();
@@ -620,7 +534,7 @@ interface BHSJam {
         }).catch(function () { relatedBox.style.display = 'none'; });
     }
 
-    /* ---------- Media Session (unchanged approach from the original MVP) ---------- */
+    /* ---------- Media Session ---------- */
 
     function updateMediaSession(t: BHSTrack): void {
         if (!('mediaSession' in navigator)) return;
@@ -647,14 +561,9 @@ interface BHSJam {
     });
     audio.addEventListener('ended', playNext);
 
-    /* ---------- stream health (task 40) ---------- */
-    // Shared hosting means bandwidth/uptime is genuinely variable —
-    // this surfaces THIS session's actual playback trouble (stalls,
-    // slow starts, hard errors) in real time, distinct from
-    // source_health above (which is a periodic server-side check of the
-    // SOURCE, not of what this one listener is experiencing right now).
-    // A listener on a bad connection to an otherwise-healthy source
-    // still deserves to know it's their stream, not just a dead track.
+    /* ---------- stream health ---------- */
+    // This listener's own playback trouble (stalls, slow starts, errors),
+    // distinct from source_health, which is a server-side check of the source.
     var streamHealth: { stallTimer: number | null; stalling: boolean; errorStreak: number } = { stallTimer: null, stalling: false, errorStreak: 0 };
     var streamBadge = document.createElement('span');
     streamBadge.className = 'bhs-stream-health';
@@ -667,11 +576,8 @@ interface BHSJam {
         else { streamBadge.style.display = 'none'; }
     }
 
-    // 'waiting' fires when playback has to pause for more data — a
-    // single blip is normal (any buffered stream does this briefly);
-    // only flag it as a real "poor connection" if it hasn't recovered
-    // within a couple seconds, so a listener isn't shown an alarming
-    // badge for every ordinary micro-buffer.
+    // A single 'waiting' blip is normal; only flag a poor connection if it
+    // hasn't recovered within a couple of seconds.
     audio.addEventListener('waiting', function () {
         if (streamHealth.stallTimer) clearTimeout(streamHealth.stallTimer);
         streamHealth.stallTimer = window.setTimeout(function () {
@@ -688,11 +594,8 @@ interface BHSJam {
     audio.addEventListener('error', function () {
         streamHealth.errorStreak++;
         setStreamBadge('error');
-        // A couple of quick retries (the source might just have had a
-        // momentary blip) before giving up and telling the listener
-        // plainly rather than looping forever on a genuinely dead
-        // source — three tries mirrors BHS_Feeds' own
-        // HEALTH_DOWN_AFTER_FAILS threshold for the same reasoning.
+        // A few retries before giving up; three matches BHS_Feeds'
+        // HEALTH_DOWN_AFTER_FAILS threshold.
         if (streamHealth.errorStreak <= 3) {
             setTimeout(function () { audio.load(); audio.play().catch(function () {}); }, 1500 * streamHealth.errorStreak);
         } else {
@@ -705,11 +608,8 @@ interface BHSJam {
         }
     });
 
-    // If this track offers a lower-bitrate encode and playback is
-    // visibly struggling, drop to it automatically rather than just
-    // showing a badge and hoping — the same switchToQuality() the
-    // manual Quality panel uses, so position/playing-state preservation
-    // is identical either way.
+    // Auto-drop to a lower-bitrate encode when playback is struggling, via
+    // the same switchToQuality() the manual Quality panel uses.
     function maybeStepDownQuality(): void {
         var t = queue[queueIndex];
         if (!t || !t.qualities || !t.qualities.length) return;
@@ -729,7 +629,7 @@ interface BHSJam {
         maybeSaveResumePosition();
     });
 
-    /* ---------- long-form audio: chapters + resume position (ROADMAP-streaming-media-scope-and-blockchain.md Part 5, Phase 1) ---------- */
+    /* ---------- long-form audio: chapters + resume position ---------- */
 
     var chaptersEl = document.getElementById('bhs-np-chapters');
     var lastResumeSave = 0;
@@ -751,14 +651,10 @@ interface BHSJam {
         });
     }
 
-    // Only logged-in listeners get resume (BHSData.loggedIn — the same
-    // flag every other per-user player feature already checks), and
-    // only via a real user gesture already granting audio.play()
-    // elsewhere — this never autoplays, it just seeks once metadata is
-    // available so the FIRST play of a track a listener already started
-    // picks up where they left off.
+    // Resume is logged-in only, and never autoplays: it just seeks once
+    // metadata is available so the first play picks up where they left off.
     function maybeResumeSeek(t: BHSTrack | undefined): void {
-        if (!t || !t.resumeSeconds || t.resumeSeconds < 5) return; // a few seconds in isn't worth resuming into — that's just "the start"
+        if (!t || !t.resumeSeconds || t.resumeSeconds < 5) return; // a few seconds in isn't worth resuming into
         var resumeSeconds = t.resumeSeconds;
         function onLoaded() {
             if (resumeSeconds < (audio.duration || Infinity) - 5) audio.currentTime = resumeSeconds;
@@ -767,9 +663,7 @@ interface BHSJam {
         audio.addEventListener('loadedmetadata', onLoaded);
     }
 
-    // Throttled to once per 10s of real playback, not every timeupdate
-    // tick (which can fire several times a second) — a resume position
-    // is a convenience, not something that needs sub-second accuracy.
+    // Throttled to once per 10s of playback, not every timeupdate tick.
     function maybeSaveResumePosition(): void {
         if (!BHSData || !BHSData.loggedIn) return;
         var t = queue[queueIndex];
@@ -801,10 +695,7 @@ interface BHSJam {
         toggleShuffle();
     });
 
-    // Desktop-only in practice: mobile browsers largely ignore
-    // audio.volume and defer to the hardware volume buttons instead —
-    // this still doesn't hurt to have, it's just a no-op there rather
-    // than something actively broken.
+    // Mobile browsers mostly ignore audio.volume (hardware buttons win).
     volume.addEventListener('input', function () { audio.volume = Number(volume.value) / 100; });
 
     byId<HTMLButtonElement>('bhs-queue-toggle').addEventListener('click', function () {
@@ -850,9 +741,7 @@ interface BHSJam {
     function addCurrentToPlaylist(playlistId: number): void {
         var t = queue[queueIndex];
         if (!t) return;
-        // Disable every row so a double-tap can't fire two adds while the
-        // first request is still in flight — previously nothing in the
-        // picker indicated a request was even happening.
+        // Disable every row so a double-tap can't fire two adds in flight.
         playlistPickerList.querySelectorAll<HTMLButtonElement>('button').forEach(function (b) { b.disabled = true; });
         fetch(rest + 'playlists/' + playlistId + '/tracks', {
             method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -861,9 +750,6 @@ interface BHSJam {
             var idx = myPlaylists.findIndex(function (p) { return p.id === playlistId; });
             if (idx !== -1) myPlaylists[idx] = data.playlist;
             playlistPicker.style.display = 'none';
-            // Was silent on success (only the failure path below ever
-            // called notify()) — the picker just closed with zero
-            // positive signal the add actually went through.
             var addedName = (data.playlist && data.playlist.name) || 'playlist';
             notify('Added to "' + addedName + '".');
         }).catch(function () {
@@ -926,9 +812,7 @@ interface BHSJam {
         });
     });
 
-    // Password show/hide — a baseline expectation this auth form never
-    // had; flips the field's own type rather than a second duplicate
-    // input, so nothing about validation/submission needs to change.
+    // Flips the field's own type so validation/submission are unchanged.
     var passToggle = document.querySelector<HTMLButtonElement>('.bhs-pass-toggle');
     if (passToggle) {
         passToggle.addEventListener('click', function () {
@@ -950,11 +834,7 @@ interface BHSJam {
         var passwordEl = byId<HTMLInputElement>('bhs-auth-password');
         var username = usernameEl.value.trim();
         var password = passwordEl.value;
-        // Basic empty-field check before ever hitting the network — the
-        // only feedback this form gave before was a generic server error
-        // AFTER a full round trip, even for something as simple as a
-        // blank field. Marks the specific empty field, not just a shared
-        // line of text under the whole form.
+        // Mark the specific empty field before hitting the network.
         usernameEl.classList.toggle('bhs-field-invalid', !username);
         passwordEl.classList.toggle('bhs-field-invalid', !password);
         if (!username || !password) {
@@ -969,9 +849,7 @@ interface BHSJam {
         var body: { username: string; password: string; email?: string } = { username: username, password: password };
         if (authMode === 'register') body.email = emailField.value.trim();
 
-        // Pending state — this used to give zero feedback between click
-        // and response, letting a slow connection invite a double-click
-        // (and a real duplicate register/login POST).
+        // Pending state prevents a duplicate register/login POST on double-click.
         authSubmitBtn.disabled = true;
         var originalLabel = authSubmitBtn.textContent || '';
         authSubmitBtn.textContent = authMode === 'register' ? 'Creating account…' : 'Signing in…';
@@ -1013,9 +891,7 @@ interface BHSJam {
         });
     });
 
-    // After logging in mid-session, the account's own likes/playlists
-    // need to actually load — a plain page reload would also work, but
-    // this keeps whatever they were listening to playing uninterrupted.
+    // Load the account's likes/playlists without a reload, so playback continues.
     function reloadUserData(): void {
         fetch(identityRest + 'session').then(function (r) { return r.json(); }).then(function (s: { loggedIn: boolean; username: string }) {
             if (s.loggedIn) accountUsername.textContent = s.username;
@@ -1039,12 +915,8 @@ interface BHSJam {
 
     /* ---------- lyrics ---------- */
 
-    // Parses [mm:ss.xx]text lines into {time, text} objects sorted by
-    // time. Deliberately tolerant of missing/extra fields (a two-digit
-    // vs three-digit fraction, no fraction at all) since LRC exports
-    // vary slightly between tools — a line that doesn't match the
-    // timestamp pattern at all is just skipped rather than aborting the
-    // whole parse.
+    // Parses [mm:ss.xx]text lines into {time, text}, sorted by time. Tolerant
+    // of fraction-length variations; non-matching lines are skipped.
     function parseLRC(lrc: string | undefined): BHSLyricLine[] {
         var lines: BHSLyricLine[] = [];
         (lrc || '').split(/\r?\n/).forEach(function (raw) {
@@ -1100,9 +972,7 @@ interface BHSJam {
 
     /* ---------- quality selection ---------- */
 
-    // Switching quality mid-track preserves playback position and
-    // paused/playing state — this is a listener preference change, not
-    // a "start over" action.
+    // Switching quality preserves playback position and paused/playing state.
     function switchToQuality(label: string, url: string): void {
         var wasPlaying = !audio.paused;
         var position = audio.currentTime;
@@ -1112,21 +982,12 @@ interface BHSJam {
         audio.addEventListener('loadedmetadata', function onLoaded() {
             audio.removeEventListener('loadedmetadata', onLoaded);
             audio.currentTime = position;
-            // If this fails, playback that WAS running just silently
-            // stops with no explanation — the play/pause icon already
-            // correctly reflects the real (paused) state via the
-            // audio element's own 'pause' event, but nothing told the
-            // user THEY didn't click pause, the browser did.
+            // The browser paused playback, not the user; say so.
             if (wasPlaying) audio.play().catch(function () { notify('Playback stopped — press play to resume.', true); });
         });
         renderQualityFor(queue[queueIndex]);
-        // A quality switch is effectively a new URL for the same logical
-        // track — re-run the same eligibility check the EQ/visualizer
-        // graph does for any track change, since a different encode
-        // could in principle be hosted somewhere with different CORS
-        // behavior than the default. graphRequestToken (incremented
-        // inside engageGraphForCurrentTrack) makes sure a stale probe
-        // from the PREVIOUS quality can't win a race against this one.
+        // A different encode could have different CORS behavior, so re-run the
+        // graph eligibility check. graphRequestToken stops a stale probe winning.
         if (graphWanted) engageGraphForCurrentTrack();
     }
 
@@ -1157,31 +1018,14 @@ interface BHSJam {
 
     /* ---------- EQ + visualizer (Web Audio API) ----------
      *
-     * IMPORTANT CORS constraint this section is built around: per the
-     * Web Audio spec, once an <audio> element is wired into a Web Audio
-     * graph via createMediaElementSource(), that element's audio is
-     * SILENCED entirely for any resource that isn't same-origin or
-     * doesn't come with a permissive Access-Control-Allow-Origin header
-     * — not an error, not a fallback, just silence, with no exception to
-     * catch. bh-streaming's whole aggregator feature (class-feeds.php)
-     * exists specifically to feature audio hosted on OTHER servers this
-     * site doesn't control and can't guarantee send CORS headers, so
-     * wiring the PRIMARY playback element (`audio` above) into this
-     * graph would risk silently breaking playback for exactly those
-     * external/aggregated tracks — unacceptable regression risk for a
-     * "bonus" feature like EQ/visualizer.
-     *
-     * The fix: EQ and the visualizer run through a completely separate,
-     * hidden `shadowAudio` element that only ever becomes the actual
-     * audible output when the CURRENT track has been confirmed safe
-     * (same-origin, or a live CORS probe succeeds). `audio` (primary)
-     * is muted only for the duration that shadowAudio is confirmed safe
-     * and actively engaged; the instant a track turns out to be
-     * ineligible, shadowAudio is paused and `audio` is unmuted — so the
-     * worst case for an ungraphable track is simply "no EQ/visualizer
-     * for this one," never silence.
+     * WHY: once an <audio> element is wired into createMediaElementSource(),
+     * a non-CORS cross-origin resource is silently muted (no error to catch).
+     * External/aggregated tracks often lack CORS headers, so EQ/visualizer run
+     * through a hidden `shadowAudio` element that only becomes the audible
+     * output once the current track is confirmed safe; otherwise the primary
+     * `audio` stays unmuted. Worst case: no EQ for that track, never silence.
      */
-    var EQ_BANDS = [60, 250, 1000, 4000, 8000, 14000]; // fixed, musically-spread peaking filters — same "chain of BiquadFilterNodes" approach Funkwhale's own web client and most open-source web players use, not anything more exotic
+    var EQ_BANDS = [60, 250, 1000, 4000, 8000, 14000]; // fixed, musically-spread peaking filters
 
     var audioCtx: AudioContext | null = null;
     var shadowAudio: HTMLAudioElement | null = null;
@@ -1207,12 +1051,8 @@ interface BHSJam {
         catch (e) { return false; }
     }
 
-    // A real, cheap capability probe rather than guessing: a tiny
-    // ranged GET in explicit 'cors' mode. If the host doesn't send
-    // Access-Control-Allow-Origin, the fetch PROMISE REJECTS (browsers
-    // enforce this at the network layer for mode:'cors'), which we can
-    // reliably catch — unlike the silent-mute failure mode this whole
-    // section exists to avoid.
+    // Ranged GET in mode:'cors': a missing Access-Control-Allow-Origin makes
+    // the fetch promise reject, which (unlike the silent mute) is catchable.
     function probeCors(url: string): Promise<boolean> {
         if (isSameOrigin(url)) return Promise.resolve(true);
         return fetch(url, { method: 'GET', mode: 'cors', headers: { 'Range': 'bytes=0-0' } })
@@ -1220,10 +1060,8 @@ interface BHSJam {
             .catch(function () { return false; });
     }
 
-    // Built once, lazily, on first EQ/Visualizer use — browsers block
-    // AudioContext until a user gesture, and createMediaElementSource()
-    // can only ever be called ONCE per element for its whole lifetime.
-    // Built against shadowAudio, never against the primary `audio`.
+    // Built lazily on first use: AudioContext needs a user gesture, and
+    // createMediaElementSource() can only be called once per element.
     function ensureAudioGraph(): void {
         if (graphBuilt) return;
         var win = window as BHSWindow;
@@ -1252,25 +1090,13 @@ interface BHSJam {
         renderEqBands();
     }
 
-    // Monotonic token guarding every async engage attempt — incremented
-    // on every call (track change OR quality switch OR re-engage), so a
-    // stale probe/play promise that resolves late (from a track the
-    // listener has since moved past, or a superseded quality URL on the
-    // SAME track) can never act on the wrong request. Comparing
-    // `queue[queueIndex] !== t` alone (the original guard) missed the
-    // same-track-different-quality-URL case flagged in review.
+    // Monotonic token: a stale probe/play promise (earlier track, or a
+    // superseded quality URL on the same track) can never act on a newer request.
     var graphRequestToken = 0;
 
-    // Attempts to make shadowAudio the actual audible output for
-    // whatever's currently loaded in the primary element. Called when
-    // the listener opens EQ/Visualizer, and again on every track or
-    // quality change while either panel has ever been used (see
-    // onTrackChangedForAudioGraph). Critically, `audio.muted` is only
-    // ever set once shadowAudio has confirmed it's actually playing
-    // (its 'playing' event) — never on probe success alone — so a
-    // shadow element that fails to decode, stalls, or rejects play()
-    // after a successful CORS probe can NEVER leave the listener with
-    // silence: the primary element stays audible the whole time.
+    // Make shadowAudio the audible output for the current track. WHY:
+    // audio.muted is only set after shadowAudio's 'playing' event, never on
+    // probe success alone, so a failed decode/play can't leave silence.
     function engageGraphForCurrentTrack(): void {
         var t = queue[queueIndex];
         if (!t || !t.url) return;
@@ -1289,10 +1115,7 @@ interface BHSJam {
             sa.src = url;
             sa.currentTime = audio.currentTime;
 
-            // Do NOT mute the primary element yet — wait for shadowAudio
-            // to actually confirm it's producing sound. audio.muted only
-            // flips once 'playing' fires below, and only if this is still
-            // the current request.
+            // Don't mute the primary yet; wait for shadowAudio's 'playing' event.
             var onPlaying = function () {
                 sa.removeEventListener('playing', onPlaying);
                 if (myToken !== graphRequestToken) return;
@@ -1314,9 +1137,7 @@ interface BHSJam {
                     showGraphNotice(true);
                 });
             }
-            // If the primary is currently paused, shadowAudio simply
-            // stays loaded-but-paused too — no mute happens until actual
-            // playback starts, so there's nothing to restore in that case.
+            // If the primary is paused, shadowAudio stays paused and nothing is muted.
         });
     }
 
@@ -1339,12 +1160,8 @@ interface BHSJam {
         }
     }
 
-    // Keeps the shadow element roughly in sync with the primary one
-    // while engaged — two independently-decoded streams can drift a
-    // little over a long track; a periodic hard resync (not sample-
-    // accurate, just bounded) is enough for EQ/visualizer purposes,
-    // which are enhancements, not the source of truth for playback
-    // position (the primary element still owns seek/duration/MediaSession).
+    // Periodic bounded resync of shadow to primary; the primary element still
+    // owns seek/duration/MediaSession.
     setInterval(function () {
         if (!graphEngaged || !shadowAudio) return;
         if (Math.abs(shadowAudio.currentTime - audio.currentTime) > 0.35) {
@@ -1354,14 +1171,8 @@ interface BHSJam {
         if (!audio.paused && shadowAudio.paused) shadowAudio.play().catch(function () {});
     }, 2000);
 
-    // Called from playCurrent() on every track change. Only does
-    // anything if the listener has already opted into EQ/Visualizer at
-    // least once — otherwise the graph is never even built, and every
-    // track just plays through the plain primary element as always.
-    // Takes an (unused) track argument to match its one call site in
-    // playCurrent() — harmless in the original JS (extra args are
-    // silently ignored), kept as an optional param here rather than
-    // changed, since removing it would mean touching the call site too.
+    // Called on every track change; a no-op unless the listener has opened
+    // EQ/Visualizer at least once. The track argument is unused.
     function onTrackChangedForAudioGraph(_t?: BHSTrack): void {
         if (!graphWanted) return;
         engageGraphForCurrentTrack();
@@ -1382,10 +1193,8 @@ interface BHSJam {
         });
     }
 
-    // Disengages the shadow graph entirely once NEITHER the EQ panel nor
-    // the visualizer wants it running anymore — otherwise shadowAudio
-    // would keep silently playing in the background (and the primary
-    // element would stay muted) after the listener closes both surfaces.
+    // Disengage once neither EQ nor visualizer wants the graph, so shadowAudio
+    // doesn't keep playing (and the primary stay muted) in the background.
     function disengageGraphIfUnwanted(): void {
         var eqOpen = eqPanel.style.display !== 'none';
         if (!eqOpen && !visualizerOn) disengageGraph();
@@ -1410,11 +1219,8 @@ interface BHSJam {
         eqBandsEl.querySelectorAll<HTMLInputElement>('input[type=range]').forEach(function (s) { s.value = '0'; });
     });
 
-    // Visualizer: a simple bar-graph over the analyser's frequency-domain
-    // data — reads from the SAME shadow-graph analyser as the EQ, so it's
-    // subject to the exact same eligibility gating above (no separate
-    // CORS risk of its own). Only drawn while toggled on AND the graph
-    // is actually engaged for the current track.
+    // Visualizer bars read the same shadow-graph analyser as the EQ, so they
+    // share its eligibility gating.
     var vizCtx = vizCanvas.getContext('2d') as CanvasRenderingContext2D;
     function drawVisualizer(): void {
         if (!visualizerOn) return;
@@ -1452,12 +1258,8 @@ interface BHSJam {
         importModal.style.display = 'flex';
     });
 
-    // Audit fix (2026-07-25): the shared empty-state component's CTA/clear
-    // links are same-page anchors (#bhs-import, #bhs-clear-filters), not
-    // real URLs — the library is re-rendered via innerHTML on every view
-    // change, so a plain addEventListener on the CTA itself would be lost
-    // the moment the empty state re-renders. Delegated on `library` (a
-    // stable container that's never itself replaced) instead.
+    // Empty-state CTA links are same-page anchors re-rendered via innerHTML,
+    // so the click handler is delegated on the stable `library` container.
     library.addEventListener('click', function (e) {
         var target = e.target as HTMLElement;
         if (target.closest('a[href="#bhs-import"]')) {
@@ -1485,9 +1287,7 @@ interface BHSJam {
         if (title) form.append('title', title);
         if (artist) form.append('artist', artist);
 
-        // No Content-Type header here — the browser sets the correct
-        // multipart boundary itself when the body is a FormData object;
-        // setting it manually would break the boundary.
+        // WHY: no Content-Type; the browser must set the multipart boundary itself.
         fetch(rest + 'import', { method: 'POST', headers: authHeaders(), body: form })
             .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
             .then(function (res: { ok: boolean; data: { message?: string; track: BHSTrack } }) {
@@ -1526,12 +1326,8 @@ interface BHSJam {
     }
 
     /* ---------- Jam (shared listening) ---------- */
-    // Polling-first (see class-jam.php's header note on why): every
-    // 2s, whoever isn't the host fetches /jam/{code}/state and applies
-    // it wholesale via jamApplyState(); the host instead PUSHES its own
-    // state on every local transport action (see the guarded handlers
-    // above) so a host's own listening feels instant, never waiting on
-    // its own poll round-trip.
+    // Polling-first: non-hosts poll /jam/{code}/state every 2s and apply it
+    // via jamApplyState(); the host pushes its state on each local action.
 
     var jamModal = byId<HTMLElement>('bhs-jam-modal');
     var jamBanner = byId<HTMLElement>('bhs-jam-banner');
@@ -1576,13 +1372,8 @@ interface BHSJam {
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, d: d }; }); })
             .then(function (res: { status: number; d: BHSJamState & { message?: string; pending?: boolean } }) {
                 if (res.status === 202 && res.d.pending) {
-                    // Approval-required mode: nothing to render as a live
-                    // session yet — keep polling THIS SAME join endpoint
-                    // until the host approves (or the request is denied,
-                    // which shows up as a plain join failure once the
-                    // host clears it from pending — there's no separate
-                    // "you were denied" signal, matching how a kicked
-                    // participant's poll just starts failing too).
+                    // Approval-required mode: keep polling this join endpoint
+                    // until approved; a denial surfaces as a plain join failure.
                     jamShowError(res.d.message || 'Waiting for the host…');
                     jamAwaitApproval(code);
                     return;
@@ -1618,10 +1409,8 @@ interface BHSJam {
         jamApplyState(state);
         jamRenderBanner();
         if (jam.pollTimer) clearInterval(jam.pollTimer);
-        // The host still polls, at a slower cadence, purely to pick up
-        // vote-skip results and the participant list — its own transport
-        // state is never overwritten by a poll response (see
-        // jamApplyState's isHost short-circuit).
+        // The host polls slower, only for vote-skip results and participants;
+        // its own transport state is never overwritten (see jamApplyState).
         jam.pollTimer = window.setInterval(jamPoll, isHost ? 4000 : 2000);
     }
 
@@ -1630,10 +1419,7 @@ interface BHSJam {
         fetch(rest + 'jam/' + encodeURIComponent(jam.code) + '/state', { headers: authHeaders() })
             .then(function (r) {
                 if (r.status === 404) { jamEnd('This Jam has ended.'); throw new Error('ended'); }
-                // 403 here (never for the host, who's always a
-                // participant) means the host removed us — get_state's
-                // own participant check is what actually detects this,
-                // there's no separate "was I kicked" signal to poll.
+                // 403 means the host removed us; there's no separate "kicked" signal.
                 if (r.status === 403) { jamEnd('You were removed from this Jam by the host.'); throw new Error('kicked'); }
                 return r.json();
             })
@@ -1641,20 +1427,16 @@ interface BHSJam {
             .catch(function () { /* a missed poll just tries again next tick */ });
     }
 
-    // The one function that turns server state into what's actually
-    // playing. For a non-host, this IS the transport — queue/index/
-    // playing/position all come from here, not from any local click.
-    // For the host, only the parts that could change WITHOUT the host's
-    // own action (participants, vote-skip tally, and — if a vote just
-    // cleared — the index/position it forced) are applied; the host's
-    // own play/pause/seek is authoritative locally and already pushed.
+    // Turns server state into playback. For a non-host this is the transport.
+    // For the host, only participants, vote-skip tally, and any vote-forced
+    // index/position are applied; local play/pause/seek is authoritative.
     function jamApplyState(state: BHSJamState): void {
         jam.controlMode = state.control_mode;
         jamRenderParticipants(state.participants);
         jamRenderSkipVotes(state);
         jamRenderPending(state.pending);
 
-        if (jam.isHost) return; // see comment above — host doesn't take transport dictation from its own poll
+        if (jam.isHost) return; // the host doesn't take transport dictation from its own poll
 
         var incomingIds = state.queue.map(function (t) { return t.id; });
         var currentIds = queue.map(function (t) { return t.id; });
@@ -1668,13 +1450,8 @@ interface BHSJam {
             playCurrent();
         }
 
-        // Position projection: the server gives us "position P as of
-        // server-time T," not "position right now" — a participant who
-        // polls every 2s and just naively sets currentTime = P on
-        // arrival would visibly stutter backward-in-time by however
-        // stale the response already was. Project forward using elapsed
-        // wall-clock time since T instead, same trick a realtime
-        // transport would use, just applied to a slower poll interval.
+        // Server sends "position P as of server-time T"; project forward by
+        // elapsed wall-clock time so participants don't stutter backward.
         if (state.playing) {
             var elapsed = (Date.now() / 1000) - state.position_updated_at;
             var projected = state.position + Math.max(0, elapsed);
@@ -1688,10 +1465,7 @@ interface BHSJam {
         renderQueuePanel();
     }
 
-    // Debounced-by-nature: only ever called right after a guarded local
-    // transport action (see playPrev/playNext/playPauseBtn/seek/
-    // toggleShuffle/queue-click above), never on a timer — the host's
-    // push IS the state, so there's nothing to coalesce.
+    // Called only right after a guarded local transport action, never on a timer.
     function jamPushState(): void {
         if (!jam.active || !jam.isHost || !jam.code) return;
         fetch(rest + 'jam/' + encodeURIComponent(jam.code) + '/host-state', {
@@ -1709,10 +1483,6 @@ interface BHSJam {
         if (!jam.active || !jam.code || jam.controlMode !== 'vote_skip') return;
         fetch(rest + 'jam/' + encodeURIComponent(jam.code) + '/vote-skip', { method: 'POST', headers: authHeaders() })
             .then(function (r) { return r.json(); }).then(jamApplyState).catch(function () {
-                // Previously fully silent — a listener tapping "Vote to
-                // skip" during a real connection blip had no way to tell
-                // their vote didn't register vs. the button just being
-                // unresponsive.
                 notify('Could not reach the server — check your connection and try again.', true);
             });
     }
@@ -1753,14 +1523,8 @@ interface BHSJam {
 
     var jamParticipantsPanel: HTMLElement | null = null;
 
-    // A per-listener, purely-local mute: hides a specific person's name
-    // from YOUR OWN "who's here" view. Everyone in a Jam still hears the
-    // exact same shared audio stream (there's no per-participant audio
-    // routing to mute) — this is about not having to look at a
-    // troll's name, nothing more, and it's cheaper than reporting or
-    // (for a host) kicking: no server round-trip, no one else is
-    // affected, reversible any time. Scoped per Jam code so it doesn't
-    // carry over oddly into an unrelated future session.
+    // Purely local mute: hides a participant's name from your own list (audio
+    // is shared, nothing else is muted). Scoped per Jam code.
     function mutedKey(): string { return 'bhs_jam_muted_' + jam.code; }
     function getMuted(): number[] {
         try { return JSON.parse(localStorage.getItem(mutedKey()) || '[]'); } catch (e) { return []; }
@@ -1787,10 +1551,8 @@ interface BHSJam {
             jamParticipantsPanel.className = 'bhs-jam-participants';
             (jamBanner.parentNode as ParentNode).insertBefore(jamParticipantsPanel, jamBanner.nextSibling);
         }
-        // Everyone gets the mute toggle; only the host ALSO gets remove
-        // (silently rejected on the host's own row — see class-jam.php's
-        // kick() self-target check — harmless rather than worth
-        // plumbing the host's own user ID through to hide one button).
+        // Everyone gets mute; the host also gets remove (the server rejects
+        // a self-kick, so the host's own row needs no special case).
         jamParticipantsPanel.innerHTML = list.map(function (p) {
             var name = esc(p.display_name || ('User #' + p.user_id));
             var mutedNow = isMuted(p.user_id);
@@ -1807,10 +1569,7 @@ interface BHSJam {
             });
         });
         jamParticipantsPanel.querySelectorAll<HTMLButtonElement & { _armTimer?: number }>('button[data-kick-uid]').forEach(function (btn) {
-            // Arm/disarm instead of confirm() — same banned-dialog reason
-            // as everywhere else in this ecosystem. First click arms it
-            // (relabeled for 3s); a second click while armed actually
-            // kicks the listener.
+            // Arm/disarm instead of confirm(): first click arms for 3s, second kicks.
             btn.addEventListener('click', function () {
                 if (!btn.classList.contains('is-armed')) {
                     btn.classList.add('is-armed');
@@ -1833,10 +1592,7 @@ interface BHSJam {
 
     var jamPendingPanel: HTMLElement | null = null;
 
-    // Host-only: `state.pending` is only ever populated by the server
-    // response when the caller IS the host (see class-jam.php's
-    // respond()) — a non-host's state simply has no such key, so this
-    // naturally renders nothing for anyone else.
+    // Host-only: `state.pending` is only present in the host's response.
     function jamRenderPending(pending: BHSJamPendingParticipant[] | undefined): void {
         if (!jam.active || !jam.isHost) return;
         if (!pending || !pending.length) {
@@ -1880,15 +1636,8 @@ interface BHSJam {
     }
 
     Promise.all([
-        // WordPress's REST cookie-auth deliberately treats a request as
-        // anonymous unless X-WP-Nonce is present (rest_cookie_check_errors()
-        // sets current user to 0 with no nonce at all, precisely to stop a
-        // random page from silently riding a visitor's cookie) — so without
-        // this header, a logged-in listener's resumeSeconds always read
-        // back 0 here even though BHS_Chapters::save_resume_position() had
-        // genuinely saved it. Found and fixed while building bh-video's own
-        // chapters port (2026-07-26) — authHeaders() already existed and
-        // was already used elsewhere in this file, just not on this call.
+        // WHY: without X-WP-Nonce, WP REST cookie auth treats the request as
+        // anonymous, so resumeSeconds would always read back 0.
         fetch(rest + 'tracks', { headers: authHeaders() }).then(function (r) { return r.json(); }),
         fetch(rest + 'releases', { headers: authHeaders() }).then(function (r) { return r.json(); }),
         loggedIn ? fetch(rest + 'likes', { headers: authHeaders() }).then(function (r) { return r.json(); }) : Promise.resolve({ track_ids: [] }),
@@ -1899,10 +1648,8 @@ interface BHSJam {
         likedIds = results[2].track_ids || [];
         myPlaylists = results[3].playlists || [];
         loadGenreOptions();
-        // A shared-playlist link takes over the initial view entirely
-        // (read-only, no tabs needed) — everything else above still
-        // loads normally first since the shared view's own track
-        // lookups depend on allTracks already being populated.
+        // A shared-playlist link takes over the initial view; it loads after
+        // allTracks because its track lookups depend on it.
         if (!maybeOpenSharedPlaylist() && !maybeOpenTrackDeepLink()) renderView();
     }).catch(function () {
         library.innerHTML = '<p class="bhs-empty">Could not load the library right now.</p>';

@@ -1,9 +1,6 @@
 /* ---------------- Theme-isolation reset ----------------
-   Same reasoning as bh-contest's player.css: this renders straight into
-   whatever WP theme is active, not an iframe, so it needs to be
-   defensive against theme-level a/button/ul/h1-h6 resets bleeding in —
-   scoped entirely under .bhs-app so it can't leak back out onto the
-   rest of the theme's page either. */
+   Renders inside the active theme, not an iframe, so neutralize theme
+   resets; everything is scoped under .bhs-app so nothing leaks out. */
 .bhs-app, .bhs-app * { box-sizing: border-box; }
 .bhs-app :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li) {
     margin: 0;
@@ -171,10 +168,8 @@
     padding-bottom: 12px;
     flex-wrap: wrap;
 }
-/* Pill radius matches the badge/button vocabulary used ecosystem-wide
-   (courses/registry/storefront filter bars) — no separate recessed
-   panel here since .bhs-topbar's own border-bottom already groups tabs
-   + filters visually, and nesting another box would be redundant. */
+/* Pill radius matches the ecosystem's filter bars; .bhs-topbar's border
+   already groups tabs + filters, so no extra panel. */
 .bhs-filters input, .bhs-filters select {
     background: var(--bh-surface);
     color: var(--bh-text);
@@ -211,18 +206,8 @@
     gap: 16px;
     align-items: start;
 }
-/* Deliberately flat/border-free (a dense library grid reads better this
-   way than bordered catalog-style cards would) but still needs the same
-   baseline depth every card in this ecosystem gets — a subtle resting
-   shadow plus a real hover lift, not just a background-color swap. */
-/* Real bug, caught live: with few real tracks in the grid (as few as
-   one), auto-fit collapses the OTHER empty tracks to 0 and hands their
-   space to the real card(s) — a single track balloons edge-to-edge,
-   over 1000px wide with a wildly distorted, oversized art thumbnail.
-   Same root cause bh-monetization-woo's .bhm-product-card already
-   fixed (see that file's own comment) — max-width + justify-self:center
-   keeps auto-fit's "no dead empty tracks" benefit while stopping an
-   individual card from stretching into an unusable, oversized shape. */
+/* Flat cards with a resting shadow and hover lift. max-width +
+   justify-self:center stop auto-fit from stretching a lone card edge-to-edge. */
 .bhs-card {
     background: var(--bh-surface);
     border: none;
@@ -330,14 +315,8 @@
     box-sizing: border-box;
     flex-wrap: wrap;
 }
-/* Same cross-plugin stacking bug found and fixed live in bh-contest's
-   .bh-now-playing-bar — the-self-hosted-self's own bottom user bar
-   (.bhi-user-bar, always visible for a logged-in fan) is ALSO
-   position:fixed;bottom:0 with a higher z-index, so it silently covers
-   this bar's lower ~49px on any page where both render. Uses
-   --bhi-user-bar-height (the-self-hosted-self's exact bar height, not its body
-   padding-bottom value, which has extra breathing room and left a
-   stray 7px gap in an earlier version of this fix). */
+/* WHY: core's fixed .bhi-user-bar sits above this bar at bottom:0, so offset
+   by --bhi-user-bar-height (the bar's height, not the body padding). */
 body.bhi-has-user-bar .bhs-nowplaying { bottom: var(--bhi-user-bar-height, 56px); }
 .bhs-np-art {
     width: 48px;
@@ -370,8 +349,7 @@ body.bhi-has-user-bar .bhs-nowplaying { bottom: var(--bhi-user-bar-height, 56px)
     align-items: center;
     flex: 0 0 auto;
 }
-/* padding raised from 6px to reach a ~36px tap target (was ~28px) without
-   changing the icon's own visual size. */
+/* Padding gives a ~36px tap target without changing the icon size. */
 .bhs-np-controls button {
     background: none;
     border: none;
@@ -405,13 +383,8 @@ body.bhi-has-user-bar .bhs-nowplaying { bottom: var(--bhi-user-bar-height, 56px)
     width: 0;
     height: 0;
 }
-/* Firefox-only pseudo-elements, split out because a browser that
-   doesn't recognize ::-moz-range-thumb drops the whole rule if it's
-   comma-combined with the -webkit- one above — real gap caught by a
-   cross-browser audit: without this, Firefox showed its native
-   slider thumb/track here while every other browser correctly showed
-   none (the progress fill is drawn by a separate element, not by the
-   native thumb). */
+/* WHY: kept separate from the -webkit- rule; a browser that doesn't know
+   ::-moz-range-thumb drops the whole comma-combined rule. */
 .bhs-seek::-moz-range-thumb {
     width: 0;
     height: 0;
@@ -662,12 +635,8 @@ body.bhi-has-user-bar .bhs-nowplaying { bottom: var(--bhi-user-bar-height, 56px)
     margin: 24px auto;
     text-align: center;
 }
-/* .bhm-paywall / .bhm-btn intentionally NOT styled here.
-   They are bh-monetization-woo's components — it owns their markup and
-   their styles, and now enqueues frontend.css on tier-gated posts too
-   (class-frontend.php::maybe_enqueue), which is what this local copy was
-   silently compensating for. Styling another plugin's component from here
-   is how the two versions drifted apart in the first place. */
+/* .bhm-paywall / .bhm-btn are intentionally not styled here:
+   bh-monetization-woo owns and enqueues their styles. */
 
 @media (max-width: 700px) {
     .bhs-main { flex-direction: column; }
@@ -778,7 +747,7 @@ body.bhi-has-user-bar .bhs-nowplaying { bottom: var(--bhi-user-bar-height, 56px)
     text-align: center;
 }
 
-/* ---- source/stream health (tasks 39-40) ---- */
+/* ---- source/stream health ---- */
 .bhs-badge-down {
     background: rgba(180,40,40,0.85);
     color: #fff;
@@ -803,7 +772,7 @@ body.bhi-has-user-bar .bhs-nowplaying { bottom: var(--bhi-user-bar-height, 56px)
     color: #e0554a;
 }
 
-/* Long-form audio chapter markers — ROADMAP-streaming-media-scope-and-blockchain.md Part 5 */
+/* Long-form audio chapter markers */
 .bhs-np-chapters {
     display: flex;
     flex-wrap: wrap;

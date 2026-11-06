@@ -2,15 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Same hardened migration pattern used everywhere else in this
- * ecosystem: versioned, runs on every load via a cheap early-return
- * (not just on activation — a file-replace deploy never fires
- * WordPress's real activation hook), and only marks itself done if the
- * migration actually succeeded.
+ * Versioned schema migrations. WHY: runs on every load behind a cheap version check, since a
+ * file-replace deploy never fires the activation hook; marks done only on success.
  */
 class BHI_Activator {
-    // 1.2 bhi_reports (class-reports.php); 1.3 bhcore_notifications + bhcore_jobs (class-notifications.php / class-jobs.php); 1.4 bhcore_debug_log (class-debug-log.php); 1.5 bhcore_content (class-content.php); 1.6 bhcore_debug_log structured-trace columns (file/line/col/trace/url/user_id/request_method); 1.7 bhcore_debug_log.request_id — per-request correlation ID, see request_id()/has_request_id_column() in class-debug-log.php; 1.8 bhcore_events (class-event.php/BH_Event), per EVENT-TRACKING-ARCHITECTURE-PLAN.md; 1.9 bhcore_element_placements (class-element.php/BH_Element), per ELEMENT-BUILDER-DESIGN-PLAN.md §2.1; 1.10 bhcore_element_prefabs (class-element-prefab.php/BH_Element_Prefab) — a saved, deep-copyable composition of one or more placements, distinct from a single placement row; 1.11 bhcore_element_states (class-element-state.php/BH_Element_State) — named fixture-state storage for the Library tab's Storybook-style Default/Empty/Viral variants, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2; 1.12 bhcore_element_placements.library_component_id — linked-instance support, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4, see that column's own inline comment above; 1.13 bhcore_notifications.email_sent — an idempotency claim flag for send_queued_email() (class-notifications.php): guards against the same queued email job firing twice (Action Scheduler's background processing plus a direct call both landing) and sending a duplicate; 1.14 bhi_profiles.links — ecosystem depth-pass Tier 2a, link-in-bio: a JSON array of {label, url} pairs a person curates for their public profile, rendered as a button list (see class-public-profile.php); 1.15 bhcore_campaigns — ecosystem depth-pass Tier 2, email broadcast/campaigns (see class-campaigns.php).
-    // 1.16 bhcore_dmca_notices — structured DMCA takedown-notice intake/tracking (class-dmca-notices.php), distinct from bhi_reports: a copyright claim needs claimant identity, sworn-statement attestation, and a counter-notice timeline, none of which fit bhi_reports' generic reason/category shape.
+    // Per-version table/column history lives in CHANGELOG.md.
     const DB_VERSION = '1.16';
 
     public static function activate(): void {
@@ -53,21 +49,13 @@ class BHI_Activator {
             PRIMARY KEY  (user_id),
             UNIQUE KEY profile_slug (profile_slug)
         ) $charset;";
-        // 1.14 — links (JSON array of {label, url}), added to the CREATE
-        // TABLE above so dbDelta() adds it as a new column on an existing
-        // install, same pattern as every other mid-life column here.
+        // links: JSON array of {label, url}; dbDelta() adds new columns from the CREATE TABLE.
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql);
 
-        // Generic reports/moderation queue — one shared table any
-        // plugin's "Report" button writes into (see class-reports.php),
-        // rather than every plugin building its own moderation UI and
-        // storage. target_type/target_id is deliberately loose (a post
-        // ID, a user ID, whatever the reporting plugin's own concept of
-        // "the thing being reported" is) — this table doesn't need to
-        // understand what it's storing reports about, only who reported
-        // what and what an admin decided to do about it.
+        // Shared reports/moderation queue (class-reports.php). target_type/target_id are deliberately
+        // loose: this table only records who reported what and the admin decision.
         $reports = OUS_Tables::reports();
         $sql2 = "CREATE TABLE $reports (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -86,12 +74,7 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql2);
 
-        // Shared notification inbox — see class-notifications.php.
-        // Deliberately core (not any one feature plugin's table) for the
-        // same reason bhi_reports is core: any plugin should be able to
-        // call OUS_Notifications::notify() the moment it depends on this
-        // plugin at all, with zero registration step and zero awareness
-        // of any other plugin that might also be sending notifications.
+        // Shared notification inbox (class-notifications.php), core-owned so any plugin can notify().
         $notifications = OUS_Tables::notifications();
         $sql3 = "CREATE TABLE $notifications (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -108,17 +91,10 @@ class BHI_Activator {
             KEY user_unread (user_id, read_at)
         ) $charset;";
         dbDelta($sql3);
-        // email_sent (1.13): idempotency claim flag — send_queued_email()
-        // (class-notifications.php) atomically claims a row via
-        // UPDATE ... WHERE email_sent = 0 before actually mailing, so a
-        // job that fires more than once (confirmed to genuinely happen —
-        // see this constant's own comment above) only ever sends once.
+        // WHY: email_sent is an idempotency claim — send_queued_email() claims via
+        // UPDATE ... WHERE email_sent = 0 so a job firing twice only mails once.
 
-        // Shared async job queue — see class-jobs.php. A WP-Cron-driven
-        // worker, not a real message broker (this ecosystem has no
-        // server infra beyond plain WordPress/MySQL to assume), but the
-        // same "any plugin can enqueue, zero registration with a
-        // central authority, zero awareness of who else uses it" shape.
+        // Shared async job queue (class-jobs.php): WP-Cron driven worker, no external broker.
         $jobs = OUS_Tables::jobs();
         $sql4 = "CREATE TABLE $jobs (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -135,16 +111,7 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql4);
 
-        // Aggregate console/error log — see class-debug-log.php. Same
-        // "core owns it, any plugin logs into it with one call" shape as
-        // notifications/jobs above.
-        // v1.6 added the structured-trace columns below (file/line/col/
-        // trace/url/user_id/request_method) so a row carries a real,
-        // filterable stack trace down to file/line/column instead of
-        // whatever happened to be stuffed into the free-text 'context'
-        // column — see class-debug-log.php v2. dbDelta() handles adding
-        // these to an existing table on upgrade the same way it handles
-        // fresh installs; no separate ALTER TABLE needed.
+        // Aggregate console/error log (class-debug-log.php), with structured-trace columns.
         $debug_log = OUS_Tables::debug_log();
         $sql5 = "CREATE TABLE $debug_log (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -170,11 +137,7 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql5);
 
-        // BH_Content's non-post storage backend — see class-content.php.
-        // A document attached to a real WP post lives in that post's own
-        // post_content (Gutenberg's existing block format); anything
-        // else (a lesson step tree, a tier's benefit list) lives here as
-        // plain JSON, one row per (context_type, context_id) pair.
+        // BH_Content's non-post storage: plain JSON, one row per (context_type, context_id).
         $content = OUS_Tables::content();
         $sql6 = "CREATE TABLE $content (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -187,13 +150,8 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql6);
 
-        // Versioned, namespaced per-event envelope — see class-event.php
-        // (BH_Event) and EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 2.
-        // dedup_key is UNIQUE but MySQL treats multiple '' values as
-        // colliding under a UNIQUE index (unlike NULL) — class-event.php
-        // always writes either a real deterministic string or NULL,
-        // never '', so non-deduplicated events (plays, votes) don't
-        // collide with each other under this index.
+        // Per-event envelope (class-event.php). WHY: dedup_key is UNIQUE and MySQL collides on ''
+        // (not NULL), so BH_Event writes either a real key or NULL, never ''.
         $events = OUS_Tables::events();
         $sql7 = "CREATE TABLE $events (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -217,23 +175,9 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql7);
 
-        // Element-builder placements — see class-element.php (BH_Element)
-        // and ELEMENT-BUILDER-DESIGN-PLAN.md Section 2.1. "This element
-        // type, configured this way, sits in this slot on this surface
-        // for this context, at this position." Deliberately NO unique
-        // constraint on (surface, context, slot, element_type) — the
-        // same element type can legitimately appear more than once in
-        // one slot (two stat-cards bound to different metrics), per the
-        // design doc's own note on this. Both columns below already
-        // existed in this table's original 1.9 definition; OUS_VER 3.4.34
-        // ACTIVATED parent_placement_id
-        // (see class-element.php's save_placement()/render_slot()/
-        // render_placement() and the REST save route) as the real
-        // placement-tree seam it was reserved as (§1.1) — 0 still means
-        // "root/top-level within the slot," non-zero now means "this
-        // row's parent within the same surface/context/slot," validated
-        // and cycle-guarded in save_placement(). revision_of remains an
-        // unused seam for future work (§2.3's version-history service).
+        // BH_Element placements. Deliberately no unique constraint: one element type may appear
+        // several times per slot. parent_placement_id 0 = top level, else the parent within the same
+        // surface/context/slot (validated, cycle-guarded in save_placement()). revision_of is unused.
         $element_placements = OUS_Tables::element_placements();
         $sql8 = "CREATE TABLE $element_placements (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -253,42 +197,12 @@ class BHI_Activator {
             KEY place (surface, surface_context_id, slot, position)
         ) $charset;";
         dbDelta($sql8);
-        // 1.12 — LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4:
-        // library_component_id (added to the CREATE TABLE above so
-        // dbDelta() adds it as a new column on an existing install,
-        // same "just add it to the same CREATE TABLE" pattern dbDelta()
-        // always uses here). 0 = an ordinary placement (unchanged
-        // behavior for every pre-existing row). Non-zero = a
-        // LINKED INSTANCE of that bhcore_element_prefabs id — this one
-        // row IS the entire subtree; its own 'config' column is
-        // repurposed to hold ONLY leaf-value overrides (a map keyed by
-        // the master definition's own 0-based array index -> partial
-        // config override for that node), never a real placement config
-        // shape, and it has NO real child placement rows (its structure
-        // is rendered live from the current master definition — see
-        // BH_Element::render_placement()'s new linked-instance branch
-        // and BH_Element_Prefab::render_definition()'s new $overrides
-        // param). AJ confirmed leaf-value-only overrides (no structural
-        // per-instance changes) before this phase started — anything
-        // structural requires editing the master Component or using
-        // "Detach from Library" (BH_Element_Prefab::detach_instance())
-        // to materialize a real, independent, freely-divergent subtree.
+        // library_component_id: 0 = ordinary placement; non-zero = linked instance of that prefab id,
+        // whose 'config' holds only leaf-value overrides keyed by master node index, and which has
+        // no child rows (structure renders live from the master definition).
 
-        // Element-builder PREFABS — see class-element-prefab.php
-        // (BH_Element_Prefab). A prefab is a NAMED, reusable, saved
-        // composition of one or more placement definitions (potentially
-        // including a container's nested BH_Content tree, carried inside
-        // 'definition' as a JSON array of placement-shaped entries plus
-        // an embedded 'content_tree' per container entry — see that
-        // class's instantiate()/save_from_slot() for the exact shape).
-        // Deliberately a SEPARATE table from bhcore_element_placements,
-        // not a special 'is_prefab' flag on that table — a prefab is
-        // definitional (code-adjacent authored data, edited independently
-        // of any live placement) while a placement is instance state tied
-        // to one surface/slot/context; conflating them would mean
-        // "editing a prefab" and "editing a live instance" fight over the
-        // same rows, which is exactly the retroactive-mutation bug the
-        // deep-copy instantiate contract is designed to avoid.
+        // Named reusable compositions (BH_Element_Prefab). WHY: separate from placements so editing
+        // a prefab never mutates live instances (instantiation deep-copies).
         $prefabs = OUS_Tables::element_prefabs();
         $sql9 = "CREATE TABLE $prefabs (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -304,18 +218,8 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql9);
 
-        // LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2 — named
-        // fixture "states" for the Library tab (Storybook's own Default/
-        // Empty/Viral-style variants, browsed against representative mock
-        // data, never real DB content). owner_kind/owner_key together
-        // identify what a state belongs to — a Component (owner_kind
-        // 'component', owner_key = its bhcore_element_prefabs id as a
-        // string) or a code-registered Primitive type (owner_kind 'type',
-        // owner_key = its type slug, e.g. 'bh/stat-card') — one shared
-        // table for both rather than two nearly-identical ones, per the
-        // design doc's own §4.2 call. 'data' holds one state's full
-        // fixture bundle (attrs/bindings/context — see BH_Element_Data::
-        // resolve()'s new fixture-mode branch) as JSON.
+        // Named fixture states (mock data) for a component (owner_kind 'component', key = prefab id)
+        // or a primitive type (owner_kind 'type', key = type slug). 'data' is the fixture bundle JSON.
         $states = OUS_Tables::element_states();
         $sql10 = "CREATE TABLE $states (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -332,12 +236,8 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql10);
 
-        // Email broadcast/campaigns (ecosystem depth-pass Tier 2) — see
-        // class-campaigns.php. segment_key + total_recipients/sent_count
-        // are the only campaign-level state kept; the actual recipient
-        // list is a LIVE query at send time (OUS_Campaigns::send_now()),
-        // never stored here — this table holds what was sent and to how
-        // many, not who.
+        // Campaigns (class-campaigns.php): stores what was sent and to how many; the recipient list
+        // is a live query at send time, never stored.
         $campaigns = OUS_Tables::campaigns();
         $sql11 = "CREATE TABLE $campaigns (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -355,16 +255,8 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql11);
 
-        // DMCA takedown-notice intake/tracking — see class-dmca-notices.php.
-        // Deliberately its own table, not a bhi_reports category: a real
-        // copyright notice needs claimant identity, a sworn good-faith/
-        // accuracy attestation, and a counter-notice deadline as actual
-        // queryable columns, not squeezed into a generic reason/category
-        // pair. Admin-entered (the site owner logs a notice they received
-        // by email to their registered DMCA agent), not a public form —
-        // this is intake/tracking, not the notice-language/legal-review
-        // workflow itself, which stays out of scope until that gets real
-        // legal review.
+        // DMCA notice intake/tracking (class-dmca-notices.php), admin-entered. Its own table because
+        // claimant identity, attestation, and counter-notice deadline need real columns.
         $dmca_notices = OUS_Tables::dmca_notices();
         $sql12 = "CREATE TABLE $dmca_notices (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,

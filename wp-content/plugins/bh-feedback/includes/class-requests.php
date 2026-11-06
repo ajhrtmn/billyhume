@@ -2,21 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The submitter side — upload a track, pick a tier, pay via wallet
- * credit, get a bh_feedback_request post. [bhf_submit] renders the
- * form; handle_submit() does the actual charge + post creation.
- *
- * Duplicate detection is its OWN self-contained sha1-file-hash check
- * against this plugin's OWN prior requests (_bhf_audio_hash meta on
- * other bh_feedback_request posts) — deliberately NOT a call into
- * bh-streaming's BHS_AudioHash, which is hardcoded to compare against
- * `bhs_track` posts specifically and can't be reused here. The actual
- * "has this exact file already been submitted for feedback before"
- * question this plugin cares about is scoped to ITS OWN request
- * history, not the streaming catalog — a real, cheap magic moment
- * (flagging a resubmission before a reviewer wastes time on a track
- * they've already reviewed), same sha1-of-file-bytes approach
- * BHS_AudioHash pioneered, applied to a different table.
+ * Submitter side: [bhf_submit] form; handle_submit() charges wallet credit
+ * and creates the bh_feedback_request post. Resubmissions are flagged via a
+ * sha1 file hash (_bhf_audio_hash) against this plugin's own prior requests.
  */
 class BHF_Requests {
     public static function init(): void {
@@ -25,10 +13,7 @@ class BHF_Requests {
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
     }
 
-    // Enqueued unconditionally on the front end (small stylesheet, no
-    // JS) — same low-cost-of-always-loading posture the-self-hosted-self's
-    // public-profile CSS takes, rather than trying to detect every
-    // possible page this shortcode/the portal panel might render on.
+    // Small stylesheet, enqueued on every front-end page rather than detecting pages.
     public static function maybe_enqueue(): void {
         wp_enqueue_style('bhf-feedback', BHF_URL . 'assets/css/feedback.css', [], BHF_VER);
     }
@@ -44,11 +29,6 @@ class BHF_Requests {
         $balance = BHM_Wallet::balance_cents(get_current_user_id());
         $notice = '';
         if (isset($_GET['bhf_submitted'])) {
-            // Audit fix (2026-07-25): the old copy said the review appears
-            // "once a reviewer claims it," but per the actual render logic
-            // (BHF_PortalPanel::render_my_requests()) only a COMPLETED
-            // request shows review text — claiming just changes the badge.
-            // Now accurate to what actually happens at each stage.
             $notice = '<p class="bhf-notice bhf-notice--ok">' . esc_html__('Submitted! You\'ll see the status update once a reviewer claims it, and the full written review once it\'s complete.', 'bh-feedback') . '</p>';
         }
         if (isset($_GET['bhf_error'])) {
@@ -118,9 +98,7 @@ class BHF_Requests {
         }
 
         $cents = BHF_Pricing::cents_for($tier);
-        // The atomic-UPDATE-guarded debit is the actual charge — this
-        // fails cleanly (false) on insufficient balance rather than
-        // ever creating a request nobody paid for.
+        // Atomic UPDATE-guarded debit; false on insufficient balance.
         $charged = BHM_Wallet::debit($user_id, $cents, null, 'feedback_request');
         if (!$charged) {
             wp_delete_attachment($attachment_id, true);
@@ -134,11 +112,7 @@ class BHF_Requests {
             'post_author' => $user_id,
         ], true);
         if (is_wp_error($request_id)) {
-            // The charge already went through — reverse it rather than
-            // leaving a fan out the cost of a request that was never
-            // actually created (the same "take back what was granted"
-            // posture BHM_Entitlements' own order-reversal handler takes
-            // on a refund).
+            // The charge went through but the post didn't; refund it.
             BHM_Wallet::apply_ledger_delta($user_id, $cents, 'feedback_request_reversal', null, null);
             wp_delete_attachment($attachment_id, true);
             self::redirect_error($referer, 'Something went wrong creating your request — your wallet was not charged.');
@@ -160,12 +134,8 @@ class BHF_Requests {
         exit;
     }
 
-    // Same trust-boundary pattern the-self-hosted-self's class-public-profile.php
-    // uses for avatar/banner uploads: media_handle_upload() performs no
-    // capability check of its own, and a plain subscriber account
-    // (which submitting a feedback request should work for) doesn't
-    // have upload_files by default — grant it for the duration of this
-    // one call only, never persisted to the user's real role/caps.
+    // WHY: media_handle_upload() has no cap check and subscribers lack
+    // upload_files, so grant it for this one call only, never persisted.
     /** @return int|\WP_Error */
     private static function handle_audio_upload(string $field, int $user_id) {
         require_once ABSPATH . 'wp-admin/includes/image.php';
@@ -192,12 +162,8 @@ class BHF_Requests {
         return $attachment_id;
     }
 
-    // sha1-of-file-bytes duplicate check, scoped to THIS plugin's own
-    // request history — see this class's own docblock for why this
-    // isn't a call into bh-streaming's BHS_AudioHash. Returns the prior
-    // request's post ID if a same-file match is found, else 0. Doesn't
-    // block submission either way — this is a surfaced signal for the
-    // reviewer (see class-queue.php's render of it), never an auto-reject.
+    // Returns the prior request ID with the same file hash, else 0. A signal
+    // for the reviewer (see class-queue.php), never an auto-reject.
     public static function check_duplicate(int $request_id, int $attachment_id): int {
         $path = get_attached_file($attachment_id);
         if (!$path || !file_exists($path)) return 0;

@@ -2,24 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Item 18 scoping conclusion (see bh-social/CHANGELOG.md): cross_post()
- * across the four organic platforms is NOT one generic action.
- * YouTube/Meta/TikTok's cross_post() each upload/attach a real media
- * file (attachment_id, video_url, image_url) — there is no coherent
- * "new course/contest/release" media file to hand them automatically.
- * Twitch's cross_post() is the one platform whose payload is plain
- * text (a chat announcement) — the only one a generic "something new
- * just published" event can drive without inventing fake media.
- *
- * So: this class wires an opt-in (default OFF), Twitch-only auto-
- * announce for first-publish of bh_course / bh_contest / bhs_release,
- * reacting to core WordPress's own transition_post_status — no
- * class_exists() dependency on bh-courses/bh-contest/bh-streaming is
- * needed, since a post_type string that doesn't exist on this install
- * just never matches and this hook never fires for it (same
- * "every peer plugin is optional" posture, one layer more literal:
- * reacting to data shape, not calling another plugin's code at all).
- * YouTube/Meta/TikTok stay manual-only, as they already were.
+ * Opt-in (default off) Twitch announcement on first publish of bh_course,
+ * bh_contest or bhs_release. Only Twitch's cross_post() takes plain text; the
+ * others need a media file. Matches post_type strings, so no peer-plugin calls.
  */
 class BHSO_AutoAnnounce {
     const OPTION = 'bhso_auto_announce_settings';
@@ -61,7 +46,7 @@ class BHSO_AutoAnnounce {
     }
 
     public static function maybe_announce(string $new_status, string $old_status, \WP_Post $post): void {
-        if ($new_status !== 'publish' || $old_status === 'publish') return; // first publish only, same test bh-contest's own moderation hook already uses
+        if ($new_status !== 'publish' || $old_status === 'publish') return; // first publish only
         if (!isset(self::TYPES[$post->post_type])) return;
 
         $settings = self::settings();
@@ -79,7 +64,7 @@ class BHSO_AutoAnnounce {
         }
     }
 
-    /** Rendered from BHSO_Admin::render(), same section-per-concern layout as the platform sections above it. */
+    /** Rendered from BHSO_Admin::render(). */
     public static function render_settings_section(): void {
         $settings = self::settings();
 

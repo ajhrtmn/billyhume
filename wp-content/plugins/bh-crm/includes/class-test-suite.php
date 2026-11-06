@@ -1,15 +1,7 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/**
- * OUS_TestRunner suite for bh-crm — same convention as the rest of the
- * ecosystem's own class-test-suite.php files. This plugin had ZERO test
- * coverage before this pass. Covers BHCRM_Segments::sanitize_conditions()
- * (the server-side validation that stands between a raw $_POST array and
- * what actually gets run as a user filter), BHCRM_Export::csv_safe()
- * (the CSV-injection guard), and BHCRM_Subtasks' pure tree-manipulation
- * helpers (find_node()/children_at()/total_node_count()).
- */
+/** OUS_TestRunner suite for bh-crm: segments, CSV safety, sub-task trees, projects, stall analytics, card log. */
 class BHCRM_TestSuite {
     public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
@@ -48,7 +40,7 @@ class BHCRM_TestSuite {
         return $rows;
     }
 
-    /* ---------- Phase D: Idea Drop (track links + uploads) ---------- */
+    /* ---------- Idea Drop (track links + uploads) ---------- */
 
     /** @return array<int, array<string, mixed>> */
     private static function run_idea_drop_tests(): array {
@@ -56,10 +48,6 @@ class BHCRM_TestSuite {
         global $wpdb;
         $card_id = 999002;
 
-        // add_track_link() must reject anything that isn't a REAL
-        // bhs_track post — a stray/garbage id, or a post of the wrong
-        // type entirely, should never be linkable as if it were a
-        // track.
         $rows[] = OUS_TestRunner::assert_false((bool) BHCRM_CardLog::add_track_link($card_id, 999999999, 1), 'add_track_link() rejects a nonexistent post id');
         $wrong_type_post = wp_insert_post(['post_type' => 'post', 'post_title' => 'Not a track', 'post_status' => 'draft'], true);
         $rows[] = OUS_TestRunner::assert_false((bool) BHCRM_CardLog::add_track_link($card_id, $wrong_type_post, 1), 'add_track_link() rejects a real post that is NOT a bhs_track');
@@ -93,19 +81,14 @@ class BHCRM_TestSuite {
         return $rows;
     }
 
-    /* ---------- Phase B: fixes + feedback log ---------- */
+    /* ---------- Fixes + feedback log ---------- */
 
     /** @return array<int, array<string, mixed>> */
     private static function run_card_log_tests(): array {
         $rows = [];
         global $wpdb;
 
-        // No real card needed here — BHCRM_CardLog is keyed purely by
-        // card_placement_id (an integer), never validating that the id
-        // actually belongs to a real bh/sticky-card row (same posture
-        // BHCRM_Projects' own card_moves table takes, cross-plugin,
-        // no FK) — a fake fixture id exercises the exact same code path
-        // a real card would.
+        // CardLog never validates the card id, so a fake fixture id is enough.
         $card_id = 999001;
 
         $fix_id = BHCRM_CardLog::add_fix($card_id, 83, 'Fixed the muddy low end.');
@@ -148,7 +131,7 @@ class BHCRM_TestSuite {
         return $rows;
     }
 
-    /* ---------- Phase C: stall analytics ---------- */
+    /* ---------- Stall analytics ---------- */
 
     /** @return array<int, array<string, mixed>> */
     private static function run_stall_analytics_tests(): array {
@@ -157,10 +140,7 @@ class BHCRM_TestSuite {
 
         $project_id = BHCRM_Projects::create('Stall Suite Test Project', 0, [], '');
 
-        // A real bh/sticky-card placement, created through the SAME
-        // save_placement() write path a live board uses — this is what
-        // exercises the 'bhcore_element_placement_saved' hook for real,
-        // not a mock of it.
+        // Goes through save_placement() so the real 'bhcore_element_placement_saved' hook fires.
         $card_id = BH_Element::save_placement([
             'surface' => 'bhcrm_project_board', 'surface_context_id' => $project_id, 'slot' => 'board',
             'position' => 0, 'element_type' => 'bh/sticky-card',
@@ -172,9 +152,7 @@ class BHCRM_TestSuite {
         $initial_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $moves_table WHERE card_placement_id = %d", $card_id));
         $rows[] = OUS_TestRunner::assert_same(1, $initial_count, 'Creating a card logs exactly one initial move row (its starting column)');
 
-        // An unrelated edit (title only, same column) must NOT log a
-        // second move — this is the whole point of diffing old vs. new
-        // config rather than logging on every save.
+        // A title-only edit must not log a move.
         BH_Element::save_placement([
             'id' => $card_id,
             'surface' => 'bhcrm_project_board', 'surface_context_id' => $project_id, 'slot' => 'board',
@@ -184,7 +162,6 @@ class BHCRM_TestSuite {
         $count_after_rename = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $moves_table WHERE card_placement_id = %d", $card_id));
         $rows[] = OUS_TestRunner::assert_same(1, $count_after_rename, 'Saving the SAME column again (a title-only edit) does not log a second move');
 
-        // A real column change DOES log a new move.
         BH_Element::save_placement([
             'id' => $card_id,
             'surface' => 'bhcrm_project_board', 'surface_context_id' => $project_id, 'slot' => 'board',
@@ -194,33 +171,12 @@ class BHCRM_TestSuite {
         $count_after_move = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $moves_table WHERE card_placement_id = %d", $card_id));
         $rows[] = OUS_TestRunner::assert_same(2, $count_after_move, 'A real column change logs a second move row');
 
-        // average_hours_per_column() — checked HERE, before any
-        // backdating below, while both move rows are still in their
-        // real chronological order. The first card had a real,
-        // measurable completed stay in "To Do" (its very first move) up
-        // until it moved to "In Progress." That completed stay is the
-        // ONLY thing average_hours_per_column() should count for "To
-        // Do" — the CURRENT stay in "In Progress" hasn't ended yet and
-        // must be excluded.
+        // Checked before backdating, while rows are still in real chronological order.
         $averages = BHCRM_Projects::average_hours_per_column($project_id);
         $rows[] = OUS_TestRunner::assert_true(isset($averages['To Do']), 'average_hours_per_column() reports a completed stay for "To Do"');
         $rows[] = OUS_TestRunner::assert_false(isset($averages['In Progress']), 'average_hours_per_column() excludes "In Progress" — that stay has not ended yet');
 
-        // Backdate BOTH moves so the card reads as stalled — direct
-        // SQL, not the public API, since "make time pass" isn't
-        // something a real call can do. Deliberately done AFTER the
-        // average_hours_per_column() check above (backdating before
-        // that check would corrupt the chronological ordering it
-        // depends on). BOTH rows need backdating, not just the most
-        // recent one: a real test-design bug caught while writing this
-        // suite (not a product bug) — backdating only the second
-        // (most recent) row left the FIRST row's timestamp (still
-        // "now," from its real insert moment) chronologically AFTER
-        // the artificially-aged second row, so MAX(entered_at) picked
-        // the first row and the card read as completely fresh instead
-        // of stalled. Backdating both, in the correct relative order,
-        // is what actually simulates "this card moved here N days ago
-        // and has sat since."
+        // WHY: backdate both rows, oldest first; aging only the latest leaves the first as MAX(entered_at).
         $wpdb->query($wpdb->prepare(
             "UPDATE $moves_table SET entered_at = %s WHERE card_placement_id = %d ORDER BY id ASC LIMIT 1",
             gmdate('Y-m-d H:i:s', time() - (BHCRM_Projects::STALL_DAYS + 10) * DAY_IN_SECONDS), $card_id
@@ -252,7 +208,7 @@ class BHCRM_TestSuite {
         return $rows;
     }
 
-    /* ---------- PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md Phase E: scene ---------- */
+    /* ---------- Project scenes ---------- */
 
     /** @return array<int, array<string, mixed>> */
     private static function run_project_scene_tests(): array {
@@ -410,17 +366,7 @@ class BHCRM_TestSuite {
         return $rows;
     }
 
-    /**
-     * Regression coverage for a real data-loss bug found live: seeded/
-     * imported sub-cards can end up with a blank 'uid' attr (real
-     * UI-created cards always get one via wp_generate_password() in
-     * add_subtask()). Two blank-uid siblings used to collide as the
-     * SAME array key wherever BHCRM_Subtasks indexed children by uid,
-     * silently deleting one of them on the very next drag-reorder save.
-     * Covers both halves of the fix: backfill_uids() self-healing bad
-     * data on read, and apply_reorder() never colliding/dropping a
-     * blank-uid node even if one somehow still reaches it.
-     */
+    /** Blank-uid siblings must never collide and drop each other: backfill_uids() and apply_reorder(). */
     /** @return array<int, array<string, mixed>> */
     private static function run_subtasks_blank_uid_tests(): array {
         $rows = [];
@@ -463,9 +409,7 @@ class BHCRM_TestSuite {
             ['attrs' => ['uid' => '', 'title' => 'Lineart pass', 'column' => 'To Do', 'done' => false], 'children' => []],
             ['attrs' => ['uid' => 'real-uid', 'title' => 'Inking', 'column' => 'To Do', 'done' => false], 'children' => []],
         ];
-        // Layout only mentions the one addressable (real-uid) card being
-        // dragged to 'In Progress' — mirrors the client posting every
-        // visible card, of which only real-uid ones can be named.
+        // Only real-uid cards can be named in a posted layout.
         $layout = [
             ['uid' => 'real-uid', 'column' => 'In Progress'],
         ];

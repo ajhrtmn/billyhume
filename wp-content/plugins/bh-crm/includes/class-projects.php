@@ -1,169 +1,27 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// BHCRM_VER 1.3.4 — PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md (plugins
-// root, new 2026-07-12) — AJ named a specific reference app, TrackIt
-// (a macOS task tracker for music producers/labels/mastering
-// engineers), and asked to duplicate its full feature set here: "I
-// basically will want to duplicate all of Track Its functionality."
-// Column customization and per-card completion roll-up already match
-// TrackIt's own equivalent features — see that doc's §2 for the exact
-// mapping against what's already built below.
-//
-// STATUS UPDATE (2026-07-25 audit pass — this is the SECOND time this
-// comment has gone stale, see plugins/STATUS.md for the standing note
-// about that): Phase A (see 2026-07-21 note below, still accurate) plus
-// Phases B, C, and D are ALL built, not "genuinely unbuilt" as the prior
-// version of this comment claimed. Phase B (timestamped fixes/feedback
-// log) and Phase D (Idea Drop — linked files/uploads) both live in
-// class-card-log.php (BHCRM_CardLog). Phase C (stall analytics) lives
-// right in THIS file — see stalled_cards_for_board() and the
-// bh-crm/v1/stalled-cards REST route below. "Scenes" (part of Phase E,
-// separate boards) is also real — see distinct_scenes() below. Given
-// this comment has drifted stale twice on the same file, treat
-// plugins/STATUS.md as the source of truth for what's actually shipped
-// going forward rather than trusting this local comment at face value —
-// it's a pointer, not guaranteed current.
-//
-// STATUS UPDATE (2026-07-21, see plugins/STATUS.md): the line that used
-// to sit here calling the whole plan "DETAILED PLAN ONLY, NOT BUILT" is
-// stale — class-subtasks.php since shipped a real, substantial nested
-// sub-task system (full kanban boards, not flat checklists, at every
-// nesting level; versions 1.8.0-2.4.6). That's a genuinely different,
-// arguably more capable mechanism than the plan's own Phase A (reusable
-// checklist templates), not a literal implementation of it — read
-// class-subtasks.php's own docblock for what actually shipped there.
-//
-// BHCRM_VER 1.3.0 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1 (§1.5): new
-// list_all() + render_boards() — a thin, real listing page for the new
-// 'bh-crm-projects' submenu (class-hub.php's CRM top-level menu), giving
-// Project Tracker a first-class menu entry instead of being reachable
-// only through a project_id dispatch buried inside a person's profile.
-// Purely additive: list_for_person()/render_board()/the existing
-// project_id dispatch in BHCRM_People::render() are all untouched — a
-// board is still reachable from a person too, per the design doc.
-
 /**
- * BHCRM_Projects — the kanban-style nested-sticky-note project tracker,
- * built ON TOP OF the-self-hosted-self's existing "element builder" system
- * (BH_Element / BH_Element_Data / BH_Content / BH_Studio) rather than as
- * a bespoke parallel data model. Added 1.2.0 at direct request: "a
- * kanban-like nested-sticky-note project tracker... for tracking
- * commissioned art project roadmaps."
+ * Kanban project tracker built on core's element system (BH_Element / BH_Content).
  *
- * ============================================================
- * DATA MODEL — read this before touching anything below
- * ============================================================
- *
- * A "project" is a lightweight row in this plugin's OWN table,
- * " . BHCRM_Tables::projects() . " (id, name, crm_person_id, columns_config
- * JSON array of column-label strings, created_at, updated_at). This is
- * genuinely bh-crm's own concern (a project belongs to a CRM person),
- * matching class-people.php's own precedent of owning CRM-specific
- * tables/registrations directly rather than pushing them into
- * the-self-hosted-self's core.
- *
- * A project's BOARD is an the-self-hosted-self element surface,
- * 'bhcrm_project_board' (registered below via the SAME
- * 'bh_element_surfaces' filter BHCRM_People::register_element_surface()
- * already uses for 'bh_crm_profile' — no new registration mechanism),
- * with surface_context_id = the project's own id (mirrors
- * BHCRM_People's own surface_context_id = user_id convention) and one
- * slot, 'board', holding 'bh/sticky-card' BH_Element placements — one
- * placement per kanban card, at the top level.
- *
- * KANBAN-COLUMN JUDGMENT CALL (documented in more depth in
- * the-self-hosted-self/ELEMENT-BUILDER-DESIGN-PLAN.md's "§7 Project Tracker"
- * section): each card's column is a plain
- * schema attribute ('column', a literal string) on the bh/sticky-card
- * placement itself — NOT a separate slot per column. This was CONFIRMED,
- * not just assumed, by actually reading class-element.php's placement
- * storage (save_placement()/get_placements()/reorder()): a placement row
- * has exactly one 'slot' column (a fixed string key on a surface's fixed
- * manifest) and a JSON 'config' blob with no other structured/queryable
- * column — there is no placement-level "grouping key" independent of
- * slot at all. Since this tracker's column SETS are configurable per
- * project (columns_config), modeling each column as its own slot would
- * require either (a) dynamically registering slots per project into a
- * surface's otherwise-static 'slots' manifest (registered_surfaces() is
- * a request-cached array from a filter — plausible but adds real
- * plumbing BH_Element never anticipated), or (b) a fixed universal slot
- * set ("todo"/"in-progress"/"review"/"done") that can't actually be
- * renamed/reordered/added-to per project, contradicting the brief's
- * "columns_config JSON... configurable per project" requirement outright.
- * A plain config.attrs.column literal has neither problem: BH_Element's
- * REST bridge (rest_save_placements()) already round-trips arbitrary
- * config JSON with zero changes needed to class-element.php, and
- * reordering WITHIN a column is just this same slot's normal
- * 'position' field (client sorts/regroups by column client-side, same
- * as the visual builder GUI already groups-and-renders one slot's
- * placements by whatever key it likes).
- *
- * RECURSIVE SUB-TASK NESTING: bh/sticky-card is a CONTAINER element type
- * (same 'container' => true contract as bh/container in
- * class-element.php) — its content_context_id addresses a BH_Content
- * document at ('bh_element', content_context_id), auto-assigned to the
- * placement's own id by BH_Element::save_placement() the same way every
- * other container placement gets one. That BH_Content tree holds
- * 'bhcrm/sub-card' blocks (registered below via BH_Content::
- * register_block_type()) — title/notes/done, WITH NATIVE RECURSIVE
- * children (BH_Content's tree shape already supports 'children' => [...]
- * at any depth, for any registered type, with zero extra work from this
- * class), giving the Godot-scene-tree-style "sub-tasks can themselves
- * have sub-tasks" nesting the brief asks for, entirely for free from
- * BH_Content's own existing recursion in validate()/render(). This is
- * the SAME nesting bridge bh/container already uses — genuinely reused,
- * not reinvented.
- *
- * Sub-task editing itself happens through the EXISTING BH_Studio canvas
- * (admin.php?page=bh-studio&context_type=bh_element&context_id={placement_id}),
- * exactly the way element-builder.js's own inspector already tells a
- * user to "open Content Studio separately" for any container element —
- * no bespoke recursive drag-tree editor inside the kanban board itself
- * (real scope; the board links out instead).
- * The kanban board's OWN bespoke UI (kanban-board.js/.css) covers what a
- * generic three-pane builder does badly: a real two-axis (column x
- * position) drag-and-drop board view — but it SAVES through the exact
- * same POST ous/v1/elements/placements/{surface}/{context_id} route the
- * generic builder GUI uses (rest_save_placements() — a full-slot
- * upsert), and deletes through the same DELETE ous/v1/elements/
- * placements/{id} route. It is a thin presentation layer over the same
- * data, not a parallel data model — no bhcrm-owned table stores card
- * content anywhere.
- *
- * ROLL-UP COMPLETION: computed at RENDER time (rollup_counts() below),
- * walking the container placement's live BH_Content tree recursively
- * and counting 'bhcrm/sub-card' nodes with attrs.done === true against
- * the total found — nothing is cached/stored. CHOSEN SEMANTICS: a
- * parent card's OWN 'done' checkbox is never auto-toggled by its
- * children's completion state — the roll-up is purely an informational
- * "3/5 sub-tasks done" label next to the card's own, independently-set
- * done flag. Auto-completing the parent when every child is done was
- * considered and deliberately NOT implemented: it would require a write
- * on every render (or a separate save-time hook) just to keep a
- * DERIVABLE fact in sync, which is exactly the redundant-stored-roll-up
- * problem the task brief said to avoid. A future pass could add an
- * explicit "auto-complete parent" opt-in without changing this file's
- * read path at all.
- *
- * NOT runtime-verified: no live PHP/MySQL/WordPress/REST/browser
- * execution is available in this environment. Reasoned through against
- * BH_Element/BH_Element_Prefab/BH_Content's own already-read, working
- * shapes, and brace/logic-checked, but the full round trip (create
- * project -> add card -> drag between columns -> nest a sub-card -> see
- * roll-up update) has not been smoke-tested against a real install.
+ * Data model:
+ * - A project is a row in BHCRM_Tables::projects() (name, columns_config JSON, scene).
+ * - Its board is the 'bhcrm_project_board' element surface (context id = project id),
+ *   one 'board' slot holding one 'bh/sticky-card' placement per card.
+ * - WHY: a card's column is a plain config attr ('column'), not a slot per column —
+ *   placements have a single fixed 'slot' key, and column sets are configurable per project.
+ * - bh/sticky-card is a container; its BH_Content tree holds recursive 'bhcrm/sub-card' nodes.
+ * - Roll-up completion is computed at render time (rollup_counts()), never stored; a parent's
+ *   own 'done' flag is never auto-toggled by its children.
+ * - kanban-board.js saves through core's generic ous/v1/elements placements REST routes.
  */
 class BHCRM_Projects {
-    const DB_VERSION = '1.2'; // 1.1 — PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md Phase E: bhcrm_projects.scene, a free-text, user-defined organizational grouping (same "no fixed enum" posture columns_config already uses) — render_boards() groups its listing by it, purely organizational, no context-moving semantics. 1.2 — Phase C: bhcrm_project_card_moves, one row per real kanban-column transition (or a card's very first column on creation) — see the 'bhcore_element_placement_saved' hook handler below.
+    const DB_VERSION = '1.2';
     const STALL_DAYS = 5; // a card whose most recent logged move is at least this many days ago shows the "hasn't moved" badge
     const DEFAULT_COLUMNS = ['To Do', 'In Progress', 'Review', 'Done'];
 
     public static function init(): void {
-        // Called directly from bh-crm.php's own 'plugins_loaded' bootstrap
-        // closure (not re-hooked to 'plugins_loaded' itself) — this method
-        // IS already running during that hook's dispatch, so a cheap
-        // version-gated upgrade check here runs once per request at the
-        // same point BHR_Activator::maybe_upgrade() runs for bh-registry.
+        // Runs inside bh-crm.php's 'plugins_loaded' bootstrap; deploys are file replaces, so no activation hook fires.
         self::maybe_upgrade();
 
         if (class_exists('BH_Element')) {
@@ -182,26 +40,13 @@ class BHCRM_Projects {
         add_action('admin_post_bhcrm_project_unlink', [self::class, 'handle_unlink_person']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_action('rest_api_init', [self::class, 'register_rest_routes']);
-        // Phase C stall analytics — the-self-hosted-self's ONE placement-save
-        // write path (BH_Element::save_placement()) fires this generic
-        // hook after every insert/update; this is a bh-crm-specific
-        // consumer of it, not a change to how that hook itself works.
+        // Stall analytics: logs column moves on every placement save.
         add_action('bhcore_element_placement_saved', [self::class, 'on_placement_saved'], 10, 3);
     }
 
     /**
-     * The top-level interactive board (kanban-board.js) never showed a
-     * card's own recursive sub-task rollup at all — a real gap AJ
-     * caught: "each card should track the total progress of everything
-     * under it... display it back up on the card itself." The rollup
-     * math itself (rollup_counts()) was already fully recursive from
-     * day one; what was missing is a way for the CLIENT-SIDE board (a
-     * thin presentation layer over BH_Element's generic REST bridge,
-     * which returns each placement's own config/attrs but never its
-     * BH_Content tree) to actually get those numbers without a
-     * separate per-card round trip. One small bh-crm-owned route,
-     * fetched once per board load, keeps this bh-crm-specific concern
-     * out of the-self-hosted-self's generic placements endpoint entirely.
+     * Per-board routes for sub-task roll-ups and stall status, fetched once per board load;
+     * core's generic placements endpoint doesn't return either.
      */
     public static function register_rest_routes(): void {
         register_rest_route('bh-crm/v1', '/rollups', [
@@ -210,10 +55,6 @@ class BHCRM_Projects {
             'permission_callback' => function () { return current_user_can('bhcore_manage_crm'); },
             'args' => ['project_id' => ['required' => true, 'sanitize_callback' => 'absint']],
         ]);
-        // Phase C — same "one small bh-crm-owned route, fetched once
-        // per board load" shape as /rollups above, for the same reason:
-        // stall status isn't part of the generic BH_Element placements
-        // response, and doesn't need to be.
         register_rest_route('bh-crm/v1', '/stalled-cards', [
             'methods' => 'GET',
             'callback' => [self::class, 'rest_stalled_cards'],
@@ -241,12 +82,7 @@ class BHCRM_Projects {
     }
 
     /* =================================================================
-     * Activation / schema — bh-crm's own DB_VERSION option, separate
-     * from the-self-hosted-self's identity-activator DB_VERSION, same pattern
-     * bh-registry's BHR_Activator establishes (versioned dbDelta, cheap
-     * early-return, runs on every 'plugins_loaded' not just real
-     * activation since a file-replace deploy never fires WP's own
-     * activation hook).
+     * Activation / schema (versioned dbDelta, checked on every load)
      * ================================================================= */
 
     public static function activate(): void {
@@ -281,14 +117,7 @@ class BHCRM_Projects {
             KEY scene (scene)
         ) $charset;");
 
-        // Phase C — stall analytics. One row per real column
-        // transition (card_placement_id = a bh/sticky-card's
-        // bhcore_element_placements.id — no FK, since that table lives
-        // in the-self-hosted-self and this one shouldn't hard-depend on its
-        // exact engine/charset). "Most recent row per card" is the
-        // card's current column + when it landed there; the gap
-        // between consecutive rows for the same card is real
-        // time-in-column, feeding average_time_in_column() below.
+        // One row per column transition; card_placement_id = core placement id (no FK, core owns that table).
         $moves = BHCRM_Tables::project_card_moves();
         dbDelta("CREATE TABLE $moves (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -326,13 +155,7 @@ class BHCRM_Projects {
         return $row;
     }
 
-    /**
-     * QA fix — was a direct WHERE crm_person_id = %d query (a project
-     * has exactly one hard-coded owner). Now backed by BHCRM_Links: a
-     * person sees every project they're linked to under ANY relation
-     * (owner, collaborator, watcher), matching the Jira/DevOps-style
-     * "a project can have multiple people attached" model AJ asked for.
-     */
+    /** Every project the person is linked to via BHCRM_Links, under any relation. */
     /** @return array<int, array<string, mixed>> */
     public static function list_for_person(int $person_id): array {
         global $wpdb;
@@ -352,11 +175,7 @@ class BHCRM_Projects {
         return $rows;
     }
 
-    /**
-     * Every project row, across every person — backs the new
-     * 'bh-crm-projects' top-level submenu (render_boards() below). Same
-     * shape as list_for_person(), just without the WHERE clause.
-     */
+    /** Every project row, across every person. */
     /** @return array<int, array<string, mixed>> */
     public static function list_all(): array {
         global $wpdb;
@@ -370,30 +189,13 @@ class BHCRM_Projects {
         return $rows;
     }
 
-    /**
-     * The 'bh-crm-projects' submenu's real callback (class-registry.php's
-     * bh-crm admin_menus entry, relocated by OUS_MenuMerge under the new
-     * 'bh-crm-hub' top-level menu). Deliberately a THIN listing that links
-     * each project into the EXISTING, already-working board dispatch
-     * (admin.php?page=bh-crm&user_id=&project_id=, BHCRM_People::render())
-     * rather than a new board-rendering code path — no board/kanban logic
-     * is duplicated here, this only adds a cross-person index page.
-     */
+    /** 'bh-crm-projects' page: a cross-person index linking into the bh-crm board dispatch. */
     public static function render_boards(): void {
         echo '<div class="wrap">';
         echo '<h1>People &rsaquo; Project Tracker</h1>';
         echo '<p class="description">Every project board across the CRM. Opening one lands on the same kanban board view reachable from a person\'s own profile — this is just a cross-person index, not a second board implementation.</p>';
 
-        // QA fix: project creation used to be reachable ONLY from a
-        // specific person's profile page (their user_id was baked into
-        // the create form's hidden field, back when a project required
-        // exactly one owner at creation time). A project doesn't need
-        // an owner to exist now (BHCRM_Links handles
-        // ownership as an optional link, not a required column), so
-        // creation belongs here, at the top level, same as any other
-        // "Add new" entry point. Linking a person happens afterward on
-        // the board itself (render_people_panel()), same as it would
-        // for a second/third person on an existing project.
+        // Projects need no owner; people are linked afterward on the board (render_people_panel()).
         $nonce = wp_create_nonce('bhcrm_project_create');
         $scene_suggestions = self::distinct_scenes();
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin:16px 0;display:flex;gap:8px;align-items:center;">';
@@ -416,19 +218,13 @@ class BHCRM_Projects {
             return;
         }
 
-        // PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md Phase E — purely
-        // organizational grouping, no context-moving semantics: a
-        // scene only changes which heading a project's row sits under
-        // in THIS listing, nothing about the project/board itself.
-        // Every project already carries its own scene value (or none),
-        // grouped here in PHP rather than a second query per scene.
+        // Scenes are purely organizational: they only pick the heading a row sits under.
         $groups = [];
         foreach ($rows as $p) {
             $scene = trim((string) $p['scene']);
             $groups[$scene === '' ? '' : $scene][] = $p;
         }
-        // Named scenes first (alphabetical), "Unsorted" (no scene) last
-        // — an unsorted project shouldn't visually lead the list.
+        // Named scenes first (alphabetical), "Unsorted" last.
         ksort($groups);
         if (isset($groups[''])) {
             $unsorted = $groups[''];
@@ -440,9 +236,7 @@ class BHCRM_Projects {
             echo '<h2>' . esc_html($scene !== '' ? $scene : 'Unsorted') . '</h2>';
             echo '<table class="widefat striped"><thead><tr><th>Project</th><th>People</th><th>Cards</th><th>Updated</th><th></th></tr></thead><tbody>';
             foreach ($scene_rows as $p) {
-                // QA fix: a project can now be linked to multiple people
-                // under different relations (BHCRM_Links) — show all of
-                // them, not just the legacy single crm_person_id owner.
+                // Falls back to the legacy crm_person_id column when no links exist.
                 $linked = class_exists('BHCRM_Links') ? BHCRM_Links::people_for_project($p['id']) : [];
                 if ($linked) {
                     $labels = array_map(function ($l) {
@@ -483,13 +277,7 @@ class BHCRM_Projects {
         $columns = self::sanitize_columns($columns ?: self::DEFAULT_COLUMNS);
         $scene = sanitize_text_field((string) $scene);
 
-        // crm_person_id is still written for anyone reading the raw
-        // table directly, but it's no longer the source of truth for
-        // ownership — the real link is BHCRM_Links::link_project_person()
-        // below, which is what list_for_person()/people_for_project()
-        // actually read. A project can have zero, one, or many linked
-        // people (owner/collaborator/watcher) — this initial link is
-        // just the creating person getting 'owner' by default.
+        // crm_person_id is legacy; BHCRM_Links is the source of truth for who is on a project.
         $ok = $wpdb->insert(self::table(), [
             'name'           => $name,
             'crm_person_id'  => (int) $person_id,
@@ -523,11 +311,7 @@ class BHCRM_Projects {
         ], ['id' => (int) $id]);
     }
 
-    // Every distinct, non-empty scene currently in use — feeds a
-    // <datalist> suggestion list on the create/edit forms, same
-    // "freeform text with autocomplete over existing values" posture
-    // class-tags.php's all_in_use() already established for tags,
-    // rather than a fixed enum anywhere.
+    // Distinct non-empty scenes, for the forms' <datalist> autocomplete.
     /** @return array<int, string> */
     public static function distinct_scenes(): array {
         global $wpdb;
@@ -536,19 +320,10 @@ class BHCRM_Projects {
     }
 
     /* =================================================================
-     * Phase C — stall analytics (PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md)
+     * Stall analytics
      * ================================================================= */
 
-    // Reacts to ANY placement save (the-self-hosted-self's generic
-    // 'bhcore_element_placement_saved' hook), not just bh-crm's own —
-    // scoped to bh/sticky-card placements on the 'bhcrm_project_board'
-    // surface specifically, a no-op for every other surface/element
-    // type this hook also fires for (bh_crm_profile's own placements,
-    // Design Suite pages, etc.). Logs a move on real column changes,
-    // AND on a card's very first save (no $old_row at all) — the
-    // initial column is itself a "move" for time-in-column purposes
-    // (without it, a never-since-moved card would have no baseline row
-    // to measure "days since" against).
+    // Logs a move on column changes and on a card's first save, which is the baseline for "days since moved".
     /**
      * @param array<string, mixed> $data
      * @param array<string, mixed>|null $old_row
@@ -571,14 +346,8 @@ class BHCRM_Projects {
     }
 
     /**
-     * Read the 'column' attr out of a RAW (unresolved) placement config,
-     * tolerating both shapes BH_Element stores it in: a plain string, or
-     * the {"literal": "..."} binding wrapper (class-element-data.php).
-     * on_placement_saved() sees the pre-resolution JSON, so — unlike the
-     * render path at line ~750 where $attrs is already resolved — it must
-     * unwrap this itself. Casting the array form straight to string was a
-     * PHP "Array to string conversion" warning and stored the literal
-     * text "Array" as the column name.
+     * Read 'column' from a raw (unresolved) placement config.
+     * WHY: the value may be a plain string or a {"literal": "..."} binding wrapper.
      *
      * @param mixed $config
      */
@@ -597,13 +366,7 @@ class BHCRM_Projects {
         ]);
     }
 
-    // {placement_id => days_since_last_move} for every card on this
-    // board whose most recent logged move is at least STALL_DAYS ago —
-    // a card with NO move rows at all (shouldn't normally happen once
-    // Phase C is live, but a pre-existing card from before this
-    // feature shipped would have none) is excluded rather than treated
-    // as infinitely stalled, since "we genuinely don't know" and
-    // "definitely stalled" are different claims.
+    // {placement_id => days_since_last_move} for cards idle >= STALL_DAYS; cards with no move rows are excluded.
     /** @return array<int, int> */
     public static function stalled_cards_for_board(int $project_id): array {
         global $wpdb;
@@ -612,7 +375,6 @@ class BHCRM_Projects {
         if (!$card_ids) return [];
 
         $ids_sql = implode(',', $card_ids);
-        // One row per card: its own most recent entered_at.
         $rows = $wpdb->get_results(
             "SELECT card_placement_id, MAX(entered_at) AS last_moved_at FROM " . self::moves_table() . "
              WHERE card_placement_id IN ($ids_sql) GROUP BY card_placement_id",
@@ -628,12 +390,7 @@ class BHCRM_Projects {
         return $out;
     }
 
-    // Average real time-in-column (hours) across every COMPLETED
-    // column stay for this board — i.e. every move row that has a
-    // later move row after it for the same card. A card's CURRENT
-    // (most recent) stay is deliberately excluded: it hasn't ended yet,
-    // so counting it would understate real time-in-column for
-    // whichever column things currently pile up in.
+    // Average hours per column over completed stays only; a card's current stay hasn't ended, so it's excluded.
     /** @return array<string, float> */
     public static function average_hours_per_column(int $project_id): array {
         global $wpdb;
@@ -669,7 +426,6 @@ class BHCRM_Projects {
         return $out;
     }
 
-    /** @return array<int, string> */
     /**
      * @param array<int, mixed> $columns
      * @return array<int, string>
@@ -683,24 +439,14 @@ class BHCRM_Projects {
         return $out ?: self::DEFAULT_COLUMNS;
     }
 
-    /**
-     * Deletes a project row AND every board placement/content document
-     * that belongs to it — a project has no other cross-references
-     * anywhere else in this codebase (no other table stores a project
-     * id), so this is a real, safe, full delete, not a soft-delete.
-     */
+    /** Hard-deletes a project and every board placement and content document under it. */
     public static function delete(int $id): bool {
         global $wpdb;
         $id = (int) $id;
         if (class_exists('BH_Element')) {
             foreach (BH_Element::get_placements('bhcrm_project_board', $id, 'board') as $p) {
                 if (!empty($p['content_context_id']) && class_exists('BH_Content')) {
-                    // BH_Content has no delete() of its own (see
-                    // class-content.php) — an orphaned bhcore_content row
-                    // is harmless (never re-addressed once the owning
-                    // placement is gone) but we null it out via save()
-                    // with an empty tree to avoid leaving stale content
-                    // sitting around indefinitely.
+                    // BH_Content has no delete(); saving an empty tree clears the content.
                     BH_Content::save('bh_element', (int) $p['content_context_id'], []);
                 }
                 BH_Element::delete_placement($p['id']);
@@ -741,20 +487,11 @@ class BHCRM_Projects {
                 'title'  => ['type' => 'string', 'default' => 'Untitled task', 'bindable' => false],
                 'notes'  => ['type' => 'html',   'default' => '',              'bindable' => false],
                 'done'   => ['type' => 'bool',   'default' => false,           'bindable' => false],
-                // Plain literal grouping key, not a bindable data-source
-                // attr — see class docblock's "KANBAN-COLUMN JUDGMENT
-                // CALL" for why this is a config attr, not a slot.
+                // Plain grouping key, not a slot (see class docblock).
                 'column' => ['type' => 'string', 'default' => '',              'bindable' => false],
             ],
             'style' => ['color_accent', 'radius'],
-            // DESIGN-SUITE-UNIFICATION-PLAN.md §2.6 — a sticky card is
-            // always a <div>/<article> (never link-shaped), but it DOES
-            // demonstrate a pre-declared, STRUCTURED custom data-attr
-            // (the doc's own worked example): 'data-status' renders as
-            // an enum picker in the inspector rather than free text, and
-            // is enum-validated server-side in
-            // BH_Element::build_html_attrs() regardless of what the
-            // client sends.
+            // 'data-status' is enum-validated server-side in BH_Element::build_html_attrs().
             'tags'  => ['div', 'article'],
             'attrs' => [
                 'id' => true, 'class' => true, 'aria-label' => true,
@@ -771,14 +508,7 @@ class BHCRM_Projects {
                     $tree = BH_Content::get('bh_element', (int) $instance['id']);
                     [$done_count, $total] = BHCRM_Projects::rollup_counts($tree);
                     if ($total > 0) {
-                        // Track-It-style bar, same as BHCRM_Subtasks::
-                        // render_progress_bar()'s mini variant — this
-                        // renderer is a separate, server-only code path
-                        // (the interactive kanban-board.js draws its own
-                        // card DOM client-side and doesn't call this),
-                        // so the bar markup is duplicated inline here
-                        // rather than shared, matching this render
-                        // callback's existing self-contained style.
+                        // WHY: inline styles, since this widget can render where kanban-board.css isn't loaded.
                         $pct = self::progress_percent($done_count, $total);
                         $rollup_html = '<div class="bhcrm-sticky-card-rollup">'
                             . '<div class="bhcrm-progress-bar-track" style="height:5px;background:#dcdcde;border-radius:999px;overflow:hidden;margin-bottom:2px;">'
@@ -801,27 +531,12 @@ class BHCRM_Projects {
 
     private static function register_content_block_type(): void {
         BH_Content::register_block_type('bhcrm/sub-card', [
-            // 'uid' — stable per-node identifier, added alongside the
-            // new BHCRM_Subtasks nested tracking view (see that class's
-            // own docblock): without it, there was no way to address
-            // "this specific sub-task" that survives a reorder or a
-            // sibling edit — a BH_Content tree node otherwise has no id
-            // of its own at all. Assigned once at creation
-            // (BHCRM_Subtasks::handle_add()), never regenerated.
+            // Stable node id that survives reorders; assigned once in BHCRM_Subtasks::handle_add().
             'uid'   => ['type' => 'string', 'default' => ''],
             'title' => ['type' => 'string', 'default' => 'Sub-task'],
             'notes' => ['type' => 'html',   'default' => ''],
             'done'  => ['type' => 'bool',   'default' => false],
-            // 'column' — added alongside BHCRM_Subtasks' rebuild into a
-            // REAL kanban board at every nesting level, not a flat
-            // checklist. Every level of a card's sub-task tree shares the SAME column
-            // vocabulary as the parent project's own board
-            // (BHCRM_Projects::get($project_id)['columns_config']) —
-            // one shared set of stages for the whole project, not a
-            // separately configurable column set per nesting level,
-            // same judgment call this class's own docblock already
-            // makes for why 'column' is a plain literal attr and not
-            // its own slot.
+            // Every nesting level shares the project's own columns_config.
             'column' => ['type' => 'string', 'default' => ''],
         ], function (array $attrs, $rendered_children, array $block) {
             $title = esc_html((string) $attrs['title']);
@@ -836,39 +551,13 @@ class BHCRM_Projects {
         });
     }
 
-    // PHPStan-caught real bug: this method's @return docblock had ended
-    // up misattached to progress_percent() below instead of
-    // rollup_counts() (the method it actually describes) — the
-    // intervening "Audit fix" comment block broke the natural
-    // docblock-immediately-precedes-function association. PHPStan
-    // trusted the wrong (array{0:int,1:int}) return type for
-    // progress_percent() (which genuinely returns a plain int), and
-    // propagated that bad type to every real call site — not a runtime
-    // bug (the actual code was always correct), but a real
-    // documentation error worth fixing on its own. Moved to its correct
-    // place, immediately above rollup_counts().
-    //
-    // Audit fix (2026-07-25): $done_count/$total_count -> percent was
-    // duplicated between this file's own bh/sticky-card render callback
-    // and BHCRM_Subtasks::render_progress_bar() — sharing THIS
-    // calculation (pure logic, zero coupling) rather than the actual
-    // HTML/CSS markup, which is deliberately NOT shared between them
-    // (see the render callback's own comment: sticky-card is a portable
-    // BH_Element widget that can render anywhere, including contexts
-    // where kanban-board.css isn't loaded, so it uses fully inline
-    // styles rather than depending on that admin-only stylesheet).
+    // Shared with BHCRM_Subtasks::render_progress_bar().
     public static function progress_percent(int $done, int $total): int {
         return $total > 0 ? (int) round(($done / $total) * 100) : 0;
     }
 
     /**
-     * Recursively counts 'bhcrm/sub-card' nodes in a raw (un-rendered)
-     * BH_Content tree — the render-time roll-up this class's docblock
-     * documents. Any OTHER registered content block type mixed into the
-     * tree (shouldn't normally happen, since only 'bhcrm/sub-card' is
-     * ever inserted by this class's own UI, but a hand-crafted REST call
-     * could add one) is silently skipped for counting purposes, same
-     * graceful-degrade posture as BH_Content::render() itself.
+     * Recursively counts 'bhcrm/sub-card' nodes in a raw BH_Content tree; other block types are skipped.
      *
      * @param array<int, array<string, mixed>> $tree
      * @return array{0:int,1:int} [$done_count, $total_count]
@@ -892,18 +581,11 @@ class BHCRM_Projects {
 
     /* =================================================================
      * CRM person page integration — "Projects" section + board view.
-     * Both are rendered from BHCRM_People's existing single dispatch
-     * page (admin.php?page=bh-crm) via a project_id query arg, NOT a
-     * new standalone admin page — this install has a documented
-     * WordPress-core hook-resolution bug that broke standalone pages
-     * (see class-element-builder.php's docblock for the incident); the
-     * bare Debug Tools seed action below follows the same proven Debug
-     * Tools SECTION pattern for the same reason, and this board view
-     * rides on bh-crm's ALREADY-WORKING single-page dispatch instead of
-     * registering a second page of its own.
+     * WHY: rendered via ?page=bh-crm&project_id=, not a standalone admin page;
+     * standalone pages have failed WP's page-hook resolution on this install.
      * ================================================================= */
 
-    /** Called from BHCRM_People::render_detail($uid) — additive section, same posture as the existing tags/notes editors. */
+    /** Called from BHCRM_People::render_detail($uid). */
     public static function render_projects_section(int $uid): void {
         $projects = self::list_for_person($uid);
 
@@ -945,7 +627,6 @@ class BHCRM_Projects {
     }
 
     public static function handle_create(): void {
-        // QA fix: matches the CRM menu's own bhcore_manage_crm gate — creating a project isn't destructive.
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_project_create')) wp_die('Bad nonce.');
 
@@ -955,11 +636,7 @@ class BHCRM_Projects {
         $id = self::create($name, $uid, [], $scene);
 
         $msg = $id ? "Created project #$id." : 'Failed to create project.';
-        // QA fix: redirect straight to the new project's own board
-        // (now reachable with $uid === 0, see render_board()'s own
-        // fix) instead of back to a person page — correct whether this
-        // came from a person's profile (uid set) or the top-level
-        // Project Tracker create form (uid always 0 there).
+        // Land on the new board; $uid is 0 when created from the Project Tracker index.
         $args = ['page' => 'bh-crm', 'bhcrm_msg' => rawurlencode($msg)];
         if ($id) $args['project_id'] = $id;
         if ($uid) $args['user_id'] = $uid;
@@ -968,7 +645,6 @@ class BHCRM_Projects {
     }
 
     public static function handle_save_columns(): void {
-        // QA fix: matches the CRM menu's own bhcore_manage_crm gate.
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $project_id = (int) ($_POST['project_id'] ?? 0);
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_project_columns_' . $project_id)) wp_die('Bad nonce.');
@@ -983,7 +659,6 @@ class BHCRM_Projects {
     }
 
     public static function handle_save_scene(): void {
-        // QA fix: matches the CRM menu's own bhcore_manage_crm gate.
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $project_id = (int) ($_POST['project_id'] ?? 0);
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_project_scene_' . $project_id)) wp_die('Bad nonce.');
@@ -1016,13 +691,10 @@ class BHCRM_Projects {
         exit;
     }
 
-    /** Renders the board view — the bespoke presentation layer's PHP shell; kanban-board.js fills it in against the standard BH_Element REST bridge. Called from BHCRM_People::render() when $_GET['project_id'] is set. */
+    /** Board view shell; kanban-board.js fills it in. Called from BHCRM_People::render() when project_id is set. */
     public static function render_board(int $project_id, int $uid = 0): void {
         $project = self::get($project_id);
-        // QA fix: $uid is now optional (a project can be opened
-        // straight from the Project Tracker index with no person
-        // context at all) — fall back to a plain "back to Project
-        // Tracker" link instead of assuming a person is always known.
+        // $uid is 0 when opened from the Project Tracker index.
         $user = $uid ? get_userdata($uid) : null;
         if ($user) {
             echo '<p><a href="' . esc_url(remove_query_arg('project_id')) . '">&larr; Back to ' . esc_html($user->display_name) . '</a></p>';
@@ -1073,13 +745,7 @@ class BHCRM_Projects {
         echo '<div id="bhcrm-kanban-board" class="bhcrm-kanban-board" data-loading="1"><p class="description">Loading board&hellip;</p></div>';
     }
 
-    /**
-     * The Jira/DevOps-style "linked people" panel on a project's board
-     * view — every person currently linked (with their relation), a
-     * remove link per row, and a form to link someone new under a
-     * chosen relation. Only CRM people (BHCRM_People::active_user_ids())
-     * are offered, same population every other CRM person-picker uses.
-     */
+    /** Linked-people panel: current links with remove buttons, plus a form to link a CRM person. */
     private static function render_people_panel(int $project_id): void {
         $linked = class_exists('BHCRM_Links') ? BHCRM_Links::people_for_project($project_id) : [];
 
@@ -1126,7 +792,6 @@ class BHCRM_Projects {
 
     public static function handle_link_person(): void {
         check_admin_referer('bhcrm_project_link');
-        // QA fix: matches the CRM menu's own bhcore_manage_crm gate.
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $project_id = (int) ($_POST['project_id'] ?? 0);
         $person_id = (int) ($_POST['person_id'] ?? 0);
@@ -1142,7 +807,6 @@ class BHCRM_Projects {
     public static function handle_unlink_person(): void {
         $link_id = (int) ($_GET['link_id'] ?? 0);
         check_admin_referer('bhcrm_project_unlink_' . $link_id);
-        // QA fix: matches the CRM menu's own bhcore_manage_crm gate.
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $project_id = (int) ($_GET['project_id'] ?? 0);
         if ($link_id) BHCRM_Links::unlink_by_id($link_id);
@@ -1162,25 +826,12 @@ class BHCRM_Projects {
         if (!$project) return;
 
         wp_enqueue_style('bhcrm-kanban-board', BHCRM_URL . 'assets/css/kanban-board.css', [], BHCRM_VER);
-        // Vendored, not npm — this ecosystem's own no-build-step
-        // convention (see kanban-board.js's own docblock for why:
-        // replaces that file's hand-rolled HTML5 drag-and-drop, which
-        // only ever supported append-to-end-of-column, never a real
-        // same-column reorder). MIT-licensed, single file, no
-        // transitive dependencies — vendored here rather than via a
-        // CDN so this plugin has zero runtime dependency on a third
-        // party staying up.
+        // SortableJS (MIT) is vendored, not CDN-loaded, so there's no third-party runtime dependency.
         wp_enqueue_script('sortablejs', BHCRM_URL . 'assets/js/vendor/sortable.min.js', [], '1.15.6', true);
         wp_enqueue_script('bhcrm-kanban-board', BHCRM_URL . 'assets/js/kanban-board.js', ['sortablejs'], BHCRM_VER, true);
 
         wp_localize_script('bhcrm-kanban-board', 'bhcrmKanbanConfig', [
-            // Same 'ous/v1/elements/' REST bridge + wp_rest cookie-nonce
-            // contract element-builder.js already uses — no new route,
-            // no new auth mechanism.
             'restUrl'    => esc_url_raw(rest_url('ous/v1/elements/')),
-            // bh-crm's own small rollups route (rest_rollups() above) —
-            // a separate namespace from the generic BH_Element bridge
-            // above, same wp_rest cookie-nonce.
             'rollupsUrl' => esc_url_raw(rest_url('bh-crm/v1/rollups')),
             'stalledCardsUrl' => esc_url_raw(rest_url('bh-crm/v1/stalled-cards')),
             'studioUrl'  => esc_url_raw(admin_url('admin.php?page=bh-studio')),

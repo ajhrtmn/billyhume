@@ -2,22 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * One tiny, honest piece: recognizing a PLACEHOLDER ISRC so the rest of
- * the plugin (the admin metabox's mock-flag persistence, class-
- * player.php's SEO output) never has to duplicate the pattern check.
- *
- * Real ISRC issuance needs The Self-Hosted Self itself to be a registered ISRC
- * registrant with a national ISRC agency — a real institutional
- * application, not something this class can do. Until that exists,
- * this only recognizes/generates a clearly-fake placeholder so a
- * track's rights metadata field can be exercised (UI, storage, schema
- * suppression) ahead of the real thing: built against the shape now
- * so swapping in a real issuer later is a small change, not a rewrite.
- *
- * Country code "ZZ" is deliberate, not arbitrary: ISO 3166-1 formally
- * reserves ZZ (along with AA, QM-QZ, XA-XZ) as "user-assigned" — never
- * allocated to a real country — so a "ZZ..." code can never collide
- * with or be mistaken for a real-world ISRC once real issuance exists.
+ * ISRC issuance and placeholder recognition, so the metabox and SEO output
+ * share one pattern check. Real codes need the site owner to be a registered
+ * ISRC registrant; until then, mock codes use country "ZZ", which ISO 3166-1
+ * reserves as user-assigned, so they can never collide with a real ISRC.
  */
 class BHS_ISRC {
     const MOCK_PATTERN = '/^ZZOUS\d{7}$/';
@@ -28,12 +16,7 @@ class BHS_ISRC {
     }
 
     public static function add_menu(): void {
-        // Was parented under 'the-self-hosted-self' — a music-metadata/rights-
-        // registration tool specific to this plugin's own tracks has no
-        // business sitting in the cross-cutting ecosystem hub next to
-        // Reports/Security/Metrics; it belongs with the rest of
-        // Streaming's own admin surface, same as PRO Registration
-        // (class-pro-wizard.php) right alongside it.
+        // Lives under Streaming's admin menu, alongside PRO Registration.
         add_submenu_page(BHS_PostTypes::MENU_PARENT, 'ISRC Registrant', 'ISRC Registrant', 'manage_options', 'bhs-isrc-registrant', [self::class, 'render_registrant_page']);
     }
 
@@ -93,12 +76,8 @@ class BHS_ISRC {
     }
 
     /**
-     * The registrant record an artist fills in once they've actually
-     * completed the real, offline application to a national ISRC
-     * agency — this class has no way to do that application itself,
-     * only to generate correctly-shaped codes once it's done. Shape:
-     * ['country' => 'US', 'registrant' => 'ABC', 'status' =>
-     * 'not_registered'|'applied'|'registered'].
+     * Registrant record, filled in after the offline application to a
+     * national ISRC agency.
      */
     /** @return array{country:string, registrant:string, status:string} */
     public static function registrant(): array {
@@ -113,15 +92,8 @@ class BHS_ISRC {
     }
 
     /**
-     * Issues one new ISRC — a REAL, correctly-shaped code if a
-     * registrant is configured, a mock/placeholder one otherwise. This
-     * is the one place either kind of code gets generated, server-
-     * side, specifically so real issuance can enforce real uniqueness
-     * (a real ISRC's designation code is THIS registrant's own
-     * responsibility to keep unique — get_option()+update_option() as
-     * a simple atomic-enough counter is the right weight for the
-     * volume one artist's own catalog will ever hit, not a reason to
-     * add a database table for a single incrementing integer).
+     * Issues one ISRC: real if a registrant is configured, mock otherwise.
+     * The designation counter is a plain option; enough for one catalog.
      */
     public static function issue(): string {
         if (self::is_real_registrant_configured()) {
@@ -132,11 +104,7 @@ class BHS_ISRC {
             return strtoupper($r['country']) . strtoupper($r['registrant']) . $year . str_pad((string) $seq, 5, '0', STR_PAD_LEFT);
         }
 
-        // Mock path — collision-checked against real existing rows
-        // rather than trusting Math.random() alone (the previous,
-        // client-only version of this had no such check). A handful of
-        // retries is more than enough headroom for one artist's own
-        // catalog size; this isn't guarding against adversarial load.
+        // Mock path: collision-checked against existing rows, with a few retries.
         global $wpdb;
         for ($i = 0; $i < 20; $i++) {
             $candidate = 'ZZOUS' . gmdate('y') . str_pad((string) random_int(0, 99999), 5, '0', STR_PAD_LEFT);
@@ -145,9 +113,7 @@ class BHS_ISRC {
             ));
             if (!$exists) return $candidate;
         }
-        // Practically unreachable (100,000 designation codes per year,
-        // one artist's own catalog) — a timestamp-suffixed fallback
-        // rather than a hard failure either way.
+        // Practically unreachable; fall back to a timestamp suffix, not a failure.
         return 'ZZOUS' . gmdate('y') . substr((string) time(), -5);
     }
 }

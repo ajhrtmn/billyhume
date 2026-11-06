@@ -1,21 +1,7 @@
 /**
- * subtasks.js — BHCRM_Subtasks drag-between-columns (class-subtasks.php).
- * Mirrors kanban-board.js's own multi-column Sortable setup exactly
- * (one Sortable instance per column list, all sharing a group name so
- * a card can move between columns) — same visual/interaction language
- * as the top-level project board, not a second one. Vanilla JS,
- * vendored SortableJS, no build step, same convention as this
- * ecosystem's other admin widgets.
- *
- * Posts via fetch() to admin-post.php rather than a real <form> submit
- * — this view renders inside the same WP admin context where a nested
- * <form> silently breaks (see bh-contest's reject-form bug this same
- * session for the exact failure mode), so drag-end intentionally never
- * touches form submission at all.
- *
- * TypeScript pilot conversion — same posture as bh-crm's own
- * segment-builder.ts. Sortable (vendored assets/js/vendor/sortable.min.js)
- * and BHCoreToast are untyped external globals.
+ * Nested sub-task board (BHCRM_Subtasks): drag between columns, inline edits, two-click delete.
+ * Saves go through fetch() to admin-post.php, never a form submit.
+ * Sortable and BHCoreToast are untyped globals, declared here and shared with kanban-board.ts.
  */
 
 interface SortableOptions {
@@ -88,15 +74,7 @@ interface BHSubtaskSaveResponse {
             fetch(cfg.ajaxUrl ?? '', { method: 'POST', credentials: 'same-origin', body: fd })
                 .then((res) => res.json() as Promise<BHSubtaskSaveResponse>)
                 .then((body) => {
-                    // Only reload when a card's completion state actually
-                    // flipped (server tells us via state_changed) — that's
-                    // the one case with an effect OUTSIDE this board (every
-                    // ancestor card's own recursive progress bar elsewhere
-                    // on the page), so it's the only case that genuinely
-                    // needs a full re-render. Plain reordering already
-                    // reflects correctly in the DOM (that's what the drag
-                    // itself just did) plus refreshCounts() above — no
-                    // reload needed, matching kanban-board.js's in-place feel.
+                    // Reload only when a card's done state flipped, since ancestor progress bars change.
                     const stateChanged = !!(body && body.data && body.data.state_changed);
                     if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Saved.', 'success'); }
                     if (stateChanged) {
@@ -104,17 +82,7 @@ interface BHSubtaskSaveResponse {
                     }
                 })
                 .catch(() => {
-                    // Retry-audit pass, AJ's own standing ask: this
-                    // used to reload() unconditionally in the catch
-                    // block too, which on a real network failure
-                    // silently threw away the drag-drop the user just
-                    // made — the reload shows the OLD server layout,
-                    // no error, no sign the write never happened.
-                    // Reordering a full layout is idempotent (same
-                    // layout saved twice = same end state), so a real
-                    // retry is safe here; only give up and reload
-                    // (accepting the loss, but at least visibly) after
-                    // retries are exhausted.
+                    // Saving a full layout is idempotent, so retry; reload visibly only after retries fail.
                     if (attempt < 2) {
                         setTimeout(() => { save(attempt + 1); }, 500 * Math.pow(2, attempt) + Math.random() * 200);
                         return;
@@ -126,9 +94,7 @@ interface BHSubtaskSaveResponse {
                 });
         }
 
-        // Also update the visible per-column counts immediately on
-        // drop, rather than waiting on a round trip/reload — the
-        // server write still happens via save() either way.
+        // Updates per-column counts immediately on drop.
         function refreshCounts() {
             board!.querySelectorAll('.bhcrm-kanban-column').forEach((col) => {
                 const count = col.querySelector('.bhcrm-kanban-column-cards')!.children.length;
@@ -153,11 +119,7 @@ interface BHSubtaskSaveResponse {
             });
         });
 
-        // Inline title/description editing — AJ's own ask, "make them
-        // editable," matching the top-level board's own live-editable
-        // card fields (kanban-board.js) instead of a separate
-        // collapsed edit form. Saves on blur, one fetch per field,
-        // both routed through the same bhcrm_subtask_save handler.
+        // Inline title/notes edits, saved on blur via bhcrm_subtask_save.
         function saveField(cardEl: HTMLElement, field: string, value: string, statusEl: Element | null, attempt = 0) {
             const fd = new FormData();
             fd.append('action', 'bhcrm_subtask_save');
@@ -181,11 +143,7 @@ interface BHSubtaskSaveResponse {
                     }
                 })
                 .catch(() => {
-                    // Retry-audit pass, AJ's own standing ask: this
-                    // single-field overwrite is idempotent (same value
-                    // saved twice = same end state), so a real network
-                    // blip is safe to retry rather than immediately
-                    // reporting failure on the first dropped connection.
+                    // A single-field overwrite is idempotent, so retry.
                     if (attempt < 2) {
                         if (statusEl) statusEl.textContent = 'Retrying…';
                         setTimeout(() => { saveField(cardEl, field, value, statusEl, attempt + 1); }, 500 * Math.pow(2, attempt) + Math.random() * 200);
@@ -221,11 +179,7 @@ interface BHSubtaskSaveResponse {
             }
         });
 
-        // Audit fix (2026-07-25): arm/disarm double-click, replacing the
-        // native confirm() this delete form used to have — matches
-        // kanban-board.js's own pattern exactly (first click arms +
-        // relabels, 3s window, second click while armed actually
-        // submits; any other interaction on the card disarms it).
+        // Two-click delete: first click arms for 3s, second submits; other card interaction disarms.
         board.querySelectorAll('.bhcrm-subtask-delete-form').forEach((form) => {
             const btn = form.querySelector('.bhcrm-subtask-delete-btn') as HTMLElement | null;
             if (!btn) return;

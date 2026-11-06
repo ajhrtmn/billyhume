@@ -2,38 +2,16 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Pure installation mechanics — no redirects, no nonce checks, no
- * knowledge of where a request came from. Callers (OUS_Dashboard's
- * admin-post handlers, OUS_ActivationManager) own all of that; this
- * class just answers "can this plugin be installed, and did it work."
+ * Pure installation mechanics: no redirects or nonce checks. Callers own request handling.
  */
 class OUS_Installer {
-    // Set by install_from_bundle() on the one failure mode install()'s
-    // plain bool return can't distinguish from any other — callers that
-    // want the SPECIFIC reason (OUS_Dashboard::handle_install(), to
-    // show a real message instead of a generic "missing") read this
-    // right after a failed install() call, same "last-error side
-    // channel" shape several WP core APIs already use for the same
-    // reason (a bool return that still needs a richer failure reason
-    // available to whoever actually cares).
+    // Specific reason for the last failed install(), for callers that want more than the bool.
     private static string $last_error = '';
     public static function last_error(): string { return self::$last_error; }
 
-    // Two genuinely different install sources, one shared entry point —
-    // every caller uses this without needing to know or care which kind
-    // of plugin it's dealing with.
-    //
-    // 'bundled_zip': one of our own plugins, shipped as an inert zip
-    // inside this plugin's own folder — pure local file extraction, no
-    // network access needed.
-    //
-    // 'wporg_slug': a third-party dependency (WooCommerce, etc.) that
-    // isn't ours to bundle or redistribute, and that updates on its own
-    // schedule independent of us. Installed live from WordPress.org
-    // using the exact same core APIs (plugins_api() + Plugin_Upgrader)
-    // that wp-admin's own "Install Now" button uses — not a custom
-    // reimplementation, and it requires the server to actually reach
-    // WordPress.org, unlike the bundled path.
+    // 'bundled_zip': our own plugin shipped as a zip in this folder (local, no network).
+    // 'wporg_slug': a third-party dependency installed from WordPress.org via the same core
+    // APIs as wp-admin's "Install Now" (plugins_api() + Plugin_Upgrader); needs network.
     public static function install(string $key): bool {
         $info = OUS_Registry::all()[$key] ?? null;
         if (!$info) return false;
@@ -44,19 +22,8 @@ class OUS_Installer {
     }
 
     /**
-     * Guards against installing a stale bundled zip over a newer copy
-     * already on disk — without this, "Install"/"Reinstall" would
-     * silently overwrite real fixes with an outdated bundle, no error.
-     * This is the "prevent" half; OUS_Registry::regenerate_bundled_zip()
-     * is the "fix" half (a one-click way to refresh a stale bundle
-     * in-admin, rather than needing shell access).
-     *
-     * Only refuses when there's something to actually compare — a
-     * plugin already present on disk with a real version header AND a
-     * bundled zip whose version is a real, LOWER semver than what's
-     * already there. A first-time install (nothing on disk yet) always
-     * proceeds — bundling is the offline-install mechanism, and there's
-     * nothing "stale" about the only copy that exists yet.
+     * Refuses to install a bundled zip whose version is lower than a copy already on disk,
+     * so Install/Reinstall can't silently overwrite newer fixes. First-time installs always proceed.
      */
     private static function install_from_bundle(string $zip_filename): bool {
         self::$last_error = '';
@@ -67,7 +34,7 @@ class OUS_Installer {
         require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
         $slug = preg_replace('/\.zip$/', '', $zip_filename);
-        $main_file = $slug . '/' . $slug . '.php'; // this ecosystem's own convention — a plugin's bootstrap file is always named after its folder
+        $main_file = $slug . '/' . $slug . '.php'; // bootstrap file is always named after its folder
         $installed_path = WP_PLUGIN_DIR . '/' . $main_file;
         if (file_exists($installed_path)) {
             $installed_version = get_plugin_data($installed_path, false, false)['Version'];
@@ -78,15 +45,7 @@ class OUS_Installer {
             }
         }
 
-        // Same credential-request pattern WP core's own installer uses —
-        // on the vast majority of hosts (anywhere PHP can already write
-        // to wp-content, which includes ordinary shared hosting) this
-        // resolves to the 'direct' method transparently with no prompt,
-        // since that's the same access level normal plugin uploads
-        // already rely on.
-        // Real bug PHPStan caught: the 4th positional arg is $context
-        // (string, default '') — this was passing false where WP core's
-        // real signature (wp-admin/includes/file.php) expects a string.
+        // Same credential-request pattern as WP core's installer; resolves to 'direct' on most hosts.
         $creds = request_filesystem_credentials(admin_url('admin.php?page=ous'), '', false, '', null);
         if (!WP_Filesystem($creds)) return false;
 
@@ -103,9 +62,6 @@ class OUS_Installer {
         $api = plugins_api('plugin_information', ['slug' => $slug, 'fields' => ['sections' => false]]);
         if (is_wp_error($api) || empty($api->download_link)) return false;
 
-        // Real bug PHPStan caught: the 4th positional arg is $context
-        // (string, default '') — this was passing false where WP core's
-        // real signature (wp-admin/includes/file.php) expects a string.
         $creds = request_filesystem_credentials(admin_url('admin.php?page=ous'), '', false, '', null);
         if (!WP_Filesystem($creds)) return false;
 

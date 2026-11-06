@@ -2,13 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Audit fix (2026-07-25) — this plugin was the one peer plugin in the
- * ecosystem with no 'ous_registered_plugins' contribution/admin class at
- * all, unlike every sibling (see bh-registry/includes/class-admin.php for
- * the reference shape this mirrors), which meant it was invisible on the
- * core's own plugin-management dashboard even once active. Same pattern:
- * one admin_menus entry, relocated by the core's OUS_MenuMerge — this
- * class never calls add_submenu_page itself.
+ * Registers this plugin with the core's plugin dashboard
+ * (ous_registered_plugins) and provides a read-only requests overview.
  */
 class BHF_Admin {
     public static function init(): void {
@@ -16,9 +11,7 @@ class BHF_Admin {
         add_action('admin_enqueue_scripts', [self::class, 'enqueue']);
     }
 
-    // The .bhf-badge-* classes used in render() below only get enqueued
-    // on the front end (BHF_Requests::maybe_enqueue()) — this screen
-    // needs the same stylesheet in wp-admin context.
+    // The .bhf-badge-* styles are front-end only by default; enqueue here too.
     public static function enqueue(string $hook): void {
         if ($hook !== 'the-self-hosted-self_page_bh-feedback-requests' && strpos($hook, 'bh-feedback') === false) return;
         wp_enqueue_style('bhf-feedback', BHF_URL . 'assets/css/feedback.css', [], BHF_VER);
@@ -36,16 +29,8 @@ class BHF_Admin {
             'check_class'    => 'BHF_Queue',
             'description'    => 'Paid song-feedback requests — a submitter pays via wallet credit, a reviewer with bhcore_review_submissions claims and completes it.',
             'dashboard_link' => 'admin.php?page=bh-feedback-requests',
-            // Audit fix (2026-07-26): this array fully REPLACES (not
-            // merges into) class-registry.php's own hardcoded DEFAULTS
-            // entry for this key — self::all()'s array_merge() only
-            // backfills MISSING keys with empty defaults afterward, so
-            // omitting bundled_zip here silently zeroed out the bundled-
-            // zip-freshness check for this plugin specifically (it read
-            // as "not currently installed" instead of comparing versions).
-            // bh-registry's own class-admin.php::register() is the
-            // reference shape — always list bundled_zip here too, not
-            // just in the hardcoded DEFAULTS this callback overwrites.
+            // WHY: this entry replaces the registry's DEFAULTS rather than
+            // merging, so bundled_zip must be listed here too.
             'bundled_zip'    => 'bh-feedback.zip',
             'admin_menus'    => [
                 ['slug' => 'bh-feedback-requests', 'label' => 'Feedback Requests', 'callback' => [self::class, 'render']],
@@ -54,10 +39,7 @@ class BHF_Admin {
         return $plugins;
     }
 
-    // A plain overview so an admin has SOME ordinary way to see request
-    // volume/status without opening the Reviewer Queue portal panel as
-    // if they were a reviewer themselves — read-only, no claim/complete
-    // actions here (those stay in the portal panel, reviewer-scoped).
+    // Read-only overview of request volume/status; claim/complete stay in the portal.
     public static function render(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
 

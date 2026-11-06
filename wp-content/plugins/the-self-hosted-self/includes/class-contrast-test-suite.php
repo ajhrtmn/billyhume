@@ -2,14 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Test Runner suite for BHY_Color (the pure maths) and BHY_Contrast
- * (the resolver). Registered by BHY_Contrast::init() via
- * bhcore_test_suites, runs from Debug Tools -> Tests on the site's own
- * PHP — no CLI. Covers known metric vectors, OKLCH round-trips, the
- * resolver's cross-theme invariants, byte-for-byte reproduction of the
- * four colours BHY_Style derived before the resolver existed, and a
- * calibration snapshot that fails loudly if the default theme's derived
- * palette ever shifts.
+ * Test Runner suite for BHY_Color and BHY_Contrast: metric vectors, OKLCH
+ * round-trips, cross-theme invariants, legacy-role reproduction, and a
+ * calibration snapshot of the default palette.
  */
 class OUS_ContrastTestSuite {
 
@@ -157,9 +152,7 @@ class OUS_ContrastTestSuite {
             }
             $r[] = OUS_TestRunner::assert_same('', implode(',', $bad), "[$name] every concrete role value is a 6-digit hex");
 
-            // Accent state ladder is monotonic: base -> hover -> pressed
-            // each step no lighter than the last (a value shift, never a
-            // reversal) — the property that keeps "hover" reading as hover.
+            // Accent ladder is monotonic: each step no lighter than the last.
             $l_base = BHY_Color::hex_to_oklch($hex['--bh-accent'])['L'];
             $l_hover = BHY_Color::hex_to_oklch($hex['--bh-accent-hover'])['L'];
             $l_press = BHY_Color::hex_to_oklch($hex['--bh-accent-pressed'])['L'];
@@ -168,8 +161,7 @@ class OUS_ContrastTestSuite {
                 sprintf('[%s] accent ladder darkens monotonically (L %.3f -> %.3f -> %.3f)', $name, $l_base, $l_hover, $l_press)
             );
 
-            // Disabled text sits BELOW muted text sits BELOW body text,
-            // measured on the surface — the intent ordering.
+            // Intent ordering on the surface: disabled < muted < body.
             $s = $seeds['--bh-surface'];
             $c_body = BHY_Color::apca_lc_abs($seeds['--bh-text'], $s);
             $c_muted = BHY_Color::apca_lc_abs($hex['--bh-text-muted'], $s);
@@ -249,10 +241,8 @@ class OUS_ContrastTestSuite {
     }
 
     /**
-     * Pins the default theme's derived palette. If a maths or SPEC change
-     * moves any of these more than a hair, this fails and forces a
-     * conscious re-baseline — the guard against silently restyling the
-     * live site.
+     * Pins the default theme's derived palette; any shift forces a
+     * deliberate re-baseline.
      *
      * @return array<int, array<string,mixed>>
      */

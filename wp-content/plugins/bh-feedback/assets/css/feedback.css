@@ -87,11 +87,8 @@
     width: 100%;
     margin: 8px 0;
 }
-/* Shape now comes from the shared .bh-badge component (class-style.php)
-   — markup carries both classes; this file only supplies color.
-   Audit fix (2026-07-25): open/claimed/completed used to share the same
-   styling, distinguished only by badge text — added distinct treatments
-   so the three states read as visually different, not just textually. */
+/* Shape comes from the shared .bh-badge component; this file only
+   supplies a distinct color per status. */
 .bhf-badge-open {
     background: var(--bh-surface-2, #f6f6f7);
     color: var(--bh-text-dim, #6b7280);

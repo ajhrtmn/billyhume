@@ -2,43 +2,13 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3: "Notes:
- * timestamped history + authorship + reminders, replacing the current
- * single-overwrite freeform textarea. This is the CRM's actual daily-
- * use loop in every reference product (Pipedrive/HubSpot) and is
- * currently the thinnest part of bh-crm."
- *
- * Was a single `_bhcrm_notes` user meta field, silently overwritten on
- * every save — no history, no author attribution (this plugin can have
- * more than one admin), no way to flag "check back on this." Now a real
- * table (bhcrm_notes), same versioned-dbDelta activation pattern
- * BHCRM_Projects already established for this plugin's own first table
- * (class-projects.php) — append-only note history, each row stamped
- * with who wrote it and when, with an optional reminder date.
- *
- * Reminders reuse this ecosystem's OWN existing infrastructure rather
- * than inventing new cron/notification plumbing: OUS_Jobs::enqueue()
- * (the shared async job queue, Action-Scheduler-backed when available)
- * schedules a one-off job for the reminder's exact moment, and that
- * job's handler calls OUS_Notifications::notify() (the shared, already-
- * built-and-working notification bell every other plugin in this
- * ecosystem already uses) — same "check for an unused/adjacent
- * extension point before building new infrastructure" principle this
- * whole roadmap doc's own cross-cutting findings called out.
- *
- * Any note written before this table existed is migrated forward
- * automatically (once, per person) as a single legacy note rather than
- * silently discarded — see migrate_legacy_meta().
+ * Append-only per-person notes with author, timestamp and an optional reminder.
+ * Reminders are OUS_Jobs one-off jobs that notify the note's author via OUS_Notifications.
  */
 class BHCRM_Notes {
     const DB_VERSION = '1.0';
 
     public static function init(): void {
-        // Called directly from bh-crm.php's own 'plugins_loaded'
-        // bootstrap closure (not re-hooked to 'plugins_loaded' itself)
-        // — this method IS already running during that hook's dispatch,
-        // same cheap-version-gated-upgrade-check pattern
-        // BHCRM_Projects::init() already established in this plugin.
         self::maybe_upgrade();
 
         if (class_exists('OUS_Jobs')) {
@@ -85,13 +55,7 @@ class BHCRM_Notes {
         return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
     }
 
-    // A person whose old freeform `_bhcrm_notes` meta still has real
-    // content, and who has never had a row in the new table, gets that
-    // content copied forward as one legacy-labeled note — run lazily,
-    // once per person, the first time their note history is actually
-    // viewed (no need for a slow one-time site-wide migration pass over
-    // every person up front; most CRMs have far more people than anyone
-    // will ever open the notes tab for on a given day).
+    // Lazily moves the legacy `_bhcrm_notes` user meta into one note, the first time a person's notes are read.
     private static function migrate_legacy_meta(int $person_id): void {
         $legacy = get_user_meta($person_id, '_bhcrm_notes', true);
         if (!$legacy || trim($legacy) === '') return;
@@ -113,23 +77,14 @@ class BHCRM_Notes {
     public static function list_for_person(int $person_id): array {
         self::migrate_legacy_meta($person_id);
         global $wpdb;
-        // id DESC as a tiebreaker — created_at only has 1-second
-        // resolution, and a migrated legacy note plus a genuinely new
-        // note can land in the same second (confirmed live, not
-        // theoretical: exactly this happened while verifying this
-        // feature), which makes ORDER BY created_at DESC alone
-        // non-deterministic about which one sorts first.
+        // WHY: id DESC tiebreaker; created_at has 1-second resolution.
         return $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM " . self::table() . " WHERE person_id = %d ORDER BY created_at DESC, id DESC",
             $person_id
         ), ARRAY_A);
     }
 
-    // $reminder_at: a 'Y-m-d\TH:i' datetime-local string, or ''/null for
-    // no reminder. Schedules a real OUS_Jobs job for that exact moment
-    // when set — a reminder in the past (or for "right now") still
-    // schedules, just with delay_seconds clamped to 0, so it fires on
-    // the next cron tick rather than being silently dropped.
+    // $reminder_at: a datetime-local string or ''. Past reminders still schedule, with delay clamped to 0.
     /** @return int|false */
     public static function add(int $person_id, int $author_id, string $text, string $reminder_at = '') {
         global $wpdb;
@@ -167,26 +122,13 @@ class BHCRM_Notes {
         return $note_id;
     }
 
-    // The queued job's handler (registered in init() above) — fires at
-    // the reminder's own moment, real Action-Scheduler-driven timing
-    // when available (OUS_Jobs falls back to its own cron-polled table
-    // otherwise, same degrade-gracefully posture every OUS_Jobs consumer
-    // already gets for free). Notifies the note's ORIGINAL AUTHOR, not
-    // every admin — "remind me" is personal, not a broadcast.
+    // Reminder job handler: notifies the note's author only.
     /** @param array<string, mixed> $args */
     public static function handle_reminder_job(array $args): void {
         global $wpdb;
         $note_id = (int) ($args['note_id'] ?? 0);
 
-        // QA fix: an UPDATE ... WHERE reminder_dismissed = 0 is the
-        // actual idempotency guard — the old code only ever READ
-        // reminder_dismissed and never SET it, so a reminder that fired
-        // more than once (a manual test call and Action Scheduler's own
-        // real background processing both landing) sent the same
-        // notification twice. Marking it dismissed atomically, in the
-        // same query that checks it's not already dismissed, closes the
-        // gap a plain SELECT-then-UPDATE would still race on if two
-        // workers ever picked up the same due job at once.
+        // WHY: atomic claim (UPDATE ... WHERE reminder_dismissed = 0) so a job run twice notifies once.
         $claimed = $wpdb->query($wpdb->prepare(
             "UPDATE " . self::table() . " SET reminder_dismissed = 1 WHERE id = %d AND reminder_dismissed = 0",
             $note_id
@@ -251,23 +193,13 @@ class BHCRM_Notes {
     }
 
     public static function handle_save(): void {
-        // QA fix: this required manage_options while the CRM menu
-        // itself only requires bhcore_manage_crm (granted to editor and
-        // the new Studio Manager role) -- editors/managers could see
-        // the note form but every save silently died. Adding a note
-        // isn't a destructive action, so it now matches the page's own
-        // access level instead of being accidentally admin-only.
+        // Matches the CRM page's own bhcore_manage_crm gate; adding a note isn't destructive.
         if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_save_note')) wp_die('Not allowed.');
 
         $user_id = (int) ($_POST['user_id'] ?? 0);
         $note_id = self::add($user_id, get_current_user_id(), wp_unslash($_POST['note'] ?? ''), $_POST['reminder_at'] ?? '');
 
-        // CRM-native event, additive only — doesn't affect the save
-        // above in any way, just gives this note a row in the shared
-        // activity stream (see class-event-activity.php). The note text
-        // itself is never put in the payload — it's freeform admin-only
-        // content with no business duplicated into a table other
-        // plugins may read.
+        // WHY: the note text never goes in the event payload; other plugins can read the events table.
         if ($user_id && $note_id && class_exists('BH_Event')) {
             BH_Event::emit('bhcrm/note_saved', [
                 'user_id' => $user_id,

@@ -2,31 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BH_CommerceProviders — the registry BH_Commerce dispatches through.
- * Same keyed-registry shape bh-social's BHSO_PlatformRegistry already
- * uses for a "several named implementations of one interface" problem
- * (get('youtube')/get('twitch')/etc.) — not reinvented, just the same
- * pattern applied to commerce.
- *
- * 'woocommerce' is the only key with a real, working class registered
- * today (BH_WooCommerceProvider). 'shopify' / 'stripe' / 'squarespace'
- * are named, anticipated slots — not fake implementations. A future
- * adapter for any of them is:
- *   1. A new class implementing BH_CommerceProvider (class-commerce-
- *      provider.php has the full contract).
- *   2. One call to BH_CommerceProviders::register($key, new
- *      YourClass()) — typically from that adapter's own plugin
- *      bootstrap, class_exists()-guarded the same way every other
- *      cross-plugin touch in this ecosystem is.
- *   3. Optionally, apply_filters('bh_commerce_active_provider_key', ...)
- *      to switch which registered provider is active — defaults to
- *      'woocommerce', the one provider always guaranteed to be
- *      registered (its own available() still correctly reports false
- *      until WooCommerce itself is actually installed, same as today).
- *
- * Only one provider is ever "active" at a time (no multi-provider
- * split-cart scenario) — this is a swap point, not a marketplace
- * aggregator.
+ * Registry BH_Commerce dispatches through. Only 'woocommerce' is
+ * implemented. To add an adapter: implement BH_CommerceProvider, call
+ * register($key, $provider) from its plugin (class_exists()-guarded), and
+ * select it via the 'bh_commerce_active_provider_key' filter.
+ * One provider is active at a time.
  */
 class BH_CommerceProviders {
     const REGISTERABLE_KEYS = ['woocommerce', 'shopify', 'stripe', 'squarespace'];
@@ -41,7 +21,7 @@ class BH_CommerceProviders {
 
     public static function register(string $key, BH_CommerceProvider $provider): void {
         $key = sanitize_key($key);
-        if (!in_array($key, self::REGISTERABLE_KEYS, true)) return; // not a recognized slot — see this class's own docblock before adding a new one
+        if (!in_array($key, self::REGISTERABLE_KEYS, true)) return; // unrecognized slot
         self::$providers[$key] = $provider;
     }
 
@@ -50,15 +30,8 @@ class BH_CommerceProviders {
     }
 
     /**
-     * The provider every BH_Commerce call actually dispatches to.
-     * Filterable (never hard-coded past 'woocommerce') so a future
-     * adapter plugin can switch the active provider without editing
-     * this file — same "mockable/swappable, never hard-wired" posture
-     * BH_Commerce's has_subscriptions()/get_subscription() already use.
-     * Falls back to BH_WooCommerceProvider directly (not null) if the
-     * filtered key doesn't resolve to a registered provider — BH_Commerce's
-     * callers have never had to null-check its return values, and this
-     * refactor's whole point is that they still don't.
+     * Provider every BH_Commerce call dispatches to (filterable). Never
+     * null: falls back to WooCommerce so callers need no null checks.
      */
     public static function active(): BH_CommerceProvider {
         $key = (string) apply_filters('bh_commerce_active_provider_key', 'woocommerce');

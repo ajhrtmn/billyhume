@@ -2,38 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Real-time (best-effort) sync on top of BHMP_ScheduledSync's daily
- * safety-net sweep. Two kinds of hook:
- *
- * 1. A few genuine native WordPress/WooCommerce/bh-monetization-woo
- *    actions that already existed before this plugin (user_register,
- *    profile_update, woocommerce_order_status_completed,
- *    bhm_entitlement_granted).
- *
- * 2. Every BH_Event type in this ecosystem, via the new
- *    'bh_event_emitted' action the-self-hosted-self 3.9.9 added specifically for
- *    this — see the-self-hosted-self's class-event.php changelog. Before that
- *    change, BH_Event::emit() had no pub/sub at all (write-only into
- *    bhcore_events), so bh/vote, bhc/enroll, bhc/course_completed,
- *    bhm/wallet_credit, bhm/referral_credited, bh/submission_created,
- *    and bhcrm/tags_saved were only reachable by polling — that's what
- *    BHMP_ScheduledSync's daily resync existed to cover before this
- *    file could exist. This file is what actually made that gap
- *    (flagged in the original recommendation) go away.
- *
- * Every hook here just calls BHMP_Sync::sync_contact($user_id) — no
- * automation/segment logic lives here. MailPoet's own Automation engine
- * (trigger = "subscriber added to list") is what reacts to a contact's
- * list membership; this plugin's only job is keeping that membership
- * current.
+ * Best-effort real-time sync on top of BHMP_ScheduledSync's daily sweep: native WP/Woo/bh-monetization
+ * actions plus selected BH_Event types (via 'bh_event_emitted'). Every hook just calls
+ * BHMP_Sync::sync_contact(); MailPoet's own automations react to list membership.
  */
 class BHMP_InstantSync {
-    // BH_Event types worth an immediate sync. Not every registered
-    // event type needs one — e.g. bh/vote fires per vote, which is
-    // fine to sync on (idempotent, cheap), but something high-frequency
-    // and not contact-relevant wouldn't be worth adding here. Filterable
-    // so a future plugin's own event type can opt in without editing
-    // this file.
+    // BH_Event types worth an immediate sync; filterable so other plugins can opt in.
     /** @return string[] */
     private static function watched_event_types(): array {
         return apply_filters('bhmp_watched_event_types', [
@@ -90,9 +64,7 @@ class BHMP_InstantSync {
 
         BHMP_Sync::sync_contact($user_id);
 
-        // bhcrm/tags_saved carries the person's full current tag list in
-        // its own payload — mirror it onto the same MailPoet subscriber
-        // via BHMP_Sync::sync_tags(), no extra bh-crm read needed.
+        // bhcrm/tags_saved carries the full tag list in its payload.
         if ($type === 'bhcrm/tags_saved') {
             $tags = $job_args['payload']['tags'] ?? [];
             if (is_array($tags)) BHMP_Sync::sync_tags($user_id, $tags);

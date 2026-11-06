@@ -2,32 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The actual "aggregator, gatekept by the artist" mechanism.
+ * Artist-curated feed aggregation over the open RSS/Atom podcast standard.
  *
- * IMPORT: an admin adds a bhs_feed_source post with an external feed
- * URL — deliberately restricted to the open RSS/Atom podcast-feed
- * standard (RSS 2.0 + the iTunes/Podcasting-2.0 enclosure convention),
- * NOT any single platform's proprietary API. That standard happens to be
- * exactly what Funkwhale itself publishes for every channel, so a
- * Funkwhale channel's RSS link is a first-class citizen here — but so is
- * any other server that speaks the same open feed format (including
- * another bh-streaming site's own export, below). This plugin is not,
- * and should never become, Funkwhale-exclusive; Funkwhale is simply the
- * reference example of a server built on this open standard.
- * validate_is_open_feed() below is what actually enforces "open standard
- * feed, not an arbitrary URL" at save/sync time. Uses fetch_feed(),
- * WordPress core's own feed parser (built on SimplePie) — not custom XML
- * parsing, because WordPress already solved that problem. Imported
- * tracks become real bhs_track posts flagged _bhs_source = 'external', so
- * the rest of the catalog/player code never needs a separate code path
- * for "local" vs "aggregated" — it's all just tracks. Nothing gets
- * pulled in without an admin explicitly adding that feed URL first —
- * this is curation, not open following.
- *
- * EXPORT: this site's own catalog, re-served as a standard RSS feed
- * with real <enclosure> audio tags and iTunes-namespace metadata, so
- * any podcast app — or another bh-streaming site's importer — can
- * subscribe to it. Same format on both ends by design.
+ * Import: an admin adds a bhs_feed_source URL; items become bhs_track posts
+ * flagged _bhs_source = 'external' (parsed via core fetch_feed()). Nothing is
+ * pulled in unless an admin added the feed. Export: this site's catalog as a
+ * standard RSS feed with <enclosure> audio, consumable by the same importer.
  */
 class BHS_Feeds {
     const CRON_HOOK = 'bhs_sync_feeds';
@@ -37,10 +17,7 @@ class BHS_Feeds {
         add_action('save_post_bhs_feed_source', [self::class, 'save_feed_source']);
         add_action('admin_post_bhs_sync_feed', [self::class, 'handle_manual_sync']);
         add_action(self::CRON_HOOK, [self::class, 'sync_all']);
-        // "Share your feed" panel — this site's own export URL plus a
-        // scannable QR code — shown on the Feed Sources list screen so
-        // getting connected with another artist/instance is a copy-paste
-        // or a phone-camera away, not a support ticket.
+        // "Share your feed" panel (export URL + QR) on the Feed Sources list screen.
         add_action('admin_notices', [self::class, 'render_share_panel']);
 
         if (!wp_next_scheduled(self::CRON_HOOK)) {
@@ -50,13 +27,8 @@ class BHS_Feeds {
 
     /* ---------- open-standard enforcement ---------- */
 
-    // Restricts feed sources to the open RSS/Atom podcast-feed standard
-    // (what fetch_feed() itself parses) rather than trusting any URL that
-    // merely responds with SOME content — a 200 OK from an arbitrary API
-    // isn't "an open feed," it's just a URL. Requires at least one item
-    // with a real enclosure (the actual open-standard signal for "this is
-    // a media feed"), which is exactly what Funkwhale channels, other
-    // Podcasting-2.0 feeds, and this plugin's own export all provide.
+    // Only accept open RSS/Atom media feeds: requires at least one item with
+    // a real enclosure, not just any URL that returns a 200.
     /** @param mixed $feed */
     private static function validate_is_open_feed($feed): bool {
         if (is_wp_error($feed)) return false;
@@ -67,8 +39,7 @@ class BHS_Feeds {
         return false;
     }
 
-    // This site's own subscribable feed URL — the thing to hand another
-    // artist, another bh-streaming instance, or a Funkwhale/podcast app.
+    // This site's own subscribable feed URL.
     public static function own_feed_url(): string {
         return esc_url_raw(rest_url('bhs/v1/feed.xml'));
     }
@@ -78,13 +49,8 @@ class BHS_Feeds {
         if (!$screen || $screen->post_type !== 'bhs_feed_source') return;
 
         $url = self::own_feed_url();
-        // A public QR-image service, not a bundled dependency — this
-        // only ever runs in wp-admin (never on a visitor-facing page),
-        // and avoids shipping/maintaining a QR-rendering library for one
-        // small convenience. If offline/no-outbound-requests hosting
-        // becomes a real requirement later, swap this for a bundled PHP
-        // QR encoder without changing anything else here — the URL this
-        // encodes is the only thing that matters.
+    // Uses a public QR-image service (admin-only) rather than bundling a QR
+    // library; swappable for a bundled encoder without other changes.
         $qr_src = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' . rawurlencode($url);
 
         echo '<div class="notice notice-info" style="padding:16px;">';
@@ -160,23 +126,9 @@ class BHS_Feeds {
 
     /* ---------- import ---------- */
 
-    // Automatic (twice-daily cron) AND manual (the "Sync now" button) —
-    // WP-Cron only actually fires on a page load that happens to land
-    // after the scheduled time, it isn't a true background daemon, so
-    // a manual option alongside it means an admin isn't purely at the
-    // mercy of site traffic patterns to refresh a feed right now.
-    //
-    // If the core's job queue is active (the-self-hosted-self 3.2.0+ — see
-    // OUS_Jobs, and bh-registry's BHR_Verification::recheck_all() for
-    // the first place this exact pattern got proven out), each feed
-    // source gets queued as its own job instead of all of them fetching
-    // inline in one cron tick — a real, not cosmetic, improvement here
-    // specifically: fetch_feed() is a network call to someone else's
-    // server, and one slow or hanging feed currently delays every OTHER
-    // feed source behind it in the loop. Falls back to the original
-    // all-inline behavior if the job queue isn't there — same
-    // class_exists()-guarded optional-integration shape every other
-    // cross-plugin touch in this ecosystem uses.
+    // Runs on twice-daily cron and the manual "Sync now" button (WP-Cron only
+    // fires on page loads). When OUS_Jobs is available each feed is its own
+    // job, so one slow remote feed doesn't block the rest; otherwise inline.
     public static function sync_all(): void {
         $sources = get_posts(['post_type' => 'bhs_feed_source', 'post_status' => 'publish', 'posts_per_page' => -1]);
 
@@ -191,15 +143,11 @@ class BHS_Feeds {
             }
         }
 
-        // Not per-feed work — a lightweight pass over already-imported
-        // external tracks, unrelated to any single feed's own fetch —
-        // so it stays a plain inline call either way rather than being
-        // queued itself.
+        // Health pass over already-imported tracks; always inline, not queued.
         self::check_external_track_health();
     }
 
-    // The per-feed-source unit of work OUS_Jobs actually calls — see
-    // bh-streaming.php's bootstrap for the guarded registration.
+    // Per-feed unit of work called by OUS_Jobs (registered in bh-streaming.php).
     /** @param array<string, mixed> $args */
     public static function sync_one_job(array $args): void {
         $feed_id = (int) ($args['feed_id'] ?? 0);
@@ -208,26 +156,11 @@ class BHS_Feeds {
         if ($url) self::sync_one($feed_id, $url);
     }
 
-    /* ---------- source-down handling (task 39) ---------- */
-    // This ecosystem never re-hosts a featured artist's audio (see the
-    // note on _bhs_external_audio_url above) — which means an external
-    // track's playability depends entirely on THEIR host staying up,
-    // something this site has zero control over. Silently 404ing mid-
-    // playback with no explanation is a bad experience; the alternative
-    // of downloading and re-hosting the file would break the whole
-    // "your media stays yours" premise. This is the honest middle
-    // ground: periodically check, and when a source is unreliable, SAY
-    // SO — in the catalog and in the player — rather than pretending
-    // everything's fine until a listener hits play and it just fails.
-    //
-    // Explicitly NOT this plugin's problem to solve: a track someone
-    // actually bought/downloaded (bh-monetization-woo's purchase +
-    // lossless/compressed delivery) is a real local file transferred to
-    // the listener — that keeps working forever regardless of what
-    // happens to any external host. This health check only ever applies
-    // to STREAMING an externally-aggregated track, never to a completed
-    // download already in someone's hands.
-    const HEALTH_DOWN_AFTER_FAILS = 3; // consecutive failures before a track is treated as actually unavailable, not just a blip
+    /* ---------- source-down handling ---------- */
+    // External audio is never re-hosted, so playability depends on the remote
+    // host. Periodically check and surface unreliable sources in the catalog
+    // and player. Applies only to streaming, never to purchased downloads.
+    const HEALTH_DOWN_AFTER_FAILS = 3; // consecutive failures before a track is treated as unavailable
 
     public static function check_external_track_health(): void {
         $tracks = get_posts([
@@ -238,9 +171,8 @@ class BHS_Feeds {
             $url = get_post_meta($track_id, '_bhs_external_audio_url', true);
             if (!$url) continue;
 
-            // HEAD first (cheap); some hosts don't implement HEAD
-            // correctly for media files, so fall back to a tiny ranged
-            // GET rather than wrongly flagging a perfectly fine host.
+            // HEAD first; some hosts mishandle HEAD for media, so fall back
+            // to a tiny ranged GET.
             $resp = wp_remote_head($url, ['timeout' => 6, 'redirection' => 3]);
             $ok = !is_wp_error($resp) && (int) wp_remote_retrieve_response_code($resp) < 400;
             if (!$ok) {
@@ -256,14 +188,8 @@ class BHS_Feeds {
             update_post_meta($track_id, '_bhs_source_checked_at', current_time('mysql'));
             update_post_meta($track_id, '_bhs_source_health', $new_health);
 
-            // Log only the TRANSITION (not every check, which runs on a
-            // schedule and would otherwise flood the log with routine
-            // "still fine" or "still down" restatements) — this was
-            // previously invisible entirely; the only way to discover a
-            // dead external feed was manually browsing track postmeta.
-            // ok -> down/degraded logs a warning (a listener-facing
-            // symptom is now live); down/degraded -> ok logs an info
-            // (worth knowing recovery happened, e.g. after a host outage).
+            // Log only status transitions: ok -> down/degraded as a warning,
+            // back to ok as info.
             if ($previous_health !== $new_health && class_exists('OUS_DebugLog')) {
                 $level = ($new_health === 'ok') ? 'info' : 'warning';
                 OUS_DebugLog::log($level, "External track source health changed: $previous_health -> $new_health", [
@@ -273,10 +199,7 @@ class BHS_Feeds {
         }
     }
 
-    // Read by BHS_API::track_payload() so the player can show a real
-    // status rather than the listener just discovering it by a failed
-    // play. 'ok' when never checked yet — a brand-new import isn't
-    // treated as suspect before its first health pass ever runs.
+    // Read by BHS_API::track_payload(). 'ok' when never checked yet.
     public static function source_health(int $track_id): string {
         $health = get_post_meta($track_id, '_bhs_source_health', true);
         return $health ?: 'ok';
@@ -286,21 +209,11 @@ class BHS_Feeds {
         require_once ABSPATH . WPINC . '/feed.php';
         $feed = fetch_feed($url);
 
-        // QA fix: a transient network failure (timeout, DNS, host down)
-        // used to fall straight through into validate_is_open_feed(),
-        // which also returns false for a WP_Error — so the admin saw
-        // "this didn't look like an open podcast/audio feed" for BOTH a
-        // genuinely malformed feed AND a temporarily-unreachable host,
-        // pointing them at the wrong problem ("check your feed URL")
-        // when the real issue was "the remote host was unreachable, try
-        // again." Now tracked as a distinct flag with its own message.
+        // Network failure is reported separately from "not an open feed", so
+        // the admin isn't sent to check a URL that's fine.
         if (is_wp_error($feed)) {
             if (class_exists('OUS_DebugLog')) {
-                // A network call to someone else's server, failing — this is
-                // exactly the class of "not this site's bug, but this site's
-                // problem to notice" error the console exists for, so an
-                // admin sees "this feed's been failing" without having to
-                // manually re-check every feed source one by one.
+                // Log remote feed failures so an admin can see them in the console.
                 OUS_DebugLog::log('warning', 'Feed fetch failed: ' . $feed->get_error_message(), ['feed_source_id' => $feed_source_id, 'url' => $url], 'BH Streaming');
             }
             update_post_meta($feed_source_id, '_bhs_feed_fetch_failed', '1');
@@ -314,7 +227,7 @@ class BHS_Feeds {
         }
         delete_post_meta($feed_source_id, '_bhs_feed_invalid');
 
-        $items = $feed->get_items(0, 30); // a reasonable cap per sync — this isn't meant to backfill someone's entire archive on every run
+        $items = $feed->get_items(0, 30); // per-sync cap; not meant to backfill a whole archive
         $imported = 0;
         foreach ($items as $item) {
             try {
@@ -344,15 +257,11 @@ class BHS_Feeds {
                 update_post_meta($pid, '_bhs_source', 'external');
                 update_post_meta($pid, '_bhs_source_feed_id', $feed_source_id);
                 update_post_meta($pid, '_bhs_source_guid', $guid);
-                // Audio stays a remote URL rather than being downloaded and
-                // re-hosted — this is a link to featured content, not a copy
-                // of it. The originating site remains the source of truth.
+                // Audio stays a remote URL; the originating site is the source of truth.
                 update_post_meta($pid, '_bhs_external_audio_url', esc_url_raw($enclosure->get_link()));
                 $imported++;
             } catch (\Throwable $e) {
-                // One malformed feed item (an unexpected shape from a
-                // less-standard third-party feed) must not abort the
-                // whole sync and lose every OTHER item in the same feed.
+                // One malformed item must not abort the whole sync.
                 if (class_exists('OUS_DebugLog')) {
                     OUS_DebugLog::log('error', 'Feed import: unexpected error on one item — ' . $e->getMessage(), ['feed_source_id' => $feed_source_id], 'BH Streaming');
                 }
@@ -364,28 +273,8 @@ class BHS_Feeds {
 
     /* ---------- export ---------- */
 
-    // Real, confirmed bug found while building the fan-facing global-
-    // library preview (2026-08-21): this returned a WP_REST_Response
-    // with the Content-Type header overridden to application/rss+xml,
-    // but WP_REST_Response's body ALWAYS gets JSON-serialized by the
-    // REST server regardless of what header a callback sets — the
-    // header lied about the body's real shape, so the actual bytes
-    // ever served here were a JSON-quoted string ("<?xml
-    // version=\"1.0\"...") wrapped in real XML-typed headers, not real
-    // XML. Confirmed live: `curl -D -` against this exact route showed
-    // Content-Type: application/rss+xml with a JSON-string body, and
-    // SimplePie's fetch_feed() correctly rejected it as invalid XML
-    // ("Not well-formed") the moment anything actually tried to parse
-    // it as a feed. This means the entire cross-site federation
-    // feature — the actual point of this method, and the "public
-    // access link" half of the whole federated-library vision — had
-    // never once produced a real, consumable feed since this method
-    // was written; nothing had ever tried to parse it with a real feed
-    // parser until this session did. Same bypass bh-live's own
-    // class-overlay.php already uses for exactly this "REST route
-    // needs to serve raw non-JSON content" case: exit the REST
-    // response cycle entirely (status_header()/header()/echo/exit)
-    // instead of returning a WP_REST_Response at all.
+    // WHY: a WP_REST_Response body is always JSON-serialized, so serving raw
+    // RSS means leaving the REST cycle (status_header()/header()/echo/exit).
     public static function export_feed(): void {
         $doc = new DOMDocument('1.0', 'UTF-8');
         $rss = $doc->createElement('rss');
@@ -393,12 +282,8 @@ class BHS_Feeds {
         $rss->setAttribute('xmlns:itunes', 'http://www.itunes.com/dtds/podcast-1.0.dtd');
         $doc->appendChild($rss);
 
-        // DOMDocument::createElement()'s $value becomes a text node, and
-        // text nodes are already entity-escaped by DOMDocument itself on
-        // saveXML() — calling htmlspecialchars() first double-encodes
-        // (e.g. a title of "Rock & Roll" would serialize as
-        // "Rock &amp;amp; Roll" instead of "Rock &amp; Roll"). Pass raw
-        // values through and let DOMDocument do the one correct escape.
+        // WHY: DOMDocument escapes text nodes on saveXML(); don't pre-escape
+        // with htmlspecialchars() or values get double-encoded.
         $channel = $doc->createElement('channel');
         $rss->appendChild($channel);
         $channel->appendChild($doc->createElement('title', get_bloginfo('name')));
@@ -411,30 +296,14 @@ class BHS_Feeds {
             $external_url = get_post_meta($p->ID, '_bhs_external_audio_url', true);
             $audio_url = $aid ? wp_get_attachment_url($aid) : $external_url;
 
-            // Real, confirmed bug (2026-08-21, found building the fan-
-            // facing global-library feature): this loop never checked
-            // bhs_track_access_allowed at all — the SAME filter
-            // class-api.php's own /tracks endpoint already gates the
-            // local player's playback with — so a track requiring a
-            // paid tier/purchase had its real, full audio file exposed
-            // through this PUBLIC, unauthenticated feed regardless,
-            // completely bypassing the paywall for any external
-            // consumer (another site's importer, a podcast app, this
-            // session's own new registry preview endpoint). There's no
-            // logged-in user in this request context (a public feed
-            // fetch), so the filter correctly evaluates "not allowed"
-            // for any gated track here — exactly the safe default. A
-            // gated track falls back to its own hoster-set preview clip
-            // (_bhs_preview_audio_id, a short teaser file, never
-            // auto-derived from the real audio) if one exists; with
-            // neither access nor a preview set, the track is omitted
-            // from the public feed entirely rather than exposing
-            // nothing useful or the real file.
+            // WHY: this public feed must respect bhs_track_access_allowed (no
+            // logged-in user here, so gated tracks are denied). A gated track
+            // uses its _bhs_preview_audio_id clip if set, otherwise is omitted.
             $access_allowed = apply_filters('bhs_track_access_allowed', true, $p->ID);
             if (!$access_allowed) {
                 $preview_id = (int) get_post_meta($p->ID, '_bhs_preview_audio_id', true);
                 $audio_url = $preview_id ? wp_get_attachment_url($preview_id) : '';
-                $aid = $preview_id; // so the mime-type lookup below reads the preview file's real type, not the gated original's
+                $aid = $preview_id; // so the mime-type lookup reads the preview file's type
             }
             if (!$audio_url) continue;
 
@@ -444,13 +313,8 @@ class BHS_Feeds {
             $item->appendChild($doc->createElement('itunes:author', get_post_meta($p->ID, '_bhs_artist', true)));
             $item->appendChild($doc->createElement('pubDate', get_the_date(DATE_RSS, $p)));
 
-            // Audit fix (2026-07-25): this used to hardcode audio/mpeg for
-            // every track, breaking re-import fidelity for the AIFF/WAV
-            // uploads this plugin explicitly supports. A real attachment
-            // (_bhs_audio_id) has its own stored mime type; an externally-
-            // aggregated track (_bhs_external_audio_url, no attachment)
-            // falls back to guessing from the URL's extension, with
-            // audio/mpeg only as the last-resort default when even that fails.
+            // Use the attachment's stored mime type; for external URLs guess
+            // from the extension, defaulting to audio/mpeg.
             $mime = $aid ? get_post_mime_type($aid) : '';
             if (!$mime) {
                 $filetype = wp_check_filetype($audio_url);

@@ -2,10 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Same versioned, idempotent migration pattern as every other plugin
- * in this ecosystem. First real table this plugin has needed: chat
- * messages for BHL_PollingChat (bhl_stream itself is a plain CPT, no
- * custom table of its own).
+ * Versioned, idempotent table migrations for bh-live.
  */
 class BHL_Activator {
     const DB_VERSION = '1.2';
@@ -28,14 +25,8 @@ class BHL_Activator {
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        // One row per chat message, scoped to the bhl_stream post it
-        // belongs to — messages from a past broadcast stay attached to
-        // that stream's own history rather than one global firehose.
-        // `source` (1.2, ROADMAP-obs-integration.md Phase 3) — 'ecosystem'
-        // for every message BHL_PollingChat itself already inserted before
-        // this column existed (dbDelta's own default backfills those rows),
-        // 'twitch'/'youtube' for messages BHL_PollingChat::relay_message()
-        // inserts on the automation bridge's behalf.
+        // One row per chat message, scoped to its bhl_stream post. `source` is 'ecosystem'
+        // (the default) or 'twitch'/'youtube' for messages relayed by the OBS bridge.
         $messages = BHL_Tables::chat_messages();
         $sql = "CREATE TABLE $messages (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -50,14 +41,9 @@ class BHL_Activator {
         ) $charset;";
         dbDelta($sql);
 
-        // 1.1 — ROADMAP-obs-integration.md Phase 2. A small log of
-        // synchronous, non-BH_Event triggers the automation bridge
-        // needs to react to (bh_contest_round_advanced today — BH_Event
-        // itself is async via OUS_Jobs, too slow for a live scene-switch
-        // trigger, so this exists specifically for the ones that can't
-        // wait on that queue). BH_Event-sourced triggers (bhs/play,
-        // bh/vote, etc.) are read directly from wp_bhcore_events instead
-        // of being duplicated in here.
+        // WHY: synchronous triggers (bh_contest_round_advanced) are logged here because BH_Event
+        // is async via OUS_Jobs, too slow for a scene switch. BH_Event triggers are read from
+        // wp_bhcore_events directly.
         $log = BHL_Tables::automation_log();
         $sql2 = "CREATE TABLE $log (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,

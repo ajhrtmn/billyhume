@@ -5,28 +5,15 @@ class BHS_Player {
     public static function init(): void {
         add_shortcode('bh_streaming', [self::class, 'render']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
-        // OUS_Search consumer, ROADMAP-search-and-revisions.md Section 1
-        // — the piece deliberately left open earlier ("no canonical
-        // per-item URL to link a result to"), now closed via
-        // player.js's own maybeOpenTrackDeepLink() reading a real
-        // ?bhs_track=ID query param on the streaming page. Public-safe
-        // the same way bh-contest's own provider is: track TITLES are
-        // already public information (the whole point of a streaming
-        // catalog), and the deep link only ever shows that one track's
-        // existing public card — it doesn't bypass whatever lock/gate
-        // BHM_Gate already enforces for actual playback.
+        // OUS_Search provider: results deep-link via ?bhs_track=ID (handled by
+        // player.ts maybeOpenTrackDeepLink()). Titles are public; gates still apply.
         add_filter('ous_search_providers', [self::class, 'register_search_provider']);
         add_action('template_redirect', [self::class, 'maybe_set_seo_data_early']);
     }
 
     /**
-     * Real bug, production-readiness sweep 2026-08-16: maybe_set_seo_data()
-     * below (called from render()) only ever runs during the_content(),
-     * always after wp_head — where BH_SEO actually echoes its tags —
-     * has already fired. Same bug, same fix pattern as bh-courses and
-     * bh-contest: look up the shortcode's own attributes on the current
-     * page BEFORE the_content() runs, via BH_SEO's shared helper
-     * (the-self-hosted-self), and call the exact same method early.
+     * WHY: render() runs inside the_content(), after wp_head has printed
+     * BH_SEO tags, so read the shortcode attributes early and set SEO data first.
      */
     public static function maybe_set_seo_data_early(): void {
         if (!class_exists('BH_SEO')) return;
@@ -47,7 +34,7 @@ class BHS_Player {
     /** @return array<int, array<string, mixed>> */
     public static function search_tracks(string $query, int $limit): array {
         $page_id = (int) get_option('bhs_streaming_page_id', 0);
-        if (!$page_id || get_post_status($page_id) !== 'publish') return []; // nowhere real to link to yet
+        if (!$page_id || get_post_status($page_id) !== 'publish') return []; // nowhere to link to yet
 
         $posts = get_posts([
             'post_type' => 'bhs_track', 'post_status' => 'publish',
@@ -71,25 +58,12 @@ class BHS_Player {
     public static function maybe_enqueue(): void {
         if (!is_singular()) return;
         global $post;
-        // has_block() alongside has_shortcode() — ROADMAP-ux-polish-and-
-        // feature-parity-2026-07.md 5a's WYSIWYG block conversion
-        // (class-blocks.php, 'bhs/player') means a page can now embed
-        // this player without any literal [bh_streaming] bracket text in
-        // post_content at all. Without this, a block-authored page would
-        // render the mount div (via the block's render_callback, same
-        // markup render() below always produced) but never actually
-        // enqueue player.js/player.css — a real regression already
-        // caught and fixed the identical way in bh-contest 3.5.0 for its
-        // own three blocks; applying the same fix here preemptively
-        // rather than shipping the same bug twice.
+        // has_block() too: a 'bhs/player' block page has no shortcode text but
+        // still needs player.js/player.css enqueued.
         if (!$post || (!has_shortcode($post->post_content, 'bh_streaming') && !has_block('bhs/player', $post))) return;
 
         wp_enqueue_style('bhs-player', BHS_URL . 'assets/css/player.css', [], BHS_VER);
-        // BHY_Style is optional (the-self-hosted-self's shared style tokens) — guard
-        // like every other cross-plugin touch in this ecosystem, never
-        // assume it's loaded (QA fix: this was the one unguarded call site
-        // and would fatal maybe_enqueue() on every [bh_streaming] page if
-        // the class ever wasn't defined at this point in the request).
+        // BHY_Style is optional (core style tokens); guard it.
         if (class_exists('BHY_Style')) wp_add_inline_style('bhs-player', BHY_Style::inline_css());
         wp_enqueue_script('bhs-player', BHS_URL . 'assets/js/player.js', [], BHS_VER, true);
         wp_localize_script('bhs-player', 'BHSData', [
@@ -97,19 +71,9 @@ class BHS_Player {
             'identity' => esc_url_raw(rest_url('bhi/v1/')),
             'nonce'    => wp_create_nonce('wp_rest'),
             'loggedIn' => is_user_logged_in(),
-            // UX-AUDIT-2026-07.md's shared empty-state component
-            // (BHY_Style::empty_state_html()), pre-rendered server-side
-            // and handed to player.js so the SAME markup this ecosystem
-            // now uses everywhere replaces this file's own bare
-            // "No tracks match." string — one source of truth, not a
-            // second JS-side reimplementation of the same component.
-            // Audit fix (2026-07-25): the "Import my music" CTA above the
-            // library was never repeated INSIDE the empty-state message
-            // itself — the original 07-13 finding this component was
-            // meant to close. cta_url is a same-page anchor (#bhs-import)
-            // rather than a real URL, since import is a JS modal, not a
-            // navigable page — player.js delegates the click back onto
-            // the real #bhs-import-open button (see its own comment).
+            // Shared empty-state markup (BHY_Style::empty_state_html()) rendered
+            // server-side for player.ts. cta_url is a same-page anchor because
+            // import is a JS modal; player.ts delegates the click.
             'emptyStateZero' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
                 'reason' => 'zero',
                 'title' => 'Your library is empty',
@@ -122,9 +86,6 @@ class BHS_Player {
                 'title' => 'No tracks match',
                 'clear_url' => '#bhs-clear-filters',
             ]) : '',
-            // Same reasoning as emptyStateZero/emptyStateFiltered above —
-            // the Releases and Liked tabs had their own bare "No X yet"
-            // strings.
             'emptyStateReleases' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
                 'reason' => 'zero',
                 'title' => 'No releases yet',
@@ -135,9 +96,6 @@ class BHS_Player {
                 'title' => 'Nothing liked yet',
                 'description' => 'Tap the heart on a track to save it here.',
             ]) : '',
-            // Audit fix (2026-07-25): the Playlists tab had two of its
-            // own bare empty-state strings never migrated onto this
-            // shared component, unlike every other tab above.
             'emptyStatePlaylistsLoggedOut' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
                 'reason' => 'zero',
                 'title' => 'Log in to create playlists',
@@ -152,9 +110,7 @@ class BHS_Player {
 
     /** @param array<string, mixed>|string $atts */
     public static function render($atts = []): string {
-        // Hidden (not removed) in production while this is still being
-        // actively built out — see class-env.php. Dev/staging renders
-        // exactly as before.
+        // Hidden when BHS_FORCE_HIDDEN is defined (see class-env.php).
         if (BHS_Env::hidden_in_production()) return '';
 
         self::maybe_set_seo_data($atts);
@@ -302,19 +258,9 @@ class BHS_Player {
     }
 
     /**
-     * ROADMAP-discoverability.md Section 3's own named gap, closed:
-     * [bh_streaming] previously had NO way to attach real per-item
-     * schema.org data, because the shortcode always rendered the same
-     * whole-library SPA shell with zero server-side knowledge of any
-     * single track/release. This is metadata-only — it doesn't change
-     * what the SPA mounts or does; a page embeds a track/release ID
-     * (`[bh_streaming track="123"]` / `[bh_streaming release="45"]`)
-     * purely so this method has something to look up. Track wins if
-     * both are somehow given. Public/access-gated tracks still get
-     * indexed with correct metadata — 'MusicRecording' describing the
-     * WORK, not the locked audio file itself, same posture bh-courses'
-     * Course schema takes (the course description is public even
-     * though the lessons are gated).
+     * Sets per-item schema.org data when the shortcode names a track or release
+     * (`[bh_streaming track="123"]`); metadata only, track wins. Gated tracks
+     * are still indexed, describing the work rather than the audio.
      */
     /** @param array<string, mixed>|string $atts */
     private static function maybe_set_seo_data($atts): void {
@@ -330,13 +276,8 @@ class BHS_Player {
             $art_id = (int) get_post_meta($track_id, '_bhs_artwork_id', true);
             $image = $art_id ? wp_get_attachment_image_url($art_id, 'large') : null;
             $isrc = get_post_meta($track_id, '_bhs_isrc', true);
-            // A mock/placeholder ISRC (BHS_ISRC::is_mock()) never goes
-            // into published structured data — publishing something
-            // shaped like a real ISRC that isn't one would misrepresent
-            // the recording's actual registration status, exactly the
-            // failure mode the 'ZZ' reserved-country-code choice exists
-            // to prevent at the storage layer; this is the same
-            // guarantee carried through to what search engines see.
+            // WHY: a mock ISRC (BHS_ISRC::is_mock()) is never published in
+            // structured data; it would misrepresent registration status.
             if ($isrc && class_exists('BHS_ISRC') && BHS_ISRC::is_mock($isrc)) $isrc = '';
 
             BH_SEO::set_page_data([

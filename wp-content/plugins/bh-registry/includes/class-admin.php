@@ -2,21 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The submission review queue — a genuinely custom admin page (no CPT
- * involved at all; artists/links live in this plugin's own tables), so
- * per the ecosystem's own established pattern it's surfaced ONLY via
- * the 'admin_menus' entry in ous_registered_plugins below and relocated
- * by the core's OUS_MenuMerge — this class never calls add_submenu_page
- * itself, matching bh-crm's People page exactly (see that plugin's own
- * admin class for the reference example).
- *
- * Review here is for ABUSE HANDLING, not a required approval gate — a
- * link goes live in public browse/search the moment it's verified
- * (see BHR_Verification::maybe_activate_artist()), consistent with
- * "submission is voluntary and self-serve." What this page adds:
- * visibility into what's pending/failed, a manual re-verify trigger,
- * and the ability to reject (hide) an artist an admin has judged to be
- * spam/abuse even if its links happen to verify.
+ * Submission review queue, for abuse handling rather than approval (verified links go live on their own).
+ * Registered only via the 'admin_menus' entry below (OUS_MenuMerge), never add_submenu_page().
  */
 class BHR_Admin {
     public static function init(): void {
@@ -25,9 +12,7 @@ class BHR_Admin {
         add_filter('bhi_report_target_label', [self::class, 'report_target_label'], 10, 3);
     }
 
-    // Turns a bare "registry_artist #12" in the-self-hosted-self's shared Reports
-    // queue into something an admin can actually act on without leaving
-    // that page to go look the artist up first.
+    // Labels "registry_artist #12" entries in the core Reports queue.
     public static function report_target_label(string $label, string $type, int $id): string {
         if ($type !== 'registry_artist') return $label;
         global $wpdb;
@@ -46,14 +31,7 @@ class BHR_Admin {
             'depends_on'   => [],
             'check_class'  => 'BHR_API',
             'description'  => 'The global, decentralized artist-link registry — ActivityPub/RSS feed links, submitted voluntarily and verified by domain ownership.',
-            // Was missing entirely — this plugin only ever had the
-            // "Ecosystem" header's zero-config auto-discovery going for
-            // it, which get_plugins() can only ever find AFTER a human
-            // has already manually placed the plugin's files in
-            // wp-content/plugins. With bundled_zip set (and the actual
-            // zip present at the-self-hosted-self/bundled/bh-registry.zip), this
-            // gets the same one-click "Install" button bh-crm/bh-contest/
-            // bh-streaming/bh-courses already have.
+            // Enables the one-click Install button (needs the-self-hosted-self/bundled/bh-registry.zip).
             'bundled_zip'  => 'bh-registry.zip',
             'dashboard_link' => 'admin.php?page=bh-registry-review',
             'admin_menus'  => [
@@ -101,9 +79,6 @@ class BHR_Admin {
             }
             echo '</td>';
             echo '<td>';
-            // Audit fix (2026-07-25): matched to 'delete' below, which
-            // already confirms — rejecting was firing with zero
-            // click-time confirmation despite hiding a live artist.
             if ($artist->status !== 'rejected') echo self::action_link($artist->id, 'reject', 'Reject (hide)', null, 'Reject and hide this artist from public browse/search?') . ' ';
             if ($artist->status === 'rejected') echo self::action_link($artist->id, 'unreject', 'Restore') . ' ';
             echo self::action_link($artist->id, 'delete', 'Delete', null, 'Delete this artist and all its links permanently?');
@@ -112,12 +87,7 @@ class BHR_Admin {
         echo '</tbody></table></div></div>';
     }
 
-    // New in 0.1.16 (BHR_WellKnown). This is THIS site's own outbound
-    // identity — the token another site's registry expects to find at
-    // https://{this-host}/.well-known/bh-registry-verify.txt when
-    // THIS site submits its own feed there. Separate from every other
-    // token on this page, which are all INBOUND (challenges other
-    // sites' submitters must answer on their own domains).
+    // This site's own OUTBOUND token (served by BHR_WellKnown); every other token here is inbound.
     private static function render_identity_box(): void {
         if (!class_exists('BHR_WellKnown')) return;
         $token = BHR_WellKnown::token();
@@ -125,26 +95,12 @@ class BHR_Admin {
         echo '<div class="bhy-card" style="margin-bottom:16px;max-width:640px;">';
         echo '<h2 style="margin-top:0;">This Site\'s Identity</h2>';
         echo '<p class="description">When submitting THIS site\'s own feed to another site\'s registry, that site will fetch <code>' . esc_html($url) . '</code> and expect it to contain exactly this token. Self-served automatically — no filesystem access needed.</p>';
-        // Real clipping bug, found by the Tier 2 admin audit (2026-08-26):
-        // a fixed max-width:420px monospace token field doesn't shrink
-        // its TEXT to fit at narrow widths (confirmed: scrollWidth
-        // 331 > clientWidth 309 at 375px) — the field itself resizes
-        // via width:100%, but the token content just silently ran off
-        // the visible edge with no indication anything was cut off.
-        // text-overflow:ellipsis fixes the visual (an ellipsis at least
-        // looks intentional) without changing the actual behavior this
-        // field exists for: onclick="this.select()" still selects and
-        // copies the real, full, un-truncated value regardless of how
-        // much of it is visible.
+        // Ellipsis marks truncation at narrow widths; select() still copies the full value.
         echo '<p><input type="text" readonly value="' . esc_attr($token) . '" style="width:100%;max-width:420px;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" onclick="this.select();"></p>';
         echo '<p>' . self::action_link(0, 'regenerate_wellknown_token', 'Regenerate token', null, 'Regenerate this site\'s outbound identity token? Any registry that already verified this site using the old token will need it re-verified.') . '</p>';
         echo '</div>';
     }
 
-    // Audit fix (2026-07-25): was hand-rolled inline hex-color styling —
-    // the-self-hosted-self's BHY_UI already prints a shared .bhy-badge-* system
-    // globally on every admin screen (BHY_UI::init_shared_admin_assets()),
-    // this just uses it instead of a one-off style attribute.
     private static function status_badge(string $status): string {
         $variants = ['active' => 'success', 'verified' => 'success', 'pending' => 'warning', 'failed' => 'danger', 'rejected' => 'danger'];
         $variant = $variants[$status] ?? 'neutral';
@@ -177,9 +133,7 @@ class BHR_Admin {
                 $wpdb->update(BHR_Tables::artists(), ['status' => 'rejected', 'updated_at' => current_time('mysql')], ['id' => $artist_id]);
                 break;
             case 'unreject':
-                // Back to 'pending' rather than straight to 'active' —
-                // let the normal verified-link check decide, same as any
-                // other artist; restoring shouldn't bypass that.
+                // Restore to 'pending' so the verified-link check decides, not the admin.
                 $wpdb->update(BHR_Tables::artists(), ['status' => 'pending', 'updated_at' => current_time('mysql')], ['id' => $artist_id]);
                 BHR_Verification::recheck_artist($artist_id);
                 break;

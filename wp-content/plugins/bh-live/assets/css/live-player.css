@@ -151,10 +151,7 @@
     border-radius: 50%;
     background: #fff;
 }
-/* Same resting-depth baseline as every other status/content panel this
-   session (.bh-judge-entry, .bh-reveal-entry, .bhc-step) — a
-   non-interactive status message still shouldn't read flatter than
-   everything else on the page. */
+/* Resting depth to match other status panels. */
 .bhl-offline-notice {
     background: var(--bh-surface);
     border-radius: 8px;

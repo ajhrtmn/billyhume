@@ -2,28 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Second BHL_StreamEngine implementation — Cloudflare Stream Live
- * (developers.cloudflare.com/stream, API confirmed 2026-07-26), the
- * genuinely zero-infrastructure alternative to Owncast: no
- * BHL_HostProvisioner involved at all, since there's no box to
- * provision — a live input is created with one API call and Cloudflare
- * runs the ingest/transcode/delivery entirely on their own edge. Trades
- * "free, open-source, self-hosted" for "fully managed, metered
- * ($1-5/1000 min), zero ops" — the honest opposite tradeoff from
- * Owncast, surfaced as a genuine second choice in the wizard rather
- * than silently preferred or hidden.
- *
- * Real, meaningful limitation, not glossed over: Cloudflare Stream Live
- * is video-only — its API has no chat concept at all. Whichever engine
- * is active, BHL_Chat is a SEPARATE setting; pairing this engine with
- * a real chat means BHL_PollingChat (a custom implementation, matching
- * class-jam.php's own proven pattern) rather than anything Cloudflare
- * provides, unlike Owncast which bundles its own.
- *
- * Also real, not invented: Cloudflare's Live Inputs API has no
- * documented "force-disconnect the current broadcaster" action the way
- * Owncast's admin API does — disconnect() says so plainly rather than
- * silently no-op-ing or guessing at an endpoint that doesn't exist.
+ * BHL_StreamEngine backed by Cloudflare Stream Live: fully managed and metered,
+ * no host to provision. Video-only (no chat API) and no force-disconnect API.
  */
 class BHL_CloudflareStreamEngine implements BHL_StreamEngine {
     const API_BASE = 'https://api.cloudflare.com/client/v4';
@@ -36,8 +16,7 @@ class BHL_CloudflareStreamEngine implements BHL_StreamEngine {
     public static function save_connection_settings(string $account_id, string $api_token, string $customer_code): void {
         $existing = self::settings();
         $existing['account_id'] = sanitize_text_field($account_id);
-        // Blank token keeps the existing saved one — same convention
-        // every other credential field in this ecosystem's wizards use.
+        // Blank token keeps the existing saved one.
         if ($api_token !== '') $existing['api_token'] = sanitize_text_field($api_token);
         $existing['customer_code'] = sanitize_text_field($customer_code);
         update_option('bhl_cloudflare_settings', $existing);
@@ -80,35 +59,15 @@ class BHL_CloudflareStreamEngine implements BHL_StreamEngine {
         $data = json_decode(wp_remote_retrieve_body($response), true);
         if ($code < 200 || $code >= 300 || empty($data['success'])) {
             $message = is_array($data) && !empty($data['errors'][0]['message']) ? $data['errors'][0]['message'] : ('Cloudflare API returned HTTP ' . $code);
-            // Status carried as error data — delete_live_input() needs
-            // to tell "already gone" (404) apart from a real failure,
-            // same reasoning as BHL_FlyProvisioner/BHL_WorkersChat.
+            // WHY: delete_live_input() reads the status to treat 404 as "already gone".
             return new WP_Error('cloudflare_api_error', $message, ['status' => $code]);
         }
         return $data['result'] ?? [];
     }
 
     /**
-     * The one-time "create the live input" step — cheap enough (a
-     * single API call, no boot time, nothing to poll) that it doesn't
-     * need its own BHL_HostProvisioner-style abstraction the way
-     * standing up a VPS does. Returns the RTMP ingest URL + stream key
-     * a broadcaster plugs into OBS, same role Owncast's own stream key
-     * plays, just issued by Cloudflare instead of self-hosted.
-     */
-    /**
-     * Live-robustness audit fix (2026-08-26): the wizard's own button
-     * label for calling this when a live input already exists says
-     * "replaces the one above" — but this never actually deleted the
-     * old one, only overwrote the LOCALLY stored UID. The old live
-     * input stayed live on the Cloudflare account forever, an orphaned
-     * (if low-cost — Stream Live only meters actual streamed minutes,
-     * not an idle input) resource the UI actively misrepresented as
-     * gone. Now genuinely replaces it: the old input is deleted
-     * (best-effort — logged, never allowed to block creating the new
-     * one, since a stray old input is a much smaller problem than a
-     * broadcaster having no working stream key at all) after the new
-     * one is confirmed created.
+     * Creates a live input (RTMPS URL + stream key for OBS), then best-effort
+     * deletes the one it replaces; a failed delete is logged, never blocking.
      *
      * @return array{uid:string, rtmps_url:string, stream_key:string}|\WP_Error
      */
@@ -120,7 +79,7 @@ class BHL_CloudflareStreamEngine implements BHL_StreamEngine {
 
         $result = $this->request('POST', '/accounts/' . $s['account_id'] . '/stream/live_inputs', [
             'meta' => ['name' => get_bloginfo('name') . ' — bh-live'],
-            'recording' => ['mode' => 'automatic'], // VOD/replay parity with the bhl_stream lifecycle Owncast's own path already has
+            'recording' => ['mode' => 'automatic'], // VOD/replay parity with the Owncast path
         ]);
         if (is_wp_error($result)) return $result;
 
@@ -140,12 +99,7 @@ class BHL_CloudflareStreamEngine implements BHL_StreamEngine {
         return ['uid' => $uid, 'rtmps_url' => $rtmps, 'stream_key' => $key];
     }
 
-    // 'status' is the ONLY signal Cloudflare's API gives for whether a
-    // live input is currently receiving a broadcast right now
-    // (confirmed against their own API reference 2026-07-26) — no
-    // viewer-count field exists here the way Owncast's /api/status
-    // provides one, so get_status() honestly can't report viewers for
-    // this engine.
+    // Cloudflare exposes only 'status' for a live input; there is no viewer count.
     /** @return array{online:bool, viewer_count:int, stream_title:string}|\WP_Error */
     public function get_status() {
         $s = self::settings();
@@ -157,7 +111,7 @@ class BHL_CloudflareStreamEngine implements BHL_StreamEngine {
         $status = $result['status'] ?? null;
         return [
             'online'       => $status === 'connected',
-            'viewer_count' => 0, // not exposed by this API — see this method's own comment
+            'viewer_count' => 0, // not exposed by this API
             'stream_title' => '',
         ];
     }
@@ -175,15 +129,7 @@ class BHL_CloudflareStreamEngine implements BHL_StreamEngine {
     }
 
     /**
-     * Real Cloudflare Stream API endpoint (DELETE /accounts/{account}/
-     * stream/live_inputs/{uid}) — used by create_live_input() above to
-     * genuinely honor its own "replaces the one above" claim, and
-     * exposed publicly so the wizard can also offer a standalone
-     * "remove live input" action without requiring a replacement to be
-     * created first. A 404 (already deleted directly via Cloudflare's
-     * own dashboard) is treated as success — same "already achieved the
-     * goal state" reasoning as this plugin's other two provisioning
-     * classes.
+     * Deletes a live input. A 404 (already deleted) counts as success.
      *
      * @return true|\WP_Error
      */

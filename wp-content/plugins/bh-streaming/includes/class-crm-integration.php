@@ -2,11 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Optionally enriches the BH CRM plugin's person view with this
- * plugin's own activity data — likes and playlists. Entirely
- * one-directional and entirely optional, mirroring bh-contest's own CRM
- * integration exactly: if BH CRM isn't installed, these add_filter()
- * calls just sit unused.
+ * Optionally adds this plugin's likes/playlists to BH CRM's person view;
+ * the filters sit unused when BH CRM isn't installed.
  */
 class BHS_CRMIntegration {
     public static function init(): void {

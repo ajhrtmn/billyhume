@@ -2,14 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * "Related tracks" — deliberately content-based (same artist, same
- * release, shared genre tags), not collaborative-filtering or ML-driven
- * personalization. That's an honest scoping choice, not a placeholder:
- * a real personalization engine needs actual usage data at real scale
- * to be meaningfully better than these simple, explainable rules, and
- * claiming "smart recommendations" without that would be overselling
- * what this actually does. This is the genuinely useful, correct-for-
- * right-now version.
+ * "Related tracks": content-based (same artist, release, genres), not
+ * collaborative filtering, which would need real usage data at scale.
  */
 class BHS_Recommendations {
     public static function register_routes(): void {
@@ -30,11 +24,8 @@ class BHS_Recommendations {
         $release_id = (int) get_post_meta($track_id, '_bhs_release_id', true);
         $genre_ids = wp_get_post_terms($track_id, 'bhs_genre', ['fields' => 'ids']);
 
-        // Score every other published track by how many of these three
-        // things it shares with the seed track. Simple, transparent,
-        // and cheap enough to just run over the whole catalog rather
-        // than needing its own index — fine at the scale this plugin
-        // will realistically see for a while.
+        // Score every other published track on shared attributes; a full scan
+        // is cheap enough at this catalog size.
         $candidates = get_posts([
             'post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => -1,
             'post__not_in' => [$track_id], 'fields' => 'ids',
@@ -55,25 +46,13 @@ class BHS_Recommendations {
         arsort($scored);
         $top_ids = array_slice(array_keys($scored), 0, 10, true);
 
-        // QA fix: this used to resolve the audio URL itself via
-        // get_post_meta('_bhs_audio_id') directly, which (a) always
-        // returned a real, playable URL even for a track a monetization
-        // plugin has locked — bypassing the one enforcement mechanism
-        // bh-streaming has (BHS_API::track_payload() never ships a real
-        // URL for a locked track) — and (b) silently dropped every
-        // externally-aggregated/feed-imported track, which stores its
-        // audio in _bhs_external_audio_url rather than _bhs_audio_id.
-        // Routing through BHS_API::track_payload() reuses the same
-        // access-gating filter and the same local-or-external URL
-        // resolution every other read path in this plugin already uses.
+        // WHY: go through BHS_API::track_payload() so locked tracks get no URL
+        // and external tracks resolve, same as every other read path.
         $out = [];
         foreach ($top_ids as $id) {
             $p = get_post($id);
             $payload = BHS_API::track_payload($p);
-            // A locked track legitimately has no url (that's the point of
-            // gating) — still worth surfacing so the front end can show a
-            // paywall notice. Only skip a track that has no audio source
-            // at all AND isn't locked (nothing useful to recommend).
+            // Keep locked tracks (paywall notice); skip only url-less unlocked ones.
             if (!$payload['locked'] && !$payload['url']) continue;
             $out[] = [
                 'id' => $payload['id'], 'title' => $payload['title'], 'artist' => $payload['artist'],

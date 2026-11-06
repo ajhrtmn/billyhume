@@ -19,12 +19,7 @@ foreach (['tables', 'activator', 'tickets', 'replies', 'admin', 'portal', 'debug
 
 register_activation_hook(__FILE__, ['BHT_Activator', 'activate']);
 
-/**
- * Depends only on the core plugin. A genuine peer to bh-crm (optionally
- * enriched, never required — see class-tickets.php's BHCRM_Links/
- * bh_crm_activity_summary touches, all class_exists()-guarded), never a
- * dependency of it or of anything else.
- */
+/** Depends only on core; bh-crm integration is optional and class_exists()-guarded. */
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
@@ -54,8 +49,6 @@ add_action('plugins_loaded', function () {
         }
     }, 20);
 
-    // Optional enrichment of bh-crm's per-person Activity section —
-    // harmless to register even if bh-crm is never active.
     add_filter('bh_crm_activity_summary', ['BHT_Tickets', 'register_crm_activity'], 10, 2);
 });
 

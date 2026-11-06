@@ -2,37 +2,18 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Framework-agnostic colour math. No WordPress calls, no options, no
- * globals — every method is pure (same input, same output) so this file
- * can be lifted out of the plugin wholesale into a standalone package
- * later, with BHY_Style / BHY_Contrast as the only WP-aware adapters on
- * top of it.
- *
- * Three metrics live here and they are NOT interchangeable:
- *   - wcag_ratio()  : WCAG 2.x contrast ratio 1..21, piecewise-linear
- *                     luminance. The compliance number the audit reports.
- *   - apca_lc()     : APCA-style perceptual lightness contrast, signed
- *                     roughly -108..106, simple 2.4-power luminance. The
- *                     number BHY_Contrast's resolver actually decides on.
- *   - OKLCH         : perceptual colour space for GENERATING colours
- *                     (hold hue + chroma, move lightness until a metric
- *                     target is met), not for scoring them.
- *
- * The APCA implementation follows the published APCA-W3 0.1.9 "G-4g"
- * constants. It is deliberately called "apca_lc" / "perceptual contrast"
- * rather than claiming APCA conformance — WCAG 2.x stays the number we
- * report for accessibility compliance.
+ * Pure, framework-agnostic colour math (no WordPress calls).
+ * The metrics are NOT interchangeable: wcag_ratio() is the compliance
+ * number reported; apca_lc() is what BHY_Contrast's resolver decides on;
+ * OKLCH is for generating colours, not scoring them.
  */
 class BHY_Color {
 
     // ---- hex <-> rgb -------------------------------------------------
 
     /**
-     * "#abc", "#aabbcc", "#aabbccdd" -> [r, g, b] as floats 0..255.
-     * Alpha is parsed but dropped: every metric here is defined on
-     * opaque colours, and the resolver only ever deals in opaque roles.
-     * Anything unparseable returns black — same fail-safe posture as
-     * BHY_Style::safe_color().
+     * "#abc", "#aabbcc", "#aabbccdd" -> [r, g, b] floats 0..255. Alpha is
+     * dropped; unparseable input returns black.
      *
      * @return array{0: float, 1: float, 2: float}
      */
@@ -71,9 +52,7 @@ class BHY_Color {
     // ---- WCAG 2.x -------------------------------------------------
 
     /**
-     * WCAG relative luminance. Same formula BHY_Style used before this
-     * class existed and the same one tests/ux/audit.ts measures with, so
-     * a value chosen against this metric is the value the audit scores.
+     * WCAG relative luminance (same formula tests/ux/audit.ts measures with).
      *
      * @param array{0: float, 1: float, 2: float} $rgb
      */
@@ -114,9 +93,8 @@ class BHY_Color {
     private const APCA_DELTA_Y_MIN = 0.0005;
 
     /**
-     * APCA screen luminance Y — note this is the plain 2.4-power curve,
-     * NOT the WCAG piecewise linearisation above. Keeping the two curves
-     * separate is the whole point; do not "unify" them.
+     * APCA screen luminance Y: plain 2.4-power curve, deliberately NOT the
+     * WCAG piecewise curve. Do not unify them.
      *
      * @param array{0: float, 1: float, 2: float} $rgb
      */
@@ -128,10 +106,7 @@ class BHY_Color {
     }
 
     /**
-     * Signed APCA lightness contrast (Lc). Positive = dark text on light
-     * background (normal polarity), negative = light text on dark. The
-     * resolver compares abs() of this to a target; the sign tells the
-     * audit which polarity a pairing is.
+     * Signed APCA Lc: positive = dark text on light bg, negative = light on dark.
      */
     public static function apca_lc(string $text_hex, string $bg_hex): float {
         $txt_y = self::apca_y(self::hex_to_rgb($text_hex));
@@ -160,7 +135,7 @@ class BHY_Color {
         return $out * 100.0;
     }
 
-    /** Convenience: unsigned Lc, which is what target comparisons use. */
+    /** Unsigned Lc, used for target comparisons. */
     public static function apca_lc_abs(string $text_hex, string $bg_hex): float {
         return abs(self::apca_lc($text_hex, $bg_hex));
     }
@@ -202,9 +177,7 @@ class BHY_Color {
     }
 
     /**
-     * OKLab -> linear-then-gamma sRGB. May land OUTSIDE 0..255 when the
-     * Lab point is not displayable; callers that need a real colour go
-     * through oklch_to_hex() which gamut-maps first.
+     * OKLab -> sRGB; may fall outside 0..255. oklch_to_hex() gamut-maps first.
      *
      * @return array{0: float, 1: float, 2: float}
      */
@@ -241,10 +214,7 @@ class BHY_Color {
         return self::srgb_to_oklch(self::hex_to_rgb($hex));
     }
 
-    /**
-     * True when this OKLCH point sits inside the sRGB gamut (with a
-     * hair of tolerance for float noise at the boundary).
-     */
+    /** True when this OKLCH point is inside sRGB (with float tolerance). */
     public static function oklch_in_gamut(float $L, float $C, float $h): bool {
         $a = $C * cos(deg2rad($h));
         $b = $C * sin(deg2rad($h));
@@ -255,12 +225,7 @@ class BHY_Color {
         return true;
     }
 
-    /**
-     * OKLCH -> "#rrggbb", reducing chroma (hue and lightness held) until
-     * the colour is displayable. This is the standard "hold hue, clip
-     * chroma" gamut map — good enough here because the resolver only ever
-     * nudges lightness on already-in-gamut seed hues.
-     */
+    /** OKLCH -> "#rrggbb", reducing chroma (hue + lightness held) until displayable. */
     public static function oklch_to_hex(float $L, float $C, float $h): string {
         $L = max(0.0, min(1.0, $L));
         if (!self::oklch_in_gamut($L, $C, $h)) {
@@ -284,11 +249,9 @@ class BHY_Color {
     // ---- derivations the resolver leans on -----------------------
 
     /**
-     * Move a base colour's OKLCH lightness (hue + chroma fixed) until it
-     * hits $target_lc unsigned APCA against $against_hex, then gamut-map.
-     * $direction: +1 forces lighter, -1 darker, 0 auto-picks whichever
-     * side of $against has headroom. Returns the base unchanged if the
-     * target can't be reached (pure white/black already past it).
+     * Move OKLCH lightness (hue + chroma fixed) until unsigned APCA vs
+     * $against_hex reaches $target_lc. $direction: +1 lighter, -1 darker,
+     * 0 auto. Returns the extreme end if the target is unreachable.
      */
     public static function solve_lightness_for_apca(
         string $base_hex,
@@ -300,16 +263,14 @@ class BHY_Color {
         $against = self::hex_to_oklch($against_hex);
 
         if ($direction === 0) {
-            // Head toward whichever end of the lightness axis is farther
-            // from the background — that's where the contrast headroom is.
+            // Head toward the end of the lightness axis farther from the background.
             $direction = $against['L'] >= $base['L'] ? -1 : 1;
         }
 
         $lo = $direction > 0 ? $base['L'] : 0.0;
         $hi = $direction > 0 ? 1.0 : $base['L'];
 
-        // If even the extreme end can't clear the target, hand back the
-        // most-contrasting end we have rather than failing loudly.
+            // Unreachable target: return the most-contrasting end rather than fail.
         $extreme = self::oklch_to_hex($direction > 0 ? $hi : $lo, $base['C'], $base['h']);
         if (self::apca_lc_abs($extreme, $against_hex) < $target_lc) {
             return $extreme;
@@ -331,14 +292,9 @@ class BHY_Color {
     }
 
     /**
-     * Land a colour NEAR a specific APCA target against $against_hex
-     * (hue fixed, chroma optionally scaled), approaching from whichever
-     * side the base already sits on. This is the "muted" / "disabled"
-     * move: those roles want a DELIBERATE, bounded contrast (strong
-     * enough to see, weak enough to read as secondary), not "as much as
-     * possible". Contrast is monotonic along the lightness axis on each
-     * side of the background's own lightness, so a bounded binary search
-     * on the correct segment converges cleanly.
+     * Land NEAR an APCA target (bounded contrast for muted/disabled roles),
+     * hue fixed, chroma optionally scaled. Contrast is monotonic in L on each
+     * side of the background's L, so a binary search converges.
      */
     public static function approach_apca_target(
         string $base_hex,
@@ -355,8 +311,6 @@ class BHY_Color {
         };
 
         $cur = $at($base['L']);
-        // Which direction reduces contrast (toward the background's L),
-        // which raises it (away). Pick the search segment accordingly.
         $toward_bg = $against['L'] >= $base['L'] ? 1 : -1;
         if ($cur > $target_lc) {
             $lo = $base['L'];
@@ -378,28 +332,16 @@ class BHY_Color {
         return self::oklch_to_hex(($lo + $hi) / 2, $c, $base['h']);
     }
 
-    /**
-     * Shift a colour's OKLCH lightness by a fixed delta (hue + chroma
-     * fixed), optionally scaling chroma too. Used for state steps
-     * (hover/active) that must move a predictable perceptual amount off
-     * an already-validated base.
-     */
+    /** Shift OKLCH lightness by a fixed delta (for hover/active state steps). */
     public static function shift_lightness(string $hex, float $delta_l, float $chroma_mul = 1.0): string {
         $c = self::hex_to_oklch($hex);
         return self::oklch_to_hex($c['L'] + $delta_l, max(0.0, $c['C'] * $chroma_mul), $c['h']);
     }
 
     /**
-     * Pick an ink for $bg from $inks. $inks is PRIORITY-ORDERED: the
-     * first one that clears $min (in $metric units) wins, so a theme's
-     * own --bh-text is preferred over a raw black/white fallback
-     * whenever it is actually legible enough. Nothing clears $min ->
-     * the strongest-reading ink, so the result is never worse than
-     * "max contrast available".
-     *
-     * $metric: 'apca' (default) or 'wcag' — the latter only where a
-     * value BHY_Style historically derived with the WCAG ratio has to
-     * be reproduced (--bh-accent-contrast).
+     * Pick an ink for $bg from priority-ordered $inks: the first that clears
+     * $min wins, otherwise the strongest. $metric: 'apca' or 'wcag' (the
+     * latter only to reproduce --bh-accent-contrast).
      *
      * @param non-empty-array<string> $inks
      */
@@ -426,11 +368,7 @@ class BHY_Color {
         return self::best_ink_on($bg_hex, [$ink_a_hex, $ink_b_hex]);
     }
 
-    /**
-     * Non-alpha sRGB mix, matching CSS `color-mix(in srgb, $a $p%, $b)`
-     * closely enough to MEASURE a color-mix() token in the audit (the
-     * emitted CSS keeps using real color-mix()).
-     */
+    /** sRGB mix approximating CSS color-mix(in srgb, ...), for measuring tokens. */
     public static function mix_srgb(string $hex_a, string $hex_b, float $weight_a): string {
         $weight_a = max(0.0, min(1.0, $weight_a));
         $a = self::hex_to_rgb($hex_a);
@@ -442,11 +380,7 @@ class BHY_Color {
         ]);
     }
 
-    /**
-     * CIE76 delta-E in Lab-ish OKLab space, scaled ~x100 so the numbers
-     * read on the same order as classic dE. Only used by tests /
-     * calibration to assert "close enough to the old hand-picked value".
-     */
+    /** OKLab delta-E scaled ~x100; used by tests/calibration only. */
     public static function delta_e(string $hex_a, string $hex_b): float {
         $la = self::srgb_to_oklab(self::hex_to_rgb($hex_a));
         $lb = self::srgb_to_oklab(self::hex_to_rgb($hex_b));

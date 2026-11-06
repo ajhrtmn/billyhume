@@ -2,63 +2,27 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BH_Content — the content-block interface (ROADMAP-platform-evolution.md
- * Section 2 item 1 / Section 3). This is the FIRST of the new `BH_*`
- * cross-cutting interfaces (see class-commerce.php for the second) —
- * new shared, foundational contracts get the plain `BH_` prefix rather
- * than `OUS_`/`bhcore_` (existing shared services) or any single
- * plugin's own prefix, per the roadmap doc's own naming convention.
- *
- * Contract: a content document is a TREE of typed blocks —
+ * Content-block interface: a document is a tree of typed blocks
  *   ['type' => 'bhc/text', 'attrs' => [...], 'children' => [...]]
- * — each type registered ONCE by whichever plugin owns it, via
- * register_block_type($type, $schema, $renderer), the same
- * zero-central-registration shape OUS_Notifications/OUS_Jobs/
- * ous_debug_tools already use successfully elsewhere in this
- * ecosystem. This class owns registration, schema validation, storage,
- * and rendering; it does NOT own any particular authoring UI — a form,
- * a drag-drop canvas, or (later) something fully custom can all sit on
- * top of this same contract without this class or any block type's
- * renderer needing to change.
- *
- * Storage, per the roadmap's own recommendation (Section 3, "layer over
- * standard Gutenberg" as the first implementation rather than a
- * from-scratch canvas): a document attached to a real WordPress post
- * lives in that post's own `post_content`, using Gutenberg's existing
- * comment-delimited block JSON format — reusing `parse_blocks()`/
- * `serialize_blocks()` costs nothing and stays compatible with core WP
- * tooling (the block editor, revisions, etc.) for free. A document NOT
- * attached to a post (a lesson step tree, a tier's benefit list) uses
- * the exact same block-tree shape, just persisted as plain JSON in the
- * new `bhcore_content` table instead — same contract, different
- * storage backend, chosen by context, never by the caller reaching
- * around this class.
- *
- * `type` strings are namespaced `plugin-prefix/name` (e.g. `bhc/quiz`,
- * `bhm/tier-benefits`) — the same convention Gutenberg itself uses for
- * block names, so a WordPress-backed renderer can register a REAL
- * Gutenberg block under the identical name later without a rename.
+ * with each type registered once by its owning plugin. Owns registration,
+ * validation, storage and rendering, not any authoring UI.
+ * Storage: a post-attached document lives in post_content as Gutenberg
+ * block markup; any other context is JSON in bhcore_content.
+ * Type names are `prefix/name`, matching Gutenberg block naming.
  */
 class BH_Content {
     /** @var array<string, array{schema: array<string, mixed>, renderer: callable}> */
     private static $types = [];
 
     public static function init(): void {
-        // Nothing to hook yet — registration happens via
-        // register_block_type(), called by consumers on their own
-        // 'init' (after this class's file has loaded, guaranteed by
-        // the-self-hosted-self's own require order — see the-self-hosted-self.php).
+        // Registration happens via register_block_type() from consumers.
     }
 
     /**
      * @param string   $type     Namespaced block type, e.g. 'bhc/quiz'.
-     * @param array    $schema   Plain attribute schema:
-     *                           ['attr_name' => ['type' => 'string|int|bool|array', 'default' => ...]]
-     *                           — deliberately not JSON-Schema-complete; enough to
-     *                           validate/coerce the shapes this ecosystem actually needs.
+     * @param array<string, mixed> $schema ['attr' => ['type' => 'string|int|bool|array|html|url', 'default' => ...]]
      * @param callable $renderer function(array $attrs, array $rendered_children, array $block): string
      */
-    /** @param array<string, mixed> $schema */
     public static function register_block_type(string $type, array $schema, callable $renderer): void {
         self::$types[$type] = ['schema' => $schema, 'renderer' => $renderer];
     }
@@ -73,12 +37,8 @@ class BH_Content {
     }
 
     /**
-     * Validate + coerce one block tree against registered schemas.
-     * Unknown block types are dropped (not fataled) — a document
-     * authored while a plugin was active, then read after that plugin
-     * was deactivated, degrades gracefully to "that block just doesn't
-     * render" rather than breaking the whole document, matching this
-     * ecosystem's existing class_exists()-guarded-degrade convention.
+     * Validate + coerce a block tree. Unknown types are dropped, so a
+     * deactivated plugin's blocks just don't render.
      */
     /**
      * @param array<int, array<string, mixed>> $tree
@@ -135,12 +95,8 @@ class BH_Content {
     /* ---------- storage: WordPress-backed implementation ---------- */
 
     /**
-     * @param string $context_type 'post' for a real WP post (uses post_content),
-     *                              anything else is a plain namespaced context
-     *                              ('bhc_lesson', 'bhm_tier_benefits', ...) stored
-     *                              in bhcore_content.
-     * @param int    $context_id   A post ID (context_type === 'post') or whatever
-     *                              ID makes sense within that context namespace.
+     * $context_type 'post' uses post_content; any other namespaced context
+     * ('bhc_lesson', ...) is stored in bhcore_content.
      */
     /** @return array<int, array<string, mixed>> */
     public static function get(string $context_type, int $context_id): array {
@@ -170,20 +126,9 @@ class BH_Content {
 
         if ($context_type === 'post') {
             $blocks = self::tree_to_gutenberg_blocks($clean);
-            // wp_insert_post() (which wp_update_post() calls internally)
-            // unconditionally wp_unslash()es every string field, on the
-            // assumption a caller is passing raw $_POST data (WP's own
-            // magic-quotes-era convention). serialize_blocks() escapes
-            // any '<', '>', etc. inside a block attribute as literal
-            // JSON unicode sequences ('<'), so that unslash strips
-            // the backslash and leaves visible garbage ('u003c') in
-            // place of every '<' the moment a text step contains any
-            // HTML tag. wp_slash() here counters that exactly the way
-            // WP core's own REST posts controller already does before
-            // its own wp_insert_post() call — confirmed via a direct
-            // round-trip test: without this, a lesson's first two
-            // paragraphs of body text came back as literal
-            // "u003cpu003eGain staging..." on the student-facing page.
+            // WHY: wp_update_post() unslashes every field, which corrupts the
+            // < escapes serialize_blocks() emits; wp_slash() counters it
+            // (as core's REST posts controller does).
             wp_update_post(wp_slash([
                 'ID' => (int) $context_id,
                 'post_content' => serialize_blocks($blocks),
@@ -212,9 +157,7 @@ class BH_Content {
 
     /* ---------- Gutenberg block <-> BH_Content tree mapping ---------- */
 
-    // parse_blocks()'s own shape (blockName/attrs/innerBlocks/innerHTML)
-    // maps almost directly onto ours (type/attrs/children) — this is
-    // the whole reason storing straight into post_content costs nothing.
+    // parse_blocks()'s shape maps almost directly onto ours.
     /**
      * @param array<int, array<string, mixed>> $blocks
      * @return array<int, array<string, mixed>>

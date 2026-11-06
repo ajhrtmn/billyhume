@@ -14,13 +14,8 @@ define('BHV_URL',  plugin_dir_url(__FILE__));
 define('BHV_VER',  '0.4.3');
 
 /**
- * A genuine PEER to bh-streaming/bh-courses/bh-feedback — depends only
- * on the-self-hosted-self (shared identity, roles/capabilities, style tokens).
- * Storage/CDN needs zero new code: a bhv_video's file is a standard WP
- * attachment, so wp_get_attachment_url() already gets CDN offload for
- * free once the Advanced Media Offloader is configured via
- * OUS_MediaWizard — same one-line abstraction BHS_API::audio_url_for()
- * already proves for audio.
+ * Peer plugin depending only on the core. Video files are plain attachments, so CDN offload
+ * comes from wp_get_attachment_url() with no bespoke storage code.
  */
 foreach (['activator', 'post-types', 'admin', 'api', 'video-player', 'chapters', 'test-suite'] as $f) {
     require_once BHV_PATH . "includes/class-$f.php";

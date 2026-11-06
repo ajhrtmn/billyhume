@@ -2,13 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * [bh_video] shortcode — a genuine browse/playback SPA, same posture
- * as bh-streaming's own class-player.php but deliberately smaller: v1
- * scope is browse + play only (see the plan's own "what NOT to build
- * in v1" list — no login/import/playlists here, those are audio-catalog
- * concepts this doesn't need to duplicate). Renders straight into
- * whatever WP theme is active, so the CSS resets under .bhv-app follow
- * the exact same theme-isolation reasoning as player.css.
+ * [bh_video] shortcode: browse + play SPA, rendered inside the active theme (CSS isolated under .bhv-app).
  */
 class BHV_Player {
     public static function init(): void {

@@ -1,17 +1,9 @@
-/**
- * Kanban board styling — bh-crm's own bespoke presentation layer over
- * BH_Element placement data (see kanban-board.js's docblock). Vanilla
- * CSS, no build step, scoped entirely under .bhcrm-kanban-board so it
- * can never leak into the rest of wp-admin.
- */
+/* Kanban board styles (project board and nested sub-task boards), scoped under .bhcrm-kanban-*. */
 .bhcrm-kanban-board {
     margin-top: 10px;
     min-height: 40px;
 }
-/* kanban-board.js sets/removes this attribute around the initial
-   placements/rollups fetch, but nothing ever styled it — the board just
-   sat blank during that fetch with zero indication anything was
-   loading. */
+/* Set by kanban-board.js during the initial fetch. */
 .bhcrm-kanban-board[data-loading="1"] {
     position: relative;
     min-height: 120px;
@@ -25,11 +17,7 @@
     font-size: 13px;
 }
 
-/* Track-It-style progress bar (BHCRM_Subtasks::render_progress_bar())
-   — the board-wide rollup at the top of a level, and a smaller
-   .bhcrm-progress-bar-mini variant inside a card showing that card's
-   own children's rollup. Same fill color as .bhcrm-kanban-card.is-done
-   below, so "green" reads consistently as "done" everywhere. */
+/* Progress bar (BHCRM_Subtasks::render_progress_bar()); same green as .is-done. */
 .bhcrm-progress-bar {
     display: flex;
     align-items: center;
@@ -74,10 +62,7 @@
     font-size: 11px;
 }
 
-/* Inline-editable card title/description (BHCRM_Subtasks::render_card())
-   — same borderless-until-focused treatment as the top-level board's
-   own .bhcrm-kanban-card-title-input/.bhcrm-kanban-card-notes, so a
-   sub-task card looks and behaves identically to a top-level one. */
+/* Sub-task inline inputs match the top-level card inputs. */
 .bhcrm-subtask-title-input {
     flex: 1;
     border: none;
@@ -152,7 +137,7 @@
     color: var(--bhy-ink-dim, #646970);
 }
 
-/* Audit fix (2026-07-25) — Done-column hint, see class-subtasks.php. */
+/* Done-column hint. */
 .bhcrm-kanban-column-hint {
     font-weight: 400;
     color: var(--bhy-ink-dim, #646970);
@@ -177,15 +162,13 @@
     transition: box-shadow 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
 }
 
-/* Signals "this is interactive/draggable" before a user finds the small
-   handle icon in the corner — previously nothing on the card itself
-   hinted that beyond the tiny ⋮⋮ glyph. */
+/* Hover hints the card is draggable. */
 .bhcrm-kanban-card:hover {
     border-color: #8c8f94;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
-/* SortableJS's own classes, not ones this file toggles by hand — .is-drag-ghost is the `ghostClass` option in kanban-board.js (the placeholder left in the origin spot while dragging); .sortable-chosen/.sortable-drag are SortableJS's own built-in class names, styled here for visibility during a drag. */
+/* .is-drag-ghost is kanban-board.js's ghostClass; .sortable-chosen/.sortable-drag are SortableJS's own classes. */
 .bhcrm-kanban-card.is-drag-ghost {
     opacity: 0.35;
 }
@@ -194,10 +177,7 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
-/* Closes the loop on every silent auto-save this board makes (done
-   checkbox, title, notes) — previously a field just re-rendered with no
-   acknowledgment at all that the edit actually persisted. kanban-board.js
-   toggles this for ~900ms via state.flashId (see saveSlot()'s docblock). */
+/* Brief flash after an auto-save; toggled by kanban-board.js via state.flashId. */
 @keyframes bhcrm-card-saved-flash {
     0% { box-shadow: 0 0 0 2px #00a32a; }
     100% { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); }
@@ -217,10 +197,6 @@
     cursor: grab;
     font-size: 12px;
     line-height: 1;
-    /* A control whose entire job is precise dragging deserves more than
-       a ~16px hit box even on desktop — the mobile breakpoint below
-       already bumps this further for touch, this just raises the
-       mouse-driven baseline closer to a comfortable click target too. */
     padding: 8px 10px;
     user-select: none;
 }
@@ -241,12 +217,7 @@
     margin-bottom: 4px;
 }
 
-/* Phase C stall analytics — a real, visible flag before a stuck card
-   is obviously a problem, not a report someone has to remember to
-   open. Warm-amber, not red/error — this is a nudge, not a failure. */
-/* Shape/color now come from the shared .bhy-badge/.bhy-badge-warning
-   component (class-ui.php) — markup carries both classes; this file
-   only supplies the border .bhy-badge doesn't have and layout spacing. */
+/* Shape/color come from .bhy-badge/.bhy-badge-warning; this adds border and spacing only. */
 .bhcrm-kanban-stalled-badge {
     border: 1px solid #f0d090;
     margin-bottom: 6px;
@@ -289,9 +260,7 @@
     margin-top: 6px;
 }
 
-/* Arm/disarm delete (kanban-board.js, and subtasks.js as of the
-   2026-07-25 audit fix) instead of a native confirm() — the armed state
-   needs to read as clearly "one more click deletes this" without a dialog. */
+/* Armed state of the two-click delete. */
 .bhcrm-delete-btn.is-armed, .bhcrm-subtask-delete-btn.is-armed {
     background: #d63638;
     border-color: #d63638;
@@ -309,7 +278,7 @@
     min-width: 0;
 }
 
-/* ---------------- server-rendered card output (BH_Element::render_slot() elsewhere on the site, and the sub-card BH_Content blocks) — same "bhcrm-" prefix, separate from the board's own editable-card markup above ---------------- */
+/* ---------------- server-rendered card output (render_slot() and sub-card blocks) ---------------- */
 
 .bhcrm-sticky-card {
     border: 1px solid var(--bhy-border, #dcdcde);
@@ -366,15 +335,7 @@
     color: var(--bhy-ink-dim, #646970);
 }
 
-/* ---------------- mobile ----------------
-   AJ's own ask: "need the tracker interface to be mobile friendly."
-   Same breakpoint WP core's own admin responsive layout switches at
-   (782px) — below it, fixed-260px side-by-side columns requiring
-   horizontal scroll (fine on desktop, cramped/fiddly on a phone)
-   become full-width stacked sections instead: scroll down through
-   columns like a real page, not sideways through a filmstrip. Applies
-   to BOTH the top-level project board and every BHCRM_Subtasks nested
-   board, since they share this one stylesheet. */
+/* ---------------- mobile (WP admin's 782px breakpoint): columns stack vertically ---------------- */
 @media (max-width: 782px) {
     .bhcrm-kanban-grid {
         flex-direction: column;
@@ -387,10 +348,7 @@
         box-sizing: border-box;
     }
 
-    /* Bigger touch target — the same 12px handle SortableJS's
-       forceFallback mode (already in use, see kanban-board.js/
-       subtasks.js) needs a real drag start point on, and a fingertip
-       is far less precise than a mouse cursor. */
+    /* Bigger touch target for the drag handle. */
     .bhcrm-kanban-card-drag-handle {
         font-size: 20px;
         padding: 6px 10px;
@@ -399,7 +357,7 @@
     }
 
     .bhcrm-kanban-card {
-        padding-right: 34px; /* room for the now-larger drag handle so it never overlaps the title */
+        padding-right: 34px; /* room for the larger drag handle */
     }
 
     .bhcrm-kanban-card-actions {

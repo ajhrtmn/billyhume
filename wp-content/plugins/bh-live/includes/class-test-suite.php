@@ -2,17 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_TestRunner suite for bh-live — same convention as every other
- * plugin's own class-test-suite.php. Covers BHL_Streams'
- * current_live_stream() query against real fixture posts,
- * BHL_OwncastEngine's settings round-trip (including the
- * blank-token-keeps-existing-secret rule), and BHL_OwncastChat/
- * BHL_API's payload shape. Deliberately does NOT exercise a real
- * network call to an actual Owncast server (same "not CI-friendly"
- * reasoning bh-monetization-woo's own OpenTimestamps suite already
- * documents for its own third-party network calls) — get_status()'s
- * real wp_remote_get behavior was already live-verified in a browser
- * this pass.
+ * OUS_TestRunner suite for bh-live. External APIs are exercised with mocked
+ * HTTP (pre_http_request); no real network calls.
  */
 class BHL_TestSuite {
     public static function init(): void {
@@ -79,7 +70,7 @@ class BHL_TestSuite {
     private static function run_engine_settings_tests(): array {
         if (!class_exists('BHL_OwncastEngine')) return [];
         $rows = [];
-        $original = BHL_OwncastEngine::settings(); // restored at the end — this suite must not leave a real connection's settings clobbered
+        $original = BHL_OwncastEngine::settings(); // restored at the end
 
         BHL_OwncastEngine::save_settings('https://suite-test.invalid/', 'suite-token-1');
         $s = BHL_OwncastEngine::settings();
@@ -96,7 +87,7 @@ class BHL_TestSuite {
 
         if (class_exists('BHL_OwncastChat')) {
             $chat = new BHL_OwncastChat();
-            $chat_render = $chat->render(0); // $stream_id is unused by BHL_OwncastChat — one chat room per server, not per stream
+            $chat_render = $chat->render(0); // one chat room per server; stream id unused
             $rows[] = OUS_TestRunner::assert_same('iframe', $chat_render['type'], 'BHL_OwncastChat::render(): type is always iframe');
             $rows[] = OUS_TestRunner::assert_true(strpos($chat_render['html'], 'suite-test.invalid/embed/chat') !== false, 'BHL_OwncastChat::render(): embeds the configured server\'s own /embed/chat route');
         }
@@ -133,12 +124,7 @@ class BHL_TestSuite {
 
     /* ---------- BHL_FlyProvisioner: real request shape, mocked network ---------- */
 
-    // pre_http_request lets this suite verify the ACTUAL HTTP method/
-    // URL/auth-header/body BHL_FlyProvisioner builds against Fly's
-    // real, documented API (confirmed 2026-07-26) without ever hitting
-    // the real network — same principle as the rest of this ecosystem's
-    // "grounded, not guessed" testing discipline, just applied to an
-    // external API's request shape instead of this codebase's own logic.
+    // pre_http_request captures the real method/URL/headers/body without hitting the network.
     /** @return array<int, array<string, mixed>> */
     private static function run_fly_provisioner_tests(): array {
         if (!class_exists('BHL_FlyProvisioner')) return [];
@@ -271,10 +257,7 @@ class BHL_TestSuite {
         $rows[] = OUS_TestRunner::assert_same('polling', BHL_EngineRegistry::active_chat_key(), 'active_chat_key(): defaults to the free polling chat under Cloudflare — Owncast\'s bundled chat isn\'t compatible with it');
         $rows[] = OUS_TestRunner::assert_true(BHL_EngineRegistry::active_chat() instanceof BHL_PollingChat, 'active_chat(): resolves to BHL_PollingChat by default under Cloudflare');
 
-        // Explicitly choosing an incompatible chat for the current
-        // engine (owncast_bundled while Cloudflare is active) falls
-        // back to the engine's own default rather than resolving to a
-        // chat class that can never actually work here.
+        // An incompatible chat choice falls back to the engine's default.
         BHL_EngineRegistry::save_active_chat_key('owncast_bundled');
         $rows[] = OUS_TestRunner::assert_same('polling', BHL_EngineRegistry::active_chat_key(), 'active_chat_key(): an incompatible stored choice (owncast\'s chat while Cloudflare is active) falls back to the engine\'s own default rather than resolving to something that can\'t work');
 
@@ -331,8 +314,7 @@ class BHL_TestSuite {
         $rows[] = OUS_TestRunner::assert_same(1, count($messages), 'get_messages(): the posted message shows up for this stream');
         $rows[] = OUS_TestRunner::assert_same('Hello from the suite', $messages[0]['message'] ?? null, 'get_messages(): message text round-trips correctly');
 
-        // after_id pagination — asking for messages after the one just
-        // fetched returns nothing new yet.
+        // after_id pagination.
         $get_req2 = new WP_REST_Request('GET', '/bhl/v1/chat/' . $stream_id . '/messages');
         $get_req2->set_url_params(['stream_id' => $stream_id]);
         $get_req2->set_param('after_id', $messages[0]['id']);

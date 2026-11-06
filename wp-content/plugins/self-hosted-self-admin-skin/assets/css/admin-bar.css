@@ -1,56 +1,10 @@
-/* NO LONGER ENQUEUED (2026-08-25, self-hosted-self-admin-skin.php) — the
- * admin bar is now deliberately left at WordPress core's own stock
- * appearance everywhere, always, so this skin's identity stays scoped
- * to page content rather than the shared chrome around it. Kept on
- * disk, unloaded, because the structural fixes below (overlap,
- * spacing, alignment) are real and may be worth re-applying narrowly
- * later without the color/theme treatment that came with them.
+/* NOT ENQUEUED: the admin bar is left at core's stock appearance. Kept on
+ * disk because the structural fixes (overlap, spacing, alignment) may be
+ * worth re-applying without the color treatment.
  *
- * Admin bar — loaded on BOTH wp-admin and the front end.
- *
- * Direct field report: "Admin bar needs style attention on both front
- * and back end - weird overflow, not enough space, not well aligned."
- * All three were real and measured live rather than eyeballed:
- *
- *   1. OVERFLOW/OVERLAP — the left group (#wp-admin-bar-root-default)
- *      measured 946px wide inside a 961px viewport while the right
- *      group (#wp-admin-bar-top-secondary) started at x=795: a literal
- *      151px overlap, with "Howdy, Billy Hume" pushed to y=32 —
- *      BELOW a 33px-tall bar, i.e. rendered outside it entirely. WP
- *      floats the secondary group, and a float cannot push back
- *      against an over-long left group, so items collide and wrap.
- *
- *   2. NOT ENOUGH SPACE — this install runs a lot of bar items
- *      (WooCommerce, Query Monitor, notifications, command palette,
- *      theme toggle). The left group has no ability to shrink, so it
- *      simply runs past the right group instead of yielding.
- *
- *   3. ALIGNMENT — WooCommerce's "Store coming soon" badge rendered at
- *      y=7, height 18px, line-height 16px, against every other item at
- *      y=0, height 32px, line-height 32px. Third-party bar items bring
- *      their own metrics and drift off the bar's rhythm.
- *
- * Why a separate file: admin-skin.css is enqueued on
- * `admin_enqueue_scripts` ONLY, so it never loaded on the front end —
- * which is exactly why the front-end bar looked untouched. Splitting
- * the bar rules out lets both contexts share one source of truth
- * without dragging wp-admin chrome styling onto the public site.
- *
- * Every color below uses var(--shsas-*, fallback) so this file is
- * self-sufficient on the front end (where the admin-skin token block
- * is absent) while still deferring to the real tokens inside wp-admin.
- *
- * OPEN.md gap, closed here: those fallbacks were always the DARK
- * values, so a front-end visitor in light mode (system or the theme's
- * own light setting) got a dark-mode admin bar regardless. The
- * toggle itself (data-shsas-theme, admin-skin.js) is wp-admin-only —
- * is_admin() guarded in self-hosted-self-admin-skin.php — so the
- * front end never gets that attribute at all, only ever the OS-level
- * signal. Below reuses the exact light-mode values admin-skin.css
- * already defines for its own :root:not([data-shsas-theme]) block,
- * scoped the identical way; on wp-admin pages (where this file also
- * loads) it's a harmless no-op duplicate of what admin-skin.css
- * already sets to the same values.
+ * Admin bar, for both wp-admin and the front end (admin-skin.css loads only
+ * on admin_enqueue_scripts). Colors use var(--shsas-*, fallback) so the file
+ * works on the front end without the admin token block.
  */
 @media (prefers-color-scheme: light) {
     :root:not([data-shsas-theme]) {
@@ -63,7 +17,7 @@
     }
 }
 
-/* ---------- layout: make the two groups share the bar honestly ---------- */
+/* ---------- layout: make the two groups share the bar ---------- */
 
 #wpadminbar .quicklinks {
     display: flex;
@@ -71,36 +25,19 @@
     width: 100%;
 }
 
-/* The left group yields. min-width:0 is the load-bearing part — without
-   it a flex item refuses to shrink below its content width, which is
-   precisely how the 151px overrun happened.
-
-   NO overflow:hidden here, and that is deliberate: an earlier pass had
-   it, and it CLIPPED every dropdown, because the submenus are
-   absolutely-positioned children of these list items. That produced
-   the "About WordPress" panel colliding with the site-name item
-   instead of hanging below it. Width is controlled by shedding items
-   at breakpoints (below) rather than by clipping, precisely so the
-   flyouts stay free to escape the bar. */
+/* The left group yields. min-width:0 lets the flex item shrink.
+   WHY no overflow:hidden: it clips the absolutely-positioned dropdowns.
+   Width is controlled by shedding items at breakpoints instead. */
 #wpadminbar #wp-admin-bar-root-default {
     display: flex;
     align-items: stretch;
-    /* flex-grow is 0, not 1. Reported live as a "wompy" bar: on a page with
-       few items (the front end, 4-5 icons) this container grew to fill all
-       leftover space in its flex parent, and since it is itself a flex row
-       with left-packed children, that growth showed up as a dead 33px gap
-       AFTER the last icon and BEFORE the avatar -- content bunched left,
-       the tail of the bar empty. flex-shrink stays 1 with min-width:0 so
-       the below-782px overflow-scroll behaviour is untouched; only growth
-       is removed. #wp-admin-bar-top-secondary already owns "push to the
-       end" via its own margin-left:auto, so this never needed to grow. */
+    /* flex-grow 0: growing left a dead gap before the avatar on sparse bars.
+       #wp-admin-bar-top-secondary's margin-left:auto already pushes to the end. */
     flex: 0 1 auto;
     min-width: 0;
 }
 
-/* The right group never yields and never overlaps: float replaced with
-   an auto left margin so flex parks it at the end. Identity and log-out
-   are the last things that should disappear off a bar. */
+/* The right group never yields: auto left margin instead of a float. */
 #wpadminbar #wp-admin-bar-top-secondary {
     display: flex;
     align-items: stretch;
@@ -123,9 +60,8 @@
     align-items: stretch;
 }
 
-/* Centring via flex rather than a hardcoded line-height means a
-   third-party item with its own metrics (the WooCommerce badge) lands
-   on the same baseline as core's, instead of floating 7px high. */
+/* Flex centering lands third-party items with their own metrics on the
+   same line as core's. */
 #wpadminbar .ab-top-menu > li > .ab-item,
 #wpadminbar .ab-top-secondary > li > .ab-item,
 #wpadminbar .ab-top-menu > li > .ab-empty-item {
@@ -136,15 +72,8 @@
     white-space: nowrap;
 }
 
-/* Anything a plugin drops inside a bar item — badges, counters, pills —
-   gets vertically centred with its label rather than sitting on the
-   text baseline.
-
-   `gap` is doing real work here, not just tidiness: making .ab-item a
-   flex container drops whitespace-only text nodes between its inline
-   children, which is why "Howdy, Billy Hume" rendered as the run-on
-   "Howdy,Billy Hume". A gap restores that separation as actual layout
-   instead of relying on a collapsible space character. */
+/* Center plugin-added badges with their label. WHY gap: a flex .ab-item
+   drops whitespace-only text nodes ("Howdy,Billy"), so gap restores spacing. */
 #wpadminbar .ab-top-menu > li > .ab-item,
 #wpadminbar .ab-top-secondary > li > .ab-item {
     gap: 6px;
@@ -154,10 +83,7 @@
     display: inline-flex;
     align-items: center;
 }
-/* Breathing room between items. WP's stock bar packs them flush, which
-   is what made the row read as cramped once everything else was
-   aligned — a real "add some padding so it looks designed" fix rather
-   than leaving default density. */
+/* Breathing room between items. */
 #wpadminbar .ab-top-menu > li > .ab-item,
 #wpadminbar .ab-top-menu > li > .ab-empty-item {
     padding: 0 11px !important;
@@ -173,19 +99,9 @@
 
 /* ---------- graceful degradation before anything can collide ---------- */
 
-/* Priority-based shedding. This has to do ALL the width control on its
-   own, because the left group deliberately does NOT clip (clipping it
-   is what previously ate the dropdowns). So the rule is: drop passive
-   readouts early and generously rather than letting anything reach the
-   account menu and overlap it.
-
-   Order is by how often a person actually clicks the thing: Query
-   Monitor's timing readout and WooCommerce's status badge are glanceable
-   noise; updates/comments counters are duplicated in the sidebar
-   anyway; the site name, command palette, notifications and account
-   menu stay to the end. Thresholds are set against this install's real
-   item count (measured, not guessed) with headroom, since a bar that
-   overlaps at any width is worse than one that shows less. */
+/* Priority-based shedding does all the width control (the left group
+   doesn't clip). Passive readouts drop first; site name, palette,
+   notifications and account menu stay longest. */
 @media screen and (max-width: 1400px) {
     #wpadminbar #wp-admin-bar-query-monitor { display: none; }
 }
@@ -198,41 +114,18 @@
     #wpadminbar #wp-admin-bar-comments { display: none; }
 }
 @media screen and (max-width: 920px) {
-    /* Palette keeps its icon, loses the "Jump to…" label and shortcut
-       hint — the icon alone is still a target, and ⌘K still works. */
-    /* WHY these exact class names: the item's markup (self-hosted-self-admin-
-       skin.php, the shsas-palette-trigger node) emits .shsas-palette-trigger-
-       icon / -label / -kbd. This rule previously targeted .ab-label and
-       .shsas-kbd-hint, neither of which exists on it -- so it matched nothing
-       and the trigger kept its full 139px width right down to phone widths,
-       overflowing the bar. */
+    /* Palette keeps its icon, loses the label and shortcut hint. */
+    /* WHY these class names: the trigger node in self-hosted-self-admin-skin.php
+       emits .shsas-palette-trigger-icon / -label / -kbd. */
     #wpadminbar #wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-label,
     #wpadminbar #wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-kbd { display: none; }
     #wpadminbar #wp-admin-bar-new-content .ab-label { display: none; }
 }
 @media screen and (max-width: 860px) {
-    /* Dead selector, found live: core's own site-name markup is bare text
-       with no wrapping spans at all -- no .ab-label, no .ab-icon --
-       `<a class="ab-item" href="...">Billy Hume Blank test</a>`. This rule
-       matched nothing. The text disappearing below 860px is core's OWN
-       doing (text-indent:100% + overflow:hidden, its standard icon-only
-       mobile technique, documented in UX-AUDIT-PLAN.md), which core
-       normally pairs with an icon glyph so the box isn't empty once the
-       label is shoved off-screen -- but core never gives site-name one of
-       its own. Reported live as an "iconless and invisible" blank box:
-       measured, the box is real (74x46) and clickable, just empty. Same
-       ::after mask-icon technique as the Customize fix above.
-
-       Icon corrected post-ship, then corrected again: core's site-name
-       node is CONTEXT-AWARE -- its href is /wp-admin/ (Dashboard) on the
-       FRONT END, but on the ADMIN side the exact same node/markup links
-       back OUT to the front end (a "Visit Site" link) -- confirmed
-       directly (`href="http://localhost:10008/"` on wp-admin, vs
-       `.../wp-admin/` on the front end, same element). One icon can't be
-       right for both: dashboard.svg (matching the sidebar's own
-       Dashboard glyph) for the front end, ab-home.svg for wp-admin,
-       split on body.wp-admin -- core's own marker for which side we're
-       on, always present without any JS. */
+    /* Core hides site-name text below 860px (text-indent) but gives it no icon,
+       leaving an empty box; add an ::after mask icon. The node is
+       context-aware (Dashboard on the front end, Visit Site in wp-admin), so
+       the icon is split on body.wp-admin. */
     #wpadminbar #wp-admin-bar-site-name > .ab-item {
         position: relative;
     }
@@ -240,13 +133,7 @@
         content: "";
         flex: none;
         display: inline-block;
-        /* 24px, not 20 -- matches every other icon in this bar (the
-           notifications bell, the "+", the mobile menu toggle all measure
-           24x24 per the standard set earlier in this file). Reported live
-           as "not aligned with other icons": at 20px this and the
-           Customize icon sat 2px lower than their 24px neighbors inside
-           the same 46px-tall row (top:13 vs top:11), on top of visibly
-           reading smaller. */
+        /* 24px to match every other icon in this bar. */
         width: 24px;
         height: 24px;
         background-color: var(--shsas-text-dim, #b3ab97);
@@ -265,23 +152,9 @@
     }
 }
 @media screen and (max-width: 782px) {
-    /* One flex row, replacing two older mechanisms that fought each other.
-       Measured at 390px before this: #wp-admin-bar-root-default had
-       display:block with floated children, so it collapsed to height 0 and
-       its items escaped — the palette trigger and theme toggle wrapped onto a
-       SECOND row at y 46-92 and collided with #screen-meta-links (Screen
-       Options / Help), which is the overlap visible in the wild.
-
-       A previous fix here took #wp-admin-bar-top-secondary out of flow with
-       position:absolute to stop the account menu dropping below the bar. That
-       fixed the drop and introduced a worse bug: out of flow, it no longer
-       reserved width, so the notifications bell (297-375) ran underneath the
-       avatar (318-390).
-
-       Flex fixes both causes at once: both lists sit on one line, the
-       secondary is pushed right by margin-left:auto rather than by floating
-       or absolute positioning, and root-default can shrink (min-width:0)
-       instead of overflowing. */
+    /* One flex row: both lists on one line, secondary pushed right by
+       margin-left:auto, root-default shrinkable. Replaces floats and an
+       absolute-positioned secondary group that overlapped. */
     #wpadminbar .quicklinks {
         display: flex;
         align-items: center;
@@ -290,19 +163,11 @@
     #wpadminbar #wp-admin-bar-root-default {
         display: flex;
         align-items: center;
-        /* flex-grow 0 for the same reason as the desktop rule above -- see
-           its comment. Shrink/scroll behaviour below is unaffected. */
+        /* flex-grow 0, same reason as the desktop rule. */
         flex: 0 1 auto;
         min-width: 0;      /* WHY: without this a flex item refuses to shrink below content width */
-        /* Was `overflow: hidden`, which sheared the last items mid-glyph and
-           put the palette trigger and theme toggle permanently out of reach.
-           Shrinking items to fit was tried and is the fragile fix: the item
-           count is not ours to fix -- any plugin can add a toolbar item and
-           blow the budget again. The bar cannot wrap (its height is a fixed
-           46px that the rest of the layout offsets against), so scrolling is
-           what keeps every item reachable no matter how many there are.
-           Scrollbar hidden because a visible one inside a 46px chrome bar
-           reads as breakage, not affordance. */
+        /* Scroll rather than clip: any plugin can add items, and the bar can't wrap
+           (fixed 46px height). Scrollbar hidden inside the chrome bar. */
         overflow-x: auto;
         overflow-y: hidden;
         scrollbar-width: none;
@@ -315,7 +180,7 @@
         display: flex;
         align-items: center;
         flex: 0 0 auto;
-        position: static !important;   /* undoes the absolute-positioning era */
+        position: static !important;   /* undoes earlier absolute positioning */
         float: none !important;
         margin-left: auto;
     }
@@ -325,57 +190,27 @@
         height: 46px;
     }
 
-    /* Measured at 375px: root-default had 303px of space and 503px of
-       content -- 200px of overflow, with the palette trigger (x=375) and
-       theme toggle (x=439) entirely off-screen and the notifications bell
-       sheared mid-glyph.
-
-       Root cause is core's own mobile treatment, not our padding: below
-       782px WP sets `font: 40px/1 dashicons` on .ab-icon to make big touch
-       targets, which gives every item a 52px icon box. That is sized for
-       core's own handful of mobile items; this bar carries seven. 24px
-       still clears the 24px WCAG 2.5.8 target minimum and, with the
-       existing 11px side padding, lands each item at exactly the 46px
-       core itself uses for the mobile bar. */
+    /* WHY: below 782px core sets 40px dashicons on .ab-icon (52px boxes), sized
+       for its own few items. 24px still meets WCAG 2.5.8 and lands each item
+       at core's 46px. */
     #wpadminbar #wp-admin-bar-root-default > li > .ab-item .ab-icon,
     #wpadminbar #wp-admin-bar-root-default > li > .ab-item .ab-icon::before {
         font-size: 24px !important;
         width: 24px !important;
         height: 24px !important;
     }
-    /* Reported live as "all different sizes and gaps and weirdness", and
-       measured to be literally true: this bar mixed FOUR icon scales at
-       once -- site-name/Customize at core's own unstyled 32px, the "New"
-       plus icon correctly at this file's 24px standard (above), and the
-       notifications bell at 14x14, because it renders as a raw emoji
-       <img> (WordPress's own emoji-substitution markup, sized by
-       core's img.emoji rule at 1em of the bar's body text) rather than a
-       dashicon glyph.
-
-       The rule above never reached site-name/Customize because it
-       requires an actual `.ab-icon` element, and core puts their glyph
-       directly on `.ab-item::before` with no `.ab-icon` wrapper at all --
-       confirmed live (site-name/.ab-item::before computed 32px, no
-       `.ab-icon` descendant existed to match). Widening to `.ab-item`
-       itself, not just `.ab-item .ab-icon`, is what actually reaches them.
-       The emoji bell needed a different fix, since font-size does not
-       touch an <img>: forcing its box to 24x24 directly. */
+    /* One icon scale: site-name/Customize put the glyph on .ab-item::before
+       (no .ab-icon), so target .ab-item too; the notifications emoji <img>
+       is forced to 24x24 directly. */
     #wpadminbar #wp-admin-bar-root-default > li > .ab-item::before {
         font-size: 24px !important;
         width: 24px !important;
         height: 24px !important;
     }
 
-
-    /* Core hides the account/site labels down here with `text-indent: 100%`
-       plus overflow:hidden — a mechanism that only works in inline flow. The
-       `display: flex` this file sets on every top-level .ab-item makes
-       .display-name a FLEX ITEM, which ignores text-indent and lays out at its
-       natural position. Hiding the labelled spans is necessary but not
-       sufficient: the account anchor also carries a BARE TEXT NODE ("Howdy, ")
-       that flex promotes to an anonymous flex item, which no selector can
-       target. font-size:0 on the item is what actually collapses it; the
-       avatar is a replaced element and measures an unchanged 28x28 after. */
+    /* WHY font-size:0: core hides labels with text-indent, which flex items
+       ignore, and the bare "Howdy, " text node can't be targeted. The avatar
+       is a replaced element and keeps its size. */
     #wpadminbar #wp-admin-bar-my-account > .ab-item .display-name {
         display: none !important;
     }
@@ -383,19 +218,9 @@
         font-size: 0 !important;
     }
 
-    /* Keep open dropdowns inside the viewport.
-       Measured at 390px: the notifications panel opened at 297 and ran to
-       701 -- half of it off-screen, and covering the account avatar.
-
-       Absolute positioning cannot fix this here. Each panel's containing
-       block is its own <li> (position:relative, 78px wide), so left/right
-       resolve against that, and `width: max-content` then pushes it straight
-       back out; measured left:0 right:0 width:392px against a 390px viewport.
-
-       position:fixed removes it from that containing block entirely and pins
-       it to the viewport, which is what a full-width mobile dropdown wants
-       anyway. !important because core's own selectors here carry more
-       specificity than an id-plus-class can reach. */
+    /* Keep open dropdowns inside the viewport. WHY position:fixed: each panel's
+       containing block is its narrow <li>, so absolute positioning can't fit
+       it. !important to beat core's more specific selectors. */
     #wpadminbar .menupop .ab-sub-wrapper {
         position: fixed !important;
         left: 0 !important;
@@ -409,21 +234,12 @@
         box-sizing: border-box;
     }
 
-    /* The palette trigger and theme toggle stay VISIBLE here on purpose --
-       admin-skin.css forces them past core's own hiding rule, because the
-       palette matters most on mobile where the whole sidebar is behind a
-       hamburger. They just have to be icon-only, which is what the dead
-       selectors above were meant to do. Do not hide them here. */
+    /* Palette trigger and theme toggle stay visible here on purpose
+       (admin-skin.css un-hides them); only make them icon-only. */
 }
 
-/* "Customize" used WordPress core's own stock dashicons-admin-customizer
- * glyph -- a chunky filled paintbrush that reads noticeably heavier/cruder
- * than the thin-line glyphs beside it (the dashboard gauge, the plus).
- * Reported live: "look at that brush". Swapped for the SAME thin-line
- * appearance.svg mask this skin's own sidebar already uses for Appearance
- * (Customize genuinely IS the Appearance > Customize screen), so the top
- * bar's icon style matches the sidebar's rather than falling back to core's
- * heavier default the moment a real line-icon mask wasn't set up for it. */
+/* Customize uses the same thin-line appearance.svg mask as the sidebar's
+ * Appearance item instead of core's heavy paintbrush glyph. */
 #wpadminbar #wp-admin-bar-customize > .ab-item::before {
     content: none !important;
 }
@@ -432,20 +248,10 @@
 }
 #wpadminbar #wp-admin-bar-customize > .ab-item::after {
     content: "";
-    /* .ab-item is a flex container (core), which makes ::after a flex ITEM
-       with a default flex-shrink:1 and no flex-basis of its own -- it was
-       measured collapsing to 0x20px, an invisible sliver, because the first
-       version's margin-right:-20px hack shrank the box's own available
-       space and flex-shrink crushed the pseudo-element into it. flex:none
-       is what actually holds it at its set size regardless of the flex
-       parent's arithmetic. */
+    /* WHY flex:none: .ab-item is a flex container, so the ::after would shrink to 0. */
     flex: none;
     display: inline-block;
-    /* 24px, not 20 -- matches every other icon in this bar. Reported
-       live as "not aligned with other icons": at 20px this sat 2px lower
-       than its 24px neighbors inside the same 46px row, on top of
-       reading visibly smaller. Same correction as site-name's icon
-       above. */
+    /* 24px to match every other icon in this bar. */
     width: 24px;
     height: 24px;
     background-color: var(--shsas-text-dim, #b3ab97);
@@ -459,33 +265,10 @@
     filter: drop-shadow(0 0 6px var(--bh-accent, #c0563a));
 }
 
-/* :active is the one that actually matters on a phone, and was missing.
- * For an <a> that navigates on tap, :hover and :focus mostly never get
- * SEEN in practice -- the page unloads before the browser paints the
- * change. :active fires the instant a finger touches down, before
- * navigation starts, so it is the only one of the three that gives real
- * tactile feedback for a link. Kept alongside :hover/:focus rather than
- * replacing them, since :focus still matters for the one item here that
- * does NOT navigate away (the site-name menupop, opened rather than
- * followed on first tap). */
-/* Universal (not confined to the mobile media query above): a real mouse
- * hover exists at desktop widths, and this needs to reach it. It was
- * originally written INSIDE the <=782px block by mistake -- exactly the
- * viewport where a genuine :hover does not exist at all (touch only), so
- * it would have only ever fired via a state real hover never reaches on
- * a phone. :focus is what actually fires on a mobile tap (a link keeps
- * focus after being tapped, unlike :hover, which iOS Safari can leave
- * stuck on the wrong element -- the exact bug already found and fixed on
- * the sidebar's own icons earlier today). Moved out here so desktop gets
- * real hover feedback and mobile gets the same glow through focus. */
-/* Direct feedback after seeing the sized-but-flat result: "not very
-   magical". Fair -- this file had ZERO colour or glow treatment
-   anywhere; every icon just sat at whatever muted grey core gives it,
-   with no feedback on touch at all. The sidebar earned real praise
-   ("I liked the glow") for exactly the thing missing here: a neutral
-   resting state that blooms into the accent hue with a soft glow the
-   moment you touch it. Same language, same restraint -- neon only on
-   contact, never at rest, per the standing brief. */
+/* :active gives tap feedback before navigation; :focus matters for the
+ * site-name menupop, which opens rather than navigates on first tap. */
+/* Universal, not mobile-only: desktop gets :hover, mobile gets the glow via :focus. */
+/* Neutral at rest, blooming into the accent hue with a soft glow on contact. */
 #wpadminbar #wp-admin-bar-root-default > li > .ab-item:hover::before,
 #wpadminbar #wp-admin-bar-root-default > li > .ab-item:focus::before,
 #wpadminbar #wp-admin-bar-root-default > li > .ab-item:active::before,
@@ -501,12 +284,8 @@
     box-shadow: 0 0 0 2px var(--bh-accent, #c0563a), 0 0 8px var(--bh-accent, #c0563a);
 }
 
-
-/* Last-resort guarantee: even if some plugin adds an item we have no
-   breakpoint for, the account menu keeps its own opaque ground and
-   sits above, so the failure mode is "something is hidden behind the
-   account menu" rather than "two labels printed on top of each other".
-   Belt and braces, not the primary mechanism. */
+/* Last-resort guarantee: the account menu keeps an opaque ground and sits
+   above, so overflow hides behind it rather than overprinting. */
 #wpadminbar #wp-admin-bar-top-secondary {
     position: relative;
     z-index: 2;
@@ -515,9 +294,7 @@
 
 /* ---------- front-end parity ---------- */
 
-/* On the front end none of the admin-skin tokens exist, so without
-   this the bar keeps WP's stock grey while the site around it is warm
-   noir. Fallbacks match the admin dark palette. */
+/* Front end has no admin tokens; fallbacks match the admin dark palette. */
 #wpadminbar {
     background: var(--shsas-surface-2, #282319) !important;
     color: var(--shsas-text, #f2ede1) !important;
@@ -538,11 +315,7 @@
     border-radius: 0 0 6px 6px;
     overflow: hidden;
 }
-/* Same hover language as the sidebar: a pure VALUE shift, no hue.
-   ("I want no color - any background would be ugly used this way",
-   then "on hover in menu, we can do a nice value shift to make it
-   darker or lighter.") Fallback veil matches the admin dark palette
-   for the front end, where the token block is absent. */
+/* Hover is a pure value shift, no hue. */
 #wpadminbar .ab-top-menu > li:hover > .ab-item,
 #wpadminbar .ab-top-menu > li.hover > .ab-item,
 #wpadminbar .ab-top-menu > li > .ab-item:focus,
@@ -553,14 +326,9 @@
     color: var(--shsas-text, #f2ede1) !important;
 }
 
-/* WooCommerce's "Store coming soon" badge ships its own padding and a
-   16px line-height, so even after the flex centring above it measured
-   y=7 / h=18 while every sibling sat at y=0 / h=32 — the one item
-   still visibly off the bar's baseline. It renders a nested element
-   rather than styling .ab-item directly, which is why the generic
-   rule could not reach it. Pinned to the shared rhythm explicitly. */
-/* The <li> itself carried the remaining 7px offset (its own margin),
-   which is why the item measured y=7 even once its height matched. */
+/* WooCommerce "Store coming soon" badge brings its own padding/line-height
+   on a nested element; pin it to the shared rhythm. */
+/* The <li> carries its own margin offset too. */
 #wpadminbar #wp-admin-bar-woocommerce-site-visibility-badge,
 #wpadminbar #wp-admin-bar-wc-status {
     margin: 0 !important;
@@ -580,32 +348,16 @@
     margin-bottom: 0 !important;
 }
 
-
 /* ---------- duplicate command palette ----------
-   WP core now ships its OWN command palette item (#wp-admin-bar-command-
-   palette, 72px) and this skin adds a richer "Jump to…" trigger
-   (#wp-admin-bar-shsas-palette-trigger, 139px). Both were rendering,
-   which is what produced the doubled "⌘ ⌘K" glyphs in the bar — two
-   controls, same shortcut, same job, 211px of bar between them.
-   Core's is hidden: ours carries a visible label and hint, and ⌘K
-   still opens it either way. */
-/* Hides core's command-palette item, which duplicates this skin's own
-   #wp-admin-bar-shsas-palette-trigger. The `li` is load-bearing: core
-   re-shows this item at <=782 via `#wpadminbar li#wp-admin-bar-command-
-   palette`, whose extra element selector outranked the plain two-ID form
-   this rule used to carry. So the duplicate reappeared on exactly the
-   viewport where the bar has no room for it -- measured at 375px, the
-   row needed 503px in 303px of space. Matching core's specificity is
-   enough to win, since this file loads after core's. */
+   Core's own command-palette item duplicates this skin's richer trigger;
+   core's is hidden. */
+/* WHY the `li`: core re-shows the item at <=782px via
+   `#wpadminbar li#wp-admin-bar-command-palette`; match that specificity. */
 #wpadminbar li#wp-admin-bar-command-palette { display: none; }
 
 /* ---------- third-party badge treatment ----------
-   "Store coming soon" (WooCommerce) rendered as a stark white box —
-   core-adjacent markup with its own inline-ish styling, completely
-   outside this skin's language, and the single most visually jarring
-   thing in the bar. Notifications' count had the same problem in red.
-   Both become the same quiet pill the sidebar counts now use: veil
-   ground, hairline ring, tabular figures. Status, not alarm. */
+   WooCommerce's badge and the notifications count become the same quiet
+   pill as the sidebar counts. */
 #wpadminbar #wp-admin-bar-woocommerce-site-visibility-badge .ab-item,
 #wpadminbar #wp-admin-bar-woocommerce-site-visibility-badge .ab-label {
     background: var(--shsas-hover-veil, rgba(255,255,255,0.055)) !important;
@@ -625,29 +377,16 @@
     border-radius: 0 !important;
     padding: 0 11px !important;
 }
-/* The bell is now a real dashicon glyph (PHP side: class-notifications.php,
-   bhcore-notifications node), not the raw emoji character that used to
-   render as a chunky coloured <img>. Content is supplied here, exactly
-   core's own per-item pattern for every other bare .ab-icon in this bar
-   (e.g. #wp-admin-bar-new-content's plus glyph). \f16d is dashicons-bell's
-   own codepoint (wp-includes/css/dashicons.css). */
+/* Bell glyph supplied here, core's per-item pattern for bare .ab-icon.
+   \f16d is dashicons-bell (wp-includes/css/dashicons.css). */
 #wpadminbar #wp-admin-bar-bhcore-notifications > .ab-item > .ab-icon::before {
     font-family: dashicons, sans-serif !important;
     content: "\f16d" !important;
 }
 
-/* Notification count: was a hard red block. Danger hue is retained
-   because an unread count IS a real signal — but as a restrained pill
-   rather than a slab, and only when non-zero.
-
-   Reported live as "poorly centered, not neat and aligned" -- same shape
-   of bug already found and fixed twice today on the sidebar's own count
-   badges: line-height was doing the vertical centring on its own, with
-   nothing relating the pill's box to the bell icon sitting beside it in
-   the SAME flex row. inline-flex + align-items:center centres the digit
-   regardless of glyph metrics; vertical-align:middle and align-self:center
-   are what actually relate the two boxes to each other rather than to an
-   independent line box. */
+/* Notification count: danger hue as a restrained pill, only when non-zero.
+   inline-flex centers the digit; vertical-align/align-self relate the pill
+   to the bell beside it. */
 #wpadminbar #wp-admin-bar-bhcore-notifications .bhcore-notif-count,
 #wpadminbar #wp-admin-bar-bhcore-notifications .count,
 #wpadminbar #wp-admin-bar-bhcore-notifications .ab-label > span {

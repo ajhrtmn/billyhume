@@ -1,64 +1,19 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// OUS_VER 3.9.9 — emit() now also fires a real WordPress action,
-// do_action('bh_event_emitted', $type, $job_args, $args), right
-// alongside the existing OUS_Jobs enqueue. Every prior consumer of this
-// class only had two options: read-only aggregate queries (for_user(),
-// the Debug Tools metrics view) or poll bhcore_events directly — there
-// was no way for a peer plugin to react to another plugin's event in
-// real time. bh-mailpoet (new) needs exactly that: sync a contact to
-// MailPoet the moment bhc/enroll, bhm/wallet_credit, bh/vote, etc. fire,
-// not once a day. Fired synchronously on the SAME request emit() was
-// called from — deliberately not deferred into the OUS_Jobs ingest job,
-// since a listener that itself needs to defer (e.g. an API call) can
-// enqueue its own job; forcing every listener through the ingest job's
-// timing would be the tail wagging the dog. $job_args is the fully
-// normalized envelope (user_id/subject_type/subject_id/payload/etc.,
-// same shape that lands in bhcore_events); $args is the raw, un-
-// normalized array the caller originally passed to emit(), handed over
-// too since a listener may want a field emit() doesn't normalize
-// (nothing currently strips fields, but the raw args aren't guaranteed
-// stable across future emit() changes the way $job_args's schema is).
-// No new dependency for any existing emit() caller — an add_action()
-// on a hook nobody was firing before this just now starts firing.
-
-// OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
-// OUS_Debug::GROUP_MONITORING (Debug Tools reorganization pass — see
-// class-debug.php's own docblock), filing this under "Monitoring &
-// Health" instead of the default bucket. No other change.
-
 /**
- * BH_Event — a versioned, namespaced per-event envelope, the first
- * per-event (not aggregate-counter) tracking table this ecosystem has
- * ever had. See EVENT-TRACKING-ARCHITECTURE-PLAN.md for the full design
- * — this class is that plan's first real implementation (previously
- * designed but never built, despite VISION.md incorrectly claiming it
- * had shipped).
+ * Versioned, namespaced per-event envelope stored in OUS_Tables::events(). emit() only
+ * enqueues an OUS_Jobs ingest job; the insert happens off the live request.
  *
- * Storage: " . OUS_Tables::events() . ", created by
- * BHI_Activator::create_or_update_schema() (see class-identity-
- * activator.php, DB_VERSION 1.8).
- *
- * Ingestion rides OUS_Jobs (see class-jobs.php) — emit() never writes
- * to the DB synchronously on the request that triggered it, it only
- * enqueues a cheap job (bhcore_ingest_event) that does the actual
- * insert off the live request, same reasoning as OUS_Notifications'
- * existing async-email path.
- *
- * USAGE, from any plugin that depends on this one:
- *
- *   add_action('init', function () {
- *       if (class_exists('BH_Event')) {
- *           BH_Event::register_event_type('bhs/play', ['track_id' => 'int']);
- *       }
- *   });
+ *   BH_Event::register_event_type('bhs/play', ['track_id' => 'int']);   // on 'init'
  *
  *   BH_Event::emit('bhs/play', [
  *       'user_id' => get_current_user_id(),
  *       'subject_type' => 'bhs_track', 'subject_id' => $track_id,
  *       'payload' => ['referrer_bucket' => $bucket],
  *   ]);
+ *
+ * emit() also fires do_action('bh_event_emitted', $type, $job_args, $args) synchronously.
  */
 class BH_Event {
     const JOB_HOOK = 'bhcore_ingest_event';
@@ -75,14 +30,13 @@ class BH_Event {
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
     }
 
-    /* ---------------- registration (schema-registry precedent: BH_Content::register_block_type()) ---------------- */
+    /* ---------------- registration ---------------- */
 
-    // $schema is optional and purely self-documenting today (surfaced
-    // on the Debug Tools metrics section below) — not yet enforced/
-    // coerced at ingest time; a real validate-against-schema pass is a
-    // reasonable future addition, not required to make emit()/read
-    // useful now.
-    /** @param array<string, mixed> $schema */
+    /**
+     * $schema is self-documenting only (shown in Debug Tools), not enforced at ingest.
+     *
+     * @param array<string, mixed> $schema
+     */
     public static function register_event_type(string $type, array $schema = [], int $v = 1): void {
         self::$types[$type] = ['v' => (int) $v, 'schema' => $schema];
     }
@@ -94,16 +48,15 @@ class BH_Event {
 
     /* ---------------- emission ---------------- */
 
-    // Cheap, non-blocking: enqueues a job, never writes synchronously.
-    // Supported $args keys: user_id, client_id, subject_type,
-    // subject_id, payload (array), context (array), occurred_at
-    // (defaults to now), dedup_key (nullable — supply a deterministic
-    // string like "course_completed:{$user_id}:{$course_id}" for
-    // once-only events; leave null for append-only events like plays/
-    // votes).
-    /** @param array<string, mixed> $args */
+    /**
+     * Non-blocking: enqueues a job, never writes synchronously. $args keys: user_id, client_id,
+     * subject_type, subject_id, payload, context, occurred_at (default now), dedup_key (set a
+     * deterministic string for once-only events; null for append-only ones like plays).
+     *
+     * @param array<string, mixed> $args
+     */
     public static function emit(string $type, array $args = []): bool {
-        if (!class_exists('OUS_Jobs')) return false; // harmless no-op, same convention as every other OUS_Jobs consumer
+        if (!class_exists('OUS_Jobs')) return false; // harmless no-op without the queue
 
         $registered = self::$types[$type] ?? null;
 
@@ -122,20 +75,17 @@ class BH_Event {
 
         OUS_Jobs::enqueue(self::JOB_HOOK, $job_args);
 
-        // Real-time pub/sub for listeners that can't wait for the async
-        // ingest job — see the OUS_VER 3.9.9 changelog note above.
+        // Synchronous hook for listeners that can't wait for the async ingest job.
         do_action('bh_event_emitted', $type, $job_args, $args);
 
         return true;
     }
 
-    // Cheap request-context capture — referrer/UA only, no GeoIP, same
-    // "honest about being a rough signal" posture BHS_Stats already
-    // established for its own referrer/country-guess logic. Kept
-    // minimal here rather than reusing BHS_Stats' methods directly
-    // since this class must not hard-depend on bh-streaming being
-    // active.
-    /** @return array<string, string> */
+    /**
+     * Rough request context (referrer/UA only). Not reusing BHS_Stats: must not depend on bh-streaming.
+     *
+     * @return array<string, string>
+     */
     private static function default_context(): array {
         return [
             'url'      => isset($_SERVER['REQUEST_URI']) ? esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'])) : '',
@@ -146,19 +96,16 @@ class BH_Event {
 
     /* ---------------- the actual write, off the live request ---------------- */
 
-    // Public (audit fix, 2026-07-25) so BH_Identity's debug-only reverse
-    // lookup can reuse this instead of hardcoding the table name itself —
-    // this class is the one owner of this table's schema.
+    // Public so BH_Identity reuses it; this class owns the table schema.
     public static function table(): string {
         return OUS_Tables::events();
     }
 
-    // OUS_Jobs handler — runs on the cron/queue worker, not the
-    // original request. Tolerates a dedup_key collision quietly (two
-    // near-simultaneous emits racing for the same once-only key is
-    // expected, not an error) — same posture record_play()'s own
-    // docblock already documents for refresh-spam duplicates.
-    /** @param array<string, mixed> $args */
+    /**
+     * OUS_Jobs handler. A dedup_key collision is expected (racing once-only emits) and ignored quietly.
+     *
+     * @param array<string, mixed> $args
+     */
     public static function handle_ingest_job($args): void {
         global $wpdb;
 
@@ -177,31 +124,8 @@ class BH_Event {
 
         if (!$data['type']) return; // malformed job, nothing sane to insert
 
-        // BUG FIX: $wpdb->prepare()'s %s placeholder silently casts a PHP
-        // null to an empty string, NOT SQL NULL (confirmed against this
-        // table's real data — dedup_key stored as '' rather than NULL).
-        // dedup_key has a UNIQUE key, so EVERY event emitted without an
-        // explicit dedup_key (the common, "append-only" case — plays,
-        // votes, notes, links, wallet activity, etc.) was colliding with
-        // the very first such row ever inserted and being silently
-        // dropped by INSERT IGNORE ever since this table existed. Only
-        // events that supplied a real dedup_key (e.g. bhc/enroll) were
-        // ever landing correctly — silent data loss across the whole
-        // event-tracking system, surfaced because bh-crm's per-person
-        // activity timeline (BHCRM_Event_Activity) reads straight from
-        // this table and was visibly missing rows.
-        //
-        // Fix: branch the SQL so a real dedup_key uses INSERT IGNORE +
-        // a bound %s (dedup collisions on a genuine repeat key still
-        // silently no-op, as designed), while a null dedup_key is
-        // written as a literal SQL NULL — never touching the unique
-        // index at all, since NULL is never equal to NULL there.
-        // Audit fix (2026-07-25): the column list, value placeholders,
-        // and bound args below were previously duplicated verbatim
-        // across both branches — only the INSERT/INSERT IGNORE keyword
-        // and the dedup_key slot actually differ (per the bug-fix
-        // comment above). Sharing them means a future column addition
-        // only needs to change one place, not two that can drift apart.
+        // WHY: $wpdb->prepare() turns a null %s into '' (not SQL NULL), and dedup_key is UNIQUE, so a
+        // null key is written as a literal NULL (plain INSERT) while a real key uses INSERT IGNORE.
         $columns = '(type, v, user_id, client_id, subject_type, subject_id, payload, context, occurred_at, dedup_key)';
         $args = [
             $data['type'], $data['v'], $data['user_id'], $data['client_id'],
@@ -223,10 +147,7 @@ class BH_Event {
 
     /* ---------------- backfill support for BH_Identity ---------------- */
 
-    // Called by BH_Identity once a client_id is resolved to a user_id
-    // (login/registration) — backfills user_id onto already-stored rows
-    // for that client_id so pre-signup activity joins to the account
-    // retroactively, per EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 3.
+    // Called by BH_Identity on login/registration so pre-signup activity joins to the account.
     public static function backfill_user_id(string $client_id, int $user_id): void {
         global $wpdb;
         if (!$client_id || !$user_id) return;
@@ -236,7 +157,7 @@ class BH_Event {
         ));
     }
 
-    /* ---------------- Debug Tools: minimal metrics view (MVP dashboard) ---------------- */
+    /* ---------------- Debug Tools: metrics view ---------------- */
 
     /**
      * @param array<string, mixed> $tools
@@ -278,12 +199,7 @@ class BH_Event {
         self::render_debug_top_users($since);
     }
 
-    // Per-type-per-day breakdown for the same 7-day window as the
-    // summary table above — a plain pivot (day rows, type columns)
-    // built in PHP rather than a MySQL PIVOT (which doesn't exist)
-    // or dynamic SQL column list. Bounded to a fixed 7-day window and
-    // whatever distinct types actually appear in it, so this stays a
-    // small admin debug table, not something that needs pagination.
+    // Per-type-per-day pivot over the fixed 7-day window, built in PHP.
     private static function render_debug_daily_breakdown(string $since): void {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
@@ -315,12 +231,7 @@ class BH_Event {
         echo '</tbody></table></div>';
     }
 
-    // Top 10 users by raw event count in the window — a rough "who's
-    // most active" signal for spotting a single account generating an
-    // outsized share of traffic (bot, script, or a genuinely engaged
-    // user), not a real engagement-scoring model. Excludes user_id = 0
-    // (anonymous/unstitched rows) since "most active anonymous visitor"
-    // isn't a meaningful thing to rank by client_id here.
+    // Top 10 users by event count in the window (excludes anonymous user_id = 0).
     private static function render_debug_top_users(string $since): void {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(

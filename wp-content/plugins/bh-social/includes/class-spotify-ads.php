@@ -2,27 +2,15 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Spotify Ad Studio (ads.spotify.com) — added alongside Roku after a
- * follow-up research pass into similar paid platforms specifically
- * because it's the best-fitting one for an independent MUSICIAN's
- * audience: a $250 minimum campaign budget (vs. Roku's $500), audio +
- * optional companion-image creative rather than a full video spot, and
- * targeting built around music listening behavior rather than general
- * CTV demographics.
- *
- * Same honest limitation as Roku, confirmed during that same research
- * pass: no publicly documented self-serve REST API for Ad Studio was
- * found — campaign creation is UI-driven at ads.spotify.com. This
- * class follows BHSO_RokuAds' exact pattern for that reason: capture
- * and organize the campaign PLAN locally, then hand off to Ad Studio's
- * real UI to actually launch it — not a simulated integration.
+ * Spotify Ad Studio ($250 minimum). No public self-serve API, so this captures
+ * drafts and hands off to Ad Studio, like BHSO_RokuAds.
  */
 class BHSO_SpotifyAds implements BH_AdsPlatform {
     const MANAGER_URL = 'https://ads.spotify.com';
-    const MINIMUM_BUDGET_CENTS = 25000; // Ad Studio's own documented $250 floor
+    const MINIMUM_BUDGET_CENTS = 25000; // Ad Studio $250 floor
 
     public function is_configured(): bool {
-        return true; // no API credentials to configure — see class docblock
+        return true; // no API credentials to configure
     }
 
     public function get_status(): string {

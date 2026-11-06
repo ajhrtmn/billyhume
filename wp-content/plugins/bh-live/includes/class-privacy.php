@@ -2,10 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Wires WordPress core's native Tools > Export/Erase Personal Data
- * screens for wp_bhl_chat_messages — ephemeral live-stream chat tied
- * to past streams, safe to hard-delete on request (nothing else in
- * this ecosystem reads another person's chat history).
+ * WP core personal-data export/erase for wp_bhl_chat_messages (safe to hard-delete).
  */
 class BHL_Privacy {
     public static function init(): void {

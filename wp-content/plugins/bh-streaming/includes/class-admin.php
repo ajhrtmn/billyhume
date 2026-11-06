@@ -2,11 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Genre selection needs no code here at all — registering bhs_genre as
- * a non-hierarchical taxonomy with show_ui true (see class-post-types.php)
- * already gives every bhs_track edit screen a standard tag-style picker
- * for free. Only the things WordPress doesn't already have a UI for —
- * audio/artwork upload, the release picker — need custom metaboxes.
+ * Track/release admin metaboxes. Genres need none: bhs_genre's show_ui
+ * taxonomy already provides the tag picker.
  */
 class BHS_Admin {
     public static function init(): void {
@@ -17,10 +14,7 @@ class BHS_Admin {
         add_action('save_post_bhs_release', [self::class, 'save_release']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
 
-        // DRY/SOLID audit Phase 4: migrated to the shared OUS_ListTable
-        // helper (the-self-hosted-self/includes/class-list-table.php) — same
-        // column set/position/render logic, just no longer hand-rolling
-        // the columns/custom_column hook wiring itself.
+        // Columns via the shared OUS_ListTable helper.
         OUS_ListTable::register('bhs_track', [
             'bhs_artist' => 'Artist', 'bhs_audio' => 'Audio', 'bhs_plays' => 'Plays', 'bhs_flags' => 'Flags',
         ], [self::class, 'column_content']);
@@ -28,12 +22,8 @@ class BHS_Admin {
     }
 
     /**
-     * Moved server-side (BHS_ISRC::issue()) rather than the field's
-     * earlier pure-client Math.random() fill — real issuance needs a
-     * real, server-tracked sequence counter (BHS_ISRC's own docblock
-     * explains why), and even the mock path benefits from a real
-     * collision check against existing rows instead of trusting
-     * client-side randomness alone.
+     * ISRC issuance is server-side so it can use BHS_ISRC's tracked sequence
+     * and collision check rather than client-side randomness.
      */
     public static function ajax_issue_isrc(): void {
         check_ajax_referer('bhs_issue_isrc', 'nonce');
@@ -48,18 +38,8 @@ class BHS_Admin {
         wp_enqueue_media();
     }
 
-    // Quality Encodes offers a small, fixed set of TIERS rather than an
-    // arbitrary add-your-own-label list — three meaningfully different
-    // levels (lossless source, a high-bitrate compressed encode, a
-    // smaller standard encode) covers what a listener's quality picker
-    // actually needs to choose between. Each tier accepts whatever
-    // format an artist actually has for it — WAV, AIFF, or FLAC for
-    // lossless; MP3 (or another lossy format) for the compressed tiers
-    // — the file picker doesn't force a specific format, only a
-    // specific role. An artist who only has one MP3 and nothing else
-    // just fills in 'standard' and leaves the other two empty; the
-    // track's plain _bhs_audio_id (set in the metabox above) remains
-    // the fallback whenever no tier has been filled in at all.
+    // Three fixed roles (lossless, high, standard), any format per role.
+    // _bhs_audio_id remains the fallback when no tier is filled in.
     const QUALITY_LABELS = ['lossless' => 'Lossless (WAV / AIFF / FLAC)', 'high' => 'High (e.g. 320kbps MP3)', 'standard' => 'Standard (e.g. 128–192kbps MP3)'];
 
     public static function add_meta_boxes(): void {
@@ -71,24 +51,10 @@ class BHS_Admin {
         add_meta_box('bhs_release_monetization', 'Monetization', [self::class, 'render_release_monetization_metabox'], 'bhs_release', 'normal', 'default');
     }
 
-    /* ---------- monetization extension point (bh-monetization-woo hooks in here) ---------- */
+    /* ---------- monetization extension point ---------- */
 
-    // This metabox renders NOTHING of its own — it's purely a hook point
-    // an entirely separate, optional plugin (bh-monetization-woo) uses
-    // to inject its own UI, following the same one-directional,
-    // zero-required-changes extension-point convention as
-    // class-crm-integration.php. Using plain actions rather than one of
-    // the four core filters (ous_registered_plugins, bhy_style_surfaces,
-    // ous_debug_tools, bh_crm_*) because those are about REGISTERING
-    // something into a shared hub screen; this is closer to WordPress's
-    // own add_meta_box pattern — "let another plugin render markup
-    // directly into this exact spot" — so a plain do_action() is the
-    // more honest fit than forcing it through a filter that would just
-    // be used to return an HTML string anyway.
-    //
-    // If bh-monetization-woo (or anything else) is never installed, this
-    // do_action() call is a complete no-op — nothing renders, nothing
-    // breaks, and the metabox simply shows its own one-line fallback.
+    // Renders nothing itself: a do_action() hook point where an optional
+    // plugin (bh-monetization-woo) injects its own UI. A no-op otherwise.
     public static function render_track_monetization_metabox(\WP_Post $post): void {
         if (!has_action('bhs_track_monetization_ui')) {
             echo '<p class="description">No monetization plugin is active. Install <strong>BH Monetization (WooCommerce)</strong> to sell this track, gate it behind a supporter tier, or accept tips.</p>';
@@ -123,19 +89,8 @@ class BHS_Admin {
 
         echo '<p><label><strong>Artist</strong><br><input type="text" name="bhs_artist" value="' . esc_attr($artist) . '" style="width:100%;" placeholder="Artist name"' . ($is_external ? ' disabled' : '') . '></label></p>';
 
-        // Real rights/registration metadata, not just a catalog record.
-        // ISRC specifically because schema.org's own
-        // MusicRecording type has a real 'isrcCode' property — this
-        // becomes indexable structured data (see maybe_set_seo_data()
-        // in class-player.php), not just an admin-only reference field.
-        // PRO affiliation (ASCAP/BMI/etc.) and publishing-split
-        // management are a larger, not-yet-scoped feature (a
-        // songwriter/publisher data model this plugin doesn't have
-        // yet) — flagged in this plugin's own README rather than
-        // guessed at here. Full audio-fingerprinting/Content-ID-style
-        // matching is a separate, much larger ambition already named
-        // in ROADMAP-safety-and-metrics.md's long-term legal/safety
-        // section, not something this field touches.
+        // ISRC feeds schema.org MusicRecording isrcCode (see
+        // maybe_set_seo_data() in class-player.php).
         $isrc = get_post_meta($post->ID, '_bhs_isrc', true);
         $is_mock = (bool) get_post_meta($post->ID, '_bhs_isrc_is_mock', true);
         $has_registrant = class_exists('BHS_ISRC') && BHS_ISRC::is_real_registrant_configured();
@@ -190,20 +145,8 @@ class BHS_Admin {
             echo '<div id="bhs_audio_preview">' . ($aurl ? "<audio controls src='" . esc_url($aurl) . "' style='width:100%;'></audio>" : '<p><em>No audio attached.</em></p>') . '</div>';
             echo '<p><button type="button" class="button" id="bhs_audio_upload">Choose audio…</button></p>';
 
-            // Real gap found building the fan-facing global-library
-            // feature (2026-08-21): the public feed export
-            // (BHS_Feeds::export_feed(), what a fan/another site
-            // actually gets to hear before deciding to buy in) needs to
-            // respect this track's own gating (bhs_track_access_allowed)
-            // the same way the local player already does — a gated
-            // track's real audio file must never leak out through an
-            // unauthenticated public feed. When gated, this preview
-            // clip (a separate, deliberately short/teaser file the
-            // hoster uploads themselves — no automatic audio-trimming
-            // infrastructure exists or is planned) is what gets exported
-            // instead; a gated track with no preview set is simply
-            // omitted from the public feed rather than exposing nothing
-            // useful or the full file.
+            // Preview clip used by the public feed export for gated tracks
+            // (whose real audio must never leak); a gated track with none is omitted.
             $preview_id = (int) get_post_meta($post->ID, '_bhs_preview_audio_id', true);
             $preview_url = $preview_id ? wp_get_attachment_url($preview_id) : '';
             echo '<p style="margin-top:14px;"><strong>Public preview clip</strong> <span class="description">— only used if this track requires supporter access. A short, separate teaser file you choose; the full file above is never exposed to the public feed/global library for a gated track.</span></p>';
@@ -358,37 +301,24 @@ class BHS_Admin {
         }
         if (isset($_POST['bhs_artwork_id']))  update_post_meta($post_id, '_bhs_artwork_id', (int) $_POST['bhs_artwork_id']);
         if (isset($_POST['bhs_release_id']))  update_post_meta($post_id, '_bhs_release_id', (int) $_POST['bhs_release_id']);
-        // Not source-locked like artist/audio above — an ISRC is
-        // assigned by the RIGHTS HOLDER, not the aggregator an external
-        // feed pulled the track from, so it stays editable even on an
-        // imported track.
+        // Editable even on imported tracks: the rights holder assigns ISRC.
         if (isset($_POST['bhs_isrc'])) {
             $isrc_val = sanitize_text_field($_POST['bhs_isrc']);
             update_post_meta($post_id, '_bhs_isrc', $isrc_val);
-            // Re-derived server-side from the value itself (never
-            // trusted from a hidden POST field) — BHS_ISRC::is_mock()
-            // is the one place this pattern is defined, shared with
-            // class-player.php's own check before publishing isrcCode.
+            // Mock status re-derived server-side via BHS_ISRC::is_mock(), never from POST.
             update_post_meta($post_id, '_bhs_isrc_is_mock', class_exists('BHS_ISRC') && BHS_ISRC::is_mock($isrc_val) ? 1 : 0);
         }
 
-        // The save-side counterpart to render_track_monetization_metabox()
-        // above — whatever fields bh-monetization-woo's own UI rendered
-        // via 'bhs_track_monetization_ui', it verifies its OWN nonce and
-        // saves its OWN meta here. bh-streaming never sees those field
-        // names; a no-op if nothing's hooked in.
+        // Lets the monetization plugin verify its own nonce and save its own meta.
         do_action('bhs_track_monetization_save', $post_id);
     }
 
-    // Separate nonce/hook from save_track() since this metabox is its
-    // own add_meta_box() registration with its own nonce field — keeps
-    // each concern (core track fields vs. quality encodes) independently
-    // toggleable/removable without the two save paths tangled together.
+    // Separate nonce/hook from save_track(): its own add_meta_box() registration.
     public static function save_quality(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhs_quality_nonce']) || !wp_verify_nonce($_POST['bhs_quality_nonce'], 'bhs_save_quality')) return;
         if (!current_user_can('edit_post', $post_id)) return;
-        if (get_post_meta($post_id, '_bhs_source', true) === 'external') return; // metabox isn't even rendered for these — belt and suspenders
+        if (get_post_meta($post_id, '_bhs_source', true) === 'external') return; // metabox isn't rendered for these; belt and suspenders
 
         $submitted = $_POST['bhs_quality'] ?? [];
         if (!is_array($submitted)) return;
@@ -406,8 +336,7 @@ class BHS_Admin {
         if (!isset($_POST['bhs_lyrics_nonce']) || !wp_verify_nonce($_POST['bhs_lyrics_nonce'], 'bhs_save_lyrics')) return;
         if (!current_user_can('edit_post', $post_id)) return;
 
-        // sanitize_textarea_field strips tags but preserves line breaks —
-        // exactly what both plain lyrics and LRC's line-based format need.
+        // Strips tags but keeps line breaks, as plain lyrics and LRC need.
         if (isset($_POST['bhs_lyrics_lrc']))  update_post_meta($post_id, '_bhs_lyrics_lrc', sanitize_textarea_field($_POST['bhs_lyrics_lrc']));
         if (isset($_POST['bhs_lyrics_text'])) update_post_meta($post_id, '_bhs_lyrics_text', sanitize_textarea_field($_POST['bhs_lyrics_text']));
     }

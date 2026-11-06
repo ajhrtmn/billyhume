@@ -2,33 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * TikTok Content Posting API — fourth platform, and the smallest of
- * the four: TikTok has no broad public analytics API the way
- * YouTube/Twitch do (per the scoping research this plugin started
- * from), so pull_stats() here is limited to the creator's own basic
- * profile counts via /v2/user/info/, not the deeper engagement metrics
- * the other platforms expose. cross_post() is the real feature.
- *
- * Two real, honestly-documented gates on this integration, neither
- * fixable from inside this codebase:
- *
- * 1. TikTok requires an HTTPS redirect URI on a domain it has
- *    verified for the app — a `localhost` dev install genuinely cannot
- *    complete this OAuth flow; the code path is correct and will work
- *    once deployed to a real HTTPS domain registered with the app.
- * 2. Before TikTok's own app review completes, this app runs in
- *    "unaudited" mode: published posts are forced to SELF_ONLY privacy
- *    and only up to 5 TikTok accounts explicitly added as sandbox
- *    testers in the developer portal can authorize at all. Both
- *    defaults below reflect that constraint rather than fighting it.
- *
- * Uses the FILE_UPLOAD source (this plugin uploads the raw bytes
- * directly to TikTok's returned upload_url) rather than PULL_FROM_URL,
- * which requires separate TikTok domain-ownership verification of
- * wherever the file is hosted — FILE_UPLOAD has no such prerequisite.
- * v1 sends the whole file as a single chunk (correct and sufficient
- * for typical short-form video sizes; TikTok's own chunking is only
- * required past a much larger size threshold).
+ * TikTok Content Posting API. Stats are limited to basic profile counts.
+ * OAuth needs an HTTPS redirect URI on a verified domain (no localhost).
+ * Unaudited apps can only post SELF_ONLY. Uses FILE_UPLOAD in a single chunk
+ * (PULL_FROM_URL would need domain verification).
  */
 class BHSO_TikTok implements BH_SocialPlatform {
     const STATS_CRON_HOOK = 'bhso_tiktok_pull_stats_cron';
@@ -299,9 +276,7 @@ class BHSO_TikTok implements BH_SocialPlatform {
 
     /**
      * $args: ['attachment_id' => int, 'title' => string, 'privacy_level' => string]
-     * privacy_level defaults to SELF_ONLY — the only option unaudited
-     * apps are permitted to use; pass a wider value only once real app
-     * review has actually completed for this app.
+     * privacy_level defaults to SELF_ONLY, the only value unaudited apps may use.
      */
     /** @param array<string, mixed> $args */
     public function cross_post($args) {

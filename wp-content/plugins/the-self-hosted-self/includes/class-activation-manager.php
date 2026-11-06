@@ -2,15 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Pure activation orchestration — resolving and executing the correct
- * order (dependencies before dependents, installing anything missing
- * along the way). No redirects, no nonces;
+ * Activation orchestration: dependencies before dependents, installing
+ * anything missing. No redirects or nonces.
  */
 class OUS_ActivationManager {
-    // Activates $key AND any inactive/missing dependencies first, in
-    // order — for a plugin registered with real dependencies via the
-    // filter (see class-registry.php), a person clicking "Activate"
-    // shouldn't need to already understand what has to go first.
+    // Activates $key after installing/activating its dependencies.
     public static function activate_with_dependencies(string $key): bool {
         if (!isset(OUS_Registry::all()[$key])) return false;
 
@@ -26,9 +22,7 @@ class OUS_ActivationManager {
         return true;
     }
 
-    // Dependencies first, then $key itself — a flat list is enough here
-    // since nothing in this ecosystem currently has a dependency more
-    // than one level deep.
+    // Flat list: no dependency chain is currently more than one level deep.
     /** @return array<int, string> */
     private static function resolve_activation_order(string $key): array {
         $order = OUS_Registry::all()[$key]['depends_on'];

@@ -1,11 +1,6 @@
 /**
- * The native (non-iframe) chat widget for BHL_PollingChat — mounted by
- * live-player.js's own renderLiveSlot() whenever the REST status
- * response says chat_type === 'native' (an iframe-based chat, like
- * Owncast's own bundled one, needs nothing further; this is the one
- * that does). Same 2-4s polling interval as bh-streaming's own Jam
- * sessions — proven low-risk on ordinary shared hosting, not a
- * WebSocket/SSE relay this ecosystem has never needed before.
+ * Native polling chat widget for BHL_PollingChat, mounted by live-player.js when
+ * chat_type === 'native'.
  */
 window.BHLChatWidget = (function () {
     'use strict';
@@ -33,12 +28,7 @@ window.BHLChatWidget = (function () {
                 seenIds[m.id] = true;
                 var row = document.createElement('div');
                 row.className = 'bhl-chat-message';
-                // source (ROADMAP-obs-integration.md Phase 3) — 'ecosystem'
-                // for this ecosystem's own chat gets no tag at all, so
-                // existing streams look exactly as they did before this
-                // shipped; only relayed Twitch/YouTube messages get one,
-                // since a merged feed is unreadable without knowing which
-                // platform a name is coming from.
+                // Only relayed (non-'ecosystem') messages get a source tag.
                 var tag = '';
                 if (m.source && m.source !== 'ecosystem') {
                     row.classList.add('bhl-chat-message--' + m.source);
@@ -54,16 +44,8 @@ window.BHLChatWidget = (function () {
             if (messages.length) log.scrollTop = log.scrollHeight;
         }
 
-        // Two poll() calls can genuinely overlap in practice — the
-        // interval's own scheduled tick and an explicit poll() right
-        // after sending a message can both be in flight at once, both
-        // reading the SAME lastId before either response lands and
-        // updates it. fetchInFlight (a simple mutex, not a queue —
-        // skipping an overlapping call is fine, the next interval tick
-        // catches up) plus the seenIds guard above are the two
-        // independent safeguards against the same message ever
-        // rendering twice, found and fixed via a real browser test
-        // that showed a duplicate on the very first message sent.
+        // WHY: an interval tick and a post-send poll() can overlap and read the same lastId;
+        // fetchInFlight plus seenIds prevent duplicate rendering.
         function poll() {
             if (fetchInFlight) return;
             fetchInFlight = true;
@@ -76,11 +58,7 @@ window.BHLChatWidget = (function () {
 
         poll();
         var interval = setInterval(poll, POLL_MS);
-        // Stop polling once the container is removed from the page
-        // (e.g. the stream goes offline and renderLiveSlot() swaps the
-        // slot back to the offline notice) — a plain MutationObserver
-        // rather than anything heavier, since this only ever needs to
-        // notice "am I still attached to the document."
+        // Stop polling once the container leaves the document.
         new MutationObserver(function () {
             if (!document.body.contains(container)) clearInterval(interval);
         }).observe(document.body, { childList: true, subtree: true });

@@ -2,26 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The optional cohesion banner shown on OTHER ecosystem plugins' own
- * admin screens — a distinct concern from rendering this plugin's own
- * dashboard page, so it gets its own class rather than living inside
- * OUS_Dashboard alongside unrelated rendering logic.
- *
- * Purely additive and one-directional: detects (via each registry
- * entry's check_class) whether the current admin screen probably
- * belongs to one of the ecosystem plugins, and if so, prints a small
- * shared banner linking back to the dashboard. Those plugins never call
- * into this code — this reaches out to them, never the other way
- * around, which is what keeps the whole relationship one-directional.
- *
- * Dismissible, per-user: closing it stores a "signature" of the
- * currently-active ecosystem plugin set against that user, and the
- * banner stays hidden as long as that exact set hasn't changed. The
- * moment a NEW ecosystem plugin gets installed/activated, the signature
- * changes, the stored dismissal no longer matches, and the banner comes
- * back — which is the "only show again on new plugins/installs" behavior
- * asked for, without needing a separate "seen version" counter to keep
- * in sync by hand.
+ * Small cohesion banner on other ecosystem plugins' admin screens, linking
+ * back to the dashboard. One-directional: those plugins never call this.
+ * Dismissal stores a signature of the active plugin set per user, so the
+ * banner returns only when that set changes.
  */
 class OUS_Banner {
     const DISMISS_META = 'ous_banner_dismissed_signature';
@@ -30,9 +14,7 @@ class OUS_Banner {
         add_action('admin_post_ous_dismiss_banner', [self::class, 'handle_dismiss']);
     }
 
-    // A stable fingerprint of exactly which ecosystem plugins are
-    // currently active — order-independent, so activating the same set
-    // in a different order never falsely reopens the banner.
+    // Order-independent fingerprint of the active ecosystem plugins.
     private static function active_signature(): string {
         $active = [];
         foreach (OUS_Registry::all() as $key => $info) {
@@ -54,18 +36,10 @@ class OUS_Banner {
     public static function maybe_print(): void {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
         if (!$screen) return;
-        if (strpos($screen->id, 'ous') !== false) return; // don't banner our own page
+        if (strpos($screen->id, 'ous') !== false) return; // not on our own pages
 
-        // Broad on purpose: this only needs to catch "probably one of
-        // ours" well enough to show a nice-to-have banner, not gate any
-        // real functionality — a false negative just means one less
-        // banner somewhere, never a broken screen. Most of this
-        // ecosystem prefixes its post types and admin page slugs with
-        // bh_, bhi_, or bhs_, which shows up directly in $screen->id.
-        // bh-crm is the one exception — its menu slug is the hyphenated
-        // "bh-crm" (no trailing underscore segment), which the
-        // underscore-based prefixes below don't match on their own, so
-        // it's listed explicitly rather than silently never bannered.
+        // Broad match on purpose: a miss just means no banner. bh-crm's
+        // hyphenated slug doesn't match the underscore prefixes, so it's listed.
         $needles = ['bh_', 'bhi_', 'bhs_', 'bh-crm'];
         $matched = false;
         foreach ($needles as $needle) {
@@ -74,7 +48,7 @@ class OUS_Banner {
         if (!$matched) return;
 
         $signature = self::active_signature();
-        if (!$signature) return; // nothing active at all — nothing to banner
+        if (!$signature) return;
 
         $dismissed = get_user_meta(get_current_user_id(), self::DISMISS_META, true);
         if ($dismissed && $dismissed === $signature) return;

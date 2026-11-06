@@ -2,29 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Context-aware colour resolver. From the handful of SEED colours an
- * admin actually picks in the Design Suite (bg / surface / border /
- * text / accent / category swatches) it derives the full set of
- * dependent roles — inks, muted/disabled text, strong borders, quiet-UI
- * fills, focus ring, and the accent state ladder — each generated to
- * hit an explicit perceptual-contrast target rather than hand-picked
- * and hoped-for.
- *
- * Design notes:
- *   - The recipe for every derived role lives in one place: self::SPEC.
- *     resolve() interprets it here; the same array is localised to
- *     contrast-core.ts so the Design Suite live preview derives colours
- *     identically without a second hand-maintained list.
- *   - The maths is in BHY_Color (pure, no WP). This class is the
- *     WordPress-aware adapter: it reads BHY_Style settings, caches the
- *     result on save, wires the audit into Debug Tools, and registers a
- *     Test Runner suite.
- *   - APCA-style Lc drives the derivation; WCAG 2.x is still measured
- *     and shown in the audit for compliance reporting.
- *   - The four roles BHY_Style already derived before this class
- *     existed (--bh-accent-muted-bg / -contrast / -hover / -pressed)
- *     are reproduced byte-for-byte so switching BHY_Style onto the
- *     resolver changes nothing on a live site; every other role is new.
+ * Context-aware colour resolver: derives dependent roles (inks, muted text,
+ * borders, UI fills, focus ring, accent states) from Design Suite seed
+ * colours, each solved to an explicit perceptual-contrast target.
+ * The recipe lives in self::SPEC, also localised to contrast-core.ts so the
+ * live preview derives identically. Maths is in BHY_Color.
+ * WHY: the four pre-existing accent roles are reproduced byte-for-byte.
  */
 class BHY_Contrast {
 
@@ -32,28 +15,14 @@ class BHY_Contrast {
     const CACHE_OPTION = 'bhy_contrast_palette';
 
     /**
-     * Ordered recipe map: derived CSS custom property => how to build it.
-     * Order matters — a role may reference an earlier derived role
-     * (e.g. --bh-on-ui needs --bh-ui). `on-cat-N` rows are appended by
-     * spec() so this literal stays readable.
+     * Ordered recipe map: derived var => recipe. A role may reference an
+     * earlier derived role, so order matters.
      *
-     * derive:
-     *   'mix'      from + with + weight (fraction of `from`); emit
-     *              'color-mix' (CSS string, keeps runtime parity with the
-     *              old code) or 'hex' (pre-computed).
-     *   'ink-on'   on + inks[] + metric ('apca'|'wcag'); picks the
-     *              strongest-reading ink.
-     *   'solve-min' base + target_lc; moves base's OKLCH lightness until
-     *              it clears target_lc against `against` (the hardest one
-     *              if `against` is a list).
-     *   'approach' base + target_lc + chroma_mul; lands NEAR target_lc
-     *              (bounded contrast — the muted / disabled move).
-     *
-     * against: the surface a role is measured on, for the audit and for
-     *          the solvers. null = not a foreground role (state fills).
-     * target:  audit PASS threshold {apca, wcag}. ceiling: audit warns
-     *          if contrast is ABOVE this (a "disabled" that stopped
-     *          looking disabled).
+     * derive: 'mix' (from/with/weight, emit 'color-mix'|'hex'),
+     *   'ink-on' (on/inks/metric), 'solve-min' (base/target_lc vs hardest
+     *   `against`), 'approach' (base/target_lc/chroma_mul, lands NEAR target).
+     * against: surface measured on (null = not a foreground role).
+     * target: audit pass threshold; ceiling: audit fails if contrast exceeds it.
      */
     const SPEC = [
         // ---- reproduced from pre-resolver BHY_Style, unchanged ----
@@ -170,9 +139,7 @@ class BHY_Contrast {
     ];
 
     /**
-     * Pull the seed hexes out of a BHY_Style settings array. WP-free and
-     * self-sanitising (a non-hex value falls back to black) so resolve()
-     * can stay pure maths on clean input.
+     * Seed hexes from a BHY_Style settings array; non-hex falls back to black.
      *
      * @param array<string, mixed> $settings
      * @return array<string, string>
@@ -190,8 +157,7 @@ class BHY_Contrast {
 
     private static function hex_or_black($val): string {
         $val = trim((string) $val);
-        // color-mix / rgb() seeds can't feed OKLCH maths; the resolver
-        // only consumes plain hex, everything else fails safe to black.
+        // Only plain hex can feed OKLCH maths; anything else fails safe to black.
         if (preg_match('/^#[0-9a-fA-F]{6}$/', $val)) return strtolower($val);
         if (preg_match('/^#[0-9a-fA-F]{3}$/', $val)) {
             return strtolower('#' . $val[1] . $val[1] . $val[2] . $val[2] . $val[3] . $val[3]);
@@ -203,9 +169,8 @@ class BHY_Contrast {
     // ---- the resolver ---------------------------------------------
 
     /**
-     * Derive every role from the seed hexes. Returns ONLY the derived
-     * `--bh-* => value` map (values may be `color-mix()` strings); the
-     * caller still emits the raw seed vars itself, unchanged.
+     * Derived `--bh-* => value` map only (values may be color-mix()); the
+     * caller emits the raw seed vars itself.
      *
      * @param array<string, string> $seeds  --bh-* => #hex
      * @return array<string, string>
@@ -216,8 +181,7 @@ class BHY_Contrast {
     }
 
     /**
-     * Every role — seeds included — as a concrete #hex, with any
-     * `color-mix()` recipe pre-computed. For the audit and the tests.
+     * Every role, seeds included, as concrete #hex. For the audit and tests.
      *
      * @param array<string, string> $seeds
      * @return array<string, string>
@@ -270,10 +234,8 @@ class BHY_Contrast {
                     }
                     if (!$inks) break;
                     $metric = $r['metric'] ?? 'apca';
-                    // Prefer the theme's own ink when it already clears
-                    // the role target; only fall through to black/white
-                    // when it genuinely doesn't. WCAG-metric legacy roles
-                    // keep exact "max ratio" behaviour (min = 0).
+                    // Prefer the theme's own ink when it clears the target;
+                    // WCAG legacy roles keep exact max-ratio behaviour (min = 0).
                     $min = $metric === 'apca' ? (float) ($r['target']['apca'] ?? 0) : 0.0;
                     $hex = BHY_Color::best_ink_on($bg, $inks, $metric, $min);
                     $value = $hex;
@@ -307,9 +269,7 @@ class BHY_Contrast {
     }
 
     /**
-     * Solve base's lightness to clear $target_lc against the HARDEST of
-     * one-or-more backgrounds: try each, keep whichever candidate has
-     * the highest worst-case Lc across all of them.
+     * Solve base's lightness against the HARDEST of several backgrounds.
      *
      * @param array<string> $againsts
      */
@@ -347,9 +307,6 @@ class BHY_Contrast {
     // ---- WP adapter: settings -> palette, with caching -------------
 
     /**
-     * The derived `--bh-* => value` map for a BHY_Style settings array.
-     * inline_css() calls this.
-     *
      * @param array<string, mixed> $settings
      * @return array<string, string>
      */
@@ -358,11 +315,8 @@ class BHY_Contrast {
     }
 
     /**
-     * Cached derived palette for the GLOBAL settings (the common,
-     * no-entity path). Falls back to a live resolve on a cache miss or a
-     * seed change the save hook hasn't caught yet — a miss just costs a
-     * recompute, never a wrong colour, so a plain option is the right
-     * store (not OUS_ReliableStore).
+     * Cached derived palette for the global settings. A miss or stale
+     * signature just recomputes live, so a plain option is enough.
      *
      * @return array<string, string>
      */
@@ -376,23 +330,19 @@ class BHY_Contrast {
             return $cached['vars'];
         }
 
-        // Cache miss / stale (fresh install, or a save the hook hasn't
-        // processed yet): compute live, do NOT write from the render
-        // path. refresh_cache() on the next settings save repopulates.
+        // Never write from the render path; refresh_cache() repopulates on save.
         return self::resolve($seeds);
     }
 
     private static function store_palette(string $sig, array $vars): void {
-        // Autoload 'no': read only by inline_css(), which already loads
-        // this class; no reason to carry it on every page's option bulk.
+        // Autoload 'no': only inline_css() reads it.
         update_option(self::CACHE_OPTION, ['sig' => $sig, 'vars' => $vars], false);
     }
 
     // ---- hooks ----------------------------------------------------
 
     public static function init(): void {
-        // One seam catches all three BHY_Style write paths (gallery save,
-        // revision restore, REST token save) without editing any of them.
+        // Catches every BHY_Style write path (gallery save, revision restore, REST).
         add_action('update_option_' . BHY_Style::OPTION, [self::class, 'refresh_cache'], 10, 0);
         add_action('add_option_' . BHY_Style::OPTION, [self::class, 'refresh_cache'], 10, 0);
 
@@ -420,11 +370,8 @@ class BHY_Contrast {
     // ---- audit --------------------------------------------------
 
     /**
-     * One measured row per checked pairing. Covers the derived roles
-     * (against their own target) AND the raw seed pairings admins rely
-     * on but the old system never checked (text on surface, dim text,
-     * accent-as-text on the ground) — the pairs that quietly fail when
-     * someone picks a new theme.
+     * One measured row per pairing: derived roles against their targets,
+     * plus raw seed pairings that fail when a new theme is picked.
      *
      * @param array<string, string> $seeds
      * @return list<array<string, mixed>>
@@ -453,9 +400,7 @@ class BHY_Contrast {
             ];
         };
 
-        // Raw seed pairings — the hand-picked-and-hoped-for set the old
-        // system never checked. Strict targets live HERE; these are the
-        // rows that catch a bad theme choice.
+        // Raw seed pairings, with strict targets.
         $rows[] = $measure('Body text on surface', 'primary reading text', '--bh-text', '--bh-surface', ['apca' => 72, 'wcag' => 4.5]);
         $rows[] = $measure('Body text on background', 'primary reading text', '--bh-text', '--bh-bg', ['apca' => 72, 'wcag' => 4.5]);
         $rows[] = $measure('Dim text on surface', 'secondary text (seed field --bh-text-dim)', '--bh-text-dim', '--bh-surface', ['apca' => 45, 'wcag' => 3.0]);
@@ -463,7 +408,6 @@ class BHY_Contrast {
         $rows[] = $measure('Accent as text on background', 'accent used directly as a text colour', '--bh-accent', '--bh-bg', ['apca' => 55, 'wcag' => 4.5]);
         $rows[] = $measure('Border on surface', 'seed --bh-border divider visibility', '--bh-border', '--bh-surface', ['apca' => 12, 'wcag' => 1.3]);
 
-        // Derived roles against their own targets.
         foreach (self::spec() as $name => $r) {
             if (empty($r['target'])) continue;
             $against = is_array($r['against']) ? $r['against'] : [$r['against']];
@@ -502,8 +446,7 @@ class BHY_Contrast {
 
         self::render_audit_table('Current theme — ' . esc_html(self::current_theme_label()), self::audit_rows($current), true);
 
-        // Preset matrix: worst failing role per built-in theme preset, so
-        // "switch to that theme and text breaks" is visible up front.
+        // Worst failing role per built-in preset.
         echo '<h3 style="margin-top:2em">Built-in theme presets</h3>';
         echo '<p>Worst-failing role if you switched the whole site to each preset.</p>';
         $matrix = [];
@@ -580,8 +523,7 @@ class BHY_Contrast {
     }
 
     /**
-     * Every built-in preset expanded to a full seed map (preset values
-     * layered over DEFAULTS, same as picking it in the gallery would).
+     * Every built-in preset layered over DEFAULTS as a full seed map.
      *
      * @return array<string, array<string, string>>
      */

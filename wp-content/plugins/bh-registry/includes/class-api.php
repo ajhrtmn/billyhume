@@ -2,15 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * bhr/v1 — the one well-specified API every consumer shares: the WP
- * streaming app adding a new artist's feed as a source, a future native
- * app's own "add an artist" flow, and a plain fan-facing search/browse
- * page. All three read the same GET endpoints below; nothing here is
- * shaped around any one of them.
- *
- * Never returns contact_email — that field exists purely for admin
- * review/abuse-handling (see class-admin.php) and is never part of the
- * public contract.
+ * bhr/v1: the one public API shared by bh-streaming, native apps, and browse pages.
+ * WHY: never returns contact_email; it is admin-only (review/abuse handling).
  */
 class BHR_API {
     public static function register_routes(): void {
@@ -20,26 +13,11 @@ class BHR_API {
         register_rest_route('bhr/v1', '/artists/(?P<id>\d+)', [
             'methods' => 'GET', 'callback' => [self::class, 'get_artist'], 'permission_callback' => '__return_true',
         ]);
-        // The entire integration surface bh-streaming (or anything else
-        // that wants to add a feed source) needs: one resolved, already-
-        // validated feed URL, ready to hand straight to an importer.
-        // 404s if this artist has no verified feed link — a consumer
-        // should never have to know or care about verification/protocol
-        // internals beyond that.
+        // One verified feed URL ready for an importer; 404 if the artist has none.
         register_rest_route('bhr/v1', '/artists/(?P<id>\d+)/feed-url', [
             'methods' => 'GET', 'callback' => [self::class, 'get_feed_url'], 'permission_callback' => '__return_true',
         ]);
-        // Read-only track preview for a registered artist's feed — the
-        // piece a fan-facing "browse the global library" UI needs that
-        // didn't exist anywhere before: this registry always knew ARTIST-
-        // level entries (a feed URL), never individual tracks within one,
-        // since only bh-streaming's own importer ever parsed a feed down
-        // to track level, and only once an admin had already decided to
-        // permanently import it. This fetches and parses the feed live
-        // (same fetch_feed()/enclosure approach bh-streaming's own
-        // BHS_Feeds::sync_one() uses) WITHOUT importing or storing
-        // anything — a fan browsing the registry should be able to see
-        // what's actually on offer before any local record of it exists.
+        // Live, read-only track preview of an artist's feed; stores nothing.
         register_rest_route('bhr/v1', '/artists/(?P<id>\d+)/tracks', [
             'methods' => 'GET', 'callback' => [self::class, 'get_artist_tracks'], 'permission_callback' => '__return_true',
         ]);
@@ -51,11 +29,7 @@ class BHR_API {
             'methods' => 'POST', 'callback' => [self::class, 'trigger_verify'], 'permission_callback' => '__return_true',
         ]);
 
-        // Automatic discovery — open, __return_true like every other
-        // read route in this namespace. No privileged inbound endpoint
-        // at all: discovery is pull-only, this site's own already-
-        // public verified-artist data plus the peers it already
-        // chooses to crawl, nothing more.
+        // Pull-only discovery: no privileged inbound endpoint.
         if (class_exists('BHR_Crawl')) {
             register_rest_route('bhr/v1', '/peers/manifest', [
                 'methods' => 'GET', 'callback' => ['BHR_Crawl', 'handle_manifest'], 'permission_callback' => '__return_true',
@@ -63,18 +37,8 @@ class BHR_API {
         }
     }
 
-    // Unlike bh-streaming's REST API (which stays same-origin by
-    // default, since it mostly serves that site's own player page), this
-    // WHOLE namespace exists specifically to be called cross-origin —
-    // another WordPress site's "add an artist" flow, a native app, or a
-    // browse page hosted somewhere else entirely (see README.md's "one
-    // API, three consumers"). None of these routes rely on WordPress's
-    // cookie/nonce auth (every permission_callback above is either
-    // __return_true or a plain IP-based rate limit), so there's no
-    // credentialed-request risk in widening this to every origin —
-    // unlike enabling CORS on an authenticated endpoint, there's nothing
-    // here a malicious third-party page could trick a logged-in
-    // visitor's browser into doing on their behalf.
+    // WHY: open CORS is safe only because no bhr/v1 route uses cookie/nonce auth.
+    // Revisit this before adding any authenticated route to the namespace.
     public static function add_cors_headers(): void {
         add_filter('rest_pre_serve_request', function ($served, $result, $request) {
             if (strpos($request->get_route(), '/bhr/v1/') === 0) {
@@ -126,9 +90,7 @@ class BHR_API {
         $search   = sanitize_text_field((string) $req->get_param('search'));
         $protocol = sanitize_text_field((string) $req->get_param('protocol'));
 
-        // Public browse/search only ever surfaces 'active' artists —
-        // i.e. at least one verified link. Pending/rejected are never
-        // visible over this endpoint at all, regardless of query.
+        // Only 'active' artists (at least one verified link) are ever public.
         $sql = "SELECT * FROM $artists_t WHERE status = 'active'";
         $args = [];
         if ($search !== '') {
@@ -142,9 +104,7 @@ class BHR_API {
 
         $out = [];
         foreach ($artists as $artist) {
-            // Built and prepare()'d in one pass — never chain two
-            // prepare() calls on the same string (a %-containing escaped
-            // literal from the first pass can corrupt the second).
+            // WHY: never chain two prepare() calls; escaped % from the first corrupts the second.
             if ($protocol !== '') {
                 $link_query = $wpdb->prepare(
                     "SELECT * FROM $links_t WHERE artist_id = %d AND verification_status = 'verified' AND protocol = %s",
@@ -190,15 +150,7 @@ class BHR_API {
         return new WP_REST_Response(['success' => true, 'feed_url' => $link->url], 200);
     }
 
-    // Read-only preview of an artist's actual tracks — fetches and
-    // parses their feed live via fetch_feed() (WordPress core's own
-    // SimplePie-based parser, same as bh-streaming's own importer),
-    // requiring a real <enclosure> per item exactly like the openness
-    // check this registry already enforces at verification time. Never
-    // writes anything — no post, no cache table, nothing local created
-    // by browsing. A slow/unreachable remote feed here fails the same
-    // honest way get_feed_url() and the verification checks already do:
-    // a real WP_Error with the actual reason, not a silent empty list.
+    // Live track preview via fetch_feed(); items without an enclosure are skipped, nothing is stored.
     /** @return \WP_REST_Response|\WP_Error */
     public static function get_artist_tracks(\WP_REST_Request $req) {
         global $wpdb;
@@ -239,14 +191,7 @@ class BHR_API {
 
     /* ---------- submission ---------- */
 
-    // Deliberately unauthenticated (anyone can submit their own public
-    // link — that's the whole "voluntary, self-serve" point) but rate-
-    // limited via a transient keyed on IP, since an open POST endpoint
-    // with no auth is the obvious spam vector otherwise. This is a
-    // basic first line of defense, not the actual trust mechanism — the
-    // real trust mechanism is verification (class-verification.php);
-    // this just keeps the submission queue from being flooded before a
-    // human or the daily re-check ever looks at it.
+    // Unauthenticated self-serve submission, IP rate-limited against spam; trust comes from verification.
     /** @return \WP_REST_Response|\WP_Error */
     public static function create_submission(\WP_REST_Request $req) {
         $display_name = sanitize_text_field((string) $req->get_param('display_name'));
@@ -273,19 +218,13 @@ class BHR_API {
         $artists_t = BHR_Tables::artists();
         $links_t   = BHR_Tables::links();
 
-        // Match on contact_email if given, so the same artist adding a
-        // second link doesn't create a duplicate profile — otherwise
-        // every submission is its own new artist row.
+        // Reuse the artist row by contact_email so a second link doesn't duplicate the profile.
         $artist_id = null;
         if ($email) {
             $artist_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $artists_t WHERE contact_email = %s", $email));
         }
         if (!$artist_id) {
-            // Error-handling audit gap: this insert's return value was
-            // previously never checked — on failure, $wpdb->insert_id is
-            // stale (0 or a leftover value from a prior query), and this
-            // endpoint would still return a 201 "success" with a bogus
-            // artist_id, rather than the real 500 this actually is.
+            // WHY: on insert failure $wpdb->insert_id is stale, so check the return value.
             if (!$wpdb->insert($artists_t, [
                 'display_name'  => $display_name,
                 'bio'           => $bio,
@@ -301,11 +240,6 @@ class BHR_API {
         }
 
         $token = BHR_Verification::generate_token();
-        // Same gap, same fix — a failed link insert previously still
-        // returned 201 with $link_id = 0 (an insert_id stale from the
-        // artist insert above, or 0 on a fresh connection), handing the
-        // submitter a "success" response pointing at a link that was
-        // never actually created.
         if (!$wpdb->insert($links_t, [
             'artist_id'           => $artist_id,
             'protocol'            => $protocol,
@@ -335,12 +269,7 @@ class BHR_API {
         ], 201);
     }
 
-    // Rate-limited the same way create_submission is — this endpoint
-    // triggers real outbound HTTP requests (well-known fetch, feed
-    // fetch or ActivityPub actor fetch) against whatever host the link
-    // points at, so an unthrottled public POST here is both a DoS
-    // vector against this site and an amplification vector against
-    // arbitrary third-party hosts.
+    // WHY rate-limited: each call makes outbound requests to the link's host (DoS/amplification vector).
     /** @return \WP_REST_Response|\WP_Error */
     public static function trigger_verify(\WP_REST_Request $req) {
         $ip = self::client_ip();

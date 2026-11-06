@@ -2,36 +2,13 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Video, Phase 2 of ROADMAP-streaming-media-scope-and-blockchain.md
- * Part 5 — a genuinely separate CPT from bhs_track, not a generalized
- * "any media" post type. Per that doc's own reasoning: forcing
- * bhs_track's audio-specific fields (_bhs_audio_hash, ISRC — a
- * sound-RECORDING identifier standard with no video meaning at all) to
- * pretend to be medium-agnostic would be exactly the premature
- * abstraction this ecosystem's docs warn against elsewhere.
- *
- * v1 is deliberately tied to bhs_release (a release can optionally
- * have one video), not a standalone video catalog — the lower-risk,
- * more-reversible default the ROADMAP doc called for absent a real
- * answer yet on whether standalone video content is wanted.
- *
- * Explicitly NOT built here (per the ROADMAP doc, flagged as
- * known gaps rather than silently missing): a video identifier
- * placeholder (ISAN, the video analog of ISRC — skip until a real need
- * surfaces, same "don't build ahead of a real need" discipline as
- * BHS_ISRC's own mock-pattern docblock), feed import/export of video,
- * and any custom storage handling — video attachments are ordinary WP
- * attachments, so the already-installed advanced-media-offloader
- * plugin picks them up the same as any other upload with zero code
- * here.
+ * bhs_video post type, separate from bhs_track (audio-only fields like ISRC
+ * have no video meaning). A release can optionally link one video. Video
+ * attachments are ordinary WP attachments; no custom storage handling.
  */
 class BHS_VideoPostTypes {
-    // Called directly from the plugin's own 'init' hook (see
-    // bh-streaming.php), same as BHS_PostTypes::register() — CPT
-    // registration happens NOW, not via a nested add_action('init', ...)
-    // registered from inside an already-executing 'init' callback,
-    // which (per class-storefront.php's own documented bug precedent)
-    // never fires in that request.
+    // WHY: called directly from the plugin's 'init' hook; a nested
+    // add_action('init', ...) inside a running 'init' callback never fires.
     public static function init(): void {
         self::register();
         add_action('add_meta_boxes', [self::class, 'add_meta_box']);
@@ -57,14 +34,7 @@ class BHS_VideoPostTypes {
         add_meta_box('bhs_release_video', 'Video', [self::class, 'render_release_video_metabox'], 'bhs_release', 'normal', 'default');
     }
 
-    // Audit fix (2026-07-25): this used to be the only upload path in the
-    // whole plugin with zero first-party admin UI — an admin had to
-    // manually cURL the REST import endpoint and paste the resulting
-    // post ID back in by hand. Now a real wp.media picker (same pattern
-    // class-admin.php's Quality Encodes upload already uses), scoped to
-    // the video library, which WordPress's own media modal already lets
-    // you either pick an existing attachment OR upload a new one from —
-    // no separate REST call needed from the browser at all.
+    // wp.media picker (pick existing or upload) scoped to the video library.
     public static function render_release_video_metabox(\WP_Post $post): void {
         wp_nonce_field('bhs_save_release_video', 'bhs_release_video_nonce');
         $video_id = (int) get_post_meta($post->ID, '_bhs_release_video_id', true);
@@ -122,9 +92,7 @@ class BHS_VideoPostTypes {
         }
         if (strpos((string) get_post_mime_type($attachment_id), 'video/') !== 0) return;
 
-        // Reuse an existing bhs_video wrapping this same attachment if one
-        // already exists (e.g. re-picking the same file after a previous
-        // save) rather than creating a duplicate CPT post every save.
+        // Reuse an existing bhs_video for the same attachment rather than duplicate.
         $existing = get_posts([
             'post_type' => 'bhs_video', 'posts_per_page' => 1, 'fields' => 'ids',
             'meta_key' => '_bhs_video_id', 'meta_value' => (string) $attachment_id,
@@ -147,7 +115,7 @@ class BHS_VideoPostTypes {
         update_post_meta($post_id, '_bhs_release_video_id', $video_id);
     }
 
-    /* ---------- local upload (mirrors BHS_Import's audio path, MIME-gated to video) ---------- */
+    /* ---------- local upload (mirrors BHS_Import, MIME-gated to video) ---------- */
 
     public static function register_routes(): void {
         register_rest_route('bhs/v1', '/video-import', [
@@ -193,10 +161,7 @@ class BHS_VideoPostTypes {
 
         update_post_meta($post_id, '_bhs_video_id', $attachment_id);
 
-        // Same sha1 file-bytes duplicate-detection bh-streaming already
-        // runs on audio uploads — the check itself is medium-agnostic
-        // (it just hashes whatever file is attached), so it works
-        // unchanged for video with no modification to that class.
+        // Same sha1 duplicate detection as audio uploads.
         if (class_exists('BHS_AudioHash')) BHS_AudioHash::hash_and_check($post_id, $attachment_id);
 
         return new WP_REST_Response(['success' => true, 'video' => ['id' => $post_id, 'title' => get_the_title($post_id), 'url' => wp_get_attachment_url($attachment_id)]], 201);

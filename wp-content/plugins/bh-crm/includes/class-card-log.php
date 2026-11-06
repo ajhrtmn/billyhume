@@ -2,52 +2,15 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md Phase B — timestamped fixes +
- * a feedback log, per top-level kanban card. Ported from TrackIt's own
- * two distinct concepts, which this class keeps distinct rather than
- * merging into one generic "log" table, since they mean different
- * things and are read by different people:
+ * Per-card log for top-level kanban cards, rendered at the root of BHCRM_Subtasks::render().
  *
- * - A FIX is something the card's owner did — a specific change, at a
- *   specific timestamp_seconds (a literal number, e.g. seconds into a
- *   mix/recording — TrackIt's "mark the exact spot" convention, not
- *   necessarily tied to any audio player this plugin plays back), with
- *   its own resolved/unresolved state. bhcrm_project_fixes.
- * - FEEDBACK is something someone ELSE said about the card —
- *   deliberately keyed by a free-text author_name, not a user_id: real
- *   TrackIt feedback routinely comes from a client, a label contact, a
- *   collaborator with no account on this site at all. bhcrm_project_feedback.
- *
- * Both are keyed by card_placement_id (a bh/sticky-card row in
- * the-self-hosted-self's bhcore_element_placements table) — no FK, same
- * cross-plugin-table posture BHCRM_Projects' own card_moves table
- * (Phase C) already takes, for the same reason (that table lives in a
- * different plugin with its own engine/charset).
- *
- * Rendered on the card's own detail view (BHCRM_Subtasks::render(),
- * root level only — a sub-task node isn't itself a card and doesn't
- * get its own fixes/feedback), same "add-entry form + plain timestamped
- * list" UI shape BHCRM_Notes::render_editor() already established for
- * this plugin's per-person notes.
- *
- * Also owns Phase D ("Idea Drop") — TrackIt's own "drop a file onto a
- * card" feature, honestly ported: a browser genuinely cannot link an
- * arbitrary path on someone's local disk the way TrackIt (a native
- * macOS app) can, so this is NOT that. Two real options instead
- * (AJ's own call, 2026-07-25 — option (b) first):
- * (a) a real upload into the WordPress media library, attached to the
- *     card — a COPY, not a link, an honest behavior difference from
- *     TrackIt's "nothing gets moved or changed" promise.
- * (b) linking to a track ALREADY imported into bh-streaming's own
- *     library, by id — genuinely "link, don't copy," but only for
- *     files already inside that system. Used when bh-streaming is
- *     active; falls back to (a) otherwise. Scoped to the card's own
- *     linked person's ($uid's) own imports (BHS_Import::imports_for_user())
- *     — never the whole site's catalog.
- * bhcrm_project_attachments holds either kind of row.
+ * - Fixes: changes made, at an optional timestamp_seconds (e.g. a spot in a mix), resolvable.
+ * - Feedback: notes from others, keyed by free-text author_name (authors often have no account).
+ * - Idea Drop attachments: a link to the person's own bh-streaming track (no copy), or a media upload (a copy).
+ * All keyed by card_placement_id (core placement id, no FK).
  */
 class BHCRM_CardLog {
-    const DB_VERSION = '1.1'; // 1.1 — Phase D: bhcrm_project_attachments (track links + uploads)
+    const DB_VERSION = '1.1';
 
     public static function init(): void {
         self::maybe_upgrade();
@@ -113,12 +76,7 @@ class BHCRM_CardLog {
             KEY card_placement_id (card_placement_id)
         ) $charset;");
 
-        // Phase D — either a track_post_id (kind='track_link', a
-        // bh-streaming bhs_track id, no copy) or a wp_attachment_id
-        // (kind='upload', a real media-library copy) is set, never
-        // both — enforced in code (add_track_link()/add_upload()
-        // below), not a DB constraint, since MySQL has no clean
-        // "exactly one of these two columns is non-zero" check.
+        // Exactly one of track_post_id (kind='track_link') or wp_attachment_id (kind='upload') is set; enforced in code.
         $attachments = self::attachments_table();
         dbDelta("CREATE TABLE $attachments (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -200,7 +158,7 @@ class BHCRM_CardLog {
     }
 
     /* =================================================================
-     * Phase D — Idea Drop (track links + uploads)
+     * Idea Drop (track links + uploads)
      * ================================================================= */
 
     /** @return int|false */
@@ -241,12 +199,7 @@ class BHCRM_CardLog {
         return (bool) $wpdb->delete(self::attachments_table(), ['id' => (int) $attachment_id]);
     }
 
-    // Real trust-boundary handling: media_handle_upload() performs no
-    // capability check of its own, and bhcore_manage_crm could in
-    // theory be granted to an account with no upload_files — grant it
-    // for the duration of this one call only, never persisted, same
-    // pattern the-self-hosted-self's class-public-profile.php and bh-feedback's
-    // class-requests.php already use for their own upload forms.
+    // WHY: a bhcore_manage_crm user may lack upload_files; grant it for this one call only, never persisted.
     /** @return int|\WP_Error */
     private static function handle_file_upload(string $field) {
         require_once ABSPATH . 'wp-admin/includes/image.php';
@@ -317,11 +270,7 @@ class BHCRM_CardLog {
             echo '</ul>';
         }
 
-        // Option (b) first: linking to an already-imported bh-streaming
-        // track, scoped to the card's own linked person's imports —
-        // genuinely "link, don't copy." Falls back to a real upload
-        // when bh-streaming isn't active, or when $uid is 0 (no linked
-        // person to scope a track picker to).
+        // Track picker scoped to this person's own imports; needs bh-streaming and a non-zero $uid.
         if (class_exists('BHS_Import') && $uid) {
             $tracks = BHS_Import::imports_for_user($uid);
             if ($tracks) {
@@ -427,10 +376,8 @@ class BHCRM_CardLog {
     }
 
     /* =================================================================
-     * admin-post handlers — same bhcore_manage_crm gate every other
-     * project-tracker mutation in this plugin already uses (adding a
-     * fix/feedback note isn't destructive).
-     * =================================================================     */
+     * admin-post handlers (bhcore_manage_crm)
+     * ================================================================= */
 
     private static function redirect_to_card(int $project_id, int $uid, int $card_id): void {
         wp_safe_redirect(add_query_arg([

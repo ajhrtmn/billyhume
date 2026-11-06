@@ -2,18 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The reviewer side — a self-serve claim queue (AJ's own call, Tier 1d
- * design pass), not admin-assigned. Any account holding
- * `bhcore_review_submissions` can browse open requests and claim one;
- * claiming, completing, and seeing the queue are all gated by that ONE
- * capability, not separate checks — see bh-feedback.php's top docblock.
- *
- * claim()/release()/complete() all use the same atomic
- * conditional-UPDATE-on-postmeta pattern BHM_Wallet::debit() uses on
- * its own balance column — the check and the write are the SAME
- * statement, so two reviewers claiming the same request at nearly the
- * same instant can't both succeed (a real TOCTOU race a plain
- * read-then-update would be vulnerable to).
+ * Reviewer side: a self-serve claim queue gated by the single
+ * `bhcore_review_submissions` capability. claim()/release()/complete() use
+ * atomic conditional UPDATEs so two reviewers can't both claim a request.
  */
 class BHF_Queue {
     public static function init(): void {
@@ -42,19 +33,8 @@ class BHF_Queue {
         ]);
     }
 
-    // Real bug caught via this class's own test suite: a raw $wpdb
-    // UPDATE against wp_postmeta bypasses WordPress's post-meta object
-    // cache entirely — a subsequent get_post_meta() call in the SAME
-    // request can still return the value from BEFORE this update, since
-    // nothing told the cache the row underneath it changed.
-    // clean_post_cache() (WP core's own public invalidation function,
-    // the same one wp_insert_post()/update_post_meta() call internally)
-    // is called after every raw status UPDATE below for exactly this
-    // reason — claim()/release() happened to work by accident (a LATER
-    // update_post_meta() call for a different key busts the whole
-    // post's cache as a side effect), but complete() had no such
-    // incidental call and returned success while get_post_meta()
-    // silently kept reporting the OLD status.
+    // WHY: a raw $wpdb UPDATE on postmeta bypasses the meta cache, so
+    // clean_post_cache() follows every status UPDATE below.
     public static function claim(int $request_id, int $reviewer_id): bool {
         global $wpdb;
         $wpdb->query($wpdb->prepare(
@@ -68,9 +48,7 @@ class BHF_Queue {
         return true;
     }
 
-    // Only the reviewer who actually holds the claim can release it —
-    // guarded in the SAME atomic statement (not a separate check-then-
-    // act), so a stale/forged request can't release someone else's claim.
+    // Only the claim holder can release, checked in the same atomic statement.
     public static function release(int $request_id, int $reviewer_id): bool {
         global $wpdb;
         $current_reviewer = (int) get_post_meta($request_id, '_bhf_reviewer_id', true);
@@ -97,14 +75,8 @@ class BHF_Queue {
         clean_post_cache($request_id);
 
         $tier = get_post_meta($request_id, '_bhf_tier', true) ?: 'quick_take';
-        // UNIQUE KEY on request_id — a request only ever gets one review
-        // row, ever (no revision history in v1). If this somehow fails
-        // (a request already had a review row from a prior, buggy path),
-        // the status transition above still stands rather than being
-        // rolled back — a completed request with no review text is a
-        // rare, visible anomaly an admin can investigate directly in the
-        // bh_feedback_reviews table, preferable to leaving the request
-        // stuck in "claimed" forever with no record anything happened.
+        // UNIQUE KEY on request_id: one review per request. If the insert fails
+        // the status transition still stands, rather than leaving it "claimed".
         $wpdb->insert(BHF_Tables::reviews(), [
             'request_id' => $request_id, 'reviewer_user_id' => $reviewer_id, 'tier' => $tier, 'body' => wp_kses_post($body),
         ]);

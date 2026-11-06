@@ -2,81 +2,22 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BH_Element — the placement/capability/render layer of the "element
- * builder" (ELEMENT-BUILDER-DESIGN-PLAN.md Section 3.1): registry + slot
- * rendering (Phase 1) and real data binding via BH_Element_Data (Phase
- * 2). No visual drag/drop builder GUI here (that's the doc's Phase
- * "GUI" step) — placements are managed through a bare Debug Tools list
- * (add/remove/reorder), proving the storage + render + capability spine
- * with the least surface area.
+ * Element placement registry, storage, rendering, and REST bridge.
  *
- * Element TYPES are registered in code (register_type()), never in the
- * DB — same as BH_Content block types and BH_Event event types. A type
- * ships with a plugin and degrades gracefully (renders nothing) if that
- * plugin later deactivates, exactly like BH_Content::render() skips an
- * unregistered block type.
+ * Element TYPES are registered in code (register_type()) and render nothing if their plugin is
+ * inactive. PLACEMENTS live in bhcore_element_placements: "this type, configured this way, in
+ * this slot on this surface for this context, at this position."
  *
- * Element PLACEMENTS are stored in bhcore_element_placements (see
- * class-identity-activator.php DB_VERSION 1.9) — "this type, configured
- * this way, sits in this slot on this surface for this context, at this
- * position."
- *
- * The REST bridge (read/write placements, list types/surfaces/sources,
- * a preview-render endpoint — design doc §3.4) wires the `bh_crm_profile`
- * surface (design doc §5.2, see register_routes()/rest_*() below and
- * BHCRM_People::render_detail()). This is still not the visual builder
- * GUI (§4) — the routes exist so a future GUI or REST client can
- * read/write placements; the bare Debug Tools list still manages
- * placements today, now scoped-selectable per surface/context (see
- * render_debug_section()).
- *
- * `parent_placement_id` (reserved but unused in class-identity-
- * activator.php's DB_VERSION 1.9 table) gives a real, shallow tree of
- * placements WITHIN one surface/slot, closing the "Pages" rail's flat-
- * list gap (DESIGN-SUITE-UNIFICATION-PLAN.md §2). `save_placement()`
- * enforces two invariants on a non-zero `parent_placement_id`: the
- * parent must live in the exact same (surface, surface_context_id,
- * slot) — no cross-slot trees — and (on update) accepting the new
- * parent must not create a cycle (see `would_create_cycle()`),
- * fail-closed rather than silently accepting either violation.
- * `render_slot()`/`render_placement()` are tree-aware: `render_slot()`
- * fetches every placement for the slot in ONE query, builds an
- * in-memory parent id => children map, and renders only the roots
- * (parent_placement_id === 0), with `render_placement()` recursing into
- * each node's own children — never a second query per tree level. This
- * placement-nesting tree is a SEPARATE, shallower mechanism from the
- * pre-existing `bh/container` -> `BH_Content` bridge (a container's
- * "nested content" still opens the Content Studio canvas for its own
- * `BH_Content` sub-tree, addressed by `content_context_id`) — the two
- * nesting mechanisms coexist and are never conflated. REST:
- * `GET .../placements` stays the flat, grouped-by-slot shape every
- * existing consumer (`BH_Element_Prefab`, the Debug Tools list,
- * `element-builder.js`'s state array) already depends on — each row
- * carries its own real `parent_placement_id`, so the CLIENT builds the
- * tree from the flat array rather than this route growing a second,
- * parallel nested shape. `POST .../placements` reads and persists a
- * `parent_placement_id` per entry and computes `position` PER PARENT
- * GROUP (sibling-scoped) instead of by raw array index — see
- * `rest_save_placements()`'s own comment for the exact contract.
- * `delete_placement()` promotes any children of a deleted placement
- * back to root (parent_placement_id reset to 0) rather than leaving
- * them pointing at a now-nonexistent parent id.
- *
- * The left-rail tree (one per surface, rooted at a synthetic
- * client-side "Site" node — this class emits no row/id for it; see
- * element-builder.js's own docblock for how the client recognizes it)
- * implements DESIGN-SUITE-UNIFICATION-PLAN.md's "FINAL ARCHITECTURE"
- * note. Server-side, `parent_placement_id === 0` still means "root of
- * this surface's tree." `get_placement()` (single-row fetch) and
- * `get_subtree()` (root-first flat walk of a node plus every
- * descendant) back `BH_Element_Prefab`'s full-subtree snapshot/restore.
+ * Placements form a shallow tree per slot via parent_placement_id (0 = root). save_placement()
+ * requires the parent to be in the same (surface, context, slot) and rejects cycles.
+ * render_slot() fetches the slot in ONE query and recurses in memory. This tree is separate
+ * from the bh/container -> BH_Content bridge (content_context_id). REST GET returns a flat
+ * array (clients build the tree); delete_placement() promotes children to root.
  */
 class BH_Element {
-    /** @var array<string, array> slug => manifest (including the 'render' callable) */
     /** @var array<string, array<string, mixed>> slug => manifest (including the 'render' callable) */
     private static $types = [];
 
-    /** @var array<string, array> surface slug => ['group'=>,'label'=>,'slots'=>[...],'context'=>,'preview_ctx'=>callable] */
     /** @var array<string, array<string, mixed>>|null surface slug => ['group'=>,'label'=>,'slots'=>[...],'context'=>,'preview_ctx'=>callable] */
     private static $surfaces_cache = null;
 
@@ -91,26 +32,10 @@ class BH_Element {
     }
 
     /**
-     * LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 1 — the "__library"
-     * sandbox surface. This is what lets Design Suite's Library tab reuse
-     * the EXACT SAME tree/inspector/add-child machinery Structure already
-     * uses to author a real, nested, Godot-style composition for a
-     * Component, instead of building a second, parallel editor. It is
-     * registered like any other surface (so save_placement()'s existing
-     * validation, instantiate()'s BH_Element::get_surface() check, and
-     * every other generic placement code path just works against it) but
-     * flagged 'internal' => true so it's excluded from the bulk GET
-     * .../elements/surfaces response (rest_get_surfaces(), below) — it
-     * must never silently appear in the ordinary Structure tree at boot,
-     * only when the Library tab's JS explicitly injects it client-side
-     * while actively editing one specific component (see element-
-     * builder.js's window.bhElementLibrary bridge). "context_id" here is
-     * a Library Component's own id (== the bhcore_element_prefabs row id
-     * it publishes into) — genuinely different from every other
-     * registered surface, which the Structure tree always loads at a
-     * fixed context_id of 0.
-     */
-    /**
+     * The internal "__library" sandbox surface, so the Library tab reuses the normal placement
+     * editor for a Component. context_id is the Component (prefab) id. Flagged 'internal' so
+     * rest_get_surfaces() excludes it from the Structure tree.
+     *
      * @param array<string, mixed> $surfaces
      * @return array<string, mixed>
      */
@@ -124,74 +49,45 @@ class BH_Element {
         return $surfaces;
     }
 
-    /**
-     * First-party element types the-self-hosted-self itself ships (design doc
-     * §6 Phase 1's 'bh/note' plus Phase 2's demonstration 'bh/stat-
-     * card'). Peer plugins register their OWN types the same
-     * class_exists('BH_Element')-guarded way from their own bootstrap —
-     * this is deliberately not an exhaustive element library, just
-     * enough to prove the spine end-to-end.
-     */
+    /** First-party types: bh/note, bh/container, bh/stat-card. Peers register their own. */
     private static function register_default_types(): void {
         self::register_type('bh/note', [
             'label'    => 'Note',
             'category' => 'text',
             'icon'     => 'dashicons-media-text',
-            'surfaces' => '*', // generic static text, valid anywhere — Phase 1's minimal proof element
+            'surfaces' => '*', // generic static text, valid anywhere
             'container' => false,
             'schema' => [
                 'text' => ['type' => 'html', 'default' => '', 'bindable' => false],
             ],
             'style' => ['color_accent', 'radius'],
-            // §2.6 — a generic content block: several structural tags make
-            // sense, no link-shaped attrs are meaningful.
             'tags'  => ['div', 'section', 'article', 'aside'],
             'attrs' => ['id' => true, 'class' => true, 'title' => true, 'aria-label' => true],
             'render' => function (array $attrs, array $ctx, array $instance) {
-                // $attrs['text'] was already wp_kses_post()-coerced by
-                // BH_Element::coerce_attr() per its schema 'type' => 'html'
-                // above — safe to print without a second escape pass (an
-                // additional esc_html() here would mangle the allowed
-                // markup kses already sanitized down to).
+                // 'text' is already wp_kses_post()-coerced (schema type 'html'); escaping again would mangle it.
                 $text = $attrs['text'] !== '' ? $attrs['text'] : '<em>(empty note)</em>';
                 return '<div class="bh-el-note">' . $text . '</div>';
             },
         ]);
 
-        // The design doc's §1.1 hybrid-nesting bridge, built out this
-        // pass: a container element owns no attrs of its own beyond an
-        // optional heading — its real "content" is an embedded BH_Content
-        // subtree at ('bh_element', content_context_id), edited via the
-        // EXISTING BH_Studio canvas (ous/v1/studio/bh_element/{id}), not a
-        // second tree editor. save_placement() below auto-assigns
-        // content_context_id = the placement's own id the first time a
-        // container placement is saved (see save_placement()'s docblock),
-        // so there is exactly one BH_Content document per container
-        // placement, addressable the moment the placement itself exists.
+        // A container's content is an embedded BH_Content tree at ('bh_element', content_context_id),
+        // edited in the BH_Studio canvas; save_placement() sets content_context_id to the placement's own id.
         self::register_type('bh/container', [
             'label'    => 'Container',
             'category' => 'layout',
             'icon'     => 'dashicons-layout',
-            'surfaces' => '*', // a generic layout shell — valid on every surface, same as bh/note
+            'surfaces' => '*', // generic layout shell, valid on every surface
             'container' => true,
             'schema' => [
                 'heading' => ['type' => 'string', 'default' => '', 'bindable' => false],
             ],
             'style' => ['color_accent', 'radius', 'space_scale'],
-            // §2.6 — a layout shell: 'section'/'article' are both
-            // reasonable semantic choices for a themed content grouping.
             'tags'  => ['div', 'section', 'article'],
             'attrs' => ['id' => true, 'class' => true, 'aria-label' => true],
             'render' => function (array $attrs, array $ctx, array $instance) {
                 $heading = trim((string) $attrs['heading']);
                 $heading_html = $heading !== '' ? '<h3 class="bh-el-container-heading">' . esc_html($heading) . '</h3>' : '';
-                // $instance['content'] is already-rendered HTML from
-                // BH_Content::render() on this placement's nested tree —
-                // see BH_Element::render_placement()'s container branch.
-                // It is deliberately NOT re-escaped here (it's a rendered
-                // HTML fragment, not a text node), matching the same
-                // reasoning bh/note's docblock gives for its own 'html'
-                // schema-typed attr.
+                // $instance['content'] is already-rendered BH_Content HTML; deliberately not re-escaped.
                 return '<div class="bh-el-container">' . $heading_html . $instance['content'] . '</div>';
             },
         ]);
@@ -200,18 +96,14 @@ class BH_Element {
             'label'    => 'Stat card',
             'category' => 'data',
             'icon'     => 'dashicons-chart-bar',
-            'surfaces' => ['dashboard', 'bh_crm_profile'], // per design doc §5.1/§5.2's named targets
+            'surfaces' => ['dashboard', 'bh_crm_profile'],
             'container' => false,
             'schema' => [
                 'label' => ['type' => 'string', 'default' => 'Stat',    'bindable' => false],
                 'value' => ['type' => 'string', 'default' => '—',       'bindable' => true, 'kind' => 'scalar'],
             ],
             'style' => ['color_accent', 'radius', 'space_scale'],
-            // §2.6's demonstration of tag-choice + href/target: a stat
-            // card is a plausible "click through to the detail view" CTA,
-            // so it opts into rendering as an <a> with href/target/rel —
-            // while still defaulting to a plain <div> for the common
-            // non-linked case (tags' first entry is always the default).
+            // Can render as <a> for a click-through CTA; the first tag ('div') is the default.
             'tags'  => ['div', 'a'],
             'attrs' => [
                 'id' => true, 'class' => true, 'aria-label' => true,
@@ -219,29 +111,11 @@ class BH_Element {
                 'target' => ['enum' => ['_self', '_blank']],
                 'rel'    => true,
             ],
-            // §3.2 v1 — this is THE live demo element the design doc's
-            // Phase 5 "testable" line names ("a live stat-card refreshes
-            // its bound count without a page reload"). Its 'value' attr
-            // is already the one thing on this whole install genuinely
-            // bound to a live-changing source (bhcore_events.count —
-            // see render_add_bound_demo_button()'s handler below), which is
-            // exactly why it was picked rather than inventing a new
-            // element just for this.
+            // Live type: its bound 'value' refreshes in place via element-live.js.
             'live' => true,
             'render' => function (array $attrs, array $ctx, array $instance) {
-                // 'label' is schema type 'string' -> coerce_attr() already
-                // cast it to a plain string, but a string coercion is NOT
-                // an escape — esc_html() both attrs here explicitly, since
-                // this render callable is the actual HTML text-node output
-                // boundary BH_Element_Data::resolve()'s docblock says is
-                // the caller's job, not the resolver's.
-                //
-                // 'data-bhel-bind="value"' is the ONLY new thing this
-                // pass adds to this render callable — a stable, specific
-                // hook for element-live.js to patch in place (querying
-                // for it inside this placement's data-placement-id
-                // wrapper) rather than replacing the whole wrapper's
-                // innerHTML, which would also stomp the label.
+                // esc_html() here: coercion to string is not escaping, and this callable is the output boundary.
+                // data-bhel-bind="value" lets element-live.js patch just the value, not the label.
                 return '<div class="bh-el-stat-card">'
                     . '<div class="bh-el-stat-card-value" data-bhel-bind="value">' . esc_html((string) $attrs['value']) . '</div>'
                     . '<div class="bh-el-stat-card-label">' . esc_html((string) $attrs['label']) . '</div>'
@@ -253,30 +127,8 @@ class BH_Element {
     }
 
     /**
-     * the-self-hosted-self's own built-in palette was previously just two generic
-     * primitives (bh/note, bh/container above) plus two plugin-owned,
-     * genuinely DATA-BOUND widgets (bh/stat-card here, bh-crm's
-     * bh/sticky-card) — nowhere near enough to build a real page without
-     * reaching for a plugin that has no business owning a plain heading
-     * or button. register_
-     * type() itself isn't going away (a real data-bound widget like
-     * stat-card legitimately needs PHP: a schema, a bindable attr, a
-     * render callable), but that mechanism should be reserved for things
-     * that actually need code behind them — not for basic building
-     * blocks every builder ships intrinsically (Wix/Webflow/HubSpot all
-     * have a small fixed set of true primitives — Div, Text, Image,
-     * Button, Section — that were never something a "plugin" declared).
-     *
-     * These five are that fixed set for THIS ecosystem: heading, image,
-     * button, divider, and a plain generic block (bh/note, above,
-     * already covers freeform rich text). All 'surfaces' => '*' (usable
-     * everywhere, no plugin opt-in needed), all schema attrs 'bindable'
-     * => false EXCEPT where a real content field makes sense to someday
-     * bind (image src, button label/href) — left false for now since
-     * data-binding v1 (BH_Element_Data) only resolves scalar 'value'-
-     * shaped binds today; flip these on later without any other change
-     * once that's proven out further, per the design doc's own v2/v3
-     * status notes.
+     * Built-in primitives usable on every surface: heading, image, button, divider (bh/note covers
+     * rich text). Attrs are not bindable yet; BH_Element_Data only resolves scalar values.
      */
     private static function register_generic_primitives(): void {
         self::register_type('bh/heading', [
@@ -289,9 +141,7 @@ class BH_Element {
                 'text' => ['type' => 'string', 'default' => 'Heading', 'bindable' => false],
             ],
             'style' => ['color_accent', 'space_scale'],
-            // §2.6 — the tag picker IS the "h1 vs h2 vs h3" choice; no
-            // separate 'level' attr needed, same mechanism bh/stat-card
-            // already uses to let a placement choose div vs a.
+            // The tag choice is the heading level; no separate 'level' attr.
             'tags'  => ['h2', 'h1', 'h3', 'h4', 'h5', 'h6'],
             'attrs' => ['id' => true, 'class' => true],
             'render' => function (array $attrs, array $ctx, array $instance) {
@@ -310,7 +160,7 @@ class BH_Element {
                 'alt' => ['type' => 'string', 'default' => '', 'bindable' => false],
             ],
             'style' => ['radius'],
-            'tags'  => ['div'], // the <img> itself is the render output; the wrapper tag has no other reasonable choice
+            'tags'  => ['div'], // the <img> is the render output; the wrapper has no other sensible tag
             'attrs' => ['id' => true, 'class' => true],
             'render' => function (array $attrs, array $ctx, array $instance) {
                 $src = (string) $attrs['src'];
@@ -329,10 +179,7 @@ class BH_Element {
                 'label' => ['type' => 'string', 'default' => 'Click here', 'bindable' => false],
             ],
             'style' => ['color_accent', 'radius'],
-            // §2.6 — a button is the canonical "sometimes a link, usually
-            // an actual button" case: 'a' first (the common CTA use),
-            // 'button' available when it should submit/trigger JS instead
-            // of navigating.
+            // 'a' first (common CTA), 'button' when it should trigger JS rather than navigate.
             'tags'  => ['a', 'button'],
             'attrs' => [
                 'id' => true, 'class' => true, 'aria-label' => true,
@@ -356,14 +203,12 @@ class BH_Element {
             'tags'  => ['hr'],
             'attrs' => ['id' => true, 'class' => true],
             'render' => function (array $attrs, array $ctx, array $instance) {
-                return ''; // <hr> is a void element — wrap_placement_html()'s new void-tag branch renders it with no closing tag/children regardless of what's returned here
+                return ''; // <hr> is void: wrap_placement_html() renders it with no closing tag/children
             },
         ]);
     }
 
-    /* =================================================================
-     * §3.1 — type registry
-     * ================================================================= */
+    /* ---------------- type registry ---------------- */
 
     /**
      * @param string $slug Namespaced type, e.g. 'bh/stat-card', 'bh/note'.
@@ -371,25 +216,27 @@ class BH_Element {
      *   'label'     => 'Stat card',
      *   'category'  => 'data'|'layout'|'text'|'media',
      *   'icon'      => 'dashicons-chart-bar',
-     *   'surfaces'  => ['dashboard','bh_crm_profile'] | '*',   // §1.3 capability manifest
+     *   'surfaces'  => ['dashboard','bh_crm_profile'] | '*',   // capability manifest
      *   'container' => false,                                  // does it own a BH_Content subtree?
      *   'schema'    => [
      *        'value' => ['type' => 'string', 'default' => '', 'bindable' => true,  'kind' => 'scalar'],
      *        'label' => ['type' => 'string', 'default' => '', 'bindable' => false],
      *   ],
      *   'style'     => ['color_accent','radius','space_scale'],
-     *   'attrs'     => [                                        // §2.6 — HTML-attribute manifest, additive/optional
+     *   'attrs'     => [                                        // HTML-attribute manifest, optional
      *        'id' => true, 'class' => true, 'aria-label' => true,
      *        'href' => ['type' => 'url'], 'target' => ['enum' => ['_self','_blank']],
      *        'data-status' => ['enum' => ['todo','in_progress','done']], // a pre-declared, structured data-* attr
-     *        'data-*' => true,                                   // opts into the freeform custom data-attr row editor
+     *        'data-*' => true,                                   // opts into freeform custom data-* attrs
      *   ],
-     *   'tags'      => ['div','section','article'],              // §2.6 — allowed semantic tags; first = default. Omitted -> ['div'] (today's implicit behavior, unchanged)
+     *   'tags'      => ['div','section','article'],              // allowed semantic tags; first = default. Omitted -> ['div']
+     *   'live'      => false,                                    // opt-in in-place refresh via element-live.js
+     *   'states'    => [],                                       // optional default fixture states (seed only)
      *   'render'    => function(array $attrs, array $ctx, array $instance): string { ... },
      * }
      * @return bool true if accepted, false if rejected (missing 'render' callable — logged, never fatal).
+     * @param array<string, mixed> $args
      */
-    /** @param array<string, mixed> $args */
     public static function register_type(string $slug, array $args): bool {
         $slug = trim((string) $slug);
         if ($slug === '') return false;
@@ -404,13 +251,6 @@ class BH_Element {
         $surfaces = $args['surfaces'] ?? [];
         if ($surfaces !== '*' && !is_array($surfaces)) $surfaces = [];
 
-        // PHPStan-confirmed dead code: both ternary branches above always
-        // produce a non-empty array (the false branch is a literal
-        // ['div']; the true branch only runs when $args['tags'] is
-        // already non-empty, and array_map()/array_values() preserve
-        // that count) — the "never allow empty" guard this used to have
-        // here could never actually trigger. Removed rather than kept as
-        // defensive dead code.
         $tags = (!empty($args['tags']) && is_array($args['tags'])) ? array_values(array_map('sanitize_key', $args['tags'])) : ['div'];
 
         self::$types[$slug] = [
@@ -421,56 +261,22 @@ class BH_Element {
             'container' => !empty($args['container']),
             'schema'    => is_array($args['schema'] ?? null) ? $args['schema'] : [],
             'style'     => is_array($args['style'] ?? null) ? $args['style'] : [],
-            // §2.6 — per-type HTML-attribute allowlist. A type with no
-            // 'attrs' key gets a minimal default (id/class/aria-label);
-            // it never gets href/data-* etc. unless it opts in — same
-            // "manifest opt-in" pattern the existing 'style' list uses.
+            // No 'attrs' key -> minimal id/class/aria-label allowlist; href/data-* only by opt-in.
             'attrs'     => is_array($args['attrs'] ?? null) ? $args['attrs'] : ['id' => true, 'class' => true, 'aria-label' => true],
             'tags'      => $tags,
             'render'    => $args['render'],
-            // DESIGN-SUITE-UNIFICATION-PLAN.md §3.2 v1 — opt-in manifest
-            // flag: does this type's rendered wrapper get a data-bhel-
-            // live="1" marker (wrap_placement_html()) so the front-end
-            // JS helper (assets/js/element-live.js) periodically re-
-            // POSTs to POST ous/v1/elements/resolve and patches its
-            // bound value in place, without a full page reload? Most
-            // types stay non-live (cheap, static) — only ones that
-            // genuinely benefit opt in, same "manifest opt-in" posture
-            // 'attrs'/'tags' already use.
+            // Opt-in: adds data-bhel-live="1" so element-live.js re-POSTs /elements/resolve and patches in place.
             'live'      => !empty($args['live']),
-            // LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2 — optional
-            // code-declared default fixture states for a Primitive type
-            // (owner_kind 'type' rows in bhcore_element_states, see
-            // class-element-state.php's own docblock). This is a
-            // CONVENIENCE seed only, not the source of truth: it exists
-            // so a type's author can ship sane Default/Empty-style
-            // states inline with register_type() instead of every
-            // install having to hand-author them once in the Library
-            // tab; BH_Element_State::for_owner('type', $slug) is what
-            // Design Suite's Library tab actually reads at render time,
-            // and a real DB row always wins if one already exists for
-            // that (owner_kind, owner_key, name) — seeding never
-            // overwrites an author's own edited state. Shape, one entry
-            // per state: ['name' => 'empty', 'label' => 'Empty', 'fixtures' => [ 'source.slug' => mockValue, ... ]].
-            // Seeding itself (the "does a row already exist" check and
-            // insert) happens in maybe_seed_default_states() below, not
-            // here — register_type() only ever populates the in-memory
-            // manifest.
+            // Optional code-declared fixture states, seeded lazily by maybe_seed_default_states(); an
+            // existing DB row always wins. Entry: ['name' => 'empty', 'label' => 'Empty', 'fixtures' => ['source.slug' => mock]].
             'states'    => is_array($args['states'] ?? null) ? $args['states'] : [],
         ];
         return true;
     }
 
     /**
-     * Runs a code-declared type's 'states' manifest (register_type()'s
-     * new optional key, immediately above) through BH_Element_State's
-     * own insert(), but ONLY for states that don't already exist for
-     * this (owner_kind, owner_key, name) — never overwrites a row an
-     * author has since edited in the Library tab UI. Deliberately not
-     * called automatically on every 'init' (that would mean a DB write
-     * attempt on every single request); callers (e.g. the Library tab's
-     * "load states for this type" REST path) invoke this once, lazily,
-     * the first time a type's states are actually asked for.
+     * Seeds a type's code-declared 'states' into BH_Element_State, only where no row exists yet
+     * (never overwrites edits). Called lazily, not on every 'init', to avoid per-request writes.
      */
     public static function maybe_seed_default_states(string $slug): void {
         if (!class_exists('BH_Element_State')) return;
@@ -506,8 +312,11 @@ class BH_Element {
         return $type ? $type['container'] : false;
     }
 
-    /** Manifest-admitted types for a surface — the single source of truth the palette (and Phase-1's Debug Tools "add" form) reads. */
-    /** @return array<string, array<string, mixed>> */
+    /**
+     * Manifest-admitted types for a surface (the palette's source of truth).
+     *
+     * @return array<string, array<string, mixed>>
+     */
     public static function types_for_surface(string $surface): array {
         $surface = (string) $surface;
         $out = [];
@@ -520,12 +329,13 @@ class BH_Element {
         return $out;
     }
 
-    /* =================================================================
-     * §3.3 — surface + capability contract
-     * ================================================================= */
+    /* ---------------- surface + capability contract ---------------- */
 
-    /** Surfaces self-register their own slots via this filter — same shape as bhy_style_surfaces/bhi_portal_panels. Cached per-request (the filter's registrants don't change mid-request). */
-    /** @return array<string, array<string, mixed>> */
+    /**
+     * Surfaces self-register via a filter; cached per request.
+     *
+     * @return array<string, array<string, mixed>>
+     */
     public static function registered_surfaces(): array {
         if (self::$surfaces_cache === null) {
             self::$surfaces_cache = apply_filters('bh_element_surfaces', []);
@@ -540,9 +350,7 @@ class BH_Element {
         return $surfaces[(string) $surface] ?? null;
     }
 
-    /* =================================================================
-     * §2.1 — placement storage (thin wrappers over bhcore_element_placements)
-     * ================================================================= */
+    /* ---------------- placement storage ---------------- */
 
     private static function table(): string {
         return OUS_Tables::element_placements();
@@ -552,9 +360,8 @@ class BH_Element {
      * @param string   $surface
      * @param int      $context_id 0 for a singleton surface (global dashboard); else the entity id.
      * @param string|null $slot    Restrict to one slot, or null for every slot on this (surface, context).
-     * @return array Ordered rows (position ASC), each with 'config' already json_decode()d to an array.
+     * @return array<int, array<string, mixed>> Ordered rows (position ASC), 'config' decoded.
      */
-    /** @return array<int, array<string, mixed>> */
     public static function get_placements(string $surface, int $context_id, ?string $slot = null): array {
         global $wpdb;
         $table = self::table();
@@ -577,30 +384,8 @@ class BH_Element {
         foreach ($rows as &$row) {
             $decoded = json_decode((string) $row['config'], true);
             $row['config'] = is_array($decoded) ? $decoded : [];
-            // Phase 4 — cast to a real int here (wpdb's ARRAY_A rows are
-            // otherwise plain strings straight off the MySQL text
-            // protocol), same as rest_list()'s own explicit (int) cast
-            // on a prefab's own 'id' — without this, a strict === check
-            // in the JS (state.prefabs.filter(pf => pf.id ===
-            // p.library_component_id), used by the link badge and the
-            // linked-instance inspector) would silently never match a
-            // NUMBER against a STRING.
+            // WHY: cast ids to int; wpdb returns strings and the JS compares with ===.
             $row['library_component_id'] = (int) ($row['library_component_id'] ?? 0);
-            // 3.4.74 follow-up — same string-vs-number class of bug, just
-            // found live in a DIFFERENT consumer: element-builder.js's
-            // new "drill up"/breadcrumb code (goUpOneLevel()/
-            // buildAncestryChain()) does a parent_placement_id -> id
-            // lookup across this same array, and a strict/implicit
-            // comparison between an uncast STRING id and STRING
-            // parent_placement_id silently failed to walk the tree
-            // correctly (reported live: "they jump to the start, not
-            // back one level"). That call site now normalizes with
-            // Number(...) defensively either way, but casting BOTH id
-            // and parent_placement_id to real ints here too — same as
-            // library_component_id already gets — closes this off at
-            // the source instead of leaving every other current and
-            // future JS consumer of this array to remember to re-guard
-            // against it individually.
             $row['id'] = (int) ($row['id'] ?? 0);
             $row['parent_placement_id'] = (int) ($row['parent_placement_id'] ?? 0);
         }
@@ -609,13 +394,10 @@ class BH_Element {
     }
 
     /**
-     * Single-row fetch by id, config already json_decode()d — the
-     * counterpart to get_placements()' multi-row form, added 3.4.36 for
-     * the subtree-prefab work (BH_Element_Prefab::save_from_node()) and
-     * any future single-node lookup (e.g. resolving a right-click
-     * "add child" target). Returns null on an unknown id.
+     * Single-row fetch by id, config decoded; null on an unknown id.
+     *
+     * @return array<string, mixed>|null
      */
-    /** @return array<string, mixed>|null */
     public static function get_placement(int $id): ?array {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
@@ -624,26 +406,18 @@ class BH_Element {
         if (!$row) return null;
         $decoded = json_decode((string) $row['config'], true);
         $row['config'] = is_array($decoded) ? $decoded : [];
-        $row['library_component_id'] = (int) ($row['library_component_id'] ?? 0); // Phase 4 — see get_placements()'s own comment on this same cast
-        $row['id'] = (int) ($row['id'] ?? 0); // 3.4.74 — same id/parent_placement_id cast as get_placements(), for consistency
+        $row['library_component_id'] = (int) ($row['library_component_id'] ?? 0); // int casts, same as get_placements()
+        $row['id'] = (int) ($row['id'] ?? 0);
         $row['parent_placement_id'] = (int) ($row['parent_placement_id'] ?? 0);
         return $row;
     }
 
     /**
-     * Full subtree of $id (itself + every recursive descendant),
-     * root-first (parent always appears before any of its children) —
-     * added 3.4.36 for BH_Element_Prefab's full-subtree snapshot/restore
-     * (DESIGN-SUITE-UNIFICATION-PLAN.md's "FINAL ARCHITECTURE" note,
-     * decision #3). Fetches the WHOLE (surface, surface_context_id, slot)
-     * placement set in ONE query (get_placements()) and walks the same
-     * in-memory parent=>children map render_slot() already builds — no
-     * per-level query, same performance posture as rendering.
+     * $id plus every descendant, root-first, from one get_placements() query walked in memory.
      *
      * @param int $id
-     * @return array Root-first flat list of rows (each with 'config' decoded), or [] if $id is unknown.
+     * @return array<int, array<string, mixed>> Root-first flat list (config decoded), or [] if $id is unknown.
      */
-    /** @return array<int, array<string, mixed>> */
     public static function get_subtree(int $id): array {
         $root = self::get_placement($id);
         if (!$root) return [];
@@ -658,10 +432,7 @@ class BH_Element {
             $out[] = $node;
             $node_id = (int) $node['id'];
             if (!empty($children_by_parent[$node_id])) {
-                // Prepend children right after their parent so the overall
-                // list stays root-first / depth-first (array_shift() above
-                // always consumes from the front) — order among siblings
-                // preserved from group_by_parent()'s own position-ordered input.
+                // Prepend children right after their parent so the list stays depth-first, siblings in position order.
                 array_splice($stack, 0, 0, $children_by_parent[$node_id]);
             }
         }
@@ -669,23 +440,11 @@ class BH_Element {
     }
 
     /**
-     * Insert or update a placement row. $placement may include 'id' to
-     * update an existing row; otherwise a new row is inserted.
-     * 'config' may be passed as an array (encoded here) or a JSON string.
-     * Container placements (type's 'container' === true) whose
-     * content_context_id is still 0 get one auto-assigned on insert,
-     * using the placement's OWN new id as the BH_Content context id —
-     * see the trailing block below. This means a container placement is
-     * addressable at BH_Content context ('bh_element', $id) the moment it
-     * exists, with no separate "allocate a content context" step the
-     * caller (REST client or Debug Tools form) would otherwise have to
-     * orchestrate itself.
+     * Insert (no 'id') or update a placement row; 'config' may be an array or JSON string.
+     * Container placements get content_context_id = their own id on insert.
      *
-     * @return int|false the placement id, or false on failure.
-     */
-    /**
      * @param array<string, mixed> $placement
-     * @return int|false
+     * @return int|false the placement id, or false on failure.
      */
     public static function save_placement(array $placement) {
         global $wpdb;
@@ -693,20 +452,8 @@ class BH_Element {
 
         $config = $placement['config'] ?? [];
 
-        // Real JS scripting via the builder is a real capability;
-        // raw-PHP authoring stays a hard no (arbitrary server-side code
-        // from an admin text field is how a site gets owned).
-        // config['custom_js'] IS supported (wrap_placement_html() renders
-        // it, scoped to this one
-        // placement's own DOM node) — but it's the single most
-        // dangerous thing a placement can carry, since it runs as real
-        // JavaScript on the live site for every visitor. Gated here, at
-        // the ONE write path every caller (REST save, Debug Tools,
-        // prefab apply) funnels through, not just in the GUI — a
-        // non-privileged caller can never smuggle a script in by
-        // crafting the request directly, even if the inspector's own UI
-        // gate (checked client-side too, for a better error message) is
-        // bypassed entirely.
+        // WHY: custom_js runs for every visitor, so it is gated HERE, on the one write path every caller
+        // uses, not only in the GUI. Raw-PHP authoring is never supported.
         if (is_array($config) && !empty($config['custom_js']) && !current_user_can('bhcore_author_custom_js')) {
             $config['custom_js'] = '';
             if (class_exists('OUS_DebugLog')) {
@@ -726,38 +473,20 @@ class BH_Element {
             'config'              => $config,
             'content_context_id'  => (int) ($placement['content_context_id'] ?? 0),
             'enabled'             => !empty($placement['enabled']) ? 1 : (isset($placement['enabled']) ? 0 : 1),
-            'parent_placement_id' => (int) ($placement['parent_placement_id'] ?? 0), // 3.4.34 — the real placement-tree seam; 0 = root/top-level within the slot, enforced/validated below
-            'revision_of'         => (int) ($placement['revision_of'] ?? 0),          // unused seam, §2.3 — always 0 today
+            'parent_placement_id' => (int) ($placement['parent_placement_id'] ?? 0), // 0 = root within the slot; validated below
+            'revision_of'         => (int) ($placement['revision_of'] ?? 0),          // unused seam, always 0
         ];
 
-        // LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4 — only set
-        // library_component_id when the caller explicitly provides the
-        // key at all (array_key_exists, not just a truthy check) — an
-        // ordinary inspector edit of an EXISTING linked instance's
-        // overrides must never accidentally reset it to 0 just because
-        // that particular REST call's body happened not to repeat it.
-        // insert_linked_instance() below is the only caller that ever
-        // sets this to a non-zero value on creation; every other
-        // existing caller (the REST save route, Debug Tools, prefab
-        // instantiate()) never sends this key at all, so they keep
-        // creating/updating ordinary (library_component_id = 0)
-        // placements exactly as before.
+        // Only touch library_component_id when the key is explicitly present, so a normal edit of a
+        // linked instance never resets it to 0.
         if (array_key_exists('library_component_id', $placement)) {
             $data['library_component_id'] = (int) $placement['library_component_id'];
         }
 
         if (!$data['surface'] || !$data['slot'] || !$data['element_type']) return false;
 
-        // 3.4.34 — parent_placement_id invariants, enforced HERE (the one
-        // write path both the REST save route and the Debug Tools/prefab
-        // callers all funnel through), fail-closed on either violation:
-        //   1. A non-root parent must live in the EXACT same (surface,
-        //      surface_context_id, slot) as this placement — the tree is
-        //      scoped to one slot, never cross-slot.
-        //   2. Accepting the new parent must not create a cycle (this
-        //      placement becoming its own ancestor) — only checked on an
-        //      UPDATE (a brand-new insert, id === 0, can never already be
-        //      an ancestor of anything).
+        // Parent invariants, fail-closed: same (surface, context, slot) as this placement, and (on
+        // update) no cycle.
         if ($data['parent_placement_id'] > 0) {
             $parent_row = $wpdb->get_row($wpdb->prepare(
                 "SELECT surface, surface_context_id, slot FROM $table WHERE id = %d",
@@ -768,10 +497,10 @@ class BH_Element {
                 || (int) $parent_row['surface_context_id'] !== $data['surface_context_id']
                 || $parent_row['slot'] !== $data['slot']
             ) {
-                return false; // unknown parent, or a parent living in a different surface/context/slot — never a supported shape
+                return false; // unknown parent, or one in a different surface/context/slot
             }
             if (!empty($placement['id']) && self::would_create_cycle((int) $placement['id'], $data['parent_placement_id'])) {
-                return false; // this update would make the placement its own ancestor — rejected, not silently truncated/ignored
+                return false; // would make the placement its own ancestor
             }
         }
 
@@ -779,20 +508,9 @@ class BH_Element {
 
         if (!empty($placement['id'])) {
             $id = (int) $placement['id'];
-            // Fetched BEFORE the write so any 'bhcore_element_placement_saved'
-            // listener below can diff old vs. new config (e.g. bh-crm's
-            // Project Tracker Phase C stall analytics, detecting when a
-            // kanban card's config.attrs.column literal actually changed
-            // — see class-projects.php) — this is the ONE write path
-            // both the REST save route and every other caller funnel
-            // through, so it's the correct, single place to observe
-            // "did this placement's config just change," not a second
-            // parallel diff somewhere else.
+            // Fetched BEFORE the write so 'bhcore_element_placement_saved' listeners can diff old vs new config.
             $old_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id), ARRAY_A);
-            // A container placement that somehow still has no
-            // content_context_id on an UPDATE (e.g. a hand-crafted REST
-            // call) gets the same self-id backfill as the insert path —
-            // never left at 0 for a container type once it has a real id.
+            // A container with no content_context_id on update gets the same self-id backfill.
             if ($type && $type['container'] && $data['content_context_id'] === 0) {
                 $data['content_context_id'] = $id;
             }
@@ -814,12 +532,7 @@ class BH_Element {
         return $id;
     }
 
-    /**
-     * 3.4.34 — any child of a deleted placement (a row whose
-     * parent_placement_id === $id) is promoted to root (reset to 0)
-     * BEFORE the row itself is deleted, so a delete never leaves a
-     * dangling parent_placement_id pointing at a now-nonexistent row.
-     */
+    /** Promotes children to root before deleting, so no row keeps a dangling parent id. */
     public static function delete_placement(int $id): bool {
         global $wpdb;
         $id = (int) $id;
@@ -828,16 +541,7 @@ class BH_Element {
         return (bool) $wpdb->delete($table, ['id' => $id]);
     }
 
-    // DESIGN-SUITE-PAGE-MANAGER-PLAN.md Phase 5 — every placement
-    // belonging to one (surface, context) pair, gone in one call.
-    // Deliberately scoped to a whole context (every slot), not one
-    // slot at a time — a real delete (post trashed permanently, a CRM
-    // profile's owner account removed, etc.) means NOTHING under that
-    // context should survive as an orphan, regardless of how many
-    // slots that surface happens to define. Root placements are
-    // deleted directly; delete_placement()'s own parent-promotion
-    // logic isn't needed here since every row in this context is going
-    // regardless of parent/child relationships.
+    // Deletes every placement for one (surface, context), all slots, so nothing is orphaned.
     public static function delete_context(string $surface, int $context_id): bool {
         global $wpdb;
         $table = self::table();
@@ -848,14 +552,8 @@ class BH_Element {
     }
 
     /**
-     * True if $proposed_parent_id IS $placement_id, or is a descendant of
-     * it walked the OTHER direction (i.e. accepting $proposed_parent_id as
-     * $placement_id's new parent would make $placement_id its own
-     * ancestor). Walks parent_placement_id upward from $proposed_parent_id
-     * with a hard hop cap (200) — never an infinite loop even against
-     * already-corrupted data, and fails safe (returns false, i.e. "not a
-     * cycle") on an unresolved/broken chain rather than refusing every
-     * future parent assignment because of one bad row elsewhere.
+     * True if accepting $proposed_parent_id would make $placement_id its own ancestor. Walks up with
+     * a 200-hop cap; a broken chain returns false rather than blocking all future assignments.
      */
     private static function would_create_cycle(int $placement_id, int $proposed_parent_id): bool {
         $placement_id = (int) $placement_id;
@@ -870,7 +568,7 @@ class BH_Element {
         $hops = 0;
         while ($current && $hops < 200) {
             if ($current === $placement_id) return true;
-            if (isset($seen[$current])) return false; // an existing cycle elsewhere in the data — not this call's problem to solve, bail out rather than loop forever
+            if (isset($seen[$current])) return false; // pre-existing cycle elsewhere in the data: bail rather than loop
             $seen[$current] = true;
             $current = (int) $wpdb->get_var($wpdb->prepare("SELECT parent_placement_id FROM $table WHERE id = %d", $current));
             $hops++;
@@ -878,8 +576,9 @@ class BH_Element {
         return false;
     }
 
-    /** Groups an already-fetched flat placement array by parent_placement_id (0 = root) — the in-memory map render_slot()/build_tree() build ONCE per call rather than re-querying per tree level. */
     /**
+     * Groups a flat placement array by parent_placement_id (0 = root).
+     *
      * @param array<int, array<string, mixed>> $placements
      * @return array<int, array<int, array<string, mixed>>>
      */
@@ -893,14 +592,11 @@ class BH_Element {
     }
 
     /**
-     * Rewrites 'position' for every id in $ordered_ids (0-based, array
-     * order) within one (surface, context, slot, parent) — 3.4.34 scopes
-     * reordering to SIBLINGS under the same parent (default $parent_id 0 =
-     * root), not the whole slot, so moving elements around under one
-     * parent never touches position values under a different parent. IDs
-     * not in $ordered_ids are left untouched.
+     * Rewrites 'position' (0-based, array order) for $ordered_ids among siblings under one parent
+     * in one (surface, context, slot). Other ids are untouched.
+     *
+     * @param array<int, int> $ordered_ids
      */
-    /** @param array<int, int> $ordered_ids */
     public static function reorder(string $surface, int $context_id, string $slot, array $ordered_ids, int $parent_id = 0): bool {
         global $wpdb;
         $table = self::table();
@@ -919,51 +615,27 @@ class BH_Element {
         return true;
     }
 
-    /* =================================================================
-     * §3.1 — rendering. This is the binding-resolution call site — see
-     * BH_Element_Data::resolve()'s own docblock for the fallback
-     * contract this leans on. Every failure mode here is designed to
-     * degrade to "this one placement renders nothing" or "renders its
-     * static fallback", never a fatal error taking the whole surface
-     * down with it.
-     * ================================================================= */
+    /* ---------------- rendering (failures degrade to an empty or fallback placement, never fatal) ---------------- */
 
     /**
-     * Resolve every attr on one placement row against $ctx (bindings via
-     * BH_Element_Data::resolve(), literals verbatim, schema defaults for
-     * anything absent from config.attrs entirely), then call the type's
-     * registered 'render' callable.
+     * Resolves every attr (bindings via BH_Element_Data::resolve(), literals verbatim, schema
+     * defaults otherwise), calls the type's 'render', then recurses into children.
      *
-     * @param array $placement          One row as returned by get_placements() (config already decoded).
-     * @param array $ctx                Render context — user_id, post_id, entity_id, viewer_id, etc.
-     * @param array $children_by_parent 3.4.34 — parent_placement_id => [child rows] map, already built ONCE by
-     *                                  render_slot() (see that method) — this method never re-queries per level,
-     *                                  it just looks up its own id in the map and recurses into whatever it finds.
-     * @return string HTML, or '' if the element_type isn't registered (graceful degrade — matches BH_Content::render() skipping unregistered block types) or the type's render callable itself throws.
-     */
-    /**
-     * @param array<string, mixed> $placement
-     * @param array<string, mixed> $ctx
-     * @param array<int, array<int, array<string, mixed>>> $children_by_parent
+     * @param array<string, mixed> $placement One row as returned by get_placements() (config decoded).
+     * @param array<string, mixed> $ctx Render context — user_id, post_id, entity_id, viewer_id, etc.
+     * @param array<int, array<int, array<string, mixed>>> $children_by_parent Map built once by render_slot().
+     * @return string HTML, or '' if the type isn't registered or its render callable throws.
      */
     public static function render_placement(array $placement, array $ctx = [], array $children_by_parent = []): string {
-        // LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4 — a linked
-        // instance (library_component_id != 0) has NO structure of its
-        // own to resolve here: its element_type/config are not a real
-        // placement shape at all (config is repurposed as an index =>
-        // leaf-override map — see BH_Element_Prefab::render_linked_
-        // instance()'s own docblock). Delegated entirely, before the
-        // normal get_type() lookup below (a linked instance's stored
-        // element_type is a synthetic '__linked/...' slug, never a real
-        // registered type, by design — see BH_Element_Prefab::
-        // instantiate_linked()).
+        // A linked instance (library_component_id != 0) has no structure of its own: its config is a
+        // leaf-override map and its element_type is synthetic, so delegate before get_type().
         if (!empty($placement['library_component_id']) && class_exists('BH_Element_Prefab')) {
             return BH_Element_Prefab::render_linked_instance($placement, $ctx);
         }
 
         $type_slug = $placement['element_type'] ?? '';
         $type = self::get_type($type_slug);
-        if (!$type) return ''; // unregistered/deactivated plugin — silent, expected, not an error
+        if (!$type) return ''; // unregistered/deactivated plugin: silent, expected
 
         $config = $placement['config'] ?? [];
         $attr_values = is_array($config['attrs'] ?? null) ? $config['attrs'] : [];
@@ -977,21 +649,14 @@ class BH_Element {
                 if (!empty($def['bindable']) && class_exists('BH_Element_Data')) {
                     $resolved_attrs[$key] = BH_Element_Data::resolve($raw, $ctx, $schema_default);
                 } elseif (isset($raw['literal'])) {
-                    // Non-bindable attr but a literal wrapper was still used —
-                    // honor the literal rather than discarding authored content
-                    // just because the schema never opted this attr into
-                    // binding.
+                    // Non-bindable attr with a literal wrapper: honor the literal.
                     $resolved_attrs[$key] = $raw['literal'];
                 } else {
-                    // A 'bind' was stored against a non-bindable attr (stale
-                    // config from a schema that changed, or a hand-crafted
-                    // placement) — never resolve it, fail safe to the schema
-                    // default rather than silently rendering unintended data.
+                    // WHY: a 'bind' on a non-bindable attr is never resolved; use the schema default.
                     $resolved_attrs[$key] = $schema_default;
                 }
             } elseif ($raw !== null) {
-                // Plain (non-descriptor) stored value — treat as a literal
-                // for backward-compatibility with simple hand-authored config.
+                // Plain stored value: treat as a literal.
                 $resolved_attrs[$key] = $raw;
             } else {
                 $resolved_attrs[$key] = $schema_default;
@@ -1000,21 +665,8 @@ class BH_Element {
             $resolved_attrs[$key] = self::coerce_attr($resolved_attrs[$key], $def['type'] ?? 'string');
         }
 
-        // Container elements' inner content lives in BH_Content at
-        // ('bh_element', content_context_id) — §2.2. Rendered here and
-        // handed to the type's renderer as $instance['content'] so a
-        // container 'render' callable can place it however it wants
-        // (wrap it, ignore it, etc.) without this class assuming layout.
-        //
-        // 'content_tree' (checked first, §3.2 Gutenberg-block v1 addition
-        // — class-element-prefab.php's render_definition()) is an INLINE
-        // tree array, not a content_context_id lookup — used only when
-        // rendering a prefab definition that was never persisted as real
-        // placement rows (a Gutenberg block preview has no DB-backed
-        // content_context_id to fetch). Real DB-backed placements never
-        // carry this key, so this branch is a pure no-op for every
-        // existing call site (render_slot(), the builder GUI, etc.) —
-        // additive only, backward-compatible.
+        // Container content lives in BH_Content at ('bh_element', content_context_id), passed as
+        // $instance['content']. An inline 'content_tree' (unpersisted prefab definitions) is checked first.
         $inner_html = '';
         if ($type['container'] && isset($placement['content_tree']) && is_array($placement['content_tree']) && class_exists('BH_Content')) {
             $inner_html = BH_Content::render($placement['content_tree']);
@@ -1036,18 +688,11 @@ class BH_Element {
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('error', "render_placement() failed for type '$type_slug' (placement #{$instance['id']}): " . $e->getMessage(), [], 'bh-element');
             }
-            return ''; // one broken element never takes the whole slot/surface down
+            return ''; // one broken element never takes the whole slot down
         }
 
-        // 3.4.34 — recurse into this placement's OWN children (the
-        // parent_placement_id tree — a SEPARATE, shallower mechanism from
-        // the bh/container -> BH_Content bridge above, which is keyed off
-        // content_context_id, not parent_placement_id; the two coexist and
-        // are never conflated). Appended AFTER the type's own render
-        // output, inside a distinct '.bh-element-children' wrapper, so a
-        // type's render callable never has to know or care whether it has
-        // nested placement children — this class owns that concern
-        // entirely, same posture as the container/BH_Content split above.
+        // Nested placement children render after the type's output in '.bh-element-children', so
+        // render callables never deal with them.
         $placement_id = (int) ($placement['id'] ?? 0);
         if ($placement_id && !empty($children_by_parent[$placement_id])) {
             $children_html = '';
@@ -1059,28 +704,14 @@ class BH_Element {
             }
         }
 
-        // §2.3/§2.6 — apply THIS placement's per-instance style +
-        // htmlAttrs to its OWN wrapper element (never to $inner, which
-        // is the type's own render output and stays exactly what it
-        // returned). Inline style="" was chosen over emitting a
-        // per-placement <style> block: data-placement-id already gives
-        // every wrapper a unique, stable selector, so a <style> block
-        // would need to duplicate that same scoping with none of the
-        // benefit — an inline attribute is simpler and colocates a
-        // placement's override with the element it applies to.
+        // Per-instance style + htmlAttrs go on the wrapper (inline style; data-placement-id already scopes it).
         return self::wrap_placement_html($type, $type_slug, $instance['id'], $config, $inner);
     }
 
     /**
-     * Builds the placement's wrapper tag (per §2.6's semantic-tag-choice
-     * feature) around $inner, carrying data-placement-id/data-type, the
-     * resolved per-instance style (BHY_Style::scoped_inline_style()),
-     * and the strictly-allowlisted htmlAttrs (§2.6). This is the wrapper
-     * render_slot() used to build inline as a hardcoded <div> — moved
-     * here so REST preview (rest_preview()) gets the identical wrapper
-     * a real render_slot() call would produce.
-     */
-    /**
+     * Builds the placement's wrapper tag around $inner: data-placement-id/data-type, scoped inline
+     * style, and allowlisted htmlAttrs. Shared by render_slot() and REST preview.
+     *
      * @param array<string, mixed> $type
      * @param array<string, mixed> $config
      */
@@ -1093,38 +724,15 @@ class BH_Element {
 
         $attr_parts = self::build_html_attrs($type, $html_attrs, $tag);
 
-        // Arbitrary class names/custom CSS on a placement, persisted.
-        // custom_class isn't gated behind the type's own
-        // 'attrs' => ['class' => true] opt-in the way html_attrs['class']
-        // is above (that gate is for AUTHOR-facing "does this type even
-        // expose a class field" schema decisions) — this is a Design
-        // Suite-level style override, same trust level as every other
-        // p.config.style[...] value already going through unescaped here.
-        // Appended to whichever class="..." build_html_attrs() already
-        // built (always present — 'bh-element' at minimum) rather than
-        // emitting a second class attribute, which the browser would
-        // silently let the LAST one win, dropping 'bh-element' whenever a
-        // custom class was set.
+        // custom_class is a Design Suite style override (not gated by the type's 'class' opt-in). Merged
+        // into the existing class="" attribute; a second class attribute would drop 'bh-element'.
         if (!empty($style_map['custom_class'])) {
             $extra = preg_split('/\s+/', trim((string) $style_map['custom_class']));
             $extra = array_filter(array_map('sanitize_html_class', $extra));
             if ($extra) {
                 foreach ($attr_parts as $i => $part) {
                     if (strpos($part, 'class="') === 0) {
-                        // 3.4.58 — real bug, caught by this session's own
-                        // audit pass: trim($part, 'class="') does NOT
-                        // strip the literal prefix "class=\"" — trim()'s
-                        // second argument is a CHARACTER MASK, so this
-                        // was stripping any leading/trailing run of
-                        // c/l/a/s/=/" characters. It happened to work on
-                        // the front because every char in "class=\"" is
-                        // in the mask, but on the back it could eat real
-                        // class-name characters too (e.g. a class ending
-                        // "...-class" would have "-class" stripped
-                        // entirely, silently corrupting the attribute).
-                        // substr() with fixed offsets (7 = strlen('class="'),
-                        // -1 to drop the trailing quote) is the correct,
-                        // non-mask-based fix.
+                        // WHY: substr, not trim($part, 'class="') — trim's second argument is a character mask.
                         $current = substr($part, 7, -1);
                         $attr_parts[$i] = 'class="' . esc_attr(trim(html_entity_decode($current) . ' ' . implode(' ', $extra))) . '"';
                         break;
@@ -1135,33 +743,18 @@ class BH_Element {
 
         $attr_parts[] = 'data-placement-id="' . (int) $placement_id . '"';
         $attr_parts[] = 'data-type="' . esc_attr($type_slug) . '"';
-        // §3.2 v1 — opt-in marker (register_type()'s new 'live' key) that
-        // assets/js/element-live.js scans for on page load. Placement id
-        // is already emitted above unconditionally; this only adds the
-        // one extra boolean flag a live type needs.
+        // Opt-in marker element-live.js scans for.
         if (!empty($type['live'])) $attr_parts[] = 'data-bhel-live="1"';
 
-        // custom_css is raw author-entered `property: value;` text, not a
-        // token BHY_Style::scoped_inline_style() knows how to resolve —
-        // appended straight onto whatever scoped/resolved style
-        // declarations that function already produced, so both compose
-        // (custom_css wins on a literal property clash, same "later
-        // declaration wins" rule normal CSS cascade already uses).
+        // Raw author `property: value;` text appended after scoped styles, so it wins on a clash.
         if (!empty($style_map['custom_css'])) {
             $custom_css = rtrim(trim((string) $style_map['custom_css']), ';') . ';';
             $style_decls = rtrim($style_decls, ';') . ($style_decls !== '' ? ';' : '') . $custom_css;
         }
         if ($style_decls !== '') $attr_parts[] = 'style="' . esc_attr($style_decls) . '"';
 
-        // $tag is ALWAYS one of $type['tags'] (validated in resolve_tag()
-        // — never a raw client-supplied string), so it's safe to
-        // interpolate directly into the opening/closing tag here.
-        //
-        // Void elements (bh/divider's 'hr' being the first real one this
-        // registry ships) have no legal closing tag or children at all —
-        // browsers silently tolerate a stray '</hr>' by ignoring it, but
-        // "tolerated" isn't the same as correct, so this emits genuinely
-        // valid markup instead of relying on that leniency.
+        // $tag is always from $type['tags'] (resolve_tag()), so safe to interpolate. Void tags get no
+        // closing tag or children.
         $void_tags = ['hr', 'br', 'img', 'input', 'meta', 'link'];
         if (in_array($tag, $void_tags, true)) {
             $html = '<' . $tag . ' ' . implode(' ', $attr_parts) . '>';
@@ -1169,28 +762,10 @@ class BH_Element {
             $html = '<' . $tag . ' ' . implode(' ', $attr_parts) . '>' . $inner . '</' . $tag . '>';
         }
 
-        // save_placement() already gates WHO can ever get a non-empty
-        // config['custom_js'] persisted (bhcore_author_custom_js,
-        // administrator-only by default) — by the time execution reaches
-        // HERE, at render time, for every visitor loading the page, that
-        // gate has already done its job; this only has to worry about
-        // SCOPING the script to this one placement's own element, not
-        // re-checking who wrote it. Scoped via this placement's own
-        // data-placement-id (already emitted above, always unique per
-        // row) rather than a class or nth-child guess — an IIFE receiving
-        // that one element as `el`, matching the same "the script gets
-        // handed its own root, never reaches for document/global
-        // selectors itself" contract element-live.js's own live-type
-        // scripts already follow.
-        //
-        // Codeless UI-event wiring: config['actions'] is a plain array of
-        // {trigger, action, ...}
-        // entries, each one hand-mapped below to a small, fixed,
-        // reviewed JS snippet — never raw author-entered script, so this
-        // needs NO capability gate the way custom_js does. Anyone who can
-        // edit a placement at all can wire up a click-to-toggle-class or
-        // click-to-fetch-and-refresh without ever touching code, the same
-        // trust level as every other placement config field.
+        // custom_js is gated at save time (bhcore_author_custom_js); here it is only scoped to this
+        // placement's element via data-placement-id, handed to an IIFE as `el`.
+        // config['actions'] maps {trigger, action, ...} entries onto fixed reviewed JS snippets, so it
+        // needs no capability gate.
         if (!empty($config['actions']) && is_array($config['actions'])) {
             $action_js = self::build_actions_js($config['actions'], $placement_id);
             if ($action_js !== '') {
@@ -1199,15 +774,7 @@ class BH_Element {
         }
 
         if (!empty($config['custom_js']) && is_string($config['custom_js'])) {
-            // A literal "</script>" inside the author's own JS (even
-            // inside a string literal or comment) would close this tag
-            // early in the BROWSER'S HTML PARSER, which doesn't know or
-            // care about JS syntax — the classic "can't put arbitrary
-            // text inside a script tag" trap. Splitting the sequence
-            // defeats the parser's literal match without changing the
-            // script's actual runtime behavior (the closing carat is
-            // still there for the browser to eventually find, just not
-            // contiguous with "</script").
+            // WHY: split "</script" so the HTML parser can't close the tag early; JS behavior is unchanged.
             $safe_js = str_ireplace('</script', '<\/script', $config['custom_js']);
             $html .= '<script>(function(el){if(!el)return;' . $safe_js . '})(document.querySelector(\'[data-placement-id="' . (int) $placement_id . '"]\'));</script>';
         }
@@ -1215,25 +782,18 @@ class BH_Element {
         return $html;
     }
 
-    // Fixed vocabulary of allowlisted action KINDS, each hand-mapped to a
-    // small, reviewed JS snippet — an entry's own params (selectors,
-    // class names, URLs) are escaped/validated per-kind below, but the
-    // JS SHAPE itself is never author-controlled, unlike custom_js. This
-    // is deliberately small — three kinds, not a general-purpose DSL —
-    // because every kind added here is new surface to review once, not
-    // something an author can expand on their own the way a raw-JS field
-    // could. Add more kinds by hand as real needs come up, not by making
-    // this generic.
-    /** @param array<int, array<string, mixed>> $actions */
+    /**
+     * Fixed vocabulary of action kinds, each a hand-written JS snippet with params validated per kind.
+     * The JS shape is never author-controlled; add kinds by hand, don't make this generic.
+     *
+     * @param array<int, array<string, mixed>> $actions
+     */
     private static function build_actions_js(array $actions, int $placement_id): string {
         $out = '';
         foreach ($actions as $action) {
             if (!is_array($action)) continue;
             $trigger = sanitize_key($action['trigger'] ?? 'click');
-            // Same allowlist reasoning as $void_tags/$tags above — never
-            // interpolate a client-supplied event name directly into JS,
-            // even sanitize_key()'d (sanitize_key() makes it SAFE
-            // syntactically, not necessarily a REAL DOM event).
+            // Allowlist: never interpolate a client-supplied event name into JS.
             $allowed_triggers = ['click', 'mouseenter', 'mouseleave', 'submit'];
             if (!in_array($trigger, $allowed_triggers, true)) continue;
 
@@ -1243,10 +803,7 @@ class BH_Element {
             if ($kind === 'toggle_class') {
                 $class = sanitize_html_class((string) ($action['class'] ?? ''));
                 if ($class === '') continue;
-                // 'self' (default) or a CSS selector scoped to a
-                // querySelector FROM el (never document-wide) — same
-                // "never reach outside your own root" contract every
-                // other placement script here follows.
+                // 'self' (default) or a selector queried FROM el, never document-wide.
                 $target_sel = trim((string) ($action['target'] ?? ''));
                 $target_js = ($target_sel === '' || $target_sel === 'self')
                     ? 'el' : 'el.querySelector(' . wp_json_encode($target_sel) . ')';
@@ -1256,12 +813,7 @@ class BH_Element {
                 if ($url === '') continue;
                 $method = in_array(strtoupper((string) ($action['method'] ?? 'GET')), ['GET', 'POST'], true) ? strtoupper((string) $action['method']) : 'GET';
                 $then = sanitize_key($action['then'] ?? 'none');
-                // Was a bare no-op function on both success (when $then
-                // isn't 'reload') and failure — every fetch-kind action any
-                // admin builds via the Element Builder silently did nothing
-                // visible either way. Now surfaces a toast on both paths
-                // when BHCoreToast is loaded (it's enqueued on every
-                // front-end page — see OUS_Toast's own enqueue_assets()).
+                // Shows a toast on success/failure when BHCoreToast is loaded.
                 $then_js = $then === 'reload'
                     ? 'function(){window.location.reload();}'
                     : 'function(){if(typeof BHCoreToast!==\'undefined\'){BHCoreToast.show(\'Done.\',\'success\');}}';
@@ -1271,7 +823,7 @@ class BH_Element {
                 if ($url === '') continue;
                 $handler = 'window.location.href=' . wp_json_encode($url);
             } else {
-                continue; // unrecognized kind — skip silently, same "unregistered = no-op, never fatal" posture BH_Element_Data's resolve() already follows
+                continue; // unrecognized kind: skip silently
             }
 
             $out .= 'el.addEventListener(' . wp_json_encode($trigger) . ',function(ev){if(' . wp_json_encode($trigger) . '===\'submit\')ev.preventDefault();' . $handler . ';});';
@@ -1279,8 +831,9 @@ class BH_Element {
         return $out;
     }
 
-    /** Validates a requested htmlAttrs.tag against the type's OWN declared 'tags' allowlist — never trusts an arbitrary client-supplied tag name. Falls back to the type's first (default) tag on no match/no request. */
     /**
+     * Validates a requested htmlAttrs.tag against the type's own 'tags'; falls back to the first.
+     *
      * @param array<string, mixed> $type
      * @param array<string, mixed> $html_attrs
      */
@@ -1291,17 +844,9 @@ class BH_Element {
     }
 
     /**
-     * Builds the wrapper's attribute-string PARTS (excluding data-
-     * placement-id/data-type/style, which the caller appends) from a
-     * placement's htmlAttrs map, STRICTLY allowlisted against the
-     * element type's own declared 'attrs' schema (register_type()'s
-     * $args['attrs'], §2.6). This is a real security boundary, not
-     * tidiness: an attribute (or a data-* key) the type never declared
-     * is NEVER emitted, no matter what a client sends — every value
-     * that IS emitted goes through esc_attr()/esc_url()/
-     * sanitize_html_class() or an explicit enum check first.
-     */
-    /**
+     * Builds the wrapper's attribute parts from htmlAttrs. WHY: security boundary — only attributes
+     * the type declared in 'attrs' are emitted, each escaped or enum-checked.
+     *
      * @param array<string, mixed> $type
      * @param array<string, mixed> $html_attrs
      * @return array<int, string>
@@ -1310,9 +855,7 @@ class BH_Element {
         $schema = is_array($type['attrs'] ?? null) ? $type['attrs'] : [];
         $out = [];
 
-        // class — 'bh-element' is always present (existing convention,
-        // §2.3); additional author-chosen class tokens are appended only
-        // if the type opted 'class' into its attrs manifest.
+        // 'bh-element' always; author classes only if the type opted into 'class'.
         $classes = ['bh-element'];
         if (!empty($schema['class']) && !empty($html_attrs['class'])) {
             $extra = preg_split('/\s+/', trim((string) $html_attrs['class']));
@@ -1322,10 +865,7 @@ class BH_Element {
         $out[] = 'class="' . esc_attr(implode(' ', array_unique($classes))) . '"';
 
         if (!empty($schema['id']) && !empty($html_attrs['id'])) {
-            // A real HTML id: letters/digits/hyphen/underscore only, must
-            // start with a letter (a leading digit is technically legal
-            // in HTML5 but breaks CSS #id selectors/querySelector, so
-            // this stays conservative).
+            // Letters/digits/hyphen/underscore, starting with a letter (a leading digit breaks CSS selectors).
             $id = preg_replace('/[^A-Za-z0-9_\-]/', '', (string) $html_attrs['id']);
             if ($id !== '' && preg_match('/^[A-Za-z]/', $id)) $out[] = 'id="' . esc_attr($id) . '"';
         }
@@ -1338,13 +878,7 @@ class BH_Element {
             $out[] = 'aria-label="' . esc_attr((string) $html_attrs['aria-label']) . '"';
         }
 
-        // href/target/rel are ONLY meaningful — and ONLY ever emitted —
-        // when BOTH the type declared them in 'attrs' AND the author
-        // actually chose a link-capable tag ('a') for this instance
-        // (§2.6's explicit cross-wiring rule: these controls are hidden/
-        // inert in the inspector unless tag === 'a', and the render path
-        // enforces the same rule server-side, never trusting the client
-        // alone).
+        // href/target/rel only when the type declared them AND the tag is 'a' (enforced server-side).
         if ($tag === 'a') {
             if (!empty($schema['href']) && !empty($html_attrs['href'])) {
                 $url = esc_url((string) $html_attrs['href']);
@@ -1362,15 +896,8 @@ class BH_Element {
             }
         }
 
-        // Custom data-* attributes — a repeatable key/value map stored at
-        // htmlAttrs.custom (§2.6). Each key is reduced to [a-z0-9-] (a
-        // valid, safe 'data-<key>' attribute name — nothing else can
-        // reach the output string), each value is esc_attr()'d. A key
-        // the type PRE-DECLARED as a structured attr (e.g.
-        // 'data-status' => ['enum' => [...]]) is additionally enum-
-        // validated and fails closed (dropped) on an invalid value;
-        // anything else is emitted only if the type opted into the
-        // blanket 'data-*' => true freeform escape hatch.
+        // htmlAttrs.custom: keys reduced to [a-z0-9-], values esc_attr()'d. Pre-declared keys are
+        // enum-validated (dropped if invalid); others need the type's 'data-*' => true opt-in.
         $custom = is_array($html_attrs['custom'] ?? null) ? $html_attrs['custom'] : [];
         if ($custom) {
             $wildcard_ok = !empty($schema['data-*']);
@@ -1396,8 +923,9 @@ class BH_Element {
         return $out;
     }
 
-    /** Thin wrapper over BHY_Style::safe_enum() when available, degrading to a plain in_array() if class-style.php somehow hasn't loaded yet — this class never assumes BHY_Style's load order, same defensive posture as its other class_exists('BHY_Style') checks. */
     /**
+     * BHY_Style::safe_enum() when loaded, else a plain in_array().
+     *
      * @param mixed $val
      * @param array<int, string> $allowed
      */
@@ -1422,59 +950,21 @@ class BH_Element {
     }
 
     /**
-     * The surface-facing entry point every integration calls (§5). Loads
-     * enabled placements for (surface, context_id, slot) ordered by
-     * position and renders each, concatenated. A surface can safely call
-     * this unconditionally even before anyone has placed an element
-     * there — an empty slot still returns its wrapper div, just with no
-     * children (see the 3.4.49 fix note below for why that wrapper is
-     * no longer skipped).
+     * Surface-facing entry point: renders a slot's enabled root placements in order.
+     * WHY: always returns the .bh-element-slot wrapper, even when empty — live preview anchors on it.
      *
-     * 3.4.49 — real bug fix, found while diagnosing why a brand-new
-     * unsaved placement's live preview (element-builder.js's
-     * applyLivePreview(), also new in 3.4.49) never appeared on an
-     * EMPTY slot: this method used to `return ''` immediately for a
-     * slot with zero saved placements — no wrapper `.bh-element-slot`
-     * div at all, not even an empty one. That meant the live-preview
-     * patch (which anchors on `.bh-element-slot[data-surface][data-slot]`
-     * to insert a not-yet-saved node) had nowhere to insert into for the
-     * single most common case there is: any slot nobody has saved
-     * anything into yet, i.e. the very first edit on any fresh page.
-     * Confirmed via live screenshot: typing into a brand-new Note's text
-     * field produced no server error, no JS error, and no visible
-     * change — the append silently no-op'd exactly the way this
-     * function's own (now removed) early-return guaranteed it would.
-     * Every existing call site (dashboard, portal, CRM, LMS lesson, this
-     * plugin's own bh-crm-profile-live story) already echoes this return
-     * value unconditionally rather than branching on its truthiness, so
-     * always emitting the wrapper (harmless — an empty div — for a
-     * still-empty slot) is safe with zero caller changes needed.
+     * @param array<string, mixed> $ctx
      */
-    /** @param array<string, mixed> $ctx */
     public static function render_slot(string $surface, int $context_id, string $slot, array $ctx = []): string {
         $placements = self::get_placements($surface, $context_id, $slot);
 
-        // 3.4.34 — ONE query (get_placements() above) for the whole slot,
-        // then one in-memory parent=>children map (group_by_parent()) —
-        // render_placement()'s recursion below reads this map, it never
-        // issues a query per tree level. Only ROOT placements
-        // (parent_placement_id === 0) are iterated here; every non-root
-        // placement is rendered exactly once, from inside its parent's
-        // own render_placement() call, never also as a top-level sibling.
+        // One query for the slot, one in-memory map; only roots iterate here, children render inside parents.
         $children_by_parent = $placements ? self::group_by_parent($placements) : [];
         $roots = $children_by_parent[0] ?? [];
 
         $out = '<div class="bh-element-slot" data-surface="' . esc_attr($surface) . '" data-slot="' . esc_attr($slot) . '">';
         foreach ($roots as $placement) {
-            // render_placement() now returns the placement's FULLY
-            // wrapped element itself — tag (§2.6 semantic-tag choice),
-            // class="bh-element", data-placement-id/data-type, any
-            // per-instance style/htmlAttrs, and (3.4.34) its own nested
-            // placement children — so this loop no longer builds its own
-            // wrapper <div> around it (it used to; that responsibility
-            // moved into render_placement() so REST preview gets the
-            // identical wrapper) and never iterates non-root placements
-            // directly (those render from inside their parent instead).
+            // render_placement() returns the fully wrapped element, children included.
             $html = self::render_placement($placement, $ctx, $children_by_parent);
             if ($html === '') continue;
             $out .= $html;
@@ -1484,34 +974,8 @@ class BH_Element {
     }
 
     /**
-     * Generic Design Suite canvas preview for ANY registered surface —
-     * added to close a real, live-confirmed bug: the canvas's "Preview
-     * surface" iframes only ever existed for surfaces some plugin
-     * separately hand-registered into `bhy_style_surfaces` under ITS OWN
-     * key (e.g. bh-crm's class-style-surface.php registers
-     * 'bh-crm-profile-live', a totally different string from this
-     * surface's real registered slug 'bh_crm_profile'). The tree's own
-     * selection sync (element-builder.js's fireSelectionEvent()) always
-     * fires the REAL surface slug, so it could only ever find a matching
-     * `.bhy-story-btn[data-surface="..."]` for the one surface whose
-     * hand-authored key happened not to matter (the default/first-active
-     * story never actually got re-selected — clicking any OTHER tree
-     * node, e.g. bhcrm_project_board or bh_courses_lesson, silently did
-     * nothing, since no story was ever registered under either of THOSE
-     * exact keys at all). Confirmed via live screenshot: switching tree
-     * nodes never updated the canvas except by coincidence.
-     *
-     * Fix: every registered BH_Element surface now gets its own canvas
-     * story automatically, keyed by its REAL slug — no plugin has to
-     * hand-author a mirror registration (bh-crm's class-style-surface.php
-     * profile_preview() one-off wrapper is now redundant, left in place
-     * since it's harmless and still renders correctly under its own
-     * separate key). Loops every slot
-     * the surface declares and concatenates each one's real render_slot()
-     * output, in declaration order, with a plain heading per slot so a
-     * multi-slot surface (there are none left after CRM's own 1.3.3
-     * collapse, but a future plugin could still declare more than one)
-     * still reads sensibly.
+     * Design Suite canvas preview for any registered surface, keyed by its real slug: every slot's
+     * render_slot() output in declaration order, with a heading per slot.
      */
     public static function render_surface_preview(string $surface_slug, int $context_id = 0): string {
         $surface = self::get_surface($surface_slug);
@@ -1530,22 +994,10 @@ class BH_Element {
         return $out;
     }
 
-    /* =================================================================
-     * §3.4 — REST bridge for the builder GUI. Mirrors BH_Studio::
-     * register_routes() exactly (the-self-hosted-self/includes/class-studio.php):
-     * same 'ous/v1' namespace, same manage_options-only permission_callback
-     * posture (no separate nonce check here either — REST's own cookie
-     * auth + the X-WP-Nonce header WordPress's JS REST client sends
-     * automatically is the same implicit contract BH_Studio's routes
-     * rely on; this is a deliberate mirror, not an oversight). No route
-     * here does anything BH_Element's own public methods above don't
-     * already do — every callback is a thin HTTP-shaped wrapper.
-     *
-     * NOT runtime-verified: no live WordPress REST dispatch available in
-     * this environment; reasoned through against BH_Studio's working
-     * routes only. Smoke-test each route against a real install before
-     * wiring a GUI to it.
-     * ================================================================= */
+    /**
+     * REST bridge for the builder GUI. Same 'ous/v1' namespace and manage_options-only permission
+     * as BH_Studio (REST cookie auth + X-WP-Nonce). Every callback is a thin wrapper over public methods.
+     */
 
     public static function register_routes(): void {
         register_rest_route('ous/v1', '/elements/surfaces', [
@@ -1566,28 +1018,14 @@ class BH_Element {
             'callback'            => [self::class, 'rest_get_sources'],
         ]);
 
-        // 3.4.27 — the inspector's Style-section preset-picker data
-        // source (§2.6/BHY_Style::style_schema_for_js()) — added so the
-        // GUI can build every property group's controls dynamically
-        // instead of hardcoding PROPERTY_MAP's shape client-side.
+        // Style-section preset data (BHY_Style::style_schema_for_js()).
         register_rest_route('ous/v1', '/elements/style-schema', [
             'methods'             => 'GET',
             'permission_callback' => function () { return current_user_can('manage_options'); },
             'callback'            => [self::class, 'rest_get_style_schema'],
         ]);
 
-        // 3.4.36 — the FINAL-ARCHITECTURE Site root's inspector data
-        // source. Selecting the tree's synthetic "Site" node in
-        // element-builder.js renders THESE global tokens (BHY_Style's
-        // own option row — the exact same data BHY_Gallery's Site Styles
-        // form already reads/writes), not a placement — this is what
-        // "the Library is contextual, Global Styles is what the one
-        // inspector shows for Site" collapses to on the wire: one small
-        // read/write pair, reusing BHY_Style's OWN sanitizers
-        // (safe_color/safe_number), same posture as
-        // BHY_Gallery::save()'s existing admin-post handler (class-
-        // style-gallery.php), just REST-shaped so this JS file never has
-        // to leave the ous/v1/elements/ namespace it already talks to.
+        // Global site tokens for the tree's synthetic "Site" node, using BHY_Style's own sanitizers.
         register_rest_route('ous/v1', '/elements/site-tokens', [
             [
                 'methods'             => 'GET',
@@ -1620,34 +1058,15 @@ class BH_Element {
             'callback'            => [self::class, 'rest_preview'],
         ]);
 
-        // A REAL delete route — the visual GUI works around this by
-        // disabling placements instead of deleting them. This does
-        // NOT change the existing GUI's disable-instead-of-delete
-        // behavior (element-builder.js's "✕" button) — that JS is left
-        // exactly as-is; this route exists so a future GUI pass or any
-        // other REST client can do a true delete, and so the bare Debug
-        // Tools list's own "Remove" admin-post action has a REST-shaped
-        // sibling. Deliberately a single-id delete, not a bulk op.
+        // True single-id delete (the GUI itself disables instead of deleting).
         register_rest_route('ous/v1', '/elements/placements/(?P<id>\d+)', [
             'methods'             => 'DELETE',
             'permission_callback' => function () { return current_user_can('manage_options'); },
             'callback'            => [self::class, 'rest_delete_placement'],
         ]);
 
-        // §3.2 v1 — runtime re-resolution. DELIBERATE deviation from
-        // the design doc's originally-sketched body shape (a client-
-        // supplied array of {source,args,subject} bindings): that shape
-        // would let any authenticated caller ask the server to resolve
-        // an ARBITRARY source+args pair, which is more trust than a
-        // "refresh what this placement already shows" feature actually
-        // needs. Instead this takes only a placement_id, re-reads that
-        // placement's OWN already-stored, already-authored bind
-        // descriptors server-side, and re-resolves exactly those — the
-        // client can never point this route at a source/args combination
-        // that placement wasn't already configured with. Recorded here
-        // (not silently done) since it's a real, judgment-call departure
-        // from §3.3's sketched contract, made for a concrete security
-        // reason, not convenience.
+        // WHY: takes only a placement_id and re-resolves that placement's own stored binds, so a caller
+        // can never resolve an arbitrary source/args pair.
         register_rest_route('ous/v1', '/elements/resolve', [
             'methods'             => 'POST',
             'permission_callback' => function () { return current_user_can('manage_options'); },
@@ -1656,22 +1075,11 @@ class BH_Element {
     }
 
     /**
-     * POST /elements/resolve — body: { "placement_id": 123 }. Re-runs
-     * BH_Element_Data::resolve() fresh for every bindable+bound attr on
-     * that placement's CURRENT stored config (never a client-supplied
-     * binding — see register_routes()'s comment on this route). $ctx is
-     * rebuilt server-side as ['user_id' => get_current_user_id()] —
-     * the requesting admin's own id, matching how the dashboard's own
-     * bound demo placement resolves at normal render time (class-
-     * dashboard.php passes the same shape) — never trusted from the
-     * request body, so a caller cannot ask this route to resolve on
-     * behalf of a different user.
+     * POST /elements/resolve — body { "placement_id": 123 }. Re-resolves stored binds with
+     * $ctx = ['user_id' => get_current_user_id()] (never from the request). Returns only bound attrs.
      *
-     * Response: { "attrs": { "value": "1.2k", ... } } — only bindable
-     * attrs whose stored config actually has a 'bind' descriptor are
-     * included; literal/unbound attrs are omitted (nothing to refresh).
+     * @return \WP_REST_Response|\WP_Error
      */
-    /** @return \WP_REST_Response|\WP_Error */
     public static function rest_resolve(\WP_REST_Request $req) {
         $id = (int) $req->get_param('placement_id');
         if ($id <= 0) {
@@ -1705,8 +1113,11 @@ class BH_Element {
         return new \WP_REST_Response(['attrs' => $out], 200);
     }
 
-    /** DELETE /elements/placements/{id} — a true row delete (see register_routes()'s comment above this route). */
-    /** @return \WP_REST_Response|\WP_Error */
+    /**
+     * DELETE /elements/placements/{id}.
+     *
+     * @return \WP_REST_Response|\WP_Error
+     */
     public static function rest_delete_placement(\WP_REST_Request $req) {
         $id = (int) $req->get_param('id');
         if ($id <= 0) {
@@ -1716,25 +1127,17 @@ class BH_Element {
         return new \WP_REST_Response(['deleted' => $ok, 'id' => $id], 200);
     }
 
-    /** GET /elements/surfaces — registered surfaces + slots (§3.4 bullet 1). */
-    /** @return \WP_REST_Response */
+    /**
+     * GET /elements/surfaces — registered surfaces + slots.
+     *
+     * @return \WP_REST_Response
+     */
     public static function rest_get_surfaces(\WP_REST_Request $req) {
         $out = [];
         foreach (self::registered_surfaces() as $slug => $surface) {
-            // 'internal' surfaces (currently just '__library', register_
-            // library_surface() above) are excluded from this bulk
-            // listing on purpose — the Structure tree's boot-time fetch
-            // (element-builder.js) loads EVERY surface this returns at a
-            // fixed context_id of 0, which is exactly wrong for a sandbox
-            // whose context_id is a specific Component's own id. The
-            // Library tab injects '__library' into its own client-side
-            // state directly, only while actively editing one component —
-            // see that file's window.bhElementLibrary bridge.
+            // 'internal' surfaces (__library) are excluded: the Structure tree loads every surface at context 0.
             if (!empty($surface['internal'])) continue;
-            // 'preview_ctx' and any other callables in a surface's manifest
-            // are deliberately dropped here — a stored/serialized callable
-            // has no meaning to a REST JSON client, same reasoning as
-            // BH_Element_Data::registered_sources() dropping 'resolve'.
+            // Callables like 'preview_ctx' are dropped; they mean nothing to a JSON client.
             $out[$slug] = [
                 'group' => $surface['group'] ?? '',
                 'label' => $surface['label'] ?? $slug,
@@ -1744,16 +1147,18 @@ class BH_Element {
         return new \WP_REST_Response($out, 200);
     }
 
-    /** GET /elements/types?surface= — types_for_surface(), the palette (§3.4 bullet 2). */
-    /** @return \WP_REST_Response */
+    /**
+     * GET /elements/types?surface= — the palette.
+     *
+     * @return \WP_REST_Response
+     */
     public static function rest_get_types(\WP_REST_Request $req) {
         $surface = (string) $req->get_param('surface');
         $types = $surface !== '' ? self::types_for_surface($surface) : self::registered_types();
 
         $out = [];
         foreach ($types as $slug => $type) {
-            // Same drop-the-callable rule as above — 'render' has no
-            // meaning to a REST client, only the manifest metadata does.
+            // drop the 'render' callable
             $out[$slug] = [
                 'label'     => $type['label'],
                 'category'  => $type['category'],
@@ -1762,9 +1167,7 @@ class BH_Element {
                 'container' => $type['container'],
                 'schema'    => $type['schema'],
                 'style'     => $type['style'],
-                // §2.6 — exposed so the inspector JS can build the Style/
-                // HTML-Attributes sections' controls DYNAMICALLY per
-                // selected type, instead of hardcoding per-type UI logic.
+                // exposed so the inspector builds Style/HTML-attribute controls per type
                 'attrs'     => $type['attrs'],
                 'tags'      => $type['tags'],
             ];
@@ -1772,8 +1175,11 @@ class BH_Element {
         return new \WP_REST_Response($out, 200);
     }
 
-    /** GET /elements/sources?kind= — bindable data sources for the inspector dropdown (§3.4 bullet 5). */
-    /** @return \WP_REST_Response */
+    /**
+     * GET /elements/sources?kind= — bindable data sources.
+     *
+     * @return \WP_REST_Response
+     */
     public static function rest_get_sources(\WP_REST_Request $req) {
         if (!class_exists('BH_Element_Data')) return new \WP_REST_Response([], 200);
         $kind = (string) $req->get_param('kind');
@@ -1781,31 +1187,32 @@ class BH_Element {
         return new \WP_REST_Response($sources, 200);
     }
 
-    /** GET /elements/style-schema — §2.6 property-group preset tables for the inspector's Style section (BHY_Style::style_schema_for_js()). */
-    /** @return \WP_REST_Response */
+    /**
+     * GET /elements/style-schema — preset tables for the inspector's Style section.
+     *
+     * @return \WP_REST_Response
+     */
     public static function rest_get_style_schema(\WP_REST_Request $req) {
         if (!class_exists('BHY_Style')) return new \WP_REST_Response(['groups' => [], 'colorTokens' => []], 200);
         return new \WP_REST_Response(BHY_Style::style_schema_for_js(), 200);
     }
 
-    /** GET /elements/site-tokens — the global BHY_Style option row, unfiltered by any entity override (BHY_Style::get() with no entity_id, the same call BHY_Gallery's own settings form makes). */
-    /** @return \WP_REST_Response */
+    /**
+     * GET /elements/site-tokens — the global BHY_Style option row (no entity override).
+     *
+     * @return \WP_REST_Response
+     */
     public static function rest_get_site_tokens(\WP_REST_Request $req) {
         if (!class_exists('BHY_Style')) return new \WP_REST_Response([], 200);
         return new \WP_REST_Response(BHY_Style::get(), 200);
     }
 
     /**
-     * POST /elements/site-tokens — writes the global BHY_Style option row.
-     * Body: { "tokens": { "color_accent": "#ff3366", "radius": "12", ... } }.
-     * Mirrors BHY_Gallery::save()'s existing admin-post handler field-by-
-     * field (class-style-gallery.php) — same sanitizers
-     * (safe_color/safe_number), same DEFAULTS-driven key allowlist (a key
-     * not in BHY_Style::DEFAULTS is never written, no matter what the
-     * client sends) — this is a second, REST-shaped entry point to the
-     * SAME option row and validation rules, not a parallel/looser one.
+     * POST /elements/site-tokens — body { "tokens": { "color_accent": "#ff3366", ... } }. Same
+     * sanitizers and BHY_Style::DEFAULTS key allowlist as the Site Styles form.
+     *
+     * @return \WP_REST_Response|\WP_Error
      */
-    /** @return \WP_REST_Response|\WP_Error */
     public static function rest_save_site_tokens(\WP_REST_Request $req) {
         if (!class_exists('BHY_Style')) {
             return new \WP_Error('bh_element_style_unavailable', 'BHY_Style is not loaded.', ['status' => 500]);
@@ -1813,10 +1220,7 @@ class BH_Element {
         $body = json_decode($req->get_body(), true);
         $incoming = is_array($body['tokens'] ?? null) ? $body['tokens'] : [];
 
-        // Routed through the same authority BHY_Gallery::save() uses —
-        // this REST path used to hand-copy the sanitize pass and had
-        // drifted (silently dropped custom_sliders() handling, meaning a
-        // save from here would wipe any registered custom slider value).
+        // Same save authority as BHY_Gallery::save(), so custom sliders are not dropped.
         $data = BHY_Style::save_from_input($incoming);
 
         update_option(BHY_Style::OPTION, $data);
@@ -1826,8 +1230,11 @@ class BH_Element {
         return new \WP_REST_Response(BHY_Style::get(), 200);
     }
 
-    /** GET /elements/placements/{surface}/{context_id} — all placements grouped by slot (§3.4 bullet 3). */
-    /** @return \WP_REST_Response|\WP_Error */
+    /**
+     * GET /elements/placements/{surface}/{context_id} — placements grouped by slot.
+     *
+     * @return \WP_REST_Response|\WP_Error
+     */
     public static function rest_get_placements(\WP_REST_Request $req) {
         $surface = (string) $req->get_param('surface');
         $context_id = (int) $req->get_param('context_id');
@@ -1844,30 +1251,14 @@ class BH_Element {
     }
 
     /**
-     * POST /elements/placements/{surface}/{context_id} — upsert/reorder a
-     * slot's placements (§3.4 bullet 4). Body: { "slot": "main", "placements":
-     * [ { "id": 12, "element_type": "bh/note", "config": {...}, "enabled": true,
-     *     "parent_placement_id": 0 }, ... ] }
-     * in the desired final order — this both upserts every row (save_placement()
-     * per entry, same contract as the Debug Tools "add" form uses, including
-     * 3.4.34's parent_placement_id same-slot + cycle validation) and sets
-     * 'position', mirroring reorder()'s semantics but as a single request
-     * instead of two round trips (upsert then reorder). Any entry without a
-     * truthy 'id' is inserted as new; every entry must include 'element_type'
-     * and a registered type or it's skipped (never fatal); a save_placement()
-     * rejection (bad/cyclic parent) also just skips that one entry.
+     * POST /elements/placements/{surface}/{context_id} — upsert + order one slot in one request.
+     * Body: { "slot": "main", "placements": [ { "id": 12, "element_type": "bh/note", "config": {...},
+     *         "enabled": true, "parent_placement_id": 0 }, ... ] } in final order.
+     * Entries without 'id' are inserted; unregistered types or rejected parents are skipped.
+     * 'position' is assigned per parent group from the submitted order (sibling-scoped).
      *
-     * 3.4.34 — 'position' is now computed PER PARENT GROUP (sibling-scoped),
-     * not from the raw array index: entries are still submitted in one flat
-     * array in the client's intended final order, but this loop keeps a
-     * running counter PER distinct parent_placement_id value seen so far and
-     * assigns position from that counter — the relative order of same-parent
-     * entries in the submitted array is what determines their sibling
-     * position, exactly mirroring reorder()'s own per-parent scoping. This
-     * keeps the wire format a single flat array (no client-side nested JSON
-     * required) while still producing correct per-parent position values.
+     * @return \WP_REST_Response|\WP_Error
      */
-    /** @return \WP_REST_Response|\WP_Error */
     public static function rest_save_placements(\WP_REST_Request $req) {
         $surface = (string) $req->get_param('surface');
         $context_id = (int) $req->get_param('context_id');
@@ -1888,7 +1279,7 @@ class BH_Element {
         $position_by_parent = [];
         foreach ($placements as $entry) {
             if (!is_array($entry) || empty($entry['element_type']) || !self::get_type((string) $entry['element_type'])) {
-                continue; // unregistered/malformed entry — skip, never fatal for the rest of the batch
+                continue; // unregistered/malformed entry: skip, never fatal for the batch
             }
 
             $parent_id = (int) ($entry['parent_placement_id'] ?? 0);
@@ -1916,13 +1307,11 @@ class BH_Element {
     }
 
     /**
-     * POST /elements/preview — resolve one placement against a supplied
-     * context and return rendered HTML for the live canvas (§3.4 bullet 6).
+     * POST /elements/preview — renders an EPHEMERAL placement (never touches the DB).
      * Body: { "element_type": "bh/stat-card", "config": {...}, "ctx": {"user_id": 5} }.
-     * Deliberately renders an EPHEMERAL placement (never touches the DB) —
-     * this is a preview of unsaved inspector edits, not a placement lookup.
+     *
+     * @return \WP_REST_Response|\WP_Error
      */
-    /** @return \WP_REST_Response|\WP_Error */
     public static function rest_preview(\WP_REST_Request $req) {
         $body = json_decode($req->get_body(), true);
         $element_type = (string) ($body['element_type'] ?? '');
@@ -1943,11 +1332,7 @@ class BH_Element {
         return new \WP_REST_Response(['html' => $html], 200);
     }
 
-    /* =================================================================
-     * Debug Tools — Phase 1's "bare list (add/remove/reorder)" placement
-     * manager, doubling as the "why doesn't my element show up on X"
-     * registered-types inspector the design doc calls mandatory (§3.1).
-     * ================================================================= */
+    /* ---------------- Debug Tools: placement list + registered-types inspector ---------------- */
 
     /**
      * @param array<string, mixed> $tools
@@ -2000,15 +1385,10 @@ class BH_Element {
         self::render_add_bound_demo_button();
     }
 
-    // Phase 2's data-binding proof-of-concept, one click: adds a
-    // 'bh/stat-card' placement whose 'value' attr is a REAL bind
-    // descriptor against the 'bhcore_events.count' source (§3.2),
-    // rather than a typed literal — this is the end-to-end slice the
-    // build pass is meant to demonstrate (a dashboard widget reading
-    // live bhcore_events data through BH_Element_Data::resolve()).
+    // One click: adds a bh/stat-card whose 'value' binds to bhcore_events.count.
     private static function render_add_bound_demo_button(): void {
         if (!self::get_type('bh/stat-card') || !class_exists('BH_Element_Data') || !BH_Element_Data::is_registered('bhcore_events.count')) {
-            return; // stat-card type or its data source isn't registered this request — nothing sane to offer
+            return; // stat-card type or its source isn't registered this request
         }
         $nonce = wp_create_nonce('ous_element_debug_add_bound');
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:8px;">';
@@ -2027,10 +1407,6 @@ class BH_Element {
         ));
     }
 
-    // Audit fix (2026-07-25): every debug placement action was a
-    // hand-copied 5-line "hidden action/op/id/nonce fields + one button"
-    // form differing only in the op value, button label, and (for
-    // delete) a confirm(). One shared builder instead.
     private static function render_debug_op_form(string $op, int $placement_id, string $button_html, string $style = ''): string {
         $nonce = wp_create_nonce('ous_element_debug_' . $placement_id);
         $out = '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"' . ($style ? ' style="' . esc_attr($style) . '"' : '') . '>';
@@ -2063,9 +1439,7 @@ class BH_Element {
         echo '</tbody></table>';
     }
 
-    // A bare "add" form scoped to whatever's registered for the
-    // 'dashboard' surface — deliberately minimal (element_type dropdown
-    // + one free-text "value literal" field), Phase 1's stated scope.
+    // Minimal add form for the 'dashboard' surface: type dropdown + one literal value field.
     private static function render_add_placement_form(): void {
         $types = self::types_for_surface('dashboard');
         if (!$types) {
@@ -2108,12 +1482,8 @@ class BH_Element {
                 $attrs = [];
                 $type_schema = self::get_type($type)['schema'];
                 foreach ($type_schema as $key => $def) {
-                    // First bindable string attr, if any, gets left UNSET so
-                    // its schema default / a future GUI binding applies;
-                    // everything else (and the bindable attr too, if a
-                    // literal was actually typed in) gets the typed literal
-                    // wrapped as {"literal": ...} — this is the Phase 1
-                    // "static content, opt-in binding" contract in miniature.
+                    // With no literal typed, the first bindable string attr stays unset so its default applies;
+                    // otherwise the literal is stored as {"literal": ...}.
                     if ($literal !== '') {
                         $attrs[$key] = ['literal' => $literal];
                     }
@@ -2147,10 +1517,7 @@ class BH_Element {
                     'config'             => [
                         'attrs' => [
                             'label' => ['literal' => 'My events, last 30 days'],
-                            // §3.2 v1 — 'format' added so this demo also
-                            // exercises the new formatter step, not just
-                            // re-resolution: a raw integer count renders
-                            // as e.g. "1.2k" instead of "1204".
+                            // 'format' so the demo also exercises a formatter ("1.2k").
                             'value' => ['bind' => [
                                 'source' => 'bhcore_events.count',
                                 'args'   => ['since' => 'P30D'],
@@ -2181,17 +1548,7 @@ class BH_Element {
         exit;
     }
 
-    // Swaps $id's position with its immediate neighbor in $direction
-    // (-1 up, +1 down) within one (surface, context, slot). Simple
-    // adjacent-swap rather than a full renumber — fine at Phase 1's
-    // "bare list" scale. 3.4.34 — scoped to SIBLINGS (same
-    // parent_placement_id as $id's own row), not the whole flat slot list,
-    // so this stays correct now that a slot can hold a real tree; the
-    // bare Debug Tools list itself is still flat top-to-bottom (Phase 1's
-    // stated scope, unchanged), but this keeps it from corrupting sibling
-    // order on any slot that DOES have a tree in it (e.g. built via the
-    // Design Suite GUI) if this admin-post action is ever invoked against
-    // one.
+    // Swaps $id's position with its adjacent sibling (same parent) in $direction (-1 up, +1 down).
     private static function move_placement(string $surface, int $context_id, string $slot, int $id, int $direction): bool {
         $placements = self::get_placements($surface, $context_id, $slot);
         $target = null;

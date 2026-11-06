@@ -15,10 +15,7 @@ define('BHMP_VER',  '1.2.0');
 define('BHMP_PATH', plugin_dir_path(__FILE__));
 define('BHMP_URL',  plugin_dir_url(__FILE__));
 
-// The MailPoet list this plugin syncs bh-crm contacts into. A single
-// flat list in Phase 1 (see the plugin description above and
-// CLAUDE.md's Phase 2/3 notes) — filterable so a future pass or a
-// manual admin change doesn't need a code edit.
+// The single MailPoet list bh-crm contacts sync into (filterable).
 if (!defined('BHMP_DEFAULT_LIST_NAME')) {
     define('BHMP_DEFAULT_LIST_NAME', 'The Self-Hosted Self Fans');
 }
@@ -27,13 +24,7 @@ foreach (['sync', 'scheduled-sync', 'instant-sync', 'debug'] as $f) {
     require_once BHMP_PATH . "includes/class-$f.php";
 }
 
-/**
- * Gated behind plugins_loaded rather than checked directly here — same
- * reasoning as every other peer plugin in this ecosystem (see
- * bh-contest.php): WordPress loads active plugins' files in alphabetical
- * folder order, so a direct class_exists() check at file-parse time
- * could run before the-self-hosted-self's own file has loaded yet.
- */
+/** WHY: gated on plugins_loaded; plugins load alphabetically, so core may not be loaded at parse time. */
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
@@ -47,36 +38,23 @@ add_action('plugins_loaded', function () {
     BHMP_InstantSync::init();
     BHMP_Debug::init();
 
-    // Third OUS_Integration registration (the-self-hosted-self 3.10.0) — merges
-    // onto the 'email_broadcast' contract the-self-hosted-self.php already
-    // registers (builtin_class => OUS_Campaigns), adding only the
-    // enhancer side. Priority 20 on 'init', same as the-self-hosted-self's own
-    // registration of this key — the-self-hosted-self's file-parse-time
-    // add_action() call is always added to the hook first (before this
-    // plugin's plugins_loaded callback even runs), so its builtin_class
-    // registration is guaranteed to land before this merge, per
-    // OUS_Integration::register()'s own docblock.
+    // Adds the enhancer side of core's 'email_broadcast' integration. Core's init/20 registration is
+    // added at parse time, so its builtin_class always lands before this merge.
     add_action('init', function () {
         if (class_exists('OUS_Integration')) {
             OUS_Integration::register('email_broadcast', ['enhancer_class' => 'BHMP_Sync']);
         }
     }, 20);
 
-    // Softer notice — this plugin stays active and harmless without
-    // MailPoet, it just has nothing to do yet. Only shown on this
-    // plugin's own Debug Tools section context isn't guaranteed, so a
-    // light global admin notice is the more reliable way to surface it;
-    // dismissible so it doesn't nag once someone's aware.
+    // Dismissible notice when MailPoet is missing; the plugin stays inert.
     add_action('admin_notices', function () {
         if (class_exists('\MailPoet\API\API')) return;
         if (!current_user_can('activate_plugins')) return;
         echo '<div class="notice notice-info is-dismissible"><p><strong>BH MailPoet</strong> is active but MailPoet itself isn\'t installed yet — contact sync is idle until it is. Install MailPoet from the Self-Hosted Self dashboard or WordPress.org.</p></div>';
     });
-}, 20); // after BHCORE_LOADED-defining bootstrap, same ordering convention as bh-contest.php
+}, 20); // after core's BHCORE_LOADED bootstrap
 
-// Self-registration on the ecosystem dashboard (the-self-hosted-self's
-// class-registry.php) — harmless even before this plugin is active
-// anywhere else, per that file's own docblock.
+// Self-registration on the ecosystem dashboard.
 add_filter('ous_registered_plugins', function ($plugins) {
     $plugins['bh-mailpoet'] = [
         'label'       => 'BH MailPoet',
@@ -87,10 +65,7 @@ add_filter('ous_registered_plugins', function ($plugins) {
         'dashboard_link' => 'admin.php?page=ous-debug',
         'bundled_zip' => 'bh-mailpoet.zip',
     ];
-    // MailPoet itself — a third-party WordPress.org plugin, not ours to
-    // author or bundle, same 'wporg_slug' pattern class-registry.php's
-    // own docblock documents for WooCommerce. isset() guard so this
-    // never fights the-self-hosted-self's own copy if it's ever added there too.
+    // MailPoet is a wordpress.org dependency; isset() avoids clobbering core's own entry.
     if (!isset($plugins['mailpoet'])) {
         $plugins['mailpoet'] = [
             'label'       => 'MailPoet',

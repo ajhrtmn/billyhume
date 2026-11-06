@@ -2,18 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The person list and detail view — built entirely on shared identity
- * (BHI_Profiles) plus whatever any OTHER active plugin optionally
- * contributes. This plugin never queries bh-contest's or bh-streaming's
- * own tables directly; it only knows about two filters, so it works
- * identically whether zero, one, or several other plugins are active.
+ * Person list and detail view, built on shared identity (BHI_Profiles) plus two
+ * filters other plugins may hook; it never queries another plugin's tables.
  *
- * A plugin contributes in two places, entirely from its own bootstrap:
- *
- * 1. Who belongs on the list at all — anyone with profile data filled
- *    in already qualifies, but a plugin can add people who are active
- *    with it specifically even without profile data (e.g. someone who's
- *    voted but never filled in a real name):
+ * 1. Add people to the list (beyond those with profile data):
  *
  *        add_filter('bh_crm_active_user_ids', function ($ids) {
  *            global $wpdb;
@@ -22,9 +14,7 @@ if (!defined('ABSPATH')) exit;
  *            ));
  *        });
  *
- * 2. What shows up in that person's activity section on their detail
- *    page — a short summary line plus a callback that renders the full
- *    detail table when expanded:
+ * 2. Add an activity section (summary line + optional detail renderer) to a person's page:
  *
  *        add_filter('bh_crm_activity_summary', function ($sections, $user_id) {
  *            $votes = BH_Helpers::user_total_votes($user_id);
@@ -37,39 +27,10 @@ if (!defined('ABSPATH')) exit;
  *            return $sections;
  *        }, 10, 2);
  *
- * Both are harmless to add even if this CRM plugin is never installed —
- * an add_filter() call on a filter nobody applies just sits unused,
- * which is what keeps this a genuine peer relationship rather than a
- * dependency in either direction.
+ * Hooking these is harmless when bh-crm isn't installed.
  */
 class BHCRM_People {
-    /**
-     * Registers the 'bh_crm_profile' surface for BH_Element (design doc
-     * ELEMENT-BUILDER-DESIGN-PLAN.md §3.3/§5.2), mirroring OUS_Dashboard::
-     * register_element_surface()'s (the-self-hosted-self/includes/class-dashboard.php)
-     * exact shape. Unlike the dashboard's singleton surface, this one is
-     * per-person — 'context' => ['type' => 'user', 'param' => 'user_id']
-     * and every render_slot() call site in render_detail() below passes
-     * $uid as the surface_context_id, matching the design doc's schema
-     * note that surface_context_id is "the entity id (CRM = user_id...)".
-     * The 'bh_element_surfaces' filter this hangs on is only ever applied
-     * by BH_Element, so this is harmless to keep even if the-self-hosted-self's
-     * element-builder classes are ever absent — same "peer relationship,
-     * not a dependency" posture as bh_crm_activity_summary above.
-     *
-     * 1.3.3 — DESIGN-SUITE-UNIFICATION-PLAN.md "NO SPECIAL-CASED PAGES"
-     * Step 1: the three separate 'header'/'main'/'sidebar' slots were
-     * themselves a framework-level special case — three zones I chose in
-     * advance, not something the user could restructure. Collapsed to
-     * ONE slot, 'root'. There is nothing structurally distinguishing a
-     * "header area" from anything else anymore: if AJ wants a header-
-     * looking section, he adds a section node as the first root child —
-     * same mechanism as adding a button, exactly the "a page and a
-     * button are just differently-scoped nodes" framing this whole pass
-     * is built around. Safe to collapse with zero data loss: confirmed
-     * via live screenshot that all three of the old slots were empty on
-     * this install (no placement rows to migrate or orphan).
-     */
+    /** Per-person 'bh_crm_profile' element surface (context id = user_id), one 'root' slot. */
     /**
      * @param array<string, mixed> $surfaces
      * @return array<string, mixed>
@@ -82,36 +43,19 @@ class BHCRM_People {
                 'root' => ['label' => 'Page content'],
             ],
             'context'     => ['type' => 'user', 'param' => 'user_id'],
-            // Preview context for a future builder GUI's canvas — the
-            // currently-viewing admin's own user_id stands in as a
-            // representative subject (there's no "the" profile being
-            // edited outside a real $uid, same reasoning the dashboard's
-            // preview_ctx uses for its own single-viewer context).
+            // Previews use the viewing admin as a stand-in subject.
             'preview_ctx' => function () { return ['user_id' => get_current_user_id()]; },
         ];
         return $surfaces;
     }
 
-    // No add_menu() here anymore — this page is registered as a submenu
-    // of The Self-Hosted Self instead of its own top-level menu (see the 'bh-crm'
-    // entry in the core's class-registry.php, applied by OUS_MenuMerge).
-    // render() below is unchanged either way; only where WordPress hangs
-    // it in the admin sidebar changed.
+    // The menu entry is registered by core's class-registry.php ('bh-crm'), not here.
 
     /* ---------------- who's on the list ---------------- */
 
-    // Anyone with profile data on file, plus anyone any active plugin
-    // considers "active" via the filter — a person who's voted but
-    // never filled in a real name still shows up if bh-contest is
-    // active and contributes their ID, but a bare list of every WP
-    // subscriber with zero activity anywhere would just be noise.
+    // Anyone with profile data, plus anyone another plugin reports as active; not every WP subscriber.
     /** @return array<int, int> */
     public static function active_user_ids(): array {
-        // Per QA-REPORT-code-quality.md's cross-plugin finding #2 — this
-        // used to run raw SQL directly against core's bhi_profiles table
-        // (a real encapsulation violation, doubled by class-export.php
-        // running the byte-identical query independently). Both now go
-        // through BHI_Profiles, the class that actually owns that table.
         $with_profile = class_exists('BHI_Profiles') ? BHI_Profiles::user_ids_with_profile_data() : [];
         $contributed = apply_filters('bh_crm_active_user_ids', []);
         return array_unique(array_map('intval', array_merge($with_profile, $contributed)));
@@ -125,20 +69,10 @@ class BHCRM_People {
         BHY_UI::shell_open('People');
         if (isset($_GET['bhcrm_msg'])) echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sanitize_text_field(wp_unslash($_GET['bhcrm_msg']))) . '</p></div>';
 
-        // 1.2.0 — project tracker board dispatch. Rides on THIS existing
-        // single-page dispatch (admin.php?page=bh-crm) rather than a new
-        // standalone page — see class-projects.php's docblock for why a
-        // second page was deliberately avoided on this install.
-        // QA fix: this used to require a truthy $uid to reach the board
-        // at all — meaning a project with no linked person (created
-        // straight from the Project Tracker index, not looped through a
-        // person's page) could never be opened. $uid is now optional;
-        // render_board() itself handles $uid === 0 (no "back to person"
-        // link, falls back to "back to Project Tracker").
+        // WHY: boards ride this single page's dispatch, not a standalone page (see class-projects.php).
+        // $uid may be 0 for a project with no linked person.
         $card_id = isset($_GET['card_id']) ? (int) $_GET['card_id'] : 0;
         if ($project_id && $card_id && class_exists('BHCRM_Subtasks')) {
-            // A sticky card's own nested sub-task tracker — replaces
-            // Content Studio for this purpose entirely.
             $path = isset($_GET['subtask_path']) ? array_values(array_filter(array_map('sanitize_text_field', explode(',', (string) $_GET['subtask_path'])))) : [];
             BHCRM_Subtasks::render($project_id, $uid, $card_id, $path);
         } elseif ($project_id && class_exists('BHCRM_Projects')) {
@@ -161,22 +95,12 @@ class BHCRM_People {
         $tag_filter = sanitize_text_field($_GET['tag'] ?? '');
         if ($tag_filter) $ids = array_filter($ids, fn($id) => in_array($tag_filter, BHCRM_Tags::get($id), true));
 
-        // ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
-        // saved smart lists — AND-combined against whatever the tag
-        // filter above already narrowed to, not a replacement for it,
-        // so "tag=vip&segment=3" behaves exactly as a person reading
-        // the URL would expect.
+        // A saved segment is AND-combined with the tag filter.
         $segment_id = (int) ($_GET['segment'] ?? 0);
         $active_segment = $segment_id ? BHCRM_Segments::get($segment_id) : null;
         if ($active_segment) $ids = BHCRM_Segments::apply(array_values($ids), $active_segment['conditions']);
 
-        // QA fix: this whole toolbar (intro line, tag filter, smart
-        // lists, export, search) was a loose sequence of <p>/<input>
-        // elements relying on default browser paragraph margins for
-        // spacing — inconsistent gaps between rows, and the export
-        // button/search box had no visual relationship to the tag
-        // filter above them. Wrapped in one flex column with a single
-        // token-driven gap so the whole toolbar reads as one group.
+        // Toolbar: one flex column with a single token-driven gap.
         echo '<div style="display:flex;flex-direction:column;gap:var(--bhy-space-3,12px);margin-bottom:var(--bhy-space-4,16px);">';
 
         echo '<p style="margin:0;">Anyone with profile data on file or recorded activity. Click a name for their full detail.</p>';
@@ -196,23 +120,12 @@ class BHCRM_People {
         $export_url = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_export' . ($tag_filter ? '&tag=' . urlencode($tag_filter) : '')), 'bhcrm_export');
         echo '<p style="margin:0;"><a class="button" href="' . esc_url($export_url) . '">Export CSV (all)</a></p>';
 
-        // Search + sortable columns — see BHY_UI::print_design_system_js()
-        // for the shared, dependency-free behavior. Genuinely useful here
-        // specifically: a real directory is exactly the case where
-        // "find one person by name" and "sort by most recently
-        // registered" matter, unlike a small fixed-size stats table.
+        // Search + sortable columns come from BHY_UI::print_design_system_js().
         echo '<input type="text" class="bhy-table-search" data-target="#bhcrm-people-table" placeholder="Filter by name, email, or tag&hellip;">';
 
         echo '</div>';
 
-        // ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
-        // bulk actions — one <form> wraps the whole table (checkboxes +
-        // the bulk-action bar above it), posting to whichever of the two
-        // admin-post actions the clicked button names via its own
-        // formaction — same "one form, two possible submit targets"
-        // shape a plain HTML form supports natively, no JS required for
-        // the actions themselves (bhcrm-bulk-select-all.js below only
-        // handles the header checkbox's select-all convenience).
+        // Bulk actions: one form around the table; each button picks its target via formaction.
         $bulk_tag_action = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_bulk_tag'), 'bhcrm_bulk_action');
         $bulk_export_action = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_export'), 'bhcrm_export');
         echo '<form method="post" id="bhcrm-bulk-form">';
@@ -223,9 +136,7 @@ class BHCRM_People {
         echo '<span class="description bhcrm-bulk-count">0 selected</span>';
         echo '</div>';
 
-        // --tall: this table IS the whole page (a directory, not one of
-        // several colocated cards) — see BHY_UI's own docblock on why
-        // that distinction gets it more scroll room than the default.
+        // --tall: this table is the whole page, so it gets more scroll room.
         echo '<div class="bhy-table-wrap bhy-table-wrap--tall">';
         echo '<table id="bhcrm-people-table" class="wp-list-table widefat striped bhy-sortable"><thead><tr>'
            . '<th style="width:24px;"><input type="checkbox" id="bhcrm-select-all"></th>'
@@ -249,14 +160,7 @@ class BHCRM_People {
         wp_enqueue_script('bhcrm-bulk-select', BHCRM_URL . 'assets/js/bulk-select.js', [], BHCRM_VER, true);
     }
 
-    // ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3: "Saved
-    // smart lists/segments." Saved lists as clickable pills (same visual
-    // language the tag-filter row above already uses), a delete link
-    // per pill, and a collapsible builder below for creating a new one.
-    // Uses this ecosystem's shared design tokens (--bhy-space-*, see
-    // the-self-hosted-self's BHY_UI::print_design_system_js()) rather than
-    // hand-picked pixel values, unlike a few of this same pass's earlier
-    // panels — worth matching going forward.
+    // Saved smart lists as pills, plus a collapsible builder for a new one.
     /** @param array<string, mixed>|null $active_segment */
     private static function render_segments_panel($active_segment): void {
         $segments = BHCRM_Segments::all();
@@ -280,26 +184,9 @@ class BHCRM_People {
             echo '<p class="description" style="margin:0 0 var(--bhy-space-3,12px);">No saved lists yet — build one below (e.g. "tagged vip AND registered after a date AND has an active project").</p>';
         }
 
-        // Collapsible builder — a <details> element needs zero JS for
-        // the open/close behavior itself; segment-builder.js only
-        // handles the repeatable condition rows inside it.
-        // Datastar-driven live preview (the-self-hosted-self 3.10+, OUS_Hypermedia)
-        // — the condition rows below still live inside this SAVE form
-        // (untouched), but the "N of M people match" count now updates
-        // via a real Datastar round trip instead of hand-rolled fetch()/
-        // textContent JS. data-signals declares the two reactive values;
-        // data-on:input/data-on:change on the conditions container fire
-        // (via ordinary event bubbling — no per-row wiring needed, so
-        // segment-builder.js's row add/remove JS is completely
-        // unaffected) a debounced @post() to the preview endpoint using
-        // {contentType:'form'} — Datastar's own documented behavior for
-        // that option is "serialize the closest enclosing <form>'s real
-        // named fields," which is exactly this form's existing
-        // conditions[i][field]/conditions[i][value] inputs, so no
-        // restructuring into a signals-array was needed. The extra
-        // segment_name/_wpnonce/action fields also in this form ride
-        // along harmless — BHCRM_Segments::ajax_preview() only ever
-        // reads 'conditions' and 'nonce'.
+        // segment-builder.js manages condition rows. With Datastar, input/change events bubble to the
+        // conditions container, which @post()s the enclosing form ({contentType:'form'}) for a live
+        // match count; ajax_preview() only reads 'conditions' and 'nonce'.
         $has_datastar = class_exists('OUS_Hypermedia');
         $preview_nonce = wp_create_nonce('bhcrm_preview_segment');
         $preview_url = admin_url('admin-ajax.php?action=bhcrm_preview_segment');
@@ -318,9 +205,7 @@ class BHCRM_People {
         if ($has_datastar) {
             echo '<span class="description" style="margin-left:8px;" data-show="$previewCount !== null" data-text="$previewCount + \' of \' + $previewTotal + \' people match\'"></span>';
         } else {
-            // Older the-self-hosted-self core (pre-3.10, no OUS_Hypermedia) — the
-            // plain fetch()/JSON path in segment-builder.js still works
-            // unchanged against this same span by id.
+            // No OUS_Hypermedia: segment-builder.js's fetch() path fills this span.
             echo '<span id="bhcrm-segment-preview" class="description" style="margin-left:8px;"></span>';
         }
         echo '</p>';
@@ -364,12 +249,7 @@ class BHCRM_People {
             echo '</tbody></table></div>';
         }
         if ($p['typical_platform']) echo '<p><strong>Usually watches on:</strong> ' . esc_html(ucfirst($p['typical_platform'])) . '</p>';
-        // QA fix: bhcore_manage_crm (granted to editor + the new Studio
-        // Manager role) previously gated the ENTIRE person page,
-        // including this direct phone number — no split existed between
-        // "can see the roster" and "can see private contact info." Now
-        // requires the admin-only bhcore_view_crm_sensitive capability
-        // on top of just reaching this page at all.
+        // WHY: the phone number needs bhcore_view_crm_sensitive, beyond the page's bhcore_manage_crm.
         if ($p['phone'] !== '' && current_user_can('bhcore_view_crm_sensitive')) {
             echo '<p><strong>Phone</strong> (direct contact only, never shared): ' . esc_html($p['phone']) . '</p>';
         } elseif ($p['phone'] !== '') {
@@ -377,12 +257,7 @@ class BHCRM_People {
         }
     }
 
-    // Same avatar/banner/bio header the public profile page renders
-    // (BHI_Profiles is the one shared source, the-self-hosted-self's
-    // BHI_PublicProfile is the OTHER renderer of it) — admin-only
-    // context here just adds the public/private state and a direct
-    // link out to the live page when one exists, since staff often
-    // need to check "what does this actually look like."
+    // Avatar/banner/bio header, plus public/private state and a link to the live profile page.
     private static function render_identity_header(int $uid): void {
         if (!class_exists('BHI_Profiles')) return;
         $p = BHI_Profiles::get($uid);
@@ -390,10 +265,6 @@ class BHCRM_People {
         if (!$avatar) $avatar = get_avatar_url($uid, ['size' => 96]);
         $banner = $p['banner_id'] ? wp_get_attachment_image_url((int) $p['banner_id'], 'medium_large') : '';
 
-        // Audit fix (2026-07-25): brought in line with this same file's
-        // own stated convention (see render_segments_panel()'s docblock,
-        // "--bhy-* tokens... worth matching going forward") — was raw
-        // hex/px throughout, unlike the segments panel just below it.
         echo '<div class="bhcrm-identity-header" style="position:relative;margin-bottom:var(--bhy-space-4,16px);">';
         if ($banner) {
             echo '<div style="height:120px;background:url(' . esc_url($banner) . ') center/cover;border-radius:var(--bhy-radius,8px);margin-bottom:-40px;"></div>';
@@ -419,26 +290,11 @@ class BHCRM_People {
         $user = get_userdata($uid);
         if (!$user) { echo '<p>User not found.</p>'; return; }
 
-        // Element-builder context for this profile (design doc §5.2) —
-        // every render_slot() call below shares this one $ctx, resolved
-        // once per page load, since 'user_id' is the only context token
-        // the 'bh_crm_profile' surface declares (register_element_surface()
-        // above). Building $ctx unconditionally is cheap and harmless even
-        // when BH_Element isn't loaded — render_slot() itself is the guard.
         $element_ctx = ['user_id' => $uid];
 
         echo '<p style="margin-bottom:var(--bhy-space-4,16px);"><a href="' . esc_url(remove_query_arg('user_id')) . '">&larr; All people</a></p>';
 
-        // QA fix: this whole page used to be render_identity_header()
-        // plus five sections (profile/tags/notes/projects/activity)
-        // echoed back to back with only their own internal h2/h3/p
-        // margins for spacing — no card grouping at all, so everything
-        // ran together (confirmed live: name, email, "Profile", "Tags",
-        // "Notes" all reading as one undifferentiated block). Wrapped
-        // each section in .bhy-card, this design system's existing
-        // shared card treatment (the-self-hosted-self's class-ui.php) — every
-        // other custom admin screen already uses it, this page just
-        // hadn't been brought in line with it yet.
+        // Each section sits in its own .bhy-card.
         self::render_identity_header($uid);
 
         echo '<div class="bhy-card">';
@@ -456,9 +312,6 @@ class BHCRM_People {
         BHCRM_Notes::render_editor($uid);
         echo '</div>';
 
-        // 1.2.0 — project tracker "Projects" section, additive, same
-        // "appended after the existing fixed content" placement as the
-        // tags/notes editors right above it.
         if (class_exists('BHCRM_Projects')) {
             echo '<div class="bhy-card">';
             BHCRM_Projects::render_projects_section($uid);
@@ -476,31 +329,14 @@ class BHCRM_People {
             echo '</div>';
         }
 
-        // 1.3.3 — single 'root' slot, renders after the existing fixed
-        // CRM data (fields table, tags, notes, activity sections) —
-        // still additive/appended, never displacing existing regions,
-        // same posture the old 'main'/'sidebar' calls had. The old
-        // 'header'/'main'/'sidebar' split is gone (register_element_
-        // surface()'s own updated docblock) — whatever layout this area
-        // needs (a header-looking section, a two-column split, etc.) is
-        // now something the user builds as real child nodes under this
-        // one slot, not something this PHP template pre-decides.
+        // User-built element content, appended after the fixed CRM sections.
         if (class_exists('BH_Element')) {
             echo BH_Element::render_slot('bh_crm_profile', $uid, 'root', $element_ctx);
         }
     }
 }
 
-// First real bh-crm contributor to the shared Metrics dashboard
-// (the-self-hosted-self's OUS_Metrics) — same "build in tandem" instruction as
-// bh-courses/bh-contest's own versions of this registration, plus AJ's
-// own live follow-up on this exact feature: "Not short term trends,
-// long term patterns" — so this is also the first real consumer of
-// OUS_Metrics::event_trend_monthly() rather than the 30-day daily
-// event_trend() the other two plugins use. A relationship graph
-// (bhcrm/link_created) is inherently a slower-moving thing than a
-// vote or an enrollment; a daily sparkline of it would mostly just be
-// noise.
+// Metrics dashboard cards. Links use a monthly trend: they move too slowly for a daily sparkline.
 add_filter('bhcore_metrics_widgets', function ($widgets) {
     if (!class_exists('OUS_Metrics')) return $widgets;
 

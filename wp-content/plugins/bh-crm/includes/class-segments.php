@@ -2,38 +2,13 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3: "Saved
- * smart lists/segments — the single clearest real feature gap: today,
- * filtering is 'one tag at a time via a URL query arg,' with no saved
- * multi-condition segment ('tagged X AND registered in last 30 days AND
- * has an active project')." Read Groundhogg's (GPLv2) segment-builder
- * UX as a reference per the roadmap doc's own instruction — the shape
- * borrowed from it is deliberately the SIMPLE end of what Groundhogg
- * offers: a flat, AND-only list of conditions, not Groundhogg's full
- * nested AND/OR condition-group tree. That's a scoping choice, not an
- * oversight — this CRM's whole person list is a few hundred people at
- * most, not a marketing-automation platform's tens of thousands, and
- * "tagged X AND registered after Y AND has a project" (the roadmap
- * doc's own example) is fully expressible with flat AND already. A
- * nested group tree is real, additional complexity with no concrete use
- * case driving it yet — add it later if a real need for OR-logic
- * between groups ever actually shows up.
- *
- * Stored as a real table (not postmeta/option) since a segment is
- * genuinely site-wide shared data (any admin can see/use any segment),
- * matching the same "a table when the shape doesn't fit a post/meta"
- * convention BHCRM_Projects/BHCRM_Notes already established for this
- * plugin's other two tables.
+ * Saved smart lists: a flat, AND-only list of conditions over the CRM person set.
+ * Stored in a site-wide table, shared by all admins.
  */
 class BHCRM_Segments {
     const DB_VERSION = '1.0';
 
-    // Every condition type this evaluates — deliberately a short,
-    // closed list (not an open field-mapping system) matching the
-    // roadmap doc's own example conditions exactly, plus the one this
-    // plugin's own existing single-tag filter already covered (tag).
-    // Extend this list, and matches_condition() below, if a real need
-    // for another condition type shows up later.
+    // Closed list of condition types; extend together with matches_condition().
     const FIELDS = [
         'tag' => 'Has tag',
         'registered_after' => 'Registered after',
@@ -49,26 +24,8 @@ class BHCRM_Segments {
     }
 
     /**
-     * Wizard-opportunity survey's own finding: the segment builder had
-     * zero feedback while you built a list — conditions went in blind,
-     * and the only way to see who actually matched was to save first,
-     * then open the resulting list. This is the concrete fix: a live
-     * "N people match" count as each condition changes, computed with
-     * the EXACT same sanitize_conditions()/apply() pair the real save
-     * path uses (never a second, parallel filtering implementation
-     * that could quietly drift from what actually gets saved).
-     *
-     * Responds as a Datastar 'datastar-patch-signals' SSE event
-     * (OUS_Hypermedia::patch_signals()) when the-self-hosted-self 3.10+ is
-     * active — class-people.php's render_segments_panel() only emits
-     * the Datastar-driven markup in that case, so this is the matching
-     * response shape. Falls back to the original wp_send_json_success()
-     * shape on an older core (segment-builder.js's own fallback path
-     * consumes that instead) — check_ajax_referer()'s nonce field name
-     * ('nonce') is unchanged either way, since render_segments_panel()
-     * puts a real hidden 'nonce' field in the enclosing form for
-     * Datastar's {contentType:'form'} to pick up, same field name the
-     * old wp_localize_script()-based JS always posted under.
+     * Live "N of M people match" count, using the same sanitize_conditions()/apply() as save.
+     * Responds with Datastar patch-signals when OUS_Hypermedia exists, else JSON for segment-builder.js.
      */
     public static function ajax_preview(): void {
         check_ajax_referer('bhcrm_preview_segment', 'nonce');
@@ -145,10 +102,7 @@ class BHCRM_Segments {
         return $row;
     }
 
-    // Sanitizes a raw posted condition list down to only well-formed,
-    // known-field rows — same "never trust what's about to end up in
-    // the DB and get run against a user filter" posture every other
-    // save handler in this plugin already takes.
+    // Keeps only well-formed rows with a known field.
     /**
      * @param mixed $raw
      * @return array<int, array<string, string>>
@@ -165,11 +119,7 @@ class BHCRM_Segments {
         return $clean;
     }
 
-    // Applies one segment's conditions (AND-combined) against the base
-    // active-person id set — same base set BHCRM_People::render_list()
-    // already computes, passed in rather than re-derived here, so this
-    // never has its own opinion about who's "active" that could drift
-    // from the list page's.
+    // AND-combines conditions over a caller-supplied base id set.
     /**
      * @param array<int, int> $ids
      * @param array<int, array<string, string>> $conditions
@@ -200,10 +150,7 @@ class BHCRM_Segments {
                 return $ts && $user && strtotime($user->user_registered) <= $ts;
 
             case 'has_project':
-                // Routed through BHCRM_Links, same as BHCRM_Projects::list_for_person()
-                // — a person linked via ANY relation (owner/collaborator/watcher,
-                // including the newer "Link person" panel) counts, not just the
-                // legacy single crm_person_id owner column.
+                // Any BHCRM_Links relation counts, not just the legacy crm_person_id owner.
                 return class_exists('BHCRM_Links') && (bool) BHCRM_Links::project_ids_for_person($user_id);
 
             default:
@@ -212,7 +159,7 @@ class BHCRM_Segments {
     }
 
     public static function handle_save(): void {
-        if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_save_segment')) wp_die('Not allowed.'); // QA fix: matches the CRM menu's own bhcore_manage_crm gate
+        if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_save_segment')) wp_die('Not allowed.');
 
         $name = sanitize_text_field(wp_unslash($_POST['segment_name'] ?? ''));
         $conditions = self::sanitize_conditions(wp_unslash($_POST['conditions'] ?? []));
@@ -236,26 +183,7 @@ class BHCRM_Segments {
         exit;
     }
 
-    /**
-     * Bridges every saved segment into OUS_Campaigns' own
-     * 'bhcore_campaign_segments' filter — CLAUDE.md's "critical
-     * infrastructure always ships with a minimal, self-hosted, built-in
-     * default" rule, applied concretely: OUS_Campaigns is the always-
-     * working broadcast tool (BH_Mail/wp_mail() underneath, no third
-     * party required), and until this existed, its ONLY real audience
-     * option was the built-in "everyone with an account" segment — every
-     * saved bh-crm list (tag/date/project conditions, already fully
-     * built in this file) was invisible to it. This is the fix: zero new
-     * UI, zero new data, just handing OUS_Campaigns the same
-     * conditions/apply() pair the CRM's own list page and live-preview
-     * already use, so a genuinely targeted broadcast never requires
-     * installing anything beyond the-self-hosted-self + bh-crm.
-     *
-     * Harmless to register even if OUS_Campaigns is never active — an
-     * add_filter() on a filter nobody applies just sits unused, same
-     * posture every other optional cross-plugin filter in this
-     * ecosystem takes.
-     */
+    /** Exposes every saved list as an OUS_Campaigns audience ('bhcore_campaign_segments'). */
     /**
      * @param array<string, mixed> $segments
      * @return array<string, mixed>
@@ -290,7 +218,6 @@ class BHCRM_Segments {
         }
         global $wpdb;
         $id = (int) ($_GET['segment_id'] ?? 0);
-        // Audit log — capture what it actually was before it's gone.
         $segment = self::get($id);
         if ($segment && class_exists('OUS_Audit')) {
             OUS_Audit::log('segment_deleted', 'bhcrm_segment', $id, ['name' => $segment['name']]);

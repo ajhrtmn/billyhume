@@ -28,11 +28,8 @@
                 'menu_class' => 'oust-nav-list',
                 'fallback_cb' => 'oust_default_menu',
                 'depth' => 2,
-                // "More" overflow trigger, appended after every real menu
-                // item — theme.js moves whichever top-level items don't
-                // fit into its <ul>, keeping the account/portal CTA (the
-                // menu's own last item, .ous-menu-account-cta) out of
-                // scope entirely so it never gets swept in with them.
+                // "More" overflow trigger; theme.js moves top-level items
+                // that don't fit into it (never the account CTA).
                 'items_wrap' => '<ul id="%1$s" class="%2$s">%3$s<li class="oust-nav-more"><button type="button" aria-haspopup="true" aria-expanded="false">' . esc_html__('More', 'the-self-hosted-self-theme') . ' <span class="oust-nav-more-caret" aria-hidden="true">&#9662;</span></button><ul></ul></li></ul>',
             ]);
             ?>
@@ -67,12 +64,8 @@ function oust_default_menu() {
     foreach ($pages as $p) {
         echo '<li><a href="' . esc_url(get_permalink($p->ID)) . '">' . esc_html(get_the_title($p->ID)) . '</a></li>';
     }
-    // This fallback only runs when NO menu is assigned to 'primary' at
-    // all — a state OUS_MenuSync's ensure_default_menu_exists() (own-
-    // ur-shit 3.10.20+) now actively prevents by auto-creating one the
-    // first time it ever syncs. Kept as a genuine last-resort safety
-    // net, not the normal path anymore, so it still needs its own
-    // Account/Log In link — nothing else would add one here.
+    // Last-resort fallback when no 'primary' menu is assigned (OUS_MenuSync
+    // normally creates one), so it adds its own Account/Log In link.
     if (class_exists('BHI_Portal')) {
         $url = esc_url(home_url('/account/'));
         $label = is_user_logged_in() ? esc_html__('Account', 'the-self-hosted-self-theme') : esc_html__('Log In', 'the-self-hosted-self-theme');

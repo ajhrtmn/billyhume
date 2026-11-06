@@ -2,22 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The "CD jacket" bonus content a purchaser can receive alongside the
- * audio — AJ's own direct description: liner notes, a lyrics sheet,
- * an artwork package, and credits, each independently optional. Works
- * on both bhs_track (a song's own liner notes/credits) and bhs_release
- * (an album's own package) — same shared metabox, same generator.
- *
- * Rendered as a real PDF via FPDF (the-self-hosted-self/vendor/fpdf/fpdf.php —
- * already vendored, already proven in production by bh-courses' own
- * class-certificates.php for exactly this "plain PHP, zero
- * dependencies" reason, reused here rather than adding a second PDF
- * library or hand-rolling layout). Generated ONCE and cached as a real
- * WP attachment (not on-demand per request, unlike the certificate) —
- * BHM_Downloads needs a real, stable file URL to attach as a
- * WC_Product_Download, the same shape every other purchasable file
- * already takes. Regenerated only when the underlying content actually
- * changes (a stored content hash, checked before ever re-running FPDF).
+ * "CD jacket" bonus content (liner notes, lyrics, artwork, credits) for a
+ * track or release, rendered as a PDF via core's vendored FPDF. Cached as a
+ * WP attachment (BHM_Downloads needs a stable file URL) and regenerated only
+ * when the stored content hash changes.
  */
 class BHS_Booklet {
     public static function init(): void {
@@ -108,11 +96,7 @@ class BHS_Booklet {
             if (isset($_POST["bhs_artwork_{$key}_id"])) update_post_meta($post_id, "_bhs_artwork_{$key}_id", (int) $_POST["bhs_artwork_{$key}_id"]);
         }
 
-        // Invalidate the cached PDF (if one exists) the moment any
-        // source content changes — ensure_attachment()'s own content-
-        // hash check would catch this anyway on next request, but
-        // clearing it here means a stale file is never served even
-        // once between an edit and the next purchase.
+        // Invalidate the cached PDF on any content change so a stale file is never served.
         delete_post_meta($post_id, '_bhs_booklet_content_hash');
     }
 
@@ -126,9 +110,7 @@ class BHS_Booklet {
         return false;
     }
 
-    // Real content hash across every field that ends up IN the PDF —
-    // if none of these changed since the last generation, the cached
-    // attachment is still correct and FPDF never needs to run again.
+    // Hash of every field that ends up in the PDF.
     private static function content_hash(int $id): string {
         $parts = [
             get_post_meta($id, '_bhs_include_lyrics_sheet', true) ? get_post_meta($id, '_bhs_lyrics_text', true) : '',
@@ -143,10 +125,8 @@ class BHS_Booklet {
     }
 
     /**
-     * Returns the real, stable file URL for this object's booklet,
-     * generating (or regenerating, if the source content changed) it
-     * first if needed. Returns '' if there's genuinely nothing to
-     * include — callers treat that as "no booklet," not an error.
+     * Returns the booklet's file URL, (re)generating it if needed; '' means
+     * there is nothing to include, not an error.
      */
     public static function ensure_url(int $id): string {
         if (!self::has_any_content($id)) return '';
@@ -158,9 +138,7 @@ class BHS_Booklet {
         if ($cached_attachment_id && $cached_hash === $hash) {
             $url = wp_get_attachment_url($cached_attachment_id);
             if ($url) return $url;
-            // The cached attachment row is gone (manually deleted from
-            // Media) even though the meta still points at it —
-            // regenerate below rather than returning a dead link.
+            // Cached attachment was deleted from Media; regenerate.
         }
 
         $pdf_bytes = self::generate_pdf_bytes($id);
@@ -178,10 +156,8 @@ class BHS_Booklet {
         ], $upload['file'], 0, true);
         if (is_wp_error($attachment_id)) return '';
 
-        // Delete the previous cached attachment (a stale, now-orphaned
-        // file) once the new one is safely created — never the other
-        // way around, so a fan mid-download of the old version never
-        // hits a 404.
+        // WHY: delete the old attachment only after the new one exists, so an
+        // in-progress download never 404s.
         if ($cached_attachment_id && $cached_attachment_id !== $attachment_id) {
             wp_delete_attachment($cached_attachment_id, true);
         }
@@ -227,11 +203,7 @@ class BHS_Booklet {
             $path = get_attached_file($aid);
             if (!$path || !file_exists($path)) continue;
             $type = wp_check_filetype($path)['type'] ?: '';
-            // FPDF's Image() only decodes JPEG/PNG/GIF natively — an
-            // artist who uploaded a WEBP or AVIF cover gets it silently
-            // skipped here rather than a fatal error mid-generation;
-            // the rest of the booklet (notes/lyrics/credits) still
-            // generates correctly either way.
+            // FPDF only decodes JPEG/PNG/GIF; other formats are skipped, not fatal.
             if (!in_array($type, ['image/jpeg', 'image/png', 'image/gif'], true)) continue;
 
             $pdf->AddPage();
@@ -245,7 +217,7 @@ class BHS_Booklet {
             }
         }
 
-        return $pdf->Output('S'); // 'S' — return as a string, this method never writes directly to the HTTP response
+        return $pdf->Output('S'); // 'S' returns a string; never writes to the response
     }
 
     private static function add_text_section(\FPDF $pdf, string $heading, string $body): void {

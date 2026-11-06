@@ -1,12 +1,7 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/**
- * Debug Tools section (the-self-hosted-self's OUS_Debug, ous_debug_tools filter)
- * rather than a standalone admin page — per CLAUDE.md's documented
- * WordPress page-hook resolution incident. Shows sync status and a
- * manual "Sync now" button.
- */
+/** Debug Tools section: MailPoet sync status and a manual "Sync now" button. */
 class BHMP_Debug {
     public static function init(): void {
         if (!class_exists('OUS_Debug')) return;
@@ -15,7 +10,7 @@ class BHMP_Debug {
             [self::class, 'render_section'],
             [self::class, 'handle_action'],
             null,
-            true, // safe_in_production — this section only reports status + triggers a real sync, never seeds/deletes fake data
+            true, // safe_in_production: only reports status and runs a real sync
             OUS_Debug::GROUP_MONITORING
         );
     }

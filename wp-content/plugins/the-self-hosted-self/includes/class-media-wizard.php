@@ -2,45 +2,17 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * "It just works" guided media/CDN setup — Tier A from
- * ROADMAP-guided-setup-wizards.md, the concrete first slice of that
- * plan (see VISION.md's own "it just works" design principle for the
- * philosophy this implements). Wraps the already-installed Advanced
- * Media Offloader plugin rather than replacing it — same "own the
- * interface, don't reinvent the third-party piece" posture this
- * ecosystem already applies to WooCommerce. Writes DIRECTLY into
- * ADVMO's own option shape (`advmo_settings`/`advmo_credentials`,
- * confirmed by reading `GeneralSettings::sanitize()`/
- * `sanitize_credentials()`) and reuses ADVMO's own provider classes'
- * `checkConnection()` for real, live credential validation — never a
- * format-only check, per VISION.md's "validate in real time" rule.
+ * Guided media/CDN setup wrapping Advanced Media Offloader (ADVMO): writes ADVMO's own
+ * `advmo_settings`/`advmo_credentials` options and validates with its providers' checkConnection().
+ * Also hosts the live-streaming and Cloudflare Stream (Tier B) steps.
  *
- * Deliberately NOT registered as a Debug Tools section — this is a
- * real end-user setup flow, not a dev/QA tool. Nested under the
- * 'the-self-hosted-self' top-level menu (the same parent Reports/Security
- * already use successfully), not under 'ous-debug' — this install has
- * a documented, still-unexplained WordPress-core bug where NEW
- * standalone submenu slugs under THAT specific parent silently
- * resolved to the wrong screen context (see VISION.md's own account
- * of the API Docs/Codebase Docs incident). Reusing an already-proven-
- * working parent sidesteps that risk entirely rather than re-testing
- * into it.
- *
- * Six providers covered — every one Advanced Media Offloader itself
- * ships a real integration for (confirmed by reading each provider
- * class's own credentialsField()): Cloudflare R2, Amazon S3, Backblaze
- * B2, DigitalOcean Spaces, Wasabi, and generic S3-compatible (MinIO/
- * OVHcloud/etc). Azure Blob Storage is NOT in this list — Advanced
- * Media Offloader has no Azure integration at all (it only speaks the
- * S3 API), so an "Azure" option here would be fake. Stated honestly in
- * the UI rather than silently omitted.
+ * WHY: a submenu under 'the-self-hosted-self', not 'ous-debug' — new submenu slugs under
+ * 'ous-debug' have resolved to the wrong screen on this install (see VISION.md).
+ * No Azure option: ADVMO only speaks the S3 API.
  */
 class OUS_MediaWizard {
-    // key => [name, recommended, credential fields, dashboard link, help text]
-    // Field shapes copied directly from each ADVMO provider class's own
-    // credentialsField() — a deliberate, small, static duplication of a
-    // stable third-party surface (see this file's own docblock), not a
-    // live reflection hack against another plugin's private methods.
+    // key => [name, recommended, credential fields, dashboard link, help text].
+    // Field shapes copied from each ADVMO provider's credentialsField() (small, stable duplication).
     const PROVIDERS = [
         'cloudflare_r2' => [
             'name' => 'Cloudflare R2',
@@ -131,19 +103,11 @@ class OUS_MediaWizard {
     ];
 
     public static function init(): void {
-        // The live-engine step (below) is independent of ADVMO — a
-        // site running bh-live without ADVMO installed still gets that
-        // one step, so the early-return only ever skips the
-        // storage/CDN section, never this whole class.
+        // The live-engine step doesn't need ADVMO; only the storage/CDN section is skipped without it.
         if (class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory')) {
             add_action('admin_post_ous_media_wizard_save', [self::class, 'handle_save']);
         }
-        // Tier B (Cloudflare Stream, class-media-wizard.php's own
-        // render_tier_b_section()) doesn't depend on either ADVMO or
-        // bh-live's engine registry, so this page is now always
-        // registered — previously gated on one of those two being
-        // active, which would have hidden Tier B entirely on an install
-        // with neither.
+        // Always registered: Tier B depends on neither ADVMO nor bh-live.
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_ous_media_wizard_save_cloudflare_stream', [self::class, 'handle_save_cloudflare_stream']);
         if (class_exists('BHL_EngineRegistry')) {
@@ -170,11 +134,7 @@ class OUS_MediaWizard {
         }
     }
 
-    // key => [name, class implementing BHL_HostProvisioner, why, fields].
-    // Only Fly.io exists today — the registry shape itself (matching
-    // PROVIDERS above) is what makes adding a second provider later
-    // just another array entry plus a class, not a rewrite of this
-    // section's rendering/save logic.
+    // key => [name, class implementing BHL_HostProvisioner, why, fields]. Only Fly.io today.
     const HOST_PROVISIONERS = [
         'fly' => [
             'name' => 'Fly.io',
@@ -281,28 +241,13 @@ class OUS_MediaWizard {
             self::render_live_section();
         }
 
-        /**
-         * Lets other core services add their own section to this one
-         * "manage all media from one place" page rather than standing up
-         * a second settings screen — BHY_MediaToken (signed/private
-         * delivery) is the first user. Fires inside .wrap, after
-         * everything above.
-         */
+        /** Lets other core services (e.g. BHY_MediaToken) add a section to this page, inside .wrap. */
         do_action('ous_media_setup_after');
 
         echo '</div>';
     }
 
-    /**
-     * Live streaming's own step in the same one wizard (AJ's own call,
-     * 2026-07-26: "For VODs and for live, we should have wizards for
-     * the required upgrading to media hosting offloading ... it should
-     * still all be managed from the one place here") — not a second
-     * settings screen. Owns the 'bhl_owncast_settings' option's shape;
-     * BHL_OwncastEngine (bh-live's own class) is the only other reader/
-     * writer of that option, and only ever through save_settings()/
-     * settings(), so this form is the one place the shape is defined.
-     */
+    /** Live streaming step; owns the 'bhl_owncast_settings' option shape. */
     private static function render_live_section(): void {
         $active_key = BHL_EngineRegistry::active_key();
 
@@ -331,12 +276,7 @@ class OUS_MediaWizard {
         self::render_chat_choice_section();
     }
 
-    /**
-     * Owns the 'bhl_owncast_settings' option's shape; BHL_OwncastEngine
-     * (bh-live's own class) is the only other reader/writer of that
-     * option, and only ever through save_settings()/settings(), so
-     * this form is the one place the shape is defined.
-     */
+    /** Owns the 'bhl_owncast_settings' shape; BHL_OwncastEngine reads/writes it only via save_settings()/settings(). */
     private static function render_owncast_section(): void {
         $s = BHL_OwncastEngine::settings();
         $status_result = get_transient('ous_media_wizard_live_test_result');
@@ -361,13 +301,7 @@ class OUS_MediaWizard {
         echo '</form>';
     }
 
-    /**
-     * Cloudflare Stream Live needs no BHL_HostProvisioner section at
-     * all — there's no box, "deploying" is just the one-time
-     * create-live-input API call below, which returns an RTMP URL +
-     * stream key to paste into OBS, same role a self-hosted Owncast
-     * server's own stream key plays.
-     */
+    /** Cloudflare Stream Live: no host to provision, just a create-live-input call returning RTMP URL + key. */
     private static function render_cloudflare_section(): void {
         $s = BHL_CloudflareStreamEngine::settings();
         $result = get_transient('ous_media_wizard_cf_result');
@@ -413,16 +347,10 @@ class OUS_MediaWizard {
         }
     }
 
-    /**
-     * "Levels of it just works to fit every need and budget" — AJ's
-     * own ask, 2026-07-26. Only shows chat options actually compatible
-     * with whichever engine is active right now (BHL_EngineRegistry::
-     * available_chat_options()) — Owncast's own bundled chat only ever
-     * appears as a choice when Owncast itself is the active engine.
-     */
+    /** Offers only chat options compatible with the active engine (BHL_EngineRegistry::available_chat_options()). */
     private static function render_chat_choice_section(): void {
         $options = BHL_EngineRegistry::available_chat_options();
-        if (count($options) < 2) return; // nothing to choose between (e.g. Owncast's own bundled chat is the only option today unless bh-live's other chat classes are also active)
+        if (count($options) < 2) return; // nothing to choose between
 
         $active_chat = BHL_EngineRegistry::active_chat_key();
         echo '<h3>Chat</h3>';
@@ -438,15 +366,8 @@ class OUS_MediaWizard {
         if ($active_chat === 'workers' && class_exists('BHL_WorkersChat')) {
             self::render_workers_chat_section();
         } elseif (class_exists('BHL_WorkersChat')) {
-            // Live-robustness audit addition: a Workers Chat deployment
-            // that's no longer the active engine used to become
-            // completely invisible here — the section only ever
-            // rendered while 'workers' was selected, so there was no
-            // way to even SEE, let alone tear down, a Worker left
-            // running from a previous choice. Still a real, publicly
-            // reachable, unmoderated chat endpoint on the user's own
-            // Cloudflare account regardless of what this site currently
-            // points at.
+            // Rendered even when Workers Chat is no longer the active engine, so a still-running public
+            // Worker can be seen and torn down.
             $s = BHL_WorkersChat::settings();
             if (!empty($s['deployed'])) {
                 self::render_orphaned_workers_notice();
@@ -475,14 +396,7 @@ class OUS_MediaWizard {
         echo '</form>';
     }
 
-    /**
-     * The real-time paid-tier chat deploy step — reuses the SAME
-     * account_id/api_token already entered in the Cloudflare Stream
-     * Live section above (BHL_WorkersChat's own settings() reads
-     * BHL_CloudflareStreamEngine's, not a duplicate credential form),
-     * only asking for the two things unique to Workers: a script name
-     * and the account's workers.dev subdomain slug.
-     */
+    /** Workers Chat deploy: reuses the Cloudflare Stream account_id/api_token; asks only for script name and workers.dev subdomain. */
     private static function render_workers_chat_section(): void {
         $s = BHL_WorkersChat::settings();
         $result = get_transient('ous_media_wizard_workers_result');
@@ -524,18 +438,11 @@ class OUS_MediaWizard {
     }
 
     /**
-     * "Administered from the WP plugin, hosted elsewhere" — AJ's own
-     * ask. Deploy/destroy the actual box Owncast runs on directly from
-     * this screen, via BHL_HostProvisioner (a real API call, not a
-     * trip to another dashboard). A successful deploy auto-fills the
-     * Owncast server URL above — the one thing this can't do for you
-     * is allocate a dedicated public IPv4 for RTMP, a one-time
-     * `fly ips allocate-v4` step Fly's REST API has no endpoint for at
-     * all (confirmed against their own docs) — said plainly here
-     * rather than implying full automation this API can't back up.
+     * Deploy/destroy the Owncast host via BHL_HostProvisioner; a deploy auto-fills the Owncast URL.
+     * Allocating a dedicated IPv4 for RTMP (`fly ips allocate-v4`) has no REST endpoint and stays manual.
      */
     private static function render_provisioner_section(): void {
-        $provider_key = 'fly'; // the only entry in HOST_PROVISIONERS today
+        $provider_key = 'fly'; // the only entry today
         $provider = self::HOST_PROVISIONERS[$provider_key];
         $settings = BHL_FlyProvisioner::settings();
         $deploy_result = get_transient('ous_media_wizard_deploy_result');
@@ -558,15 +465,8 @@ class OUS_MediaWizard {
             if (!is_wp_error($status)) {
                 echo '<p><strong>Current machine:</strong> <code>' . esc_html($settings['active_machine_id']) . '</code> — status: <strong>' . esc_html($status['state']) . '</strong> (' . esc_html($status['raw_state']) . ')</p>';
             } else {
-                // Live-robustness audit fix: this used to be a silent
-                // no-op, leaving a "Destroy machine" button with zero
-                // context if the status check failed — most commonly
-                // because the machine was already deleted directly via
-                // Fly's own dashboard/CLI, outside this plugin. Now
-                // visible, and "Destroy machine" below correctly clears
-                // the stale reference on the next click either way
-                // (BHL_FlyProvisioner::destroy() treats a 404 as
-                // "already gone" success, not a failure).
+                // Shown when the status check fails (e.g. machine deleted outside this plugin); destroy()
+                // treats a 404 as already gone, so the stale reference clears.
                 echo '<p><strong>Current machine:</strong> <code>' . esc_html($settings['active_machine_id']) . '</code> — could not check status (' . esc_html($status->get_error_message()) . '). If this machine was deleted outside this plugin, click "Destroy machine" once to clear the reference.</p>';
             }
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline;">';
@@ -601,30 +501,9 @@ class OUS_MediaWizard {
     }
 
     /**
-     * Tier B — Cloudflare Stream, adaptive-bitrate on-demand video.
-     * Phase 6 of the OSS-integration master plan. Confirmed in scope
-     * (AJ, this session) but strictly opt-in — Tier A above stays the
-     * default recommendation for most artists; this is a real, ongoing
-     * per-minute cost an admin explicitly chooses, never silently
-     * enabled.
-     *
-     * Deliberately scoped to settings + a real, live-tested connection
-     * only — NOT the per-video "upload this attachment to Cloudflare
-     * Stream and swap the player" wiring into bh-video/bh-courses/
-     * bh-streaming's own upload flows. That's a real, separate
-     * integration per plugin (three different media-upload code paths),
-     * and wiring only one of them while leaving the others untouched
-     * would be a misleading half-finished feature — worse than a
-     * clearly-stated boundary. What ships here: the credential/toggle
-     * plumbing (OUS_MediaWizard::tier_b_enabled()/
-     * cloudflare_stream_credentials(), the two public accessors a real
-     * per-plugin integration would need) and hls.js (vendored,
-     * assets/js/vendor/hls.js) ready for whichever plugin picks this up
-     * next. No OUS_Wizard framework built for this — matches this
-     * plan's own "build the concrete thing first, extract a reusable
-     * framework after, same as OUS_Integration" recommendation, since
-     * this is still a single, simple settings form, not a genuine
-     * multi-step interview yet.
+     * Tier B: Cloudflare Stream adaptive on-demand video, strictly opt-in (ongoing per-minute cost).
+     * Settings + live connection test only; per-plugin upload/player wiring is not built. Exposes
+     * tier_b_enabled()/cloudflare_stream_credentials() and vendored hls.js for that later integration.
      */
     private static function render_tier_b_section(): void {
         $enabled = (bool) get_option('ous_cf_stream_enabled', false);
@@ -659,7 +538,7 @@ class OUS_MediaWizard {
         echo '</form>';
     }
 
-    /** Public accessor for a future per-plugin Cloudflare Stream integration — see render_tier_b_section()'s own docblock for what is and isn't built yet. */
+    /** Public accessor for a future per-plugin Cloudflare Stream integration. */
     public static function tier_b_enabled(): bool {
         return (bool) get_option('ous_cf_stream_enabled', false);
     }
@@ -669,13 +548,7 @@ class OUS_MediaWizard {
         return get_option('ous_cf_stream_credentials', ['account_id' => '', 'api_token' => '']);
     }
 
-    /**
-     * Vendored hls.js (v1.6.16, Apache-2.0, real bytes from its official
-     * GitHub release — assets/js/vendor/hls.min.js), for whichever
-     * plugin's own Tier B integration picks this up first: native HLS
-     * playback exists in Safari only, everywhere else needs this to
-     * play a Cloudflare Stream manifest URL in a plain <video> tag.
-     */
+    /** Vendored hls.js (assets/js/vendor/hls.min.js): HLS playback outside Safari. */
     public static function enqueue_hls_js(): void {
         wp_enqueue_script('ous-hls-js', OUS_URL . 'assets/js/vendor/hls.min.js', [], '1.6.16', true);
     }
@@ -694,11 +567,7 @@ class OUS_MediaWizard {
         update_option('ous_cf_stream_enabled', $enabled);
         update_option('ous_cf_stream_credentials', ['account_id' => $account_id, 'api_token' => $api_token]);
 
-        // Real, live validation — VISION.md's "validate in real time" rule,
-        // same posture Tier A's ADVMO checkConnection() calls already take.
-        // A plain GET against the account's own Stream endpoint is enough
-        // to prove the token/account pair actually works — no video needs
-        // to exist yet for this call to succeed or fail meaningfully.
+        // Live validation: a plain GET against the account's Stream endpoint proves the token/account pair.
         $result = ['success' => false, 'message' => 'Enter both an Account ID and an API Token to test the connection.'];
         if ($account_id && $api_token) {
             $response = wp_remote_get(
@@ -731,12 +600,8 @@ class OUS_MediaWizard {
             wp_die('Unknown provider.', '', ['response' => 400, 'back_link' => true]);
         }
 
-        // Merge onto existing credentials for every provider (not just
-        // this one) — matches ADVMO's own sanitize_credentials()
-        // behavior exactly, so switching providers later doesn't wipe
-        // out a previously-configured one. A blank password field means
-        // "keep what's already saved" (the UI never re-displays a saved
-        // secret), never "clear it".
+        // Merge onto all providers' credentials, like ADVMO's sanitize_credentials(), so switching
+        // providers keeps others. A blank secret field means keep the saved value.
         $existing = get_option('advmo_credentials', []);
         $posted = $_POST['ous_cred'][$provider] ?? [];
         $clean = $existing[$provider] ?? [];
@@ -749,22 +614,13 @@ class OUS_MediaWizard {
         $existing[$provider] = $clean;
         update_option('advmo_credentials', $existing);
 
-        // Same option shape GeneralSettings::sanitize() writes —
-        // auto_offload_uploads on by default so this actually takes
-        // effect for new uploads immediately, not just "saved but
-        // inactive until a second settings visit."
+        // Same shape GeneralSettings::sanitize() writes; auto_offload_uploads on so new uploads offload immediately.
         $settings = get_option('advmo_settings', []);
         $settings['cloud_provider'] = $provider;
         if (!isset($settings['auto_offload_uploads'])) $settings['auto_offload_uploads'] = 1;
         update_option('advmo_settings', $settings);
 
-        // Real, live connection test — reuses ADVMO's own provider
-        // class (checkConnection() does a real headBucket() S3 call,
-        // confirmed by reading S3_Provider::checkConnection() — always
-        // a plain true/false, never an array) rather than
-        // re-implementing an S3 client call here. Per VISION.md's
-        // "validate in real time" rule: this is a real API call, not a
-        // format check.
+        // Live test via ADVMO's provider checkConnection() (a real headBucket(); returns bool).
         $result = ['success' => false, 'message' => 'Could not test the connection.'];
         try {
             $factory = new \Advanced_Media_Offloader\Factories\CloudProviderFactory();
@@ -793,11 +649,7 @@ class OUS_MediaWizard {
         $access_token = wp_unslash($_POST['bhl_access_token'] ?? '');
         BHL_OwncastEngine::save_settings($server_url, $access_token);
 
-        // Real, live status check — same "validate in real time" rule
-        // the storage section's own checkConnection() call follows,
-        // via BHL_OwncastEngine's own get_status() (a real wp_remote_get
-        // against Owncast's public /api/status endpoint), not a
-        // format-only URL check.
+        // Live status check via BHL_OwncastEngine::get_status() (Owncast's /api/status).
         $engine = new BHL_OwncastEngine();
         $status = $engine->get_status();
         $result = is_wp_error($status)
@@ -833,9 +685,7 @@ class OUS_MediaWizard {
         if (is_wp_error($result)) {
             set_transient('ous_media_wizard_deploy_result', ['success' => false, 'message' => 'Deploy failed: ' . $result->get_error_message()], 60);
         } else {
-            // Auto-fill the Owncast connection settings above with the
-            // freshly-deployed box's own URL — the actual "one click"
-            // loop AJ asked for, not deploy-then-copy-paste-manually.
+            // Auto-fill the Owncast connection settings with the freshly deployed box's URL.
             BHL_OwncastEngine::save_settings($result['public_url'], null);
             set_transient('ous_media_wizard_deploy_result', [
                 'success' => true,

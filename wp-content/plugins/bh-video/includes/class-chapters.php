@@ -2,19 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Chapter markers + per-listener resume position for bhv_video, ported
- * directly from bh-streaming's own class-chapters.php (BHS_Chapters) --
- * same shape, same "barely an expansion" scope: one meta field on the
- * video, one per-user meta field for resume position, no schema change
- * beyond that. Long videos want the same "resume where I left off" +
- * chapter-jump UX audio already has (this ecosystem's own scoping call,
- * 2026-07-26 video/live plan).
- *
- * Chapters are a JSON array of {time (seconds, int), label} on
- * '_bhv_chapters'. Resume position is per-video, per-listener
- * ('_bhv_resume_' . $video_id on the user) -- logged-out listeners
- * never get resume, same posture as everything else keyed to a
- * specific viewer's own history.
+ * Chapter markers and per-user resume position for bhv_video (a port of BHS_Chapters).
+ * Chapters: JSON [{time (int seconds), label}] on '_bhv_chapters'. Resume: user meta
+ * '_bhv_resume_' . $video_id; logged-out viewers get no resume.
  */
 class BHV_Chapters {
     public static function init(): void {
@@ -71,10 +61,7 @@ class BHV_Chapters {
         ]);
     }
 
-    // Fire-and-forget from the player's own timeupdate handler
-    // (throttled client-side, see video-player.js) -- a convenience,
-    // not an authoritative play record, so a bad $seconds value just
-    // means an odd next-resume seek, not a security issue.
+    // Fire-and-forget convenience, not a play record; a bad $seconds only means an odd resume seek.
     /** @return \WP_REST_Response|\WP_Error */
     public static function save_resume_position(\WP_REST_Request $req) {
         $video_id = (int) $req->get_param('id');

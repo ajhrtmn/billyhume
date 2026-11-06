@@ -1,41 +1,12 @@
 "use strict";
 /**
- * Real D3 charts for the Metrics dashboard (class-stats.php), replacing
- * the previous hand-rolled inline-CSS div bar chart and plain HTML
- * tables for the time-series/categorical breakdowns. Top Tracks and
- * Most Skipped stay plain tables — title + count lists, not naturally
- * chart-shaped data. D3 is vendored plugin-local (assets/js/vendor/
- * d3.min.js, v7.9.0) since this is the first real consumer in the
- * ecosystem; class-stats.php passes the exact same server-aggregated
- * rows this file used to loop over as `echo` calls, just JSON-encoded
- * into each chart container's data attribute instead.
- *
- * TypeScript pilot conversion (bh-streaming's first), same posture as
- * the-self-hosted-self/assets/ts/*.ts: plain `tsc`, compiled to assets/js/
- * stats-charts.js, which is what's actually enqueued. Run
- * `npm run build:bh-streaming` after editing. `d3` is declared as a
- * loose `any` global below — a real @types/d3 package would be a much
- * heavier/precise dependency than this pilot's "catch typos in our own
- * code" goal calls for.
+ * D3 charts for the Metrics dashboard (class-stats.php), reading
+ * server-aggregated rows from each container's data attribute. Top Tracks
+ * and Most Skipped stay tables. D3 is vendored and declared as a loose
+ * global. Edit this .ts and recompile; assets/js/stats-charts.js is generated.
  */
-// Real, visible bug found by checking computed color on the live admin
-// screen rather than assuming a hex literal was harmless: this file
-// hardcoded #C1503A (the FRONT-END --bh-accent default) for every
-// chart's line/area/bars. Two things wrong with that, not one — it's
-// hardcoded at all, AND it's the wrong token FAMILY for where this
-// screen lives. This is wp-admin (class-stats.php's own admin page),
-// where --bh-* isn't even defined (confirmed live: reads empty) —
-// the real admin accent is --bhy-accent (the-self-hosted-self's own design-
-// token system, class-ui.php), which the admin skin bridges to its
-// own --shsas-accent. Verified live on this exact install: --bhy-
-// accent computes to #2f7dff (blue), so every chart was rendering in
-// orange against an otherwise all-blue admin skin — a real "doesn't
-// look designed by one person" defect, not a cosmetic nit.
-// Read once at call time (charts render after DOMContentLoaded, by
-// which point BHY_UI's own print_design_system_css() has already run
-// and set the custom property on :root) with the old literal kept as
-// the fallback for the case where the-self-hosted-self's token CSS hasn't
-// loaded for some reason.
+// WHY: this is wp-admin, where --bh-* is undefined; use the admin --bhy-accent
+// token, read at call time, with the old literal as fallback.
 function bhsChartAccent() {
     var v = getComputedStyle(document.documentElement).getPropertyValue('--bhy-accent').trim();
     return v || '#C1503A';

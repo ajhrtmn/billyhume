@@ -2,30 +2,13 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BHY_Customize_Css_Rules_Control — the visual Custom CSS rule editor
- * (class-style-gallery.php's own copy, BHY_Style::css_property_registry()
- * /css_state_options()), rebuilt as a real Customizer control so AJ never
- * has to leave the Customizer to use it ("Can it stay all on the
- * customizer side instead of jumping to the backend. Its weird" — AJ,
- * 2026-09-19; "Both sides should be able to have acces to the rule
- * builder" — the admin page's own copy stays too, this is additive).
- *
- * Deliberately does NOT use WP_Customize_Control::link() (the standard
- * "bind one form field's value to this setting" helper) — this control's
- * value is a whole array of rule objects, not one string a plain input
- * can hold. Instead its enqueue()'d script talks to the Customize API
- * directly: reads the setting's current value with wp.customize(id).get(),
- * writes a new one with .set(realArray), and — since Customizer settings
- * transport arbitrary JS values structurally (via JSON over both the
- * postMessage preview channel and the save AJAX request, not a plain
- * form field's string .val()) — the array survives the round trip intact
- * on both sides: PHP's sanitize_callback receives a real decoded PHP
- * array, and the live preview's value.bind() receives a real JS array.
- *
- * Same lazy-require discipline as class-customize-range-control.php:
- * only ever required from inside BHY_Customizer::register(), never at
- * this plugin's top-level bootstrap, since WP_Customize_Control only
- * exists in a genuine Customizer request.
+ * The visual Custom CSS rule editor as a Customizer control (the Design
+ * Suite page keeps its own copy).
+ * WHY: no link(); the value is an array of rules, so the script uses
+ * wp.customize(id).get()/.set(), which carries arrays intact to the
+ * preview and to sanitize_callback.
+ * Required lazily from BHY_Customizer::register() (WP_Customize_Control
+ * exists only in Customizer requests).
  */
 class BHY_Customize_Css_Rules_Control extends WP_Customize_Control {
     public $type = 'bhy_css_rules';

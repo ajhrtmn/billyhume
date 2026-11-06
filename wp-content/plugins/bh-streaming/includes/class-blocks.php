@@ -2,21 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a — WYSIWYG
- * shortcode-to-block conversion, continuing the same wp.serverSideRender
- * pattern already shipped for bh-monetization-woo (bhm/buy, bhm/
- * tip-jar, bhm/tiers) and bh-contest (bh/contest-player, bh/results-
- * reveal, bh/archive). One block, 'bhs/player' — [bh_streaming] takes
- * no attributes and BHS_Player::render() is a single, fixed mount div
- * (the actual player is entirely player.js hydrating it client-side on
- * a real front-end load, same "editor canvas shows the real static
- * container, not a live-interactive preview" honesty already
- * established for the bh-contest blocks). Old shortcode untouched.
- *
- * Respects BHS_Env::hidden_in_production() the same way the shortcode
- * always has — render_callback calls BHS_Player::render() directly,
- * so a production site with streaming still hidden sees an empty block
- * here too, not a leaked half-built feature.
+ * 'bhs/player' block wrapping [bh_streaming] via wp.serverSideRender; the
+ * editor shows the static mount div, which player.ts hydrates on the front
+ * end. render_callback calls BHS_Player::render(), so BHS_FORCE_HIDDEN applies.
  */
 class BHS_Blocks {
     public static function init(): void {
@@ -24,7 +12,7 @@ class BHS_Blocks {
     }
 
     public static function register_blocks(): void {
-        if (!function_exists('register_block_type')) return; // WP too old — harmless no-op, same posture every optional integration in this ecosystem uses
+        if (!function_exists('register_block_type')) return; // WP too old; harmless no-op
 
         wp_register_script(
             'bhs-player-block',

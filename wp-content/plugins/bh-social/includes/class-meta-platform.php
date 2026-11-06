@@ -2,29 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Meta Graph API (Instagram via a linked Facebook Page) — third
- * platform, and the first genuinely gated one: real production use
- * needs Meta's app-review process per scope (instagram_business_basic,
- * instagram_business_content_publish), each with its own screencast
- * submission and a 2-4 week turnaround — that's an external,
- * calendar-time step outside this codebase, not something this class
- * can shortcut. In Meta's own "Development Mode" (before review), the
- * exact same code below already works end-to-end against Instagram
- * accounts added as Test Users / roles on the app in Meta's dashboard —
- * useful for verifying this integration without waiting on review.
- *
- * Structurally different from YouTube/Twitch in one real way: the
- * Content Publishing API does NOT accept a direct file upload — it
- * takes a publicly reachable image_url/video_url that Meta's own
- * servers fetch. Since WordPress attachments already have public URLs
- * on a live site, cross_post() just passes wp_get_attachment_url()
- * through rather than uploading bytes anywhere itself.
- *
- * v1 auto-selects the FIRST Facebook Page (from /me/accounts) that has
- * a linked Instagram Business/Creator account, rather than presenting a
- * page-picker UI — a real simplification worth revisiting if an
- * artist's Facebook user ever manages more than one Page, but matches
- * this plugin's current single-artist, single-account scope.
+ * Instagram via a linked Facebook Page (Meta Graph API). Production use needs
+ * Meta app review per scope; Development Mode works for test users.
+ * Publishing passes a public media URL (Meta fetches it; no upload). Uses the
+ * first Page with a linked Instagram Business/Creator account.
  */
 class BHSO_Meta implements BH_SocialPlatform {
     const STATS_CRON_HOOK = 'bhso_meta_pull_stats_cron';
@@ -35,16 +16,10 @@ class BHSO_Meta implements BH_SocialPlatform {
     const AUTH_URL_BASE  = 'https://www.facebook.com';
     const GRAPH_URL_BASE = 'https://graph.facebook.com';
 
-    // instagram_business_basic (read profile/media) and
-    // instagram_business_content_publish (publish) are the two scopes
-    // named explicitly in Meta's own review requirements; pages_show_list
-    // and pages_read_engagement are needed just to resolve which Page's
-    // linked IG account to use.
+    // pages_* scopes resolve which Page's linked IG account to use.
     const SCOPE = 'pages_show_list,pages_read_engagement,instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights';
 
-    // Video containers process asynchronously on Meta's side — poll
-    // status_code up to this many times before giving up, rather than
-    // either blocking forever or assuming success.
+    // Video containers process asynchronously; poll status_code with a cap.
     const CONTAINER_POLL_ATTEMPTS = 10;
     const CONTAINER_POLL_DELAY_SECONDS = 3;
 
@@ -126,11 +101,7 @@ class BHSO_Meta implements BH_SocialPlatform {
     public function get_status(): string {
         if (!$this->is_configured()) return 'not_configured';
         if (!$this->is_connected()) return 'not_connected';
-        // Page access tokens obtained via a long-lived user token don't
-        // themselves expire on a fixed schedule the way YouTube/Twitch
-        // tokens do, but token_expires_at is still tracked (from the
-        // long-lived user-token exchange) as an honest "reconnect by"
-        // signal rather than assuming permanence.
+        // token_expires_at comes from the long-lived user-token exchange; a "reconnect by" signal.
         $s = self::settings();
         if (!empty($s['token_expires_at']) && $s['token_expires_at'] < time()) return 'needs_reauth';
         if (BHSO_ConnectionHealth::is_broken($s)) return 'needs_reauth';
@@ -207,9 +178,7 @@ class BHSO_Meta implements BH_SocialPlatform {
             return;
         }
 
-        // Short-lived user token (~1-2hr) exchanged for a long-lived one
-        // (~60 days) — required for anything that isn't a throwaway
-        // test connection, per Meta's own documented token flow.
+        // Exchange the short-lived user token (~1-2h) for a long-lived one (~60 days).
         $long = wp_remote_get(self::graph_url('/oauth/access_token') . '?' . http_build_query([
             'grant_type'        => 'fb_exchange_token',
             'client_id'         => $s['app_id'],
@@ -225,10 +194,7 @@ class BHSO_Meta implements BH_SocialPlatform {
         $user_token = $long_data['access_token'];
         $expires_in = $long_data['expires_in'] ?? (60 * DAY_IN_SECONDS);
 
-        // Resolve which Page (and its linked IG Business account) to
-        // use — the first one that actually has instagram_business_account
-        // set, since a Facebook user can manage Pages with no linked IG
-        // account at all.
+        // Use the first Page that has a linked instagram_business_account.
         $pages = wp_remote_get(self::graph_url('/me/accounts') . '?' . http_build_query([
             'fields'       => 'name,access_token,instagram_business_account',
             'access_token' => $user_token,
@@ -309,10 +275,7 @@ class BHSO_Meta implements BH_SocialPlatform {
 
     /**
      * $args: ['attachment_id' => int, 'caption' => string]
-     * The attachment must already be publicly reachable at its own WP
-     * media URL — Meta's servers fetch the file themselves rather than
-     * accepting an uploaded body, so a private/local-only attachment
-     * URL will fail on Meta's end with a fetch error, not a bug here.
+     * The attachment URL must be publicly reachable; Meta fetches it.
      */
     /** @param array<string, mixed> $args */
     public function cross_post($args) {

@@ -1,13 +1,7 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/**
- * "My Tickets" portal panel — registered via the bhi_portal_panels
- * filter (the-self-hosted-self's BHI_Portal, /account/), same zero-central-
- * registration shape every other panel uses. Entirely optional: if
- * BHI_Portal isn't active, this filter just never gets applied and this
- * plugin still works fine through wp-admin alone (BHT_Admin).
- */
+/** "My Tickets" account-portal panel via the bhi_portal_panels filter; optional, wp-admin works without it. */
 class BHT_Portal {
     public static function init(): void {
         add_filter('bhi_portal_panels', [self::class, 'register_panel']);
@@ -36,8 +30,7 @@ class BHT_Portal {
 
         $ticket_id = isset($_GET['ticket_id']) ? (int) $_GET['ticket_id'] : 0;
         $ticket = $ticket_id ? BHT_Tickets::get($ticket_id) : null;
-        // Ownership check — a fan can only ever view their OWN ticket
-        // through this panel, regardless of what id is in the URL.
+        // A fan can only view their own ticket, whatever id is in the URL.
         if ($ticket && (int) $ticket['user_id'] !== $user_id) $ticket = null;
 
         if (isset($_GET['bht_msg'])) echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sanitize_text_field(wp_unslash($_GET['bht_msg']))) . '</p></div>';
@@ -116,9 +109,7 @@ class BHT_Portal {
         if (!is_user_logged_in() || !check_admin_referer('bht_portal_reply_' . $ticket_id)) wp_die('Not allowed.');
 
         $ticket = BHT_Tickets::get($ticket_id);
-        // Ownership re-checked server-side — the panel already hides
-        // another person's ticket, but the form POST itself must not
-        // trust the client.
+        // WHY: ownership re-checked on POST; never trust the client.
         if (!$ticket || (int) $ticket['user_id'] !== get_current_user_id()) wp_die('Not allowed.');
 
         BHT_Replies::add($ticket_id, get_current_user_id(), wp_unslash($_POST['body'] ?? ''), false);

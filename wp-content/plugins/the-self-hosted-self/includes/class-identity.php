@@ -2,24 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BH_Identity — anonymous client_id <-> user_id stitching for BH_Event
- * (see class-event.php and EVENT-TRACKING-ARCHITECTURE-PLAN.md Section
- * 3). A visitor gets a long-lived, first-party client_id cookie
- * (`bh_cid`) on first touch, present on every event whether or not
- * they're ever logged in — the actual join key that survives the
- * pre-signup -> post-signup transition, since user_id is derived from
- * it, not the other way around.
- *
- * Storage-design choice: no separate stitching table. The mapping is
- * just "which client_id cookie was present in the browser that logged
- * in/registered as user X," and the only thing that actually needs it
- * is backfilling user_id onto already-stored bhcore_events rows for
- * that client_id — which BH_Event::backfill_user_id() does directly,
- * a one-shot UPDATE, not an ongoing join. A dedicated stitching table
- * would only earn its keep if something needed to query "every
- * client_id a user has ever used" as an ongoing need; nothing in this
- * ecosystem does today, so the simpler one-shot backfill is the
- * implementation here — revisit if that need shows up later.
+ * Anonymous client_id <-> user_id stitching for BH_Event. A long-lived first-party `bh_cid`
+ * cookie is the join key; on login/registration BH_Event::backfill_user_id() stamps that
+ * user_id onto existing rows in one UPDATE (no separate stitching table).
  */
 class BH_Identity {
     const COOKIE = 'bh_cid';
@@ -34,10 +19,8 @@ class BH_Identity {
         add_action('user_register', [self::class, 'on_registered']);
     }
 
-    // Issues the cookie on first touch (front-end requests only — no
-    // point tagging wp-admin/REST-only traffic with a visitor cookie).
-    // Runs at init priority 1 so the client_id is available to anything
-    // else hooking 'init' at normal priority (BH_Event consumers, etc).
+    // Issues the cookie on first front-end touch, at init priority 1 so it is available to
+    // normal-priority 'init' consumers.
     public static function maybe_issue_cookie(): void {
         if (is_admin() || wp_doing_ajax() || wp_doing_cron()) return;
         $existing = self::cookie_value();
@@ -58,18 +41,12 @@ class BH_Identity {
         ]);
     }
 
-    // Usable both mid-request (after maybe_issue_cookie() has run on
-    // 'init') and as a fallback read directly off $_COOKIE for callers
-    // that fire before/without that hook (e.g. a REST request that
-    // never goes through the front-end 'init' flow in the same way).
+    // Works after maybe_issue_cookie() or, before it runs (e.g. REST), straight from $_COOKIE.
     public static function client_id(): string {
         if (self::$client_id !== null) return self::$client_id;
         return self::cookie_value();
     }
 
-    // Audit fix (2026-07-25): the read+sanitize idiom below was
-    // duplicated between maybe_issue_cookie() and client_id() — one
-    // shared helper instead.
     private static function cookie_value(): string {
         if (empty($_COOKIE[self::COOKIE])) return '';
         return sanitize_text_field(wp_unslash($_COOKIE[self::COOKIE]));
@@ -93,30 +70,19 @@ class BH_Identity {
         }
     }
 
-    /* ---------------- reverse lookup for consumers (added for bh-crm's activity view) ---------------- */
+    /* ---------------- reverse lookup for consumers ---------------- */
 
-    // There is no separate stitching table (see the docblock above) —
-    // the only place a user_id <-> client_id association is actually
-    // recorded is on bhcore_events rows themselves, via
-    // backfill_user_id()'s one-shot UPDATE. So this is NOT a lookup
-    // against some dedicated identity table; it's just "which
-    // client_id values have ever appeared on an events row already
-    // stamped with this user_id" — useful for debugging/inspection
-    // (e.g. "which cookies/devices has this person's history touched"),
-    // but NOT required to pull that person's own activity, since any
-    // row already carrying their user_id is already found by a plain
-    // `WHERE user_id = %d` query — see BHCRM_Event_Activity::for_user()
-    // in bh-crm, which queries that way directly rather than going
-    // through this method. Returns an array of distinct, non-empty
-    // client_id strings; empty array if none or if $user_id is falsy.
-    /** @return array<int, string> */
+    /**
+     * Distinct client_ids seen on events rows already stamped with this user_id (inspection
+     * only; activity queries should use WHERE user_id = %d directly). Empty if none.
+     *
+     * @return array<int, string>
+     */
     public static function client_ids_for_user(int $user_id): array {
         $user_id = (int) $user_id;
         if (!$user_id) return [];
         if (!class_exists('BH_Event')) return [];
         global $wpdb;
-        // BH_Event::table() (audit fix, 2026-07-25) — was hardcoded here,
-        // duplicating schema knowledge BH_Event already owns.
         $table = BH_Event::table();
         $ids = $wpdb->get_col($wpdb->prepare(
             "SELECT DISTINCT client_id FROM {$table} WHERE user_id = %d AND client_id != ''",

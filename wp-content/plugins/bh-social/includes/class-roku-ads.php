@@ -2,37 +2,14 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Roku Ads Manager (ads.roku.com) — the accessible, self-serve entry
- * point for CTV advertising named in the scoping pass this plugin
- * started from (~$500 minimum campaign spend; Roku OneView is the
- * separate, ~$25,000+ programmatic/agency side, deliberately NOT
- * targeted here since it's the wrong fit for an independent artist).
- *
- * Honest limitation, not a bug or an oversight: unlike YouTube Data
- * API, Twitch Helix, and Meta Graph API, no confirmed PUBLIC, documented
- * self-serve REST API for Roku Ads Manager was found during scoping —
- * Roku's public developer docs cover the Roku OS/channel side (SDKs,
- * Brightscript, the Roku Channel Store), not campaign creation for
- * Ads Manager advertisers, and Ads Manager's own UI is the only
- * confirmed way a self-serve advertiser configures/launches a
- * campaign today. Rather than build against undocumented or guessed
- * endpoints, this class does the part that's genuinely useful without
- * one: capture and organize campaign PLANS locally (budget, dates,
- * targeting notes, a linked creative attachment) so nothing has to be
- * re-typed into Roku's UI from scratch, then hand off to Ads Manager's
- * real UI for the actual launch. If Roku ever publishes a real
- * self-serve API, save_campaign_draft()'s stored shape is already the
- * right input to submit programmatically — only submit_campaign()
- * would need to be added, not a redesign.
+ * Roku Ads Manager. No public self-serve API exists, so this captures campaign
+ * drafts locally and hands off to the Ads Manager UI for launch.
  */
 class BHSO_RokuAds implements BH_AdsPlatform {
     const MANAGER_URL = 'https://ads.roku.com';
 
     public function is_configured(): bool {
-        // No API credentials exist to configure — this integration is
-        // draft-capture-plus-handoff, not an authenticated API client.
-        // Always "configured" in the sense that drafting works with
-        // zero setup; get_status() reflects the real, honest state.
+        // Draft capture needs no credentials.
         return true;
     }
 

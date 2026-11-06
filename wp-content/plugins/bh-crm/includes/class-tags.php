@@ -1,26 +1,9 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/**
- * Free-text tags per person — stored as a JSON array in user meta,
- * matching the same "small list, plain meta, no new table" pattern used
- * for playlists elsewhere in this ecosystem. Good enough for the scale
- * a CRM tag list actually needs; a dedicated table would be premature
- * for what's fundamentally a short list of words per person.
- */
+/** Free-text tags per person, stored as a JSON array in user meta. */
 class BHCRM_Tags {
-    // ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3: "Tag
-    // chips + autocomplete-from-existing-tags in the person editor,
-    // replacing the current plain comma-separated text input. Contained
-    // front-end change, no schema change (still a meta-array-of-strings
-    // underneath)." Exactly that — the underlying storage, handle_save(),
-    // and the BH_Event payload are all completely unchanged; only
-    // render_editor()'s markup and this new enqueue hook are new. The
-    // plain text input stays in the DOM (visually hidden once JS takes
-    // over) as the actual form field the existing handle_save() reads —
-    // tag-chips.js just keeps it in sync with the chip UI, so JS-off
-    // degrades to exactly the old plain-text-field behavior, not a
-    // broken form.
+    // tag-chips.js enhances the plain text input; with JS off the plain field still submits.
     public static function init(): void {
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
     }
@@ -37,10 +20,7 @@ class BHCRM_Tags {
         return is_array($tags) ? $tags : [];
     }
 
-    // Every distinct tag currently in use, across everyone — powers the
-    // "filter by tag" links on the list page. Fine to compute on every
-    // page load at the scale a tag list actually reaches; revisit if
-    // this ever needs to scale past a few thousand people.
+    // Every distinct tag in use; computed per page load, fine at CRM scale.
     /** @return array<int, string> */
     public static function all_in_use(): array {
         global $wpdb;
@@ -55,11 +35,7 @@ class BHCRM_Tags {
 
     public static function render_editor(int $user_id): void {
         $tags = self::get($user_id);
-        // Every distinct tag site-wide, for the autocomplete dropdown —
-        // computed once per page load (all_in_use()'s own docblock
-        // already covers why that's fine at this scale). Handed to
-        // tag-chips.js via a data attribute rather than a separate REST
-        // round trip, since it's already server-rendered right here.
+        // Handed to tag-chips.js via a data attribute.
         $suggestions = BHCRM_Tags::all_in_use();
 
         echo '<h3>Tags</h3>';
@@ -68,23 +44,14 @@ class BHCRM_Tags {
         echo '<input type="hidden" name="action" value="bhcrm_save_tags">';
         echo '<input type="hidden" name="user_id" value="' . (int) $user_id . '">';
         echo '<div class="bhcrm-tag-chips" data-suggestions="' . esc_attr(wp_json_encode($suggestions)) . '">';
-        // The REAL form field tag-chips.js keeps in sync — handle_save()
-        // reads THIS, unchanged, so JS-off (or a JS error) still submits
-        // a working plain-text comma-separated field, just without the
-        // chip UI on top of it.
+        // The real submitted field; tag-chips.js keeps it in sync.
         echo '<input type="text" name="tags" class="bhcrm-tag-chips-input" value="' . esc_attr(implode(', ', $tags)) . '" placeholder="comma, separated, tags" style="width:100%;max-width:400px;">';
         echo '</div>';
         echo '<p><button class="button">Save tags</button></p>';
         echo '</form>';
     }
 
-    // ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3: "Bulk
-    // actions on the person list (bulk tag, bulk export-selected) —
-    // currently all-or-nothing." ADDS one tag to a person's existing
-    // list rather than replacing it (unlike handle_save() above, which
-    // is a full-list overwrite from the single-person editor) — bulk-
-    // tagging 40 people with "vip" should never accidentally wipe out
-    // whatever tags each of them already had.
+    // Bulk tagging ADDS one tag; it never replaces a person's existing tags.
     public static function add_tag(int $user_id, string $tag): bool {
         $tag = trim($tag);
         if ($tag === '') return false;
@@ -96,7 +63,7 @@ class BHCRM_Tags {
     }
 
     public static function handle_bulk_tag(): void {
-        if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_bulk_action')) wp_die('Not allowed.'); // QA fix: matches the CRM menu's own bhcore_manage_crm gate
+        if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_bulk_action')) wp_die('Not allowed.');
 
         $tag = sanitize_text_field(wp_unslash($_POST['bulk_tag'] ?? ''));
         $ids = array_map('intval', (array) ($_POST['bulk_ids'] ?? []));
@@ -116,20 +83,14 @@ class BHCRM_Tags {
     }
 
     public static function handle_save(): void {
-        if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_save_tags')) wp_die('Not allowed.'); // QA fix: matches the CRM menu's own bhcore_manage_crm gate
+        if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_save_tags')) wp_die('Not allowed.');
 
         $user_id = (int) ($_POST['user_id'] ?? 0);
         $tags = array_filter(array_map('trim', explode(',', sanitize_text_field($_POST['tags'] ?? ''))));
         $tags = array_values($tags);
         update_user_meta($user_id, '_bhcrm_tags', wp_json_encode($tags));
 
-        // CRM-native event, additive only — doesn't affect the save
-        // above in any way, just gives this tag update a row in the
-        // shared activity stream (see class-event-activity.php). The
-        // resulting tag list itself is included in the payload (short,
-        // freeform-but-bounded words a staff member typed in — unlike
-        // notes, there's no meaningful privacy reason to keep this one
-        // out of the shared events table).
+        // Unlike notes, the tag list is safe to include in the shared event payload.
         if ($user_id && class_exists('BH_Event')) {
             BH_Event::emit('bhcrm/tags_saved', [
                 'user_id' => $user_id,

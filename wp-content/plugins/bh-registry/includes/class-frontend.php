@@ -2,41 +2,22 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The plain fan-facing browse/search page — one of the three consumers
- * of the bhr/v1 API (alongside a WP streaming app adding a feed source,
- * and a future native app), built entirely against the same public GET
- * endpoints those other two would use. Also renders the self-serve
- * submission form, since a fan who's also an artist shouldn't need a
- * second page to submit their own link.
+ * Fan-facing [bh_registry] browse/search page plus the self-serve submission form, built on the public bhr/v1 API.
  */
 class BHR_Frontend {
     public static function init(): void {
         add_shortcode('bh_registry', [self::class, 'render']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
-        // Same auto-detect pattern bh-monetization-woo already uses for
-        // its own tier/gift-redeem pages — needed so a search result can
-        // link somewhere real (see search_artists() below).
+        // Detect the directory page so search results can link to it.
         add_action('save_post_page', [self::class, 'maybe_remember_registry_page']);
-        // OUS_Search consumer, ROADMAP-search-and-revisions.md Section 1
-        // sequencing. Public-safe: reuses the SAME 'active'-only gate
-        // (verified links only) BHR_API::list_artists() already
-        // enforces for its own public REST search — pending/rejected
-        // artists are never visible here regardless of query, matching
-        // this ecosystem's "search shouldn't take people where they
-        // aren't allowed to go" standard.
+        // OUS_Search provider; same 'active'-only gate as the public REST search.
         add_filter('ous_search_providers', [self::class, 'register_search_provider']);
         add_action('template_redirect', [self::class, 'maybe_set_seo_data_early']);
     }
 
     /**
-     * Real bug, production-readiness sweep 2026-08-16: the SEO block
-     * inside render() below only ever runs during the_content(),
-     * always after wp_head — where BH_SEO actually echoes its tags —
-     * has already fired. Same bug, same fix pattern as bh-courses/
-     * bh-contest/bh-streaming: detect the shortcode on the current page
-     * BEFORE the_content() runs (via BH_SEO's shared helper, the-self-hosted-self)
-     * and set the same page-level data early. This shortcode takes no
-     * attributes that change the data, so only presence matters here.
+     * WHY: render() runs after wp_head, too late for BH_SEO's tags, so set page SEO data early
+     * when the shortcode is present.
      */
     public static function maybe_set_seo_data_early(): void {
         if (!class_exists('BH_SEO')) return;
@@ -78,8 +59,6 @@ class BHR_Frontend {
 
         $artists_t = BHR_Tables::artists();
         $like = '%' . $wpdb->esc_like($query) . '%';
-        // Same 'active'-only gate as the real public REST search — an
-        // artist still pending/rejected is never surfaced here either.
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT display_name, bio FROM $artists_t WHERE status = 'active' AND display_name LIKE %s ORDER BY display_name ASC LIMIT %d",
             $like, max(1, (int) $limit)
@@ -91,12 +70,7 @@ class BHR_Frontend {
             $out[] = [
                 'type' => 'Artist',
                 'title' => $r['display_name'],
-                // No per-artist canonical URL exists yet (the directory
-                // is one client-rendered page, not individual permalinks
-                // — same limitation ROADMAP-discoverability.md already
-                // found for this exact plugin) — links to the real
-                // directory page rather than a dead/nonexistent one; a
-                // fan lands on the browse page and can find them there.
+                // No per-artist permalinks exist, so link to the directory page.
                 'excerpt' => wp_trim_words($r['bio'], 20),
                 'url' => $url,
                 'icon' => 'dashicons-admin-users',
@@ -115,22 +89,14 @@ class BHR_Frontend {
         wp_enqueue_script('bhr-registry', BHR_URL . 'assets/js/registry.js', [], BHR_VER, true);
         wp_localize_script('bhr-registry', 'BHRData', [
             'rest' => esc_url_raw(rest_url('bhr/v1/')),
-            // Rendered once server-side (the shared BHY_Style component,
-            // same one bh-courses' catalog already uses) rather than a
-            // bare '<p>No artists found.</p>' — a brand-new registry
-            // with zero real entries yet is exactly the day-one state a
-            // fresh site actually hits, not an edge case.
+            // Shared BHY_Style empty state; a fresh registry starts here.
             'emptyHtml' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
                 'reason' => 'zero',
                 'title' => 'No artists yet',
                 'description' => 'Be the first to add your feed to the registry.',
             ]) : '<p class="bhr-empty">No artists found.</p>',
         ]);
-        // Reporting is handled by the-self-hosted-self's shared queue (see
-        // BHI_Reports), not something this plugin builds its own
-        // version of — this is a no-op object (empty rest url) if the
-        // core plugin's REST route somehow isn't there, which the JS
-        // below checks before ever trying to use it.
+        // Reporting uses the core BHI_Reports queue; an empty rest url disables it in JS.
         wp_localize_script('bhr-registry', 'BHIData', [
             'rest'     => class_exists('BHI_Reports') ? esc_url_raw(rest_url('bhi/v1/')) : '',
             'nonce'    => wp_create_nonce('wp_rest'),
@@ -139,16 +105,8 @@ class BHR_Frontend {
     }
 
     public static function render(): string {
-        // Ecosystem depth-pass Tier 2 — SEO coverage. The grid itself is
-        // client-rendered (no server-side artist list to enumerate into
-        // an ItemList, unlike bh-courses' catalog), so this is page-level
-        // only — a real title/description for the one directory page,
-        // not a per-artist result. Left in place alongside the early
-        // template_redirect hook above — harmless if it runs twice
-        // (set_page_data() is idempotent), and still useful for the
-        // rare case render() is reached without the early hook having
-        // matched (e.g. embedded via do_shortcode() outside the queried
-        // post's own content).
+        // Page-level SEO only (the grid is client-rendered). Idempotent, and covers do_shortcode()
+        // use the early hook can't detect.
         self::set_seo_data();
 
         return '

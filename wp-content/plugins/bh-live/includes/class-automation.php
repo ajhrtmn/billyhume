@@ -2,29 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Phase 2 of ROADMAP-obs-integration.md — event-driven OBS scene
- * automation. Storage is per-broadcaster (user meta), matching AJ's own
- * call: works correctly the moment a second real broadcaster uses
- * bh-live, not just Billy.
- *
- * The rule/event REST routes are two different trust models, not one:
- * `/automation/rules` is managed from wp-admin (a real login session,
- * `is_user_logged_in()` works fine there). `/automation/events` is read
- * by the automation-bridge overlay page (class-overlay.php), which runs
- * inside OBS's own embedded Chromium — a separate browser profile with
- * no WordPress login cookie, so `is_user_logged_in()` can never
- * authenticate it. That route is instead gated by a per-broadcaster
- * bearer token in the URL, the same "secret in the URL, not a session"
- * pattern this ecosystem already uses for RTMP stream keys.
+ * Event-driven OBS scene automation, stored per broadcaster (user meta).
+ * WHY: /automation/events is read from OBS's embedded browser, which has no WP
+ * login cookie, so it is gated by a per-broadcaster URL token, not a session.
  */
 class BHL_Automation {
-    // event_type => human label. The full set of triggers this bridge
-    // actually knows how to see — every real BH_Event::emit() call site
-    // in the ecosystem (confirmed via direct grep, not guessed) plus
-    // bh_contest_round_advanced (class-rounds.php's own new hook).
-    // Deliberately NOT including invented triggers like "highest bid"
-    // or "course live session start" — neither exists in this codebase
-    // yet (see ROADMAP-obs-integration.md's Phase 2 correction note).
+    // event_type => label. Only triggers that are actually emitted somewhere in the ecosystem.
     const EVENT_TYPES = [
         'bh_contest_round_advanced' => 'Contest round advances',
         'bh/vote'                   => 'A vote is cast',
@@ -66,11 +49,7 @@ class BHL_Automation {
         register_rest_route('bhl/v1', '/automation/events', [
             'methods' => 'GET', 'callback' => [self::class, 'get_events'], 'permission_callback' => '__return_true',
         ]);
-        // ROADMAP-obs-integration.md Phase 3 — Twitch channel / YouTube
-        // API key + video ID, each independently optional. Session-gated
-        // like /automation/settings above (managed from wp-admin); the
-        // bridge page itself gets these via render_automation_bridge()'s
-        // own inline data, not a separate authenticated fetch.
+        // Session-gated; the bridge page receives these via render_automation_bridge()'s inline data.
         register_rest_route('bhl/v1', '/automation/chat-sources', [
             'methods' => 'GET', 'callback' => [self::class, 'get_chat_sources'], 'permission_callback' => 'is_user_logged_in',
         ]);
@@ -99,12 +78,7 @@ class BHL_Automation {
         return is_array($r) ? $r : [];
     }
 
-    // OBS connection details PLUS the bearer token the automation-bridge
-    // overlay page authenticates with. Plaintext in user meta, same
-    // storage posture bh-live's own Cloudflare/Fly settings already use
-    // for their own API credentials (get_option(), no encryption layer
-    // exists anywhere in this ecosystem to lean on) — not a new,
-    // inconsistent security bar for this one feature to invent.
+    // OBS connection details plus the bridge page's bearer token (plaintext, like other credentials here).
     /** @return array<string, mixed> */
     public static function settings(int $user_id): array {
         $s = get_user_meta($user_id, 'bhl_obs_settings', true);
@@ -117,9 +91,7 @@ class BHL_Automation {
         return $s;
     }
 
-    // Public wrapper — class-overlay.php's automation-bridge page needs
-    // this same token→broadcaster resolution to know whose OBS
-    // host/port/password to hand the client-side JS.
+    // Used by class-overlay.php's automation-bridge page.
     public static function user_for_token(string $token): int {
         return self::resolve_user_by_token($token);
     }
@@ -192,13 +164,10 @@ class BHL_Automation {
         return new WP_REST_Response(['success' => true], 200);
     }
 
-    /* ---------------- chat sources (Phase 3) ---------------- */
+    /* ---------------- chat sources ---------------- */
 
-    // Twitch needs no credential at all (anonymous justinfan IRC read —
-    // see ROADMAP-obs-integration.md's Phase 3 correction note), so
-    // 'twitch_channel' alone is enough to enable that source. YouTube
-    // read-only chat needs a plain API key (no OAuth — that's only
-    // required to POST to chat) plus the live video's own ID.
+    // Twitch reads anonymously (justinfan IRC), so a channel name is enough.
+    // YouTube read-only chat needs an API key (no OAuth) plus the live video ID.
     /** @return array<string, mixed> */
     public static function chat_sources(int $user_id): array {
         $s = get_user_meta($user_id, 'bhl_chat_sources', true);
@@ -267,8 +236,7 @@ class BHL_Automation {
         usort($out, fn($a, $b) => strcmp($a['occurred_at'], $b['occurred_at']));
         $out = array_slice($out, 0, 50);
 
-        // Attach every rule matching this event type — a broadcaster can
-        // stack more than one action on the same trigger.
+        // Several rules may share one trigger.
         foreach ($out as &$row) {
             $row['rules'] = array_values(array_filter($rules, fn($r) => $r['event_type'] === $row['type']));
         }

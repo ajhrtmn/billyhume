@@ -2,12 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Picks which BHL_StreamEngine implementation is active, AND which
- * BHL_Chat implementation is active — this is the whole payoff of
- * both abstractions: BHL_Streams/BHL_API/the wizard all go through
- * these resolvers rather than ever hardcoding a class, so adding a
- * third option for either is a registry entry + a class, and
- * switching between them today is a radio button, not a code change.
+ * Resolves the active BHL_StreamEngine and BHL_Chat; callers never hardcode a class.
  */
 class BHL_EngineRegistry {
     const ENGINES = [
@@ -31,13 +26,7 @@ class BHL_EngineRegistry {
     }
 
     /**
-     * Chat isn't 1:1 with engine the way get_embed_html() is — several
-     * chat options can work under the SAME engine (e.g. Cloudflare
-     * Stream Live pairs with either the free polling chat or the paid
-     * real-time Workers chat), so this is its own small registry with
-     * its own stored preference, constrained to whichever options list
-     * the current engine as compatible. 'engines' => [] means "works
-     * under any engine" (true of BHL_PollingChat).
+     * Chat options, each listing compatible engines; 'engines' => [] means any engine.
      */
     const CHAT_OPTIONS = [
         'owncast_bundled' => ['label' => 'Owncast\'s own bundled chat (included, free)', 'class' => 'BHL_OwncastChat', 'engines' => ['owncast']],
@@ -50,10 +39,7 @@ class BHL_EngineRegistry {
         return empty($engines) || in_array($engine_key, $engines, true);
     }
 
-    // The default for each engine when nothing's been explicitly
-    // chosen yet — Owncast's own bundled chat needs no setup at all,
-    // so it stays the default there; polling is the free, zero-setup
-    // default for every other engine.
+    // Per-engine default chat when none is chosen; polling for any engine not listed.
     private static function default_chat_key_for(string $engine_key): string {
         return $engine_key === 'owncast' ? 'owncast_bundled' : 'polling';
     }
@@ -71,13 +57,8 @@ class BHL_EngineRegistry {
         if (isset(self::CHAT_OPTIONS[$key])) update_option('bhl_active_chat', $key);
     }
 
-    // Chat options compatible with whichever engine is CURRENTLY
-    // active AND whose class is actually loaded — what the wizard
-    // offers as radio choices. The class_exists() check matters
-    // because CHAT_OPTIONS is the registry for ANY future chat
-    // implementation, built or not yet — this keeps the wizard from
-    // ever offering a choice that would silently resolve to nothing
-    // if a future entry is added here before its class exists.
+    // Chat options compatible with the active engine whose class is loaded, so the
+    // wizard never offers a choice that resolves to nothing.
     /** @return array<string, array<string, mixed>> */
     public static function available_chat_options(): array {
         $engine_key = self::active_key();

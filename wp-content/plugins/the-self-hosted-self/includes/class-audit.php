@@ -2,49 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_Audit — accountability log for admin/manager actions, separate
- * from BH_Event's per-person ACTIVITY timeline (class-event.php). The
- * distinction matters: BH_Event answers "what did this person do"
- * (their own votes, plays, notes) — this answers "who changed WHAT, to
- * WHAT, on a thing that isn't necessarily their own" (a tier's price, a
- * segment someone else built, another user's role) — a before/after
- * diff question the activity timeline was never shaped to answer (it
- * stores one event payload, not a structured old/new diff).
- *
- * Storage: " . OUS_Tables::audit_log() . " (actor_user_id, action,
- * object_type, object_id, diff JSON, meta JSON, created_at). Synchronous
- * writes (unlike BH_Event, which defers through OUS_Jobs) — an audit
- * record needs to exist even if the very next line of code is what
- * crashes, and audit volume is always far lower than raw activity
- * events, so the extra synchronous insert per admin action is cheap.
- *
- * Scope is deliberately curated to "important things and anything they
- * touch": tier create/update/delete, segment delete, project delete,
- * project link/unlink, submission reject, WordPress role changes
- * (set_user_role — covers granting/revoking the new Studio Manager
- * role from the Users screen for free, no bespoke UI needed), and CRM
- * sensitive-capability-relevant actions. Not exhaustive of every
- * possible admin click in this ecosystem — extensible via
- * log()/log_diff() from anywhere else that turns out to matter.
- *
- * DENIED/FAILED ACTIONS: require_cap() is a drop-in replacement for the
- * `if (!current_user_can($cap)) wp_die(...)` pattern used all over this
- * ecosystem's admin-post handlers. It does NOT log every single denial
- * (a normal permission mismatch is not inherently a security event, and
- * logging every one would be pure noise) — it tracks a rolling per-user
- * denial count and only writes a real audit entry once that count
- * crosses a concerning threshold in a short window.
- *
- * PRUNING: maybe_prune() is a cheap row-count check run
- * opportunistically on write (throttled to once per request via a
- * static flag, and further throttled via a transient so it isn't a
- * real query on every single write) that deletes the oldest rows once
- * the table crosses MAX_ROWS, keeping the newest KEEP_ROWS. Time-based
- * alone was rejected — an admin-only tool used rarely could go a year
- * with only a handful of entries (nothing to prune) or, on an active
- * multi-manager site, accumulate thousands in a month (bloat well
- * before a fixed calendar cutoff) — row-count is the more honest
- * bound for debugging bloat.
+ * Accountability log for admin actions: who changed WHAT on a thing that
+ * may not be their own, with a before/after diff. BH_Event is the
+ * per-person activity timeline; this is separate.
+ * WHY: writes are synchronous so the record exists even if the next line crashes.
+ * require_cap() replaces `if (!current_user_can()) wp_die()` and only logs
+ * bursts of denials. Pruning is row-count bound (MAX_ROWS -> KEEP_ROWS).
  */
 class OUS_Audit {
     const MAX_ROWS = 20000;
@@ -105,20 +68,19 @@ class OUS_Audit {
      * Writing
      * ================================================================= */
 
-    /** Plain action log, no diff — "X happened," e.g. a deletion or a reject. */
-    /** @param array<string, mixed> $meta */
+    /**
+     * Plain action log, no diff.
+     *
+     * @param array<string, mixed> $meta
+     */
     public static function log(string $action, string $object_type = '', int $object_id = 0, array $meta = [], ?int $actor_user_id = null): void {
         self::write($action, $object_type, $object_id, null, $meta, $actor_user_id);
     }
 
     /**
-     * Granular before/after diff. $before/$after are
-     * flat assoc arrays (field => value); only fields that actually
-     * changed are stored, as [field => [old, new]], so a no-op save
-     * (nothing actually different) still creates a record but with an
-     * empty diff rather than a wall of unchanged fields.
-     */
-    /**
+     * Before/after diff of flat assoc arrays; only changed fields are stored
+     * as [field => [old, new]].
+     *
      * @param array<string, mixed> $before
      * @param array<string, mixed> $after
      * @param array<string, mixed> $meta
@@ -135,12 +97,7 @@ class OUS_Audit {
         self::write($action, $object_type, $object_id, $diff ?: null, $meta, $actor_user_id);
     }
 
-    // Audit fix (2026-07-25): extracted out of log()/log_diff(), which
-    // previously hand-duplicated this entire write body. Also unifies
-    // the timestamp basis to UTC — this used to write with
-    // current_time('mysql') (site-local time) while BH_Event writes with
-    // current_time('mysql', true) (UTC), so correlating an audit entry
-    // to an event row by timestamp was silently off by the site's UTC offset.
+    // Timestamps are UTC, matching BH_Event, so rows can be correlated.
     /**
      * @param array<string, mixed>|null $diff
      * @param array<string, mixed> $meta
@@ -161,13 +118,8 @@ class OUS_Audit {
     }
 
     /**
-     * Drop-in for `if (!current_user_can($cap)) wp_die($msg);` — same
-     * call shape, same wp_die() behavior on denial, but ALSO tracks a
-     * rolling per-user denial count and writes a real audit entry only
-     * once that count crosses DENY_THRESHOLD within DENY_WINDOW. A
-     * single denied click (wrong link, stale bookmark, a manager
-     * probing what they can't do) is not, on its own, worth an audit
-     * row — a burst of them is.
+     * Drop-in for `if (!current_user_can($cap)) wp_die($msg);` that also
+     * writes an audit entry once denials cross DENY_THRESHOLD in DENY_WINDOW.
      */
     public static function require_cap(string $cap, string $msg = 'Not allowed.'): void {
         if (current_user_can($cap)) return;
@@ -196,24 +148,24 @@ class OUS_Audit {
         wp_die($msg);
     }
 
-    /** WordPress's own role-change hook — covers granting/revoking any role (including the new Studio Manager) from the Users screen for free. */
-    /** @param array<int, string> $old_roles */
+    /**
+     * Covers any role grant/revoke from the Users screen.
+     *
+     * @param array<int, string> $old_roles
+     */
     public static function log_role_change(int $user_id, string $new_role, array $old_roles): void {
         self::log('user_role_changed', 'user', $user_id, [
             'old_roles' => array_values($old_roles), 'new_role' => $new_role,
         ]);
     }
 
-    /* =================================================================
-     * Pruning — row-count bound, not time bound (see class docblock)
-     * ================================================================= */
+    /* ---- Pruning ---- */
     private static bool $checked_this_request = false;
 
     private static function maybe_prune(): void {
         if (self::$checked_this_request) return;
         self::$checked_this_request = true;
-        // Cheap additional throttle: only actually run the COUNT(*) at
-        // most once per 5 minutes site-wide, not on every single write.
+        // COUNT(*) runs at most once per 5 minutes site-wide.
         if (get_transient('ous_audit_prune_check')) return;
         set_transient('ous_audit_prune_check', 1, 5 * MINUTE_IN_SECONDS);
 
@@ -231,9 +183,7 @@ class OUS_Audit {
         }
     }
 
-    /* =================================================================
-     * Reading — admin-only Debug Tools section
-     * ================================================================= */
+    /* ---- Reading: Debug Tools section ---- */
 
     /**
      * @param array<string, mixed> $tools
@@ -248,9 +198,7 @@ class OUS_Audit {
         return $tools;
     }
 
-    // Debug Tools itself is already manage_options-only (the-self-hosted-self's
-    // class-debug.php add_menu_page() gate) — this section rides on
-    // that same admin-only surface rather than adding a second gate.
+    // Debug Tools is already manage_options-only; no second gate here.
     public static function render_debug_section(): void {
         global $wpdb;
         $rows = $wpdb->get_results('SELECT * FROM ' . self::table() . ' ORDER BY id DESC LIMIT 100', ARRAY_A);
@@ -275,11 +223,7 @@ class OUS_Audit {
             }
 
             echo '<tr>';
-            // get_date_from_gmt(), not mysql2date() — created_at is now
-            // stored in UTC (audit fix, 2026-07-25, to match BH_Event's
-            // own timestamp basis); mysql2date() assumes its input is
-            // already site-local time and would render this off by the
-            // site's UTC offset.
+            // created_at is UTC, so convert before mysql2date().
             echo '<td>' . esc_html(mysql2date('M j, Y g:ia', get_date_from_gmt($r['created_at']))) . '</td>';
             echo '<td>' . ($actor ? esc_html($actor->display_name) : '<em>system</em>') . '</td>';
             echo '<td>' . esc_html($r['action']) . '</td>';

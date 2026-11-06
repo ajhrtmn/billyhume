@@ -1,40 +1,17 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
-// OUS_Debug::GROUP_MONITORING (Debug Tools reorganization pass — see
-// class-debug.php's own docblock), filing this under "Monitoring &
-// Health" instead of the default bucket. No other change.
-
 /**
- * The "aggregate console" the whole ecosystem was missing: one place
- * that catches PHP fatals/uncaught exceptions, WordPress's own
- * doing_it_wrong()/deprecated notices, anything any plugin explicitly
- * logs via OUS_DebugLog::log(), AND front-end/admin JS errors — all
- * landing in one table, visible on the same Debug Tools page as
- * everything else, with zero CLI and zero separate log-file hunting.
- *
- * Every row carries a real, structured stack trace
- * (file/line/column where the language/runtime exposes it — PHP gives
- * file+line reliably, column only where a Throwable's trace frames
- * happen to include it; JS gives all three from the browser's own
- * error.stack), plus request context (URL, method, user) and real
- * filters on the admin table (level/source/user/date), not just level.
- *
- * USAGE, from any plugin (core or peer, all class_exists()-guarded the
- * same as OUS_Jobs/OUS_Notifications):
+ * Aggregate console: PHP fatals/uncaught exceptions, WordPress
+ * doing_it_wrong/deprecated notices, explicit log() calls, and admin JS
+ * errors land in one capped table shown on the Debug Tools page.
  *
  *   if (class_exists('OUS_DebugLog')) {
  *       OUS_DebugLog::log('error', 'Feed sync failed', ['feed_id' => $id], 'BH Streaming');
- *       // or, with a real exception for a full trace:
  *       OUS_DebugLog::log_exception($e, 'BH Streaming');
  *   }
  *
- * Levels: 'error', 'warning', 'info' — kept to three, not a full PSR-3
- * ladder, since this is a triage console for a solo dev/small team, not
- * a production observability platform. Table is capped at
- * MAX_ROWS via opportunistic trimming on insert (no separate cron job
- * needed just to keep this small).
+ * Levels: 'error', 'warning', 'info'.
  */
 class OUS_DebugLog {
     const MAX_ROWS = 1000;
@@ -45,11 +22,6 @@ class OUS_DebugLog {
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue_js_capture']);
         add_action('wp_ajax_ous_log_js_error', [self::class, 'ajax_log_js_error']);
 
-        // WordPress's own two "something's wrong" signals — catching
-        // these here means an old/incompatible add_action() signature
-        // or a since-removed function call anywhere in the ecosystem
-        // shows up on this page instead of silently in a PHP error log
-        // nobody's tailing.
         add_action('doing_it_wrong_run', function ($function_name, $message) {
             self::log('warning', "doing_it_wrong: $function_name — $message", [], 'WordPress');
         }, 10, 2);
@@ -57,21 +29,11 @@ class OUS_DebugLog {
             self::log('warning', "Deprecated function: $function_name" . ($replacement ? " (use $replacement instead)" : ''), [], 'WordPress');
         }, 10, 2);
 
-        // Uncaught exceptions carry a full, real stack trace (every
-        // frame's file/line, function/class/args) — a strictly richer
-        // signal than the fatal-on-shutdown catch below, which only ever
-        // sees error_get_last()'s single file/line with no call chain.
-        // Chains to any previously-registered handler rather than
-        // replacing it outright, since WordPress core or another plugin
-        // may already have one installed.
+        // Chains to any previously installed handler rather than replacing it.
         $previous_exception_handler = set_exception_handler([self::class, 'capture_uncaught_exception']);
         self::$previous_exception_handler = $previous_exception_handler;
 
-        // Fatal errors (parse errors, E_ERROR, out-of-memory, etc.)
-        // don't fire normal WordPress hooks OR the exception handler
-        // above (the request is already dying) — a shutdown function is
-        // the one reliable place to still catch and record one before
-        // the process actually ends.
+        // Fatals bypass hooks and the exception handler; shutdown still runs.
         register_shutdown_function([self::class, 'capture_fatal_on_shutdown']);
     }
 
@@ -82,23 +44,8 @@ class OUS_DebugLog {
         return OUS_Tables::debug_log();
     }
 
-    // A real, repeatedly-hit limitation this closes: every row landed in
-    // the log as an isolated, unrelated-looking entry, even when 5
-    // different log() calls across 3 different classes all happened
-    // because of the SAME failing request (exactly the shape of the
-    // Portal/API Docs incident this whole logging push started from —
-    // "is_locked() failed" and "submenu not registered" were two
-    // separate rows with nothing connecting them as the same event).
-    // One short, random ID generated once per PHP request (a static
-    // var — cheap, no DB/option round-trip needed) and stamped onto
-    // every log() call made during that request, whether it came from
-    // core, a peer plugin, JS error capture (via the AJAX log endpoint,
-    // which runs in its own separate request and gets its OWN id — see
-    // ajax_log_js_error()), or a shutdown-time fatal capture. Filtering
-    // Console & Logs by this ID reconstructs "everything that happened
-    // during this one request," not just "everything that happened
-    // around this time," which is a materially different and more
-    // useful question when triaging a real bug.
+    // Short random ID stamped on every row logged during one PHP request,
+    // so Console & Logs can filter to "everything from this request".
     /** @var string|null */
     private static $request_id = null;
 
@@ -109,10 +56,7 @@ class OUS_DebugLog {
         return self::$request_id;
     }
 
-    // Cached for the life of the request (a real SHOW COLUMNS query, not
-    // guessed from DB_VERSION alone — an install stuck mid-migration or
-    // on a manually-altered table should get the same safe degrade as
-    // one that's cleanly on an old version).
+    // Real SHOW COLUMNS check, cached per request.
     /** @var bool|null */
     private static $has_request_id_column = null;
 
@@ -130,13 +74,8 @@ class OUS_DebugLog {
     }
 
     /**
-     * $trace, when provided, is a plain array of frames shaped like
-     * ['file' => ..., 'line' => ..., 'function' => ..., 'class' => ...]
-     * — the same shape debug_backtrace()/Throwable::getTrace() already
-     * produce, so callers can pass either straight through. $file/$line/
-     * $col are the single "where this actually happened" pointer shown
-     * as the row's headline location; $trace is the full call chain,
-     * shown expanded.
+     * $trace uses the debug_backtrace()/Throwable::getTrace() frame shape.
+     * $file/$line/$col is the row's headline location.
      */
     /**
      * @param mixed $message
@@ -160,28 +99,12 @@ class OUS_DebugLog {
             'request_id' => self::request_id(),
             'created_at' => current_time('mysql', true),
         ];
-        // request_id is a column added in a later schema version than
-        // the rest of this table (see BHI_Activator::DB_VERSION/health_check()
-        // below) — an install that hasn't migrated yet would fail this
-        // whole insert on an unknown-column error if it were included
-        // unconditionally, taking down EVERY log() call ecosystem-wide
-        // over one missing column. Checking real, cached-at-request-scope
-        // column presence keeps a not-yet-migrated install degrading to
-        // "logs work, just without correlation IDs" instead of "logging
-        // is completely broken until someone notices and migrates."
+        // WHY: request_id came in a later schema version; omitting it keeps
+        // logging alive on a not-yet-migrated install.
         if (!self::has_request_id_column()) unset($row['request_id']);
         $ok = $wpdb->insert(self::table(), $row);
-        // A real, confirmed failure mode this responds to: $wpdb->insert()
-        // returning false (schema mismatch, missing table, etc.) was
-        // previously silent — every log() call site across the whole
-        // ecosystem would just quietly do nothing, with no way to tell
-        // "nothing has gone wrong" apart from "logging itself is broken."
-        // Stashing the last failure in an option (not a transient — this
-        // needs to survive and be visible even if object cache write-
-        // through is itself part of what's unreliable on this install)
-        // means the Console & Logs page itself can report "logging is
-        // broken" even though, by definition, it can't log that fact the
-        // normal way.
+        // Insert failures are recorded in an option so the health check can
+        // report broken logging, which can't be logged the normal way.
         if ($ok === false && $wpdb->last_error) {
             update_option('ous_debug_log_last_failure', [
                 'error' => $wpdb->last_error,
@@ -191,49 +114,23 @@ class OUS_DebugLog {
         }
         self::maybe_trim();
 
-        // Every log() call already lands in the DB table (Debug Tools'
-        // own Console & Logs screen), but checking THIS request's own
-        // bugs meant leaving that screen and coming back — a real
-        // workflow tax while actively developing. A cheap in-memory
-        // buffer, kept only for the life of THIS request, lets
-        // class-qm-integration.php
-        // surface these same rows directly inside Query Monitor's own
-        // toolbar panel — one pane of glass instead of two separate
-        // tools while developing.
+        // Per-request buffer surfaced by class-qm-integration.php in Query Monitor.
         self::$request_buffer[] = $row;
     }
 
     /** @var array<int, array<string, mixed>> */
     private static $request_buffer = [];
 
-    /** Read-only accessor for class-qm-integration.php — never written
-     * to from outside log() itself. */
+    /** Read-only accessor for class-qm-integration.php. */
     /** @return array<int, array<string, mixed>> */
     public static function request_buffer(): array {
         return self::$request_buffer;
     }
 
-    // For a check that runs on every single request (is_locked(),
-    // rewrite-persistence verification, etc.) — logging every evaluation
-    // unthrottled would flood this table into uselessness, but logging
-    // ONLY failures means a healthy "checked, still fine" state and a
-    // "stopped being checked at all" state look identical from the
-    // outside (empty log either way) — exactly the blind spot that made
-    // BHI_Portal's rewrite-throttle bug invisible until the user
-    // reported "still broken, zero log entries" and there was no way to
-    // tell whether the check was running and passing, or not running at
-    // all. This logs at most once per $seconds per $key, REGARDLESS of
-    // level/outcome, so "no entries for this key in the last N minutes"
-    // becomes a real, actionable signal on its own (the check itself
-    // isn't running) rather than an ambiguous non-event.
-    //
-    // Deliberately reads/writes the throttle key straight from wp_options
-    // via $wpdb, bypassing get_transient()/set_transient() — the same
-    // fix BHI_Portal::not_recently_attempted() needed after transients
-    // were found to silently wedge shut on an install with a broken
-    // persistent object cache (transients live IN that cache). A
-    // throttle for "should I log a diagnostic about caching being
-    // broken" cannot itself depend on the cache being trustworthy.
+    // Logs at most once per $seconds per $key, so per-request checks leave a
+    // trace without flooding the table.
+    // WHY: throttle key goes straight to wp_options via $wpdb, not
+    // transients, which can wedge on a broken persistent object cache.
     /** @param array<mixed> $context */
     public static function log_throttled(string $level, string $key, int $seconds, string $message, array $context = [], string $source = ''): void {
         global $wpdb;
@@ -250,9 +147,6 @@ class OUS_DebugLog {
         self::log($level, $message, $context, $source);
     }
 
-    // Convenience wrapper — pulls file/line/trace straight off a real
-    // Throwable rather than making every catch{} block hand-assemble
-    // those three arguments itself.
     public static function log_exception(\Throwable $e, string $source = '', string $level = 'error'): void {
         self::log(
             $level,
@@ -270,8 +164,7 @@ class OUS_DebugLog {
         try {
             self::log_exception($e, 'PHP (uncaught)');
         } catch (\Throwable $inner) {
-            // Logging the exception must never become a second, more
-            // confusing uncaught exception of its own.
+            // Logging must never become a second uncaught exception.
         }
         if (is_callable(self::$previous_exception_handler)) {
             call_user_func(self::$previous_exception_handler, $e);
@@ -284,9 +177,7 @@ class OUS_DebugLog {
         return esc_url_raw($scheme . '://' . sanitize_text_field($_SERVER['HTTP_HOST']) . sanitize_text_field($_SERVER['REQUEST_URI']));
     }
 
-    // Opportunistic, not scheduled — every ~50th write pays the tiny
-    // cost of a COUNT+DELETE so this table never needs its own cron job
-    // just to stay bounded.
+    // Opportunistic trim on ~1 in 50 writes; no cron needed.
     private static function maybe_trim(): void {
         if (wp_rand(1, 50) !== 1) return;
         global $wpdb;
@@ -304,44 +195,23 @@ class OUS_DebugLog {
         $fatal_types = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
         if (!in_array($error['type'], $fatal_types, true)) return;
 
-        // wpdb may or may not still be usable this late in shutdown —
-        // guard defensively so a failed fatal-log attempt never becomes
-        // a second, more confusing fatal of its own. error_get_last()
-        // only ever gives one file/line, never a call chain — PHP simply
-        // doesn't retain a trace by the time a fatal reaches shutdown,
-        // which is exactly why the uncaught-exception handler above is
-        // the richer signal whenever the failure is a thrown exception
-        // rather than a true fatal (parse error, out-of-memory, etc.).
+        // WHY: wpdb may be unusable this late; guard so this never becomes a
+        // second fatal. error_get_last() gives file/line only, no trace.
         try {
             self::log('error', 'PHP fatal: ' . $error['message'], [], 'PHP', $error['file'], $error['line']);
         } catch (\Throwable $e) {
-            // Nothing more we can do here — the original fatal is the
-            // one that matters, and we're already in shutdown.
         }
     }
 
     /* ---------------- front-end/admin JS error capture ---------------- */
 
-    // Only for logged-in users who can see Debug Tools anyway — a
-    // real site visitor's browser quirks aren't this console's job, and
-    // this avoids adding any JS payload or AJAX traffic to anonymous
-    // front-end requests.
+    // Admins only; no JS payload or AJAX traffic for anonymous visitors.
     public static function maybe_enqueue_js_capture(): void {
         if (!is_user_logged_in() || !current_user_can('manage_options')) return;
         $ajax_url = admin_url('admin-ajax.php');
         $nonce = wp_create_nonce('ous_log_js_error');
-        // Captures three separate JS failure modes into one shared
-        // sender: (1) thrown/uncaught errors via 'error', (2) unhandled
-        // promise rejections via 'unhandledrejection' — a real gap in
-        // the v1 capture, since a rejected fetch()/async function never
-        // fires window.onerror at all, and (3) explicit console.error/
-        // console.warn calls, by wrapping them rather than only reacting
-        // to thrown errors — a lot of real bugs get reported via
-        // console.error without ever throwing. error.stack (when present)
-        // already carries file/line/column from the browser's own
-        // engine — parsed here into a structured frame list rather than
-        // stored as an opaque blob, so it's filterable/expandable the
-        // same way a PHP trace is.
+        // Captures uncaught errors, unhandled promise rejections, and
+        // console.error/warn calls, with error.stack parsed into frames.
         $js = "(function(){"
             . "var AJAX_URL='" . esc_js($ajax_url) . "', NONCE='" . esc_js($nonce) . "';"
             . "function parseStack(stack){"
@@ -428,30 +298,15 @@ class OUS_DebugLog {
             'render' => [self::class, 'render_debug_section'],
             'handle' => [self::class, 'handle_debug_action'],
             'reset' => [self::class, 'reset_debug'],
-            // Clearing a log table is nothing like seeding fake data on
-            // a live site — an admin troubleshooting a real production
-            // issue needs this to work there, not just in dev.
+            // Clearing a log is safe on a live site.
             'safe_in_production' => true,
             'group' => OUS_Debug::GROUP_MONITORING,
         ];
         return $tools;
     }
 
-    // Muting specific recurring log entries, so routine/noisy ones don't
-    // pollute the main stream. This schema has no discrete error-code
-    // field (levels are only
-    // error/warning/info, by design — see this class's own docblock), so
-    // the practical equivalent of a VS Code "suppress this diagnostic" is
-    // muting by the exact (source, message) pair a row actually has —
-    // granular enough to hide one specific recurring notice without
-    // hiding an entire source's other, possibly-important logs. Stored as
-    // one small option (a handful of entries expected, not table-scale),
-    // keyed by md5(source|message) so mute/unmute never has to re-send
-    // raw message text through a form field. Muted rows are still
-    // WRITTEN — nothing here stops them being logged, only hides them
-    // from the default view — so a real, still-recorded pattern doesn't
-    // silently vanish from the underlying data, only from what's shown
-    // by default.
+    // Mutes by exact (source, message) pair, keyed by md5. Muted rows are
+    // still written; they are only hidden from the default view.
     /** @return array<string, mixed> */
     private static function muted_signatures(): array {
         $muted = get_option('ous_debug_log_muted', []);
@@ -475,18 +330,13 @@ class OUS_DebugLog {
         update_option('ous_debug_log_muted', $muted, false);
     }
 
-    // Builds the WHERE clause + params for every filter this page
-    // supports, shared between the row query and the "copy all
-    // currently-filtered rows" dump so the two never drift apart.
+    // Shared by the row query and the copy dump so they never drift apart.
     /** @return array<string, mixed> */
     private static function build_filters(): array {
         $where = [];
         $params = [];
 
-        // Muted (source, message) pairs are excluded by default — same
-        // "hidden but not deleted" posture as the rest of this feature.
-        // ous_log_show_muted=1 (the "Show muted" toggle) bypasses this so
-        // a muted pattern is still fully reachable, never actually lost.
+        // ous_log_show_muted=1 bypasses the mute filter.
         $show_muted = isset($_GET['ous_log_show_muted']) && $_GET['ous_log_show_muted'] === '1';
         if (!$show_muted) {
             foreach (self::muted_signatures() as $m) {
@@ -508,12 +358,6 @@ class OUS_DebugLog {
         $since = isset($_GET['ous_log_since']) ? sanitize_text_field($_GET['ous_log_since']) : '';
         if ($since && preg_match('/^\d{4}-\d{2}-\d{2}$/', $since)) { $where[] = 'created_at >= %s'; $params[] = $since . ' 00:00:00'; }
 
-        // "Show me everything that happened during THIS request" —
-        // materially different from a time-window filter, since a fast
-        // request's rows might all share the same created_at second
-        // anyway while a slow one's could span several, and either way
-        // a time window can't tell "part of the same request" apart from
-        // "just happened to log around the same moment."
         $request_id = isset($_GET['ous_log_request']) ? sanitize_text_field($_GET['ous_log_request']) : '';
         if ($request_id) { $where[] = 'request_id = %s'; $params[] = $request_id; }
 
@@ -525,16 +369,8 @@ class OUS_DebugLog {
         ];
     }
 
-    // Answers "is logging itself actually working" directly, rather than
-    // making an admin infer it from an empty table (which is completely
-    // ambiguous — a healthy install with nothing to report looks
-    // IDENTICAL to a broken install where every insert is silently
-    // failing). Checks: does the table exist, does it have the columns
-    // this code's INSERT statement actually needs (a real gap here means
-    // DB_VERSION's migration didn't run — see OUS_Identity_Activator —
-    // or ran against a table some other process already altered), what's
-    // the stored bhi_db_version option vs the code's current constant,
-    // and any last recorded insert failure from log() itself above.
+    // Answers "is logging itself working": table exists, required columns
+    // present, schema version matches, and last recorded insert failure.
     private static function health_check(): void {
         global $wpdb;
         self::print_log_styles_once();
@@ -575,9 +411,6 @@ class OUS_DebugLog {
         self::health_check();
         $filters = self::build_filters();
 
-        // Distinct sources currently in the table, for the source
-        // dropdown — cheap enough at MAX_ROWS=1000 rows to run on every
-        // page view rather than caching separately.
         $known_sources = $wpdb->get_col("SELECT DISTINCT source FROM $table WHERE source != '' ORDER BY source ASC");
 
         echo '<form method="get" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
@@ -610,11 +443,7 @@ class OUS_DebugLog {
         }
         echo '</form>';
 
-        // Muted-signatures panel: hides routine noise from the main
-        // stream without losing track of what's actually muted or
-        // making it hard to bring back. A real, visible list (not just
-        // a silent filter) plus a one-click "show muted rows" toggle so
-        // muting never means "gone," only "out of the way by default."
+        // Muted list with a toggle to show muted rows again.
         $muted = self::muted_signatures();
         if ($muted) {
             $toggle_url = admin_url('admin.php?page=ous-debug' . ($filters['show_muted'] ? '' : '&ous_log_show_muted=1'));
@@ -644,12 +473,7 @@ class OUS_DebugLog {
         if (!$rows) {
             echo '<p class="description">No log entries match these filters. Nothing to triage — that\'s a good sign.</p>';
         } else {
-            // Plain-text dump of exactly the rows currently visible
-            // (respects every filter above) — one line per entry, newest
-            // first, same order as the table, including the file/line
-            // pointer and a JSON trace tail — for pasting a triage
-            // session into a chat/ticket without hand-copying rows out
-            // of the table one at a time.
+            // Plain-text dump of the visible rows, for pasting into a ticket.
             $dump_lines = [];
             foreach ($rows as $r) {
                 $location = $r['file'] ? (' (' . $r['file'] . ':' . $r['line'] . ($r['col'] ? ':' . $r['col'] : '') . ')') : '';
@@ -671,24 +495,13 @@ class OUS_DebugLog {
                 $detail_id = 'ous-log-detail-' . $i;
 
                 echo '<tr' . ($has_detail ? ' style="cursor:pointer;" onclick="bhToggleLogDetail(\'' . esc_js($detail_id) . '\')"' : '') . '>';
-                // Color comes from the .ous-log-level-pill[data-level]
-                // rules printed once by print_log_styles_once() — a real
-                // CSS class reading --bhy-* tokens, not the inline
-                // style="color:#fff;background:#d63638" this used to be.
                 echo '<td><span class="ous-log-level-pill" data-level="' . esc_attr($r['level']) . '">' . esc_html(strtoupper($r['level'])) . '</span></td>';
                 echo '<td>' . esc_html($r['source'] ?: '&#8212;') . '</td>';
                 echo '<td>' . esc_html($r['message']);
                 if ($r['file']) {
                     echo ' <code class="ous-log-meta">' . esc_html($r['file'] . ':' . $r['line'] . ($r['col'] ? ':' . $r['col'] : '')) . '</code>';
                 }
-                // A clickable request-ID chip on every row that has one —
-                // stopPropagation so clicking it navigates to the filtered
-                // view instead of just toggling this row's own detail
-                // pane (the two clicks would otherwise conflict, since
-                // the whole <tr> already has its own onclick). This is
-                // the actual point of storing request_id at all: turning
-                // "here's one isolated error" into "here's everything
-                // that happened around it" with a single click.
+                // stopPropagation: the <tr> has its own toggle onclick.
                 if (!empty($r['request_id'])) {
                     $req_url = admin_url('admin.php?page=ous-debug&ous_log_request=' . rawurlencode($r['request_id']));
                     echo ' <a href="' . esc_url($req_url) . '" onclick="event.stopPropagation();" title="Show every log entry from this same request" class="ous-log-req-chip">#' . esc_html($r['request_id']) . '</a>';
@@ -697,11 +510,7 @@ class OUS_DebugLog {
                 echo '</td>';
                 echo '<td>' . ($r['user_id'] ? esc_html(get_userdata($r['user_id']) ? get_userdata($r['user_id'])->user_login : ('#' . $r['user_id'])) : '&#8212;') . '</td>';
                 echo '<td>' . esc_html(human_time_diff(strtotime($r['created_at']), current_time('timestamp')) . ' ago') . '</td>';
-                // stopPropagation on the whole cell — the row itself has
-                // its own onclick (toggle detail) when $has_detail, and
-                // without this, clicking either button here would ALSO
-                // toggle that detail row open/closed as an unwanted side
-                // effect of the click bubbling up.
+                // stopPropagation: keeps button clicks from toggling the detail row.
                 echo '<td onclick="event.stopPropagation();" style="white-space:nowrap;">';
                 OUS_Debug::button('bh-console', 'delete_log_row', 'Delete', "<input type='hidden' name='ous_log_row_id' value='" . esc_attr($r['id']) . "'>", 'Delete this one log entry? This cannot be undone.', false);
                 OUS_Debug::button('bh-console', 'mute_log_signature', 'Mute', "<input type='hidden' name='ous_log_row_id' value='" . esc_attr($r['id']) . "'>", '', false);
@@ -744,12 +553,7 @@ class OUS_DebugLog {
             $wpdb->query("TRUNCATE TABLE " . self::table());
             return 'Console/error log cleared.';
         }
-        // Deletes exactly one row — a real, permanent delete (unlike
-        // muting below), for the case where a specific logged entry is
-        // just noise/test data and shouldn't exist at all, not merely be
-        // hidden. Deliberately does NOT touch anything else matching the
-        // same source/message — this is a single-row operation, muting
-        // (below) is the pattern-level one.
+        // Permanent single-row delete; muting is the pattern-level option.
         if ($action === 'delete_log_row') {
             global $wpdb;
             $id = absint($_POST['ous_log_row_id'] ?? 0);
@@ -757,11 +561,8 @@ class OUS_DebugLog {
             $deleted = $wpdb->delete(self::table(), ['id' => $id], ['%d']);
             return $deleted ? 'Log entry deleted.' : 'That log entry was already gone.';
         }
-        // Mutes by (source, message) — read from the row itself server-
-        // side (never trust a message string round-tripped through a
-        // hidden form field) so what actually gets muted is exactly what
-        // that row actually says, not whatever a tampered POST claims it
-        // says.
+        // WHY: source/message is read from the row server-side, never trusted
+        // from a POSTed field.
         if ($action === 'mute_log_signature') {
             global $wpdb;
             $id = absint($_POST['ous_log_row_id'] ?? 0);
@@ -800,21 +601,8 @@ class OUS_DebugLog {
         return 'Console/error log cleared.';
     }
 
-    // The fifth hardcoded-styling mechanism found in this ecosystem's
-    // Track 2 code-quality pass — after --bhy-* tokens, admin.css,
-    // class-metrics.php's inline block, and (fixed the same round)
-    // class-portal.php's dashicon layer, this file was styling its log
-    // rows with literal hex INLINE `style=""` attributes
-    // (color:#d63638, background:#f0f0f1, etc.). That's a genuinely
-    // worse case than the other four: an inline style beats any
-    // external stylesheet rule outright, so the admin skin could not
-    // have themed this screen even with !important short of injecting
-    // its own inline styles back via JS. Real classes, reading --bhy-*
-    // tokens, fix that at the source — printed once here (same
-    // print-once pattern as the copy/expand scripts below) rather than
-    // enqueued as a separate stylesheet, since this section already
-    // prints its own <script> blocks the same way and Debug Tools has
-    // no dedicated CSS file to add these three classes to.
+    // Real classes reading --bhy-* tokens instead of inline styles, which
+    // the admin skin could not override.
     private static function print_log_styles_once(): void {
         static $printed = false;
         if ($printed) return;
@@ -898,10 +686,8 @@ class OUS_DebugLog {
         <?php
     }
 
-    // Same window.bhCopyToClipboard helper class-test-runner.php prints
-    // for its own "copy failures" buttons — guarded on the JS side
-    // (typeof check) so whichever section renders first on the shared
-    // Debug Tools page wins and the other is a no-op, not a redefinition.
+    // Same window.bhCopyToClipboard helper class-test-runner.php prints;
+    // the JS typeof guard makes the second definition a no-op.
     private static function print_copy_script_once(): void {
         static $printed = false;
         if ($printed) return;
@@ -936,9 +722,7 @@ class OUS_DebugLog {
         <?php
     }
 
-    // Toggles a log row's expandable detail row (trace/context/request)
-    // — guarded the same way print_copy_script_once() is, one shared
-    // definition regardless of section render order.
+    // Toggles a log row's detail row; guarded like print_copy_script_once().
     private static function print_expand_script_once(): void {
         static $printed = false;
         if ($printed) return;

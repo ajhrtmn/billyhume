@@ -2,13 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Same versioned, idempotent migration pattern as every other plugin in
- * this ecosystem. No custom table yet — a bhv_video is a real CPT with
- * postmeta pointing at a standard attachment, nothing relational to
- * store outside WordPress's own tables in v1. Chapters/resume-position
- * (ported from bh-streaming's own class-chapters.php) will need its own
- * table once built — this class is the place that migration lands,
- * bumping DB_VERSION the same way bh-streaming's own activator does.
+ * Versioned, idempotent activation. No custom tables: bhv_video is a CPT with postmeta.
  */
 class BHV_Activator {
     const DB_VERSION = '1.0';
@@ -22,19 +16,7 @@ class BHV_Activator {
         update_option('bhv_db_version', self::DB_VERSION);
     }
 
-    // Real gap found in a functional-depth audit: every sibling plugin
-    // with a public shortcode-driven browse page (bh-registry, bh-
-    // streaming) auto-creates that page on activation — this plugin
-    // never did, despite its own description promising "a standalone
-    // video catalog and player... browse/playback SPA." [bh_video] and
-    // its REST API were both fully real and working, but there was
-    // literally no discoverable page anywhere on a fresh install unless
-    // an admin already knew to hand-create one and paste the shortcode
-    // in — confirmed live (this install's own bhv_video post count was
-    // 0 and no page anywhere referenced [bh_video]). Same version-gated
-    // pattern as BHR_Activator::maybe_create_default_pages() (a
-    // manually-trashed page isn't silently recreated), hooked to
-    // admin_init rather than every front-end request the same way.
+    // Creates the [bh_video] page once; version-gated so a trashed page isn't silently recreated.
     const PAGES_VERSION = '1';
 
     public static function maybe_create_default_pages(): void {

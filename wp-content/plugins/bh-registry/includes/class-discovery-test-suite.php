@@ -2,42 +2,13 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_TestRunner suite for the three-layer automatic discovery system
- * (peer crawl + ActivityPub relay + search index). Separate from
- * class-test-suite.php, which covers the older verification trust
- * mechanism — these are genuinely different subsystems and a single
- * 40-assertion blob would be harder to read a failure out of.
- *
- * Coverage priorities, in order of how badly a regression would hurt:
- *   1. SSRF guard (BHR_Crawl::is_safe_external_url) — the single most
- *      security-critical function added by the pull/crawl redesign,
- *      since this site now fetches URLs remote peers merely CLAIM
- *      exist. Every private/loopback/link-local range gets a real
- *      assertion, including the cloud-metadata address specifically.
- *   2. HTTP Signature sign/verify — the ActivityPub inbox's entire
- *      authentication story. Tamper, wrong-key, wrong-path, and
- *      missing-coverage cases all asserted, not just the happy path.
- *   3. Candidate/peer ingestion — dedup, hop-limiting, cap enforcement,
- *      and (most importantly) that a crawled candidate is NEVER
- *      auto-verified, only ever queued as pending.
- *
- * HTTP is mocked via WordPress core's own 'pre_http_request' filter,
- * the same real short-circuit hook class-test-suite.php already uses.
+ * OUS_TestRunner suite for discovery: SSRF guard, HTTP Signatures, manifest shape, ingestion, ActivityPub.
  */
 class BHR_DiscoveryTestSuite {
     const TEST_TAG = '__bhr_discovery_test__';
 
-    // Fixtures must use a genuinely RESOLVABLE host: ingest_candidate()
-    // and maybe_add_discovered_peer() both run wp_http_validate_url(),
-    // which calls gethostbyname() and rejects anything that doesn't
-    // resolve. A made-up hostname would make these tests pass/fail for
-    // the wrong reason (short-circuited before the logic under test
-    // ever runs) — a real bug this suite hit on its own first run.
-    // example.com resolves, is IANA-reserved for exactly this purpose,
-    // and is never actually contacted by the code under test here
-    // (ingestion only validates and inserts; verification is deferred
-    // to a queued job, and cleanup removes the row before that job
-    // could act on it).
+    // WHY: must be a resolvable host, since wp_http_validate_url() rejects unresolvable names
+    // before the logic under test runs. Ingestion never actually contacts it.
     const TEST_HOST = 'https://example.com/' . self::TEST_TAG;
 
     public static function init(): void {
@@ -75,9 +46,6 @@ class BHR_DiscoveryTestSuite {
     private static function run_ssrf_tests(): array {
         $rows = [];
 
-        // Every one of these is a real address an attacker would try to
-        // make this site fetch by listing it in a manifest's
-        // known_peers array.
         $must_reject = [
             'http://127.0.0.1/x'                      => 'IPv4 loopback',
             'http://localhost/x'                      => 'localhost hostname',
@@ -99,8 +67,6 @@ class BHR_DiscoveryTestSuite {
             );
         }
 
-        // A real, resolvable public host must still pass, or the guard
-        // has broken discovery entirely rather than secured it.
         $rows[] = OUS_TestRunner::assert_true(
             BHR_Crawl::is_safe_external_url('https://example.com/'),
             'SSRF guard allows a genuinely public, resolvable host'
@@ -143,8 +109,6 @@ class BHR_DiscoveryTestSuite {
             'HTTP Signature: a correctly-signed request verifies against its own public key'
         );
 
-        // Body swapped after signing — the digest no longer matches what
-        // was signed, so verification must fail.
         $tampered = $headers;
         $tampered['Digest'] = BHR_HttpSignature::digest($body . 'evil');
         $rows[] = OUS_TestRunner::assert_false(
@@ -152,14 +116,11 @@ class BHR_DiscoveryTestSuite {
             'HTTP Signature: a tampered body/digest is rejected'
         );
 
-        // Same signature replayed against a different route — must fail,
-        // since (request-target) is part of the signed string.
         $rows[] = OUS_TestRunner::assert_false(
             BHR_HttpSignature::verify('POST', '/some-other-inbox', $headers, $sig, $pub),
             'HTTP Signature: replaying a signature against a different path is rejected'
         );
 
-        // Signed by someone else entirely.
         $other = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
         $other_pub = $other ? (openssl_pkey_get_details($other)['key'] ?? '') : '';
         $rows[] = OUS_TestRunner::assert_false(
@@ -167,9 +128,7 @@ class BHR_DiscoveryTestSuite {
             'HTTP Signature: verification against the WRONG public key is rejected'
         );
 
-        // A signature that doesn't cover date isn't meaningfully bound
-        // to a moment in time — must be refused even though the math
-        // itself would check out.
+        // Mathematically valid, but not bound to a moment in time.
         $weak = BHR_HttpSignature::sign('POST', '/bh-registry/inbox', $headers, ['(request-target)', 'host'], $priv, 'k');
         $rows[] = OUS_TestRunner::assert_false(
             BHR_HttpSignature::verify('POST', '/bh-registry/inbox', $headers, $weak, $pub),
@@ -186,7 +145,6 @@ class BHR_DiscoveryTestSuite {
             'HTTP Signature: a malformed Signature header is rejected without throwing'
         );
 
-        // Replay window.
         $rows[] = OUS_TestRunner::assert_true(
             BHR_HttpSignature::date_is_fresh($date),
             'HTTP Signature: a current Date header is accepted as fresh'
@@ -219,8 +177,6 @@ class BHR_DiscoveryTestSuite {
         $rows[] = OUS_TestRunner::assert_true(is_array($data['known_peers'] ?? null), 'Manifest: known_peers is an array');
         $rows[] = OUS_TestRunner::assert_same(2, $data['peer_protocol_version'] ?? 0, 'Manifest: advertises peer_protocol_version 2');
 
-        // The manifest must never leak contact_email or any
-        // pending/unverified link — it's a public document.
         $encoded = wp_json_encode($data);
         $rows[] = OUS_TestRunner::assert_true(
             strpos((string) $encoded, 'contact_email') === false,
@@ -241,10 +197,7 @@ class BHR_DiscoveryTestSuite {
         $links_t = BHR_Tables::links();
         $seen_t  = BHR_Tables::gossip_seen();
 
-        // Schema sanity first — a missing column here would otherwise
-        // surface as a mysterious "insert failed" with no explanation,
-        // which is exactly the kind of opaque failure that wastes a
-        // debugging session (this suite caught a real one on first run).
+        // Schema first, so a missing column fails clearly instead of as an opaque insert failure.
         $cols = $wpdb->get_col("SHOW COLUMNS FROM $peers_t", 0);
         $rows[] = OUS_TestRunner::assert_true(
             in_array('discovered_hop', $cols, true),
@@ -255,7 +208,6 @@ class BHR_DiscoveryTestSuite {
             'Schema: bhr_peers.shared_secret was dropped by the 1.3 migration (dead column from the reverted push design)'
         );
 
-        // A fixture peer to attribute crawled candidates to.
         $wpdb->insert($peers_t, [
             'base_url'       => self::TEST_HOST . '/peer-a',
             'label'          => self::TEST_TAG,
@@ -283,9 +235,7 @@ class BHR_DiscoveryTestSuite {
         $rows[] = OUS_TestRunner::assert_true((bool) $link, 'Ingestion: a crawled candidate creates a real bhr_links row');
 
         if ($link) {
-            // THE most important assertion in this whole suite: discovery
-            // must never imply trust. A crawled candidate is pending
-            // until THIS site verifies it independently.
+            // Most important assertion here: discovery must never imply trust.
             $rows[] = OUS_TestRunner::assert_same(
                 'pending', $link->verification_status,
                 'Ingestion: a crawled candidate is PENDING, never auto-verified (discovery != trust)'
@@ -300,20 +250,17 @@ class BHR_DiscoveryTestSuite {
             );
         }
 
-        // Same candidate again — dedup must prevent a second row.
         $before = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $links_t WHERE url = %s", $candidate_url));
         $ingest->invoke(null, $candidate, $peer);
         $after = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $links_t WHERE url = %s", $candidate_url));
         $rows[] = OUS_TestRunner::assert_same($before, $after, 'Ingestion: re-ingesting the same candidate is deduped (no duplicate link row)');
 
-        // Dedup is by normalized (protocol,url) hash — a trailing slash
-        // or different case must NOT slip past it.
+        // Dedup is by normalized (protocol,url) hash.
         $variant = ['protocol' => 'feed', 'url' => rtrim($candidate_url, '/') . '/', 'display_name' => 'dupe'];
         $ingest->invoke(null, $variant, $peer);
         $after_variant = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $links_t WHERE url LIKE %s", $wpdb->esc_like($candidate_url) . '%'));
         $rows[] = OUS_TestRunner::assert_same(1, $after_variant, 'Ingestion: URL normalization means a trailing-slash variant is still deduped');
 
-        // Junk candidates must be refused outright.
         $bad_cases = [
             ['why' => 'an unknown protocol', 'candidate' => ['protocol' => 'telnet', 'url' => self::TEST_HOST . '/bad-a', 'display_name' => 'x']],
             ['why' => 'an unparseable URL',  'candidate' => ['protocol' => 'feed',   'url' => 'not-a-url',                          'display_name' => 'x']],
@@ -327,14 +274,11 @@ class BHR_DiscoveryTestSuite {
             $rows[] = OUS_TestRunner::assert_same($count_before, $count_after, 'Ingestion: refuses ' . $case['why'] . ' (no row created)');
         }
 
-        // A non-array candidate must not throw.
         $count_before = (int) $wpdb->get_var("SELECT COUNT(*) FROM $links_t");
         $ingest->invoke(null, 'a bare string, not an object', $peer);
         $count_after = (int) $wpdb->get_var("SELECT COUNT(*) FROM $links_t");
         $rows[] = OUS_TestRunner::assert_same($count_before, $count_after, 'Ingestion: a non-array candidate is ignored without throwing');
 
-        // Peer auto-add must refuse an SSRF-unsafe URL before any
-        // network call or insert.
         $rows[] = OUS_TestRunner::assert_false(
             BHR_Crawl::maybe_add_discovered_peer('http://169.254.169.254/', 1),
             'Peer auto-add: refuses a link-local/metadata address (SSRF guard applied to discovered peers)'
@@ -344,13 +288,11 @@ class BHR_DiscoveryTestSuite {
             'Peer auto-add: refuses a loopback address'
         );
 
-        // An already-known peer must not be re-added.
         $rows[] = OUS_TestRunner::assert_false(
             BHR_Crawl::maybe_add_discovered_peer(self::TEST_HOST . '/peer-a', 1),
             'Peer auto-add: an already-known peer is not duplicated'
         );
 
-        // Hop limiting is a real bound, not decoration.
         $rows[] = OUS_TestRunner::assert_true(
             BHR_Crawl::max_hops() >= 1,
             'Hop limit: max_hops() returns a sane positive bound'
@@ -378,8 +320,7 @@ class BHR_DiscoveryTestSuite {
             'ActivityPub: a real RSA private key is generated/stored'
         );
 
-        // Stable across calls — regenerating per request would break
-        // every federation relationship on every page load.
+        // Regenerating per request would break every federation relationship.
         $again = BHR_ActivityPub::keypair();
         $rows[] = OUS_TestRunner::assert_same(
             $keys['public'], $again['public'],
@@ -391,9 +332,6 @@ class BHR_DiscoveryTestSuite {
             'ActivityPub: key_id() is the actor URL plus a #main-key fragment (standard convention)'
         );
 
-        // The private key must never be reachable through the public
-        // actor document. This is the single worst possible leak in the
-        // whole layer, so it gets its own explicit assertion.
         $extract = new ReflectionMethod('BHR_ActivityPub', 'extract_candidate_urls');
         $extract->setAccessible(true);
 

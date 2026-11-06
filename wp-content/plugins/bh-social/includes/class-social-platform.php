@@ -2,10 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Organic cross-post/stats-pull platforms only (YouTube, Twitch, Meta,
- * TikTok) — deliberately excludes Roku Ads, which is a paid-campaign
- * shape (budget/targeting/billing) covered by a separate BH_AdsPlatform
- * interface once that gets built, not this one.
+ * Organic cross-post/stats platforms (YouTube, Twitch, Meta, TikTok). Paid ads use BH_AdsPlatform.
  */
 interface BH_SocialPlatform {
     /** True once enough settings exist to attempt API calls (does not guarantee tokens are still valid). */
@@ -18,11 +15,8 @@ interface BH_SocialPlatform {
     public function disconnect(): bool;
 
     /**
-     * Publishes $args (platform-specific shape — e.g. attachment_id,
-     * title, description for YouTube) to the platform. Called from a
-     * background job (OUS_Jobs), never inline on a request — a slow
-     * or failing third-party API must not block the request that
-     * triggered it.
+     * Publishes $args (platform-specific shape). Called from a background job,
+     * never inline, so a slow third-party API can't block a request.
      *
      * @param array<string, mixed> $args
      * @return true|\WP_Error

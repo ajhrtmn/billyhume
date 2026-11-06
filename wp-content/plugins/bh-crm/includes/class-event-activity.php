@@ -2,34 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BH_Event's activity-stream consumer for the People/CRM detail page —
- * this plugin's own contribution to the bh_crm_activity_summary filter
- * documented in class-people.php's docblock, just applied from inside
- * this same plugin rather than from an external one, since bh-crm is
- * the natural place to show "everything this person has done across
- * the ecosystem" in one place.
- *
- * Reads directly from {$wpdb->prefix}bhcore_events (the-self-hosted-self's
- * BH_Event, see the-self-hosted-self/includes/class-event.php) filtered by
- * `WHERE user_id = %d`. Deliberately does NOT go through
- * BH_Identity::client_ids_for_user() to widen the query to matching
- * client_ids — there's no separate identity/stitching table (see that
- * method's own docblock), so the only client_id values it could ever
- * return are ones already present on rows that already carry this
- * user_id via BH_Event::backfill_user_id()'s one-shot UPDATE. Those
- * rows are already included by the plain user_id filter below, so
- * widening the query would only add redundant OR clauses, not new
- * rows.
- *
- * Read-only — this class emits nothing itself (see class-notes.php and
- * class-tags.php for bh-crm's own emit() call sites).
+ * Per-person event history (bhcore_events) as a bh_crm_activity_summary section. Read-only.
+ * Filters by user_id alone; client_id widening would only repeat rows already backfilled with this user_id.
  */
 class BHCRM_Event_Activity {
-    // How many of a person's most recent events to show in the
-    // detail-page render() table — a person-level activity feed, not a
-    // report, so a small fixed window is the right shape; the summary
-    // line uses a separate, cheap COUNT(*) rather than counting this
-    // capped list.
+    // Rows shown in the detail table; the summary uses a separate COUNT(*).
     const DETAIL_LIMIT = 25;
 
     public static function init(): void {
@@ -40,9 +17,7 @@ class BHCRM_Event_Activity {
         return OUS_Tables::events();
     }
 
-    // Total event count for this user, all types, all time — cheap
-    // single COUNT(*) against the indexed `user` key (see
-    // class-identity-activator.php's bhcore_events KEY user (user_id)).
+    // Total event count for this user (indexed on user_id).
     private static function total_count(int $user_id): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
@@ -51,9 +26,7 @@ class BHCRM_Event_Activity {
         ));
     }
 
-    // Most recent DETAIL_LIMIT events for this user, newest first —
-    // bounded and prepared, matching every other bounded query in this
-    // ecosystem's admin views.
+    // Most recent DETAIL_LIMIT events, newest first.
     /** @return array<int, array<string, mixed>> */
     private static function recent_events(int $user_id): array {
         global $wpdb;
@@ -67,14 +40,7 @@ class BHCRM_Event_Activity {
         ), ARRAY_A);
     }
 
-    /**
-     * Raw event `type` -> human-readable label. Every type any active
-     * plugin has actually registered via BH_Event::register_event_type()
-     * is mapped explicitly; anything unrecognized
-     * (future type, or a type registered by a plugin this list doesn't
-     * know about) falls back to a readable-enough default derived from
-     * the raw string rather than showing nothing.
-     */
+    /** Event type -> label; unknown types fall back to a label derived from the raw string. */
     public static function type_label(string $type): string {
         $labels = [
             'bhs/play'            => 'Played a track',
@@ -93,9 +59,7 @@ class BHCRM_Event_Activity {
         ];
         if (isset($labels[$type])) return $labels[$type];
 
-        // Fallback: "bhx/some_thing" -> "Some thing" — strips the
-        // namespace prefix and turns underscores into spaces, honest
-        // about being a generic guess rather than a curated label.
+        // "bhx/some_thing" -> "Some thing".
         $bare = strpos($type, '/') !== false ? substr($type, strpos($type, '/') + 1) : $type;
         $bare = str_replace(['_', '-'], ' ', $bare);
         return $bare !== '' ? ucfirst($bare) : $type;
@@ -123,11 +87,7 @@ class BHCRM_Event_Activity {
         return $sections;
     }
 
-    // Expanded detail table shown under the "Event Tracking" heading on
-    // the person's detail page — most recent DETAIL_LIMIT events, type
-    // label, subject, and a couple of the more useful payload fields
-    // when present (best-effort only; payload shape varies per type,
-    // so this doesn't attempt a schema-aware render).
+    // Detail table: recent events with type, subject and a few best-effort payload fields.
     public static function render_detail(int $user_id): void {
         $rows = self::recent_events($user_id);
         if (!$rows) {
@@ -135,12 +95,7 @@ class BHCRM_Event_Activity {
             return;
         }
 
-        // Audit fix (2026-07-25): bhm/wallet_credit / bhm/wallet_debit
-        // rows also appear, rolled up, in bh-monetization-woo's own
-        // Activity-section contribution (if that plugin is active) — the
-        // raw log here is the audit-trail source of truth and shouldn't
-        // suppress rows, but a one-line pointer avoids it reading as an
-        // unexplained duplicate for anyone who's already seen the summary.
+        // Wallet events are also rolled up by bh-monetization-woo; note that so they don't read as duplicates.
         $has_wallet_rows = false;
         foreach ($rows as $r) { if (strpos($r['type'], 'bhm/wallet_') === 0) { $has_wallet_rows = true; break; } }
         if ($has_wallet_rows && class_exists('BHM_Wallet')) {

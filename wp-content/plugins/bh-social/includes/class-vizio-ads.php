@@ -2,18 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Vizio Ads / Platform Plus (platformplus.vizio.com) — added in the
- * same research pass as Spotify/Amazon/Samsung. The least accessible
- * of the four for a self-serve small advertiser: no published minimum
- * spend, no public self-serve REST API, and Vizio's own documentation
- * points to a "contact us through our content partners form" flow
- * rather than any direct signup console. This is functionally further
- * from self-serve than even Samsung's DSP-partner-gated access.
- *
- * Included for completeness/honest signaling only — draft-capture +
- * handoff, same BH_AdsPlatform shape as the others, but get_status()
- * and the admin UI should make clear this is the least-ready-to-use
- * of the group rather than implying parity with Roku/Spotify.
+ * Vizio Ads / Platform Plus. The least self-serve of the ads platforms (partner
+ * contact form only, no public API); draft capture plus handoff.
  */
 class BHSO_VizioAds implements BH_AdsPlatform {
     const MANAGER_URL = 'https://platformplus.vizio.com/ad-solutions';

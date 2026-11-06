@@ -2,10 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Registers a representative preview of the public browse/search UI
- * into the core's Style gallery — same mechanism bh-contest and
- * bh-streaming already use, proving the pattern holds for a third,
- * independently-installable plugin.
+ * Registers a preview of the public browse/search UI in the core Style gallery.
  */
 class BHR_StyleSurface {
     public static function init(): void {

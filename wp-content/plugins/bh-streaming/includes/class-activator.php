@@ -2,15 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Same hardened migration pattern proven out in bh-contest: versioned,
- * runs on every load via a cheap early-return (not just on activation,
- * since a file-replace deploy never fires WordPress's real activation
- * hook), and only marks itself done if the migration actually succeeded
- * — never persists "complete" on a half-finished migration from a flaky
- * connection.
+ * Versioned schema migrations. WHY: runs on every load behind a cheap
+ * version check (file-replace deploys never fire the activation hook), and
+ * only records success once a migration actually completes.
  */
 class BHS_Activator {
-    const DB_VERSION = '1.4'; // 1.2 added bhs_daily_stats; 1.3 renamed the bh_track/bh_release/bh_playlist post types to bhs_track/bhs_release/bhs_playlist — see rename_post_types_to_prefixed(); 1.4 added bhs_fan_library (the fan-facing global-library feature)
+    const DB_VERSION = '1.4'; // bump when the schema changes; 1.3 = post type rename, 1.4 = bhs_fan_library
 
     public static function activate(): void {
         BHS_PostTypes::register();
@@ -28,30 +25,14 @@ class BHS_Activator {
             update_option('bhs_db_version', self::DB_VERSION);
         }
         self::rename_post_types_to_prefixed();
-        // Rewrite rules (post_type slugs changed) need regenerating once
-        // — flush_rewrite_rules() is a real, if small, cost (rebuilds
-        // and re-saves the whole rewrite table), so this only ever runs
-        // as part of the same version-gated migration, never on every
-        // ordinary page load.
+        // Post type slugs changed, so flush rewrite rules once, inside the
+        // version-gated migration only.
         flush_rewrite_rules();
     }
 
-    // One-time data migration. Own-ur-shit's whole ecosystem naming
-    // convention prefixes every plugin's own post types/tables/classes
-    // with that plugin's own short code — bhc_, bhm_, bhr_, bhi_ — but
-    // these three post types shipped as bare bh_track/bh_release/
-    // bh_playlist instead of bhs_-prefixed, inconsistent with this
-    // plugin's OWN bhs_feed_source and every other plugin's convention.
-    // Fixed at the code level (register_post_type() calls, all internal
-    // references) AND here at the data level: any row already stored
-    // under the old post_type on a site that upgrades from before this
-    // version gets renamed in place, so existing tracks/releases/
-    // playlists don't silently vanish from admin list-tables (which
-    // filter strictly by post_type) after updating this plugin's files.
-    // Idempotent and safe to run repeatedly — an UPDATE ... WHERE
-    // post_type = 'old' matching zero rows (already migrated, or a
-    // fresh install that never had the old post type at all) is a
-    // harmless no-op.
+    // One-time rename of bh_track/bh_release/bh_playlist rows to the
+    // bhs_-prefixed post types, so existing content doesn't vanish from
+    // list tables. Idempotent: a zero-row UPDATE is a no-op.
     private static function rename_post_types_to_prefixed(): void {
         global $wpdb;
         $renames = [
@@ -64,11 +45,7 @@ class BHS_Activator {
                 "UPDATE {$wpdb->posts} SET post_type = %s WHERE post_type = %s", $new, $old
             ));
         }
-        // Any postmeta (e.g. a plugin's own meta_query keyed loosely by
-        // post type name rather than post ID) is unaffected — this
-        // ecosystem's own meta keys are all named after the FIELD
-        // (_bhs_source, _bhs_artist, etc.), never the post type string
-        // itself, so there's nothing else to rename here.
+        // Postmeta needs no rename: meta keys are named after fields, not post types.
     }
 
     private static function create_or_update_schema(): bool {
@@ -88,14 +65,8 @@ class BHS_Activator {
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql);
 
-        // Jam: one row per active/ended session, keyed by a short random
-        // invite code (not the numeric ID — same reasoning as playlist
-        // share tokens, an unguessable/rotatable value that isn't tied
-        // to "guess the next integer"). state_json carries the transient,
-        // fast-changing bits (queue order, current index, position,
-        // playing/paused, control mode, skip votes) as one JSON blob
-        // rather than a column per field — polled and rewritten often
-        // enough (see class-jam.php) that one UPDATE beats several.
+        // Jam sessions, keyed by an unguessable invite code. state_json holds
+        // the fast-changing playback bits as one blob, since it's rewritten often.
         $jam = BHS_Tables::jam_sessions();
         $sql2 = "CREATE TABLE $jam (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -124,12 +95,8 @@ class BHS_Activator {
         ) $charset;";
         dbDelta($sql3);
 
-        // Aggregate-only daily rollup for the artist metrics dashboard —
-        // one row per (day, track, metric, country, referrer) combo,
-        // incremented via INSERT...ON DUPLICATE KEY UPDATE (same atomic
-        // pattern as bh-monetization-woo's wallet, never a read-then-
-        // write). Never a per-listener row — see class-stats.php's own
-        // docblock for why that distinction matters here.
+        // Aggregate-only daily rollup (never per-listener), incremented via
+        // INSERT...ON DUPLICATE KEY UPDATE.
         $stats = BHS_Tables::daily_stats();
         $sql4 = "CREATE TABLE $stats (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -146,16 +113,9 @@ class BHS_Activator {
         ) $charset;";
         dbDelta($sql4);
 
-        // Fan-facing global library (1.4): a genuinely separate table
-        // from bhs_likes/bhs_playlists (both keyed to a real local
-        // bhs_track post ID), since a track a fan discovers via the
-        // registry's own global-library browse may never become a
-        // permanent local post at all — this ecosystem's own "never
-        // re-host, just point at the real source" principle applied to
-        // fan curation instead of admin curation. feed_url/track_guid
-        // together identify a specific external track without needing
-        // a local post; VARCHAR(191) on both (not TEXT) so the unique
-        // key stays within InnoDB's index-length limit under utf8mb4.
+        // Fan library: external tracks identified by feed_url + track_guid
+        // with no local post. WHY: VARCHAR(191) keeps the unique key within
+        // InnoDB's index-length limit under utf8mb4.
         $fan_library = BHS_Tables::fan_library();
         $sql5 = "CREATE TABLE $fan_library (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -184,46 +144,21 @@ class BHS_Activator {
             && $stats_exists === $stats && $fan_library_exists === $fan_library;
     }
 
-    // Same pattern proven out in bh-contest: version-gated so this only
-    // does real work once, then a single cheap option check on every
-    // subsequent admin_init. Hooked to admin_init specifically, not the
-    // broader plugins_loaded a schema migration needs — page creation
-    // isn't blocking anything and only matters to whoever's running the
-    // site, so there's no reason to make every public page view pay for
-    // a check that's only ever useful to an admin.
-    // Bumped 1 -> 2 (2026-08-26): forces one guaranteed retry on every
-    // install, including one already (incorrectly) marked done. Real bug
-    // this fixes: the version flag was previously set unconditionally
-    // even when wp_insert_post() failed, so a site where creation ever
-    // failed once was stuck thinking it had already succeeded, forever —
-    // reactivating the plugin never helped, because the outer version
-    // check short-circuited before the (now-fixed) retry logic ever ran.
-    // Bumping the version is what actually un-sticks an already-stuck
-    // site; the success-gated update_option() fix in
-    // maybe_create_default_pages() is what stops it from happening again.
+    // Version-gated default page creation on admin_init (admin-only concern,
+    // so public page loads don't pay for it). Version 2 forces a retry on
+    // installs that were wrongly marked done.
     const PAGES_VERSION = '2';
 
     public static function maybe_create_default_pages(): void {
         if (get_option('bhs_pages_version') === self::PAGES_VERSION) return;
 
-        // 2026-08-26: real bug, found live — this used to mark
-        // bhs_pages_version done UNCONDITIONALLY, even when
-        // wp_insert_post() below failed. If creation ever failed once
-        // (any environment-specific reason), the flag was permanently
-        // stuck "done," and no amount of deactivating/reactivating the
-        // plugin would ever retry — the page silently never existed and
-        // nothing said so. Only mark done on an actual success now, so a
-        // failed attempt gets retried on the next activation instead of
-        // being remembered as complete.
+        // Only mark done on success, so a failed wp_insert_post() is retried.
         if (self::maybe_create_singleton_page('bhs_streaming_page_id', 'Streaming', '[bh_streaming]')) {
             update_option('bhs_pages_version', self::PAGES_VERSION);
         }
     }
 
-    // Trusts the stored option once set rather than re-verifying the
-    // page's status on every load — if someone manually trashes the
-    // "Streaming" page, this won't notice and silently recreate it, a
-    // deliberate choice since that's plausibly what they wanted.
+    // Trusts the stored option: a manually trashed page is not recreated.
     private static function maybe_create_singleton_page(string $option_key, string $title, string $shortcode): bool {
         if ((int) get_option($option_key, 0)) return true;
 

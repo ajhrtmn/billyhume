@@ -1,21 +1,8 @@
 /**
- * ROADMAP-obs-integration.md Phases 2-3 — runs ONLY inside the
- * automation-bridge overlay page loaded as a hidden OBS Browser Source.
- * Four independent jobs, each failing on its own without breaking the
- * others (Phase 3's own "each source degrades independently" call):
- * (1) speak obs-websocket v5 directly to the broadcaster's own local
- * OBS instance — this page IS running inside OBS's own embedded
- * Chromium, so ws://127.0.0.1:… is same-machine, not a remote
- * connection this WordPress server could ever reach on its own, which
- * is the whole reason this bridge exists as a Browser Source rather
- * than server-side PHP; (2) poll bh-live's own REST API for new
- * ecosystem events and translate matched ones into obs-websocket
- * requests; (3) read Twitch chat anonymously over IRC-over-WebSocket
- * (no OAuth needed for read-only — see the roadmap doc's Phase 3
- * correction note); (4) poll YouTube's Live Chat API with a plain API
- * key (also no OAuth — that's only required to post). (3) and (4) both
- * relay into bh-live's own chat via POST .../chat/{stream_id}/relay,
- * so the existing chat widget/overlay render them with zero changes.
+ * Runs inside the automation-bridge page loaded as a hidden OBS Browser Source.
+ * WHY: it lives in OBS's browser so it can reach the local obs-websocket, which
+ * the WP server cannot. Independent jobs: drive OBS from ecosystem events, and
+ * relay Twitch/YouTube chat into bh-live's chat.
  */
 (function () {
     'use strict';
@@ -91,10 +78,8 @@
         }));
     }
 
-    // toggle_source targets are "SceneName:SourceName" — SetSceneItemEnabled
-    // needs a numeric sceneItemId, not a name, so this always looks it up
-    // fresh via GetSceneItemId rather than caching (cheap, and scene
-    // contents can change between broadcasts).
+    // toggle_source targets are "Scene:Source"; SetSceneItemEnabled needs a numeric
+    // sceneItemId, looked up fresh each time since scenes can change.
     function runAction(rule) {
         if (rule.action === 'switch_scene') {
             sendRequest('SetCurrentProgramScene', { sceneName: rule.target });
@@ -149,13 +134,9 @@
         pollTimer = setInterval(poll, 4000);
     }
 
-    /* ---------------- Phase 3: chat relay ---------------- */
+    /* ---------------- chat relay ---------------- */
 
-    // The automation-bridge URL is broadcaster-level, not tied to one
-    // bhl_stream post (that post is only created once BHL_Streams' own
-    // polling job notices the broadcast went live — see class-overlay.php's
-    // own comment). Resolved from the already-public status endpoint
-    // instead, same one the [bh_live] shortcode's own status check uses.
+    // The bridge URL isn't tied to a stream post, so resolve the live stream from /status.
     var currentStreamId = 0;
     function resolveStreamId() {
         fetch(BHLAutomationData.rest + 'status').then(function (r) { return r.json(); }).then(function (res) {
@@ -171,11 +152,7 @@
         }).catch(function () {});
     }
 
-    // Anonymous, read-only IRC-over-WebSocket — 'justinfanNNNNN' with no
-    // PASS is Twitch's own documented anonymous-read convention, still
-    // standard practice for chat-reading tools. No app registration, no
-    // OAuth token, matching this ecosystem's own no-vendor-lock-in
-    // posture better than asking every broadcaster to register a Twitch app.
+    // Anonymous read-only Twitch IRC: 'justinfanNNNNN' with no PASS needs no app or OAuth.
     var twitchWs = null;
     function connectTwitch() {
         if (!BHLAutomationData.twitchChannel) return;
@@ -198,13 +175,7 @@
         };
     }
 
-    // Read-only Live Chat via a plain API key — YouTube Data API v3
-    // liveChatMessages.list needs no OAuth for a public broadcast's
-    // chat, only for posting (out of scope, per the roadmap doc's own
-    // read-only decision). pollingIntervalMillis in every response is
-    // YouTube's own throttle recommendation — respected here rather
-    // than a hardcoded interval, specifically so this doesn't burn
-    // through the broadcaster's daily quota faster than necessary.
+    // Read-only YouTube Live Chat with a plain API key. Honors pollingIntervalMillis to save quota.
     var ytChatId = null;
     var ytNextToken = null;
     var ytPollMs = 5000;

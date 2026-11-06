@@ -2,23 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Phase 1 of ROADMAP-obs-integration.md — Browser Source overlay pages
- * a broadcaster pastes straight into OBS. Each route returns a bare,
- * transparent-background HTML page (not JSON), styled from
- * BHY_Style::inline_css() so it matches the site's own tokens with zero
- * configuration, per that roadmap's "sane defaults, not a blank canvas"
- * principle.
- *
- * The chat overlay reuses window.BHLChatWidget (assets/js/chat.js)
- * as-is — same 2-4s polling client the on-page [bh_live] widget already
- * uses via live-player.js, just mounted directly instead of behind a
- * status-fetch gate. No new polling logic, one implementation for both
- * surfaces.
- *
- * The votes overlay is guarded by class_exists('BH_API') — bh-contest
- * is an optional peer plugin, same discipline every cross-plugin
- * integration in this ecosystem follows — and 404s cleanly if it's not
- * active rather than fataling.
+ * OBS Browser Source overlay pages: bare, transparent HTML (not JSON) styled
+ * from BHY_Style tokens. The chat overlay reuses window.BHLChatWidget; the votes
+ * overlay needs bh-contest (optional peer).
  */
 class BHL_Overlay {
     public static function register_routes(): void {
@@ -31,23 +17,13 @@ class BHL_Overlay {
         register_rest_route('bhl/v1', '/overlay/(?P<stream_id>\d+)/health', [
             'methods' => 'GET', 'callback' => [self::class, 'health'], 'permission_callback' => '__return_true',
         ]);
-        // Phase 2 — the hidden Browser Source that bridges local OBS
-        // control to ecosystem events. Public route (permission_callback
-        // '__return_true') same as the others — the real gate is the
-        // ?token= query param BHL_Automation::get_events() checks, since
-        // OBS's embedded Chromium has no WordPress login session to
-        // check here (see class-automation.php's own docblock).
+        // WHY: public route; the real gate is the ?token= param (OBS's browser has no WP session).
         register_rest_route('bhl/v1', '/overlay/(?P<stream_id>\d+)/automation-bridge', [
             'methods' => 'GET', 'callback' => [self::class, 'render_automation_bridge'], 'permission_callback' => '__return_true',
         ]);
     }
 
-    // WP_REST_Response always JSON-encodes its data through the REST
-    // server, so a raw HTML string can't just be handed to it as
-    // $data — headers alone don't change that serialization. Overlay
-    // pages bypass the REST response cycle entirely instead, matching
-    // the one honest way to serve arbitrary HTML from within a
-    // register_rest_route callback.
+    // WHY: WP_REST_Response always JSON-encodes, so raw HTML bypasses the REST response cycle.
     private static function output_html(string $html): void {
         status_header(200);
         header('Content-Type: text/html; charset=utf-8');
@@ -76,9 +52,7 @@ class BHL_Overlay {
             .bhl-chat-message--youtube .bhl-chat-source-tag{background:#f00;color:#fff;}'; // overlay is display-only — OBS can't type into it
         $body = '<div class="bhl-chat-slot" id="bhl-overlay-chat"></div>';
 
-        // Manual <script> tags rather than wp_enqueue_script()/wp_print_scripts()
-        // — this REST callback never goes through wp_head/wp_footer, so
-        // there's no guarantee the enqueue would ever actually print.
+        // WHY: manual <script> tags; this callback never runs wp_head/wp_footer.
         $data_json = wp_json_encode([
             'rest' => esc_url_raw(rest_url('bhl/v1/')), 'nonce' => '', 'loggedIn' => false,
         ]);
@@ -126,10 +100,7 @@ class BHL_Overlay {
         self::output_html(self::page_shell('Contest votes', $body . $boot, $extra_css));
     }
 
-    // The invisible Browser Source that connects out to the
-    // broadcaster's own local OBS WebSocket and polls
-    // BHL_Automation::get_events() for triggers — see that class's
-    // docblock for why this is token-gated rather than session-gated.
+    // Hidden Browser Source: connects to the local OBS WebSocket and polls BHL_Automation::get_events().
     public static function render_automation_bridge(\WP_REST_Request $req): void {
         $token = (string) $req->get_param('token');
         $user_id = class_exists('BHL_Automation') ? BHL_Automation::user_for_token($token) : 0;
@@ -138,14 +109,8 @@ class BHL_Overlay {
         }
         $settings = BHL_Automation::settings($user_id);
         $chat_sources = BHL_Automation::chat_sources($user_id);
-        // {stream_id} in this route's own URL is NOT used as the relay
-        // target — the bridge is added to OBS once, well before a real
-        // bhl_stream post necessarily exists for that broadcast (that
-        // post is only created once BHL_Streams' own polling job
-        // notices the engine went live). obs-bridge.js instead resolves
-        // the CURRENT live stream_id itself by polling the already-
-        // public bhl/v1/status endpoint, same one the [bh_live]
-        // shortcode's own status check already uses.
+        // WHY: the URL's {stream_id} is not the relay target; the bridge is added before a stream
+        // post exists, so obs-bridge.js resolves the current live stream from bhl/v1/status.
 
         $data_json = wp_json_encode([
             'rest'           => esc_url_raw(rest_url('bhl/v1/')),
@@ -153,8 +118,7 @@ class BHL_Overlay {
             'obsHost'        => $settings['host'],
             'obsPort'        => (int) $settings['port'],
             'obsPassword'    => $settings['password'],
-            // Phase 3 — each independently optional; obs-bridge.js skips
-            // whichever one is blank rather than erroring.
+            // Each optional; obs-bridge.js skips blank ones.
             'twitchChannel'  => $chat_sources['twitch_channel'],
             'youtubeApiKey'  => $chat_sources['youtube_api_key'],
             'youtubeVideoId' => $chat_sources['youtube_video_id'],

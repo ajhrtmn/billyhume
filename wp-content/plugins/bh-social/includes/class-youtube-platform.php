@@ -2,22 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * YouTube Data API v3 — chosen as the first platform because, unlike
- * Meta/TikTok, using it against your OWN channel needs no app-review
- * gate: create an OAuth client in Google Cloud Console, connect once,
- * done. (Confirmed against Google's own quota docs as of the scoping
- * pass this plugin started from: a default 10,000-unit daily quota,
- * with videos.insert now on its own separate ~100-call daily bucket —
- * re-verify current numbers against Google's live quota calculator
- * before assuming these are still exact.)
- *
- * cross_post() uses the simple `uploadType=multipart` endpoint (one
- * request, metadata + file body together) rather than the resumable
- * upload protocol — correct and sufficient for typical track/video
- * file sizes, but it holds the whole file in memory for that one
- * request and isn't resumable if the connection drops mid-upload.
- * Switching to chunked resumable uploads is a real future iteration
- * for large files, not implemented here.
+ * YouTube Data API v3 against the user's own channel (no app review needed).
+ * cross_post() uses uploadType=multipart: the whole file is held in memory and
+ * the upload is not resumable.
  */
 class BHSO_YouTube implements BH_SocialPlatform {
     const STATS_CRON_HOOK = 'bhso_youtube_pull_stats_cron';
@@ -59,7 +46,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
         }
     }
 
-    /* ---------------- settings / tokens (wp_options, same shape as BHL_FlyProvisioner) ---------------- */
+    /* ---------------- settings / tokens ---------------- */
 
     /** @return array<string, mixed> */
     public static function settings(): array {
@@ -74,8 +61,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
         $existing = self::settings();
         update_option('bhso_youtube_settings', array_merge($existing, [
             'client_id'     => sanitize_text_field($client_id),
-            // Blank field means "keep what's already saved" — same
-            // convention BHL_FlyProvisioner::save_settings() uses.
+            // Blank field keeps the existing saved secret.
             'client_secret' => ($client_secret === '') ? $existing['client_secret'] : sanitize_text_field($client_secret),
         ]));
     }
@@ -87,10 +73,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
             'access_token' => $access_token,
             'expires_at'   => time() + (int) $expires_in,
         ];
-        // Google only returns a refresh_token on the FIRST consent —
-        // re-connecting without revoking access first won't send one
-        // again, so an empty value here must not overwrite the one
-        // already stored.
+        // WHY: Google may omit refresh_token on re-consent; never overwrite a stored one with empty.
         if (!empty($refresh_token)) $update['refresh_token'] = $refresh_token;
         if ($channel_title !== null) $update['channel_title'] = $channel_title;
         update_option('bhso_youtube_settings', array_merge($existing, $update));
@@ -109,7 +92,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
     public function get_status(): string {
         if (!$this->is_configured()) return 'not_configured';
         if (!$this->is_connected()) return 'not_connected';
-        if (BHSO_ConnectionHealth::is_broken(self::settings())) return 'needs_reauth'; // same string Meta's own token-expiry check already uses — one shared meaning across all 4 platforms, not a second status with the same intent
+        if (BHSO_ConnectionHealth::is_broken(self::settings())) return 'needs_reauth'; // shared status string across all platforms
         return 'connected';
     }
 
@@ -127,10 +110,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
         return admin_url('admin-post.php?action=bhso_youtube_oauth_callback');
     }
 
-    // The redirect flow has no form to attach wp_nonce_field() to —
-    // Google itself round-trips the "state" param, so a transient
-    // keyed to the current admin user stands in for a nonce, checked
-    // on the way back in handle_oauth_callback().
+    // WHY: the per-user "state" transient stands in for a nonce; checked in handle_oauth_callback().
     /** @return string|\WP_Error */
     public static function authorize_url() {
         $s = self::settings();
@@ -199,9 +179,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
 
         self::save_tokens($data['access_token'], $data['refresh_token'] ?? '', $data['expires_in'] ?? 3600);
 
-        // Fetch the channel title now, while we have a guaranteed-fresh
-        // token, so the settings screen can show "Connected as X"
-        // instead of just "Connected".
+        // Fetch the channel title for "Connected as X".
         $instance = new self();
         $channel = $instance->api_get(self::CHANNELS_URL . '?part=snippet&mine=true');
         if (!is_wp_error($channel) && !empty($channel['items'][0]['snippet']['title'])) {
@@ -220,10 +198,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
         exit;
     }
 
-    // Refreshes the access token if it's expired (or about to be),
-    // using the stored refresh_token — called before every API request
-    // rather than trusting a caller to check first, same
-    // "self-healing" posture BHL_FlyProvisioner's request() takes.
+    // Refreshes the access token if expired or about to expire; called before every request.
     /** @return string|\WP_Error */
     private function ensure_fresh_token() {
         $s = self::settings();
@@ -275,9 +250,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
 
     /**
      * $args: ['attachment_id' => int, 'title' => string, 'description' => string, 'privacy' => 'private'|'unlisted'|'public']
-     * Attachment must be a real video file already in the media library
-     * (bh-video's own upload metabox, or any other plugin's video
-     * attachment) — this class never fetches remote files.
+     * Attachment must be a local video file in the media library.
      */
     /** @param array<string, mixed> $args */
     public function cross_post($args) {
@@ -310,11 +283,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
             ],
         ];
 
-        // A hand-built multipart/related body per YouTube's own
-        // documented uploadType=multipart shape: one JSON part (the
-        // video resource metadata), one binary part (the file), joined
-        // by a boundary — there's no wp_remote_* helper for multipart
-        // bodies, so this is built directly.
+        // Hand-built multipart/related body: JSON metadata part, then the file part.
         $boundary = 'bhso_' . wp_generate_password(16, false);
         $mime = get_post_mime_type($attachment_id) ?: 'video/*';
 

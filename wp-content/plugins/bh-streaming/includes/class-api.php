@@ -2,15 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 class BHS_API {
-    // Public, read-only GET routes that are safe and useful to expose
-    // cross-origin — a native app, another site's "add this artist's
-    // feed" flow, or anything else pulling just one narrow piece of
-    // metadata (lyrics, quality list) instead of the whole /tracks
-    // payload. Deliberately does NOT include /play, /likes, /playlists,
-    // or /import — those either write data or rely on WP's cookie+nonce
-    // auth, which isn't meaningful cross-origin anyway (a third-party
-    // origin can't present this site's session cookie), so there's no
-    // reason to widen CORS for them. See add_cors_headers() below.
+    // Read-only GET routes safe to expose cross-origin. WHY: write routes and
+    // cookie+nonce routes are excluded; cross-origin can't use them anyway.
     const CORS_ROUTES = [
         '#^/bhs/v1/tracks$#',
         '#^/bhs/v1/tracks/\d+$#',
@@ -25,18 +18,11 @@ class BHS_API {
         register_rest_route('bhs/v1', '/tracks', [
             'methods' => 'GET', 'callback' => [self::class, 'get_tracks'], 'permission_callback' => '__return_true',
         ]);
-        // Single-track lookup — the narrow-fetch counterpart to the full
-        // list, for a client (native app, another site) that already
-        // knows the ID and just wants one track's current metadata
-        // without re-pulling the whole catalog.
+        // Single-track lookup for clients that already know the ID.
         register_rest_route('bhs/v1', '/tracks/(?P<id>\d+)', [
             'methods' => 'GET', 'callback' => [self::class, 'get_track'], 'permission_callback' => '__return_true',
         ]);
-        // Dedicated metadata-only endpoints: a client that only cares
-        // about lyrics (e.g. a lyrics-display widget) or only cares
-        // about available quality encodes (e.g. deciding what to show
-        // in a download-quality picker) doesn't need to fetch, parse,
-        // and discard the entire track object to get one field.
+        // Metadata-only endpoints (lyrics, qualities) for clients needing one field.
         register_rest_route('bhs/v1', '/tracks/(?P<id>\d+)/lyrics', [
             'methods' => 'GET', 'callback' => [self::class, 'get_lyrics'], 'permission_callback' => '__return_true',
         ]);
@@ -51,14 +37,8 @@ class BHS_API {
         ]);
     }
 
-    // Widens CORS for exactly the read-only metadata routes listed in
-    // CORS_ROUTES above — everything else (likes, playlists, import,
-    // play-count) stays same-origin-only by omission, which is the
-    // existing, correct default for WordPress's REST API. Uses
-    // rest_pre_serve_request rather than a blanket 'Access-Control-Allow-
-    // Origin: *' sent for the whole site, so this plugin only ever
-    // widens exposure for the specific endpoints it has actually
-    // reasoned about being safe to expose.
+    // Adds CORS headers only for CORS_ROUTES via rest_pre_serve_request, not a
+    // site-wide Access-Control-Allow-Origin; everything else stays same-origin.
     public static function add_cors_headers(): void {
         add_filter('rest_pre_serve_request', function ($served, $result, $request) {
             $route = $request->get_route();
@@ -73,19 +53,9 @@ class BHS_API {
         }, 10, 3);
     }
 
-    // A track's audio URL is either a local attachment (_bhs_audio_id)
-    // or a remote URL from an aggregated feed (_bhs_external_audio_url)
-    // — resolved here once, so nothing downstream (the player, the
-    // recommendations engine, the feed exporter) needs to know which
-    // kind of track it's looking at.
-    //
-    // $quality optionally selects one of several encodes stored in
-    // _bhs_audio_qualities (a JSON map of label => attachment ID, e.g.
-    // {"lossless": 41, "standard": 42}) — set via the track's Quality
-    // Encodes metabox (see class-admin.php). Falls back to the single
-    // _bhs_audio_id a track has always had, so a track with only one
-    // encode (the overwhelming majority, especially anything imported
-    // from a feed or a local upload) behaves exactly as before.
+    // Resolves a local attachment (_bhs_audio_id) or remote feed URL
+    // (_bhs_external_audio_url) so callers needn't care which. $quality picks
+    // an encode from _bhs_audio_qualities, falling back to _bhs_audio_id.
     public static function audio_url_for(int $post_id, ?string $quality = null): ?string {
         if ($quality) {
             $qualities = self::qualities_for($post_id);
@@ -96,11 +66,8 @@ class BHS_API {
         return get_post_meta($post_id, '_bhs_external_audio_url', true);
     }
 
-    // Returns a label => {attachment_id, url, filesize} map. Always
-    // includes the track's default/primary encode under whatever label
-    // it was tagged with (or 'standard' if never explicitly labeled),
-    // so the player always has at least one entry to show even for a
-    // track nobody has bothered adding extra encodes to.
+    // label => {attachment_id, url, filesize}; always includes the default
+    // encode (labeled 'standard' if untagged).
     /** @return array<string, array<string, mixed>> */
     public static function qualities_for(int $post_id): array {
         $raw = json_decode((string) get_post_meta($post_id, '_bhs_audio_qualities', true), true);
@@ -135,22 +102,16 @@ class BHS_API {
         $lrc = (string) get_post_meta($post->ID, '_bhs_lyrics_lrc', true);
         $plain = (string) get_post_meta($post->ID, '_bhs_lyrics_text', true);
 
-        // Monetization gating extension point: no-op (always true, i.e.
-        // fully open) unless a monetization plugin (bh-monetization-woo)
-        // hooks in with its own tier/purchase check for this specific
-        // track. This is the ONE place bh-streaming ever asks "is this
-        // locked" — it never knows what tiers, prices, or entitlements
-        // even are, just whether the current visitor can hear it.
+        // Gating extension point: true unless a monetization plugin hooks in.
+        // bh-streaming only asks "can this visitor hear it", nothing about tiers.
         $access_allowed = apply_filters('bhs_track_access_allowed', true, $post->ID);
 
         return [
             'id'         => $post->ID,
             'title'      => $post->post_title,
             'artist'     => get_post_meta($post->ID, '_bhs_artist', true),
-            // A locked track never exposes a real, playable URL over the
-            // API at all — gating that only hid the player button while
-            // still shipping the audio URL to every visitor's browser
-            // wouldn't actually restrict anything.
+            // WHY: a locked track never exposes its audio URL; hiding only the
+            // button would restrict nothing.
             'url'        => $access_allowed ? self::audio_url_for($post->ID) : null,
             'qualities'  => $access_allowed ? $quality_out : [], // empty array = only the one default encode exists (see $url above)
             'artwork'    => $art ? wp_get_attachment_image_url($art, 'medium') : BHS_PWA::placeholder_artwork_url(),
@@ -159,35 +120,19 @@ class BHS_API {
             'plays'      => (int) get_post_meta($post->ID, '_bhs_play_count', true),
             'likes'      => BHS_Likes::count_for_track($post->ID),
             'external'   => get_post_meta($post->ID, '_bhs_source', true) === 'external',
-            // Only ever meaningful for an externally-aggregated track —
-            // see BHS_Feeds::check_external_track_health(). A locally-
-            // hosted track has no separate "source" to go down
-            // independent of this site itself, so it's always 'ok'.
+            // Only external tracks can have a down source; local ones are always 'ok'.
             'source_health' => get_post_meta($post->ID, '_bhs_source', true) === 'external' ? BHS_Feeds::source_health($post->ID) : 'ok',
             'locked'     => !$access_allowed,
-            // A ready-to-render paywall notice (HTML string) whenever
-            // locked, same extension-point pattern: empty string if
-            // nothing's hooked in, so the player has SOMETHING sane to
-            // show even before a monetization plugin decides what.
+            // Paywall notice HTML when locked; empty string if nothing hooks in.
             'lock_notice' => $access_allowed ? null : apply_filters('bhs_track_lock_notice', '<p>This track requires supporter access.</p>', $post->ID),
             'lyrics'     => [
-                // 'synced' is LRC text ([mm:ss.xx]line per line) if the
-                // source provided timing data — the player parses it
-                // client-side rather than this endpoint pre-parsing it,
-                // so the raw LRC stays available for anything else that
-                // wants it (export, another client) without re-fetching.
-                // Withheld for locked tracks along with the audio itself
-                // — lyrics for paywalled content are part of what's paywalled.
+                // 'synced' is raw LRC, parsed client-side. Withheld for locked
+                // tracks along with the audio.
                 'synced' => $access_allowed ? ($lrc ?: null) : null,
                 'plain'  => $access_allowed ? ($plain ?: null) : null,
             ],
-            // Long-form audio Phase 1 (ROADMAP-streaming-media-scope-
-            // and-blockchain.md Part 5) — chapter markers are an
-            // artist-authored JSON array of {time, label} on the track
-            // itself (BHS_Chapters::get()), and resumeSeconds is this
-            // specific listener's own last-played position (never
-            // another user's), so a logged-out visitor simply always
-            // gets 0/no markers rather than a fatal on a missing user.
+            // Chapters are artist-authored {time, label}; resumeSeconds is this
+            // listener's own position (0 when logged out).
             'chapters' => $access_allowed && class_exists('BHS_Chapters') ? BHS_Chapters::get($post->ID) : [],
             'resumeSeconds' => $access_allowed && is_user_logged_in() && class_exists('BHS_Chapters') ? BHS_Chapters::resume_position($post->ID, get_current_user_id()) : 0,
         ];
@@ -198,11 +143,8 @@ class BHS_API {
         $out = [];
         foreach ($posts as $p) {
             $payload = self::track_payload($p);
-            // A locked track has no url for a DIFFERENT reason than a
-            // dead/misconfigured one (missing audio attachment) — it
-            // should still show up in the catalog (so a fan can see it
-            // exists and unlock it), just without playable audio. Only
-            // skip the genuinely-broken case: no url AND not locked.
+            // Locked tracks stay listed without audio; skip only tracks with no
+            // url that aren't locked (genuinely broken).
             if (!$payload['url'] && !$payload['locked']) continue;
             $out[] = $payload;
         }
@@ -222,9 +164,7 @@ class BHS_API {
         return new WP_REST_Response(['success' => true, 'track' => self::track_payload($post)], 200);
     }
 
-    // Narrow, lyrics-only payload — the whole point is a client that
-    // wants just this one field without pulling (and re-parsing) the
-    // full track object.
+    // Lyrics-only payload.
     /** @return \WP_REST_Response|\WP_Error */
     public static function get_lyrics(\WP_REST_Request $req) {
         $post = self::find_track($req->get_param('id'));
@@ -265,16 +205,9 @@ class BHS_API {
         return new WP_REST_Response(['success' => true, 'releases' => $out], 200);
     }
 
-    // Fire-and-forget, no auth required (matching how obviously every
-    // streaming service counts anonymous listens) — a play count being
-    // slightly gameable by refresh-spamming is a low-stakes problem, not
-    // worth the friction of requiring an account just to listen.
-    //
-    // Pay-per-play gating hook: mirrors bhs_track_access_allowed exactly,
-    // but at the moment of an actual PLAY rather than at catalog-listing
-    // time — a monetization plugin can veto (insufficient wallet credit)
-    // without bh-streaming knowing anything about wallets, prices, or
-    // credits. No-op (always true) unless something hooks in.
+    // No auth required to count a play (low-stakes if gamed). The
+    // bhs_track_play_allowed hook lets a monetization plugin veto the play
+    // (e.g. insufficient wallet credit); true unless something hooks in.
     /** @return \WP_REST_Response|\WP_Error */
     public static function record_play(\WP_REST_Request $req) {
         $id = (int) $req->get_param('id');
@@ -288,11 +221,7 @@ class BHS_API {
         $count = (int) get_post_meta($id, '_bhs_play_count', true);
         update_post_meta($id, '_bhs_play_count', $count + 1);
 
-        // Aggregate-only rollup for the artist metrics dashboard (see
-        // class-stats.php) — never a per-listener record, just a daily
-        // bucketed count. Kept as its own call rather than folded into
-        // the increment above so the metrics feature can be understood
-        // (and, if ever wanted, disabled) as one clearly separate thing.
+        // Aggregate-only daily rollup for the metrics dashboard (class-stats.php).
         if (class_exists('BHS_Stats')) BHS_Stats::record_play($id, $req);
 
         return new WP_REST_Response(['success' => true], 200);

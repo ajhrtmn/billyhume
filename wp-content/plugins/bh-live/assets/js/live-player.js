@@ -11,11 +11,7 @@
             if (status.chat_embed_html) {
                 chatSlot.innerHTML = status.chat_embed_html;
                 chatSlot.style.display = '';
-                // 'native' chat (BHL_PollingChat) injects a plain
-                // container, not a self-contained iframe — it needs its
-                // own JS (chat.js) to actually start polling once that
-                // container exists in the DOM. 'iframe' chat (Owncast,
-                // BHL_WorkersChat) needs nothing further.
+                // 'native' chat needs chat.js mounted on its container; 'iframe' chat needs nothing.
                 if (status.chat_type === 'native' && window.BHLChatWidget) {
                     window.BHLChatWidget.mount(chatSlot, status.stream_id);
                 }

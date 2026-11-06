@@ -2,31 +2,13 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * A shared async job queue — the WP-Cron-driven, no-external-infra
- * version of a real message queue, since this ecosystem deliberately
- * doesn't assume Redis/RabbitMQ/anything beyond plain WordPress+MySQL
- * being available on a hosting account. Same "core provides it, any
- * plugin uses it with one call, zero registration with a central
- * authority, zero awareness of who else is using it" shape as
- * OUS_Notifications.
+ * Shared async job queue on WP-Cron + MySQL (no external broker), delegating to Action
+ * Scheduler when it is available.
  *
- * USAGE, from any plugin that depends on this one:
- *
- *   // once, in that plugin's own bootstrap:
- *   add_action('init', function () {
- *       if (class_exists('OUS_Jobs')) OUS_Jobs::register('bhr_recheck_one_link', ['BHR_Links', 'recheck_one']);
- *   });
- *
- *   // wherever that plugin wants the work to actually happen later,
- *   // off the current request:
+ *   OUS_Jobs::register('bhr_recheck_one_link', ['BHR_Links', 'recheck_one']);   // on 'init'
  *   OUS_Jobs::enqueue('bhr_recheck_one_link', ['link_id' => $id]);
  *
- * A job hook a plugin enqueues but never registers a handler for simply
- * never runs (and eventually gets logged as failed after MAX_ATTEMPTS)
- * — same "harmless no-op" safety property every other extension point
- * in this ecosystem has, so enqueueing from a plugin whose OWN handler
- * registration didn't run for some reason (wrong load order, etc.)
- * fails quietly rather than fatal-erroring.
+ * A job with no registered handler never runs and is eventually logged as failed, never fatal.
  */
 class OUS_Jobs {
     const MAX_ATTEMPTS = 5;
@@ -37,31 +19,8 @@ class OUS_Jobs {
     private static $handlers = [];
 
     /**
-     * Action Scheduler (Apache-2.0, github.com/woocommerce/action-scheduler)
-     * is the real, battle-tested version of what this class hand-rolls —
-     * the exact same library WooCommerce itself bundles for its own
-     * background jobs, proven at 10,000+ jobs/hour on live sites. We
-     * vendor it the same way (its PHP dropped directly into this
-     * plugin's own includes/vendor/ folder, no Composer, no separate
-     * plugin to activate) rather than reinventing it forever.
-     *
-     * This dev environment has no outbound network access, so the
-     * library can't be fetched and vendored directly here. Instead: a
-     * real one-click installer below, using the exact same
-     * download_url()/unzip_file() mechanism OUS_Registry's wporg_slug
-     * installer already uses for WooCommerce (see class-registry.php) —
-     * it runs on the LIVE site, which has real internet access, and
-     * pulls the actual official release straight from GitHub the moment
-     * someone clicks the button on Debug Tools → Job Queue.
-     *
-     * Until that button is clicked, every method below transparently
-     * falls back to this class's own original wpdb-table implementation
-     * — nothing about the existing job-queue behavior changes or breaks
-     * for any plugin already calling register()/enqueue() today. Once
-     * Action Scheduler IS present, register()/enqueue() delegate to it
-     * instead, using its native add_action()/as_enqueue_async_action()
-     * primitives, with zero call-site changes required anywhere in the
-     * ecosystem — the public API of this class is unchanged either way.
+     * Vendored Action Scheduler location. It is installed on demand from Debug Tools -> Job Queue;
+     * until then every method falls back to this class's own table. The public API is the same either way.
      */
     private static function vendor_path(): string {
         return OUS_PATH . 'includes/vendor/action-scheduler/action-scheduler.php';
@@ -72,55 +31,14 @@ class OUS_Jobs {
     }
 
     public static function init(): void {
-        // Must run before 'init' itself so Action Scheduler's own store/
-        // migration classes are registered in time — this is the exact
-        // hook timing Action Scheduler's own documentation specifies.
-        //
-        // WooCommerce bundles its OWN copy of Action Scheduler
-        // (woocommerce/packages/action-scheduler/), and requiring this
-        // vendored copy on top of an already-loaded one redeclares the
-        // same global functions (as_enqueue_async_action() etc.) and
-        // fatals outright. class_exists('ActionScheduler') is the
-        // guard: if Action Scheduler is ALREADY loaded — by WooCommerce,
-        // or by any other plugin that bundles it — there is nothing to
-        // require and nothing to boot here; register()/enqueue() below
-        // already just call its native primitives once it's present,
-        // regardless of who loaded it, so this plugin transparently
-        // rides whichever copy got there first instead of insisting on
-        // its own.
-        //
-        // The class_exists('ActionScheduler') check isn't reliable at
-        // FILE-PARSE time: WordPress loads active plugins' main files in
-        // folder-name order, and "the-self-hosted-self" sorts before
-        // "woocommerce", so WooCommerce's copy of Action Scheduler isn't
-        // loaded yet at that point regardless of whether WooCommerce is
-        // active — the same "don't trust class_exists() at file-parse
-        // time, only after plugins_loaded" principle documented in
-        // bh-contest.php's own bootstrap docblock. Deferred to
-        // 'plugins_loaded' (guaranteed to fire only after every active
-        // plugin's main file has been read) so the class_exists() check
-        // reflects reality regardless of plugin folder-name ordering.
+        // WHY: deferred to plugins_loaded because WooCommerce bundles its own Action Scheduler and loads
+        // after this plugin (folder order); requiring ours on top of it redeclares functions and fatals.
+        // Only require ours when class_exists('ActionScheduler') is still false here.
         add_action('plugins_loaded', function () {
             if (!class_exists('ActionScheduler') && self::library_available()) {
                 require_once self::vendor_path();
-                // action-scheduler.php's OWN bootstrap doesn't define the
-                // ActionScheduler facade class synchronously on require —
-                // it just requires ActionScheduler_Versions and registers
-                // ITS OWN 'plugins_loaded' priority-1 callback
-                // (ActionScheduler_Versions::initialize_latest_version) to
-                // do the actual work. But we're inside a 'plugins_loaded'
-                // callback registered at the DEFAULT priority (10) — by
-                // the time this code runs, WordPress has already passed
-                // priority 1 for this hook firing, so that newly-added
-                // priority-1 callback never runs, the class never gets
-                // defined, and add_action('init', ...) below
-                // fatals with "Class ActionScheduler not found." Fix: call
-                // initialize_latest_version() directly and synchronously
-                // instead of trusting the hook timing — the exact same
-                // call action-scheduler.php's own hook would have made,
-                // just not deferred to a hook stage that's already
-                // passed. Only surfaces when WooCommerce's own bundled
-                // copy hasn't already loaded and defined the class first.
+                // WHY: AS's bootstrap defers setup to a plugins_loaded priority-1 callback, which has already
+                // passed by now; call initialize_latest_version() directly or the ActionScheduler class never exists.
                 if (class_exists('ActionScheduler_Versions')) {
                     ActionScheduler_Versions::initialize_latest_version();
                 }
@@ -135,13 +53,8 @@ class OUS_Jobs {
     }
 
     /**
-     * The one-click installer, same shape/safety checks as
-     * OUS_Registry::handle_install() (capability check, nonce, WP's own
-     * download_url()/unzip_file(), which both handle temp-file cleanup
-     * and use WP_Filesystem rather than raw fopen/curl). Downloads the
-     * real, official tagged release archive, then moves just the
-     * extracted folder into place — no code is written by this method,
-     * only real bytes fetched from GitHub's own release archive.
+     * One-click Action Scheduler installer: capability + nonce checks, WP download_url()/unzip_file()
+     * of the official tagged release, then moves the extracted folder into includes/vendor/.
      */
     public static function handle_install_action_scheduler(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
@@ -150,13 +63,7 @@ class OUS_Jobs {
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-base.php';
 
-        // WP_Filesystem()'s return value must be checked — when direct
-        // filesystem access isn't available (credentials needed,
-        // permissions, etc.) every $wp_filesystem->move()/delete() call
-        // below either silently no-ops or fatals. Initialize (and
-        // verify) the filesystem transport FIRST, before any network
-        // work, so a failure here is reported immediately instead of
-        // after an already-wasted download.
+        // Initialize and verify WP_Filesystem before any network work; move()/delete() fail without it.
         global $wp_filesystem;
         if (!WP_Filesystem()) {
             self::redirect_with_notice("Could not get filesystem access (WP_Filesystem() failed) - this host likely requires FTP/SSH credentials for direct file writes. Check wp-config.php's FS_METHOD setting or your hosting file-permission setup, then try again.");
@@ -165,19 +72,13 @@ class OUS_Jobs {
 
         $tmp = download_url(self::AS_ZIP_URL);
         if (is_wp_error($tmp)) {
-            // Surface the FULL WP_Error message, not a paraphrase —
-            // download_url() failures on a Local-by-Flywheel install are
-            // often SSL-cert-related, and the real message is the only
-            // way to actually diagnose it.
+            // Full WP_Error message: download failures are often SSL-related and need the real text.
             self::redirect_with_notice('Download failed: ' . $tmp->get_error_message());
             return;
         }
 
         $vendor_dir = OUS_PATH . 'includes/vendor';
         if (!is_dir($vendor_dir)) {
-            // wp_mkdir_p()'s return value must be checked — if includes/
-            // isn't writable, every subsequent step fails as a
-            // downstream side effect instead of a clear error here.
             if (!wp_mkdir_p($vendor_dir)) {
                 @unlink($tmp);
                 self::redirect_with_notice('Could not create the vendor directory (' . $vendor_dir . ') — check that includes/ is writable by the web server.');
@@ -194,12 +95,7 @@ class OUS_Jobs {
             return;
         }
 
-        // GitHub's tag archive extracts into "{repo}-{tag}/" — for this
-        // numeric, no-"v"-prefix tag (self::AS_VERSION, e.g. "3.9.2")
-        // that's literally "action-scheduler-3.9.2/", which this glob
-        // matches directly. Normalized to a stable "action-scheduler/"
-        // folder name so vendor_path() above never needs to know the
-        // version string.
+        // GitHub tag archives extract to "action-scheduler-{tag}/"; normalized to "action-scheduler/".
         $extracted = glob($unzip_to . '/action-scheduler-*', GLOB_ONLYDIR);
         $final_dir = $vendor_dir . '/action-scheduler';
 
@@ -218,10 +114,7 @@ class OUS_Jobs {
             return;
         }
 
-        // Never claim success unless the vendor entry file genuinely
-        // exists on disk now — the one check that actually proves the
-        // install worked, independent of every step above reporting no
-        // error.
+        // Only report success if the vendor entry file really exists now.
         if (!file_exists(self::vendor_path())) {
             self::redirect_with_notice('Install did not complete — the library file was not found at ' . self::vendor_path() . ' after moving. Nothing changed; the job queue is still on the fallback runner.');
             return;
@@ -233,14 +126,7 @@ class OUS_Jobs {
         self::redirect_with_notice('Action Scheduler ' . self::AS_VERSION . ' installed — the job queue now runs on it automatically. Any jobs already pending in the old table will still be processed by the fallback runner until they drain.');
     }
 
-    // Every failure path above passes a message containing one of these
-    // phrases; the one success path ("Action Scheduler X.X.X installed —
-    // ...") does not. A real status flag threaded through every early
-    // return would be cleaner, but rewriting handle_install_action_scheduler()'s
-    // control flow for that is out of scope for adding toast feedback —
-    // this text-sniff is good enough to pick success vs. error for a
-    // purely supplementary toast, and a false positive here just means a
-    // toast shows the wrong color, not the wrong message.
+    // Every failure message contains one of these phrases; success does not. Only picks the toast color.
     private static function notice_looks_like_failure(string $msg): bool {
         foreach (['failed', 'Could not', 'did not', 'not allowed'] as $needle) {
             if (stripos($msg, $needle) !== false) return true;
@@ -253,12 +139,6 @@ class OUS_Jobs {
         if (class_exists('OUS_Toast')) {
             OUS_Toast::queue($msg, $is_failure ? 'error' : 'success');
         }
-        // Audit fix (2026-07-25): the six distinct failure branches in
-        // handle_install_action_scheduler() (WP_Filesystem/download/mkdir/
-        // extraction/archive-layout/post-move-verification) previously
-        // only surfaced via the toast above — this class logs its
-        // successes to OUS_DebugLog elsewhere, but not these failures.
-        // One change here covers all six branches at once.
         if ($is_failure && class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('warning', $msg, [], 'OUS_Jobs');
         }
@@ -266,11 +146,7 @@ class OUS_Jobs {
         exit;
     }
 
-    // Visibility into the queue lives on the shared Debug Tools page
-    // rather than a dedicated admin screen of its own — this is
-    // operational visibility for whoever runs the site, not a feature
-    // any end user ever sees, so it belongs with Debug Tools' existing
-    // "seed/reset/inspect" role rather than a new top-level menu.
+    // Queue visibility lives in a Debug Tools section.
     /**
      * @param array<string, mixed> $tools
      * @return array<string, mixed>
@@ -331,9 +207,7 @@ class OUS_Jobs {
         }
     }
 
-    // Registered separately from init() (add_filter runs regardless of
-    // action-hook ordering) so "did I register cron_schedules before
-    // WordPress needed it" isn't a load-order footgun.
+    // Registered via add_filter independently of init() so cron_schedules is never registered too late.
     /**
      * @param array<string, mixed> $schedules
      * @return array<string, mixed>
@@ -347,11 +221,7 @@ class OUS_Jobs {
         return OUS_Tables::jobs();
     }
 
-    // Bounded-growth cap for the fallback (no-Action-Scheduler) queue
-    // table — previously manual-clear-only (audit finding, 2026-07-25).
-    // Same opportunistic shape as OUS_DebugLog::maybe_trim(): only ever
-    // deletes 'done'/'failed' rows, never anything still pending/running,
-    // and only pays the COUNT+DELETE cost on roughly 1/50 completions.
+    // Fallback-queue size cap: trims only 'done'/'failed' rows, on roughly 1 in 50 completions.
     const MAX_FINISHED_ROWS = 5000;
 
     private static function maybe_trim_finished(): void {
@@ -368,22 +238,12 @@ class OUS_Jobs {
         }
     }
 
-    // Any plugin calls this once (typically on init) to say "when a job
-    // with this hook name comes up, call my callback with its args."
-    // Multiple plugins registering the SAME hook name would only ever
-    // run the last one registered in a given request — hook names
-    // should be namespaced by the registering plugin (bhr_, bhc_, etc.)
-    // the same way WordPress action/filter names already are by
-    // convention, so this is a non-issue in practice.
+    // Register a handler once (typically on init). Last registration for a hook wins, so namespace
+    // hook names by plugin (bhr_, bhc_, ...).
     public static function register(string $hook, callable $callback): void {
         self::$handlers[$hook] = $callback;
 
-        // Action Scheduler runs a due action via a plain do_action($hook,
-        // ...$args) — a real WordPress hook, nothing bespoke. Our own
-        // callback signature is call_user_func($callback, $args) (ONE
-        // array argument), so this thin shim adapts AS's native
-        // call shape to ours without changing what any existing plugin
-        // passes to register() today.
+        // Action Scheduler calls do_action($hook, ...$args); adapt to our single-array-argument callback.
         if (self::library_available()) {
             add_action(sanitize_key($hook), function (...$as_args) use ($callback) {
                 call_user_func($callback, $as_args[0] ?? []);
@@ -397,10 +257,7 @@ class OUS_Jobs {
         $delay_seconds = max(0, (int) $delay_seconds);
 
         if (self::library_available()) {
-            // Group everything under one namespace so Action Scheduler's
-            // own Tools -> Scheduled Actions screen can filter to just
-            // this ecosystem's jobs alongside whatever WooCommerce or
-            // other plugins also schedule through the same shared library.
+            // One group so AS's Scheduled Actions screen can filter to this ecosystem's jobs.
             return $delay_seconds > 0
                 ? as_schedule_single_action(time() + $delay_seconds, $hook, [$args], 'bhcore')
                 : as_enqueue_async_action($hook, [$args], 'bhcore');
@@ -415,14 +272,8 @@ class OUS_Jobs {
         return (int) $wpdb->insert_id;
     }
 
-    // Pulls a bounded batch of due, pending jobs and runs each — called
-    // from WP-Cron every minute. Only relevant to the fallback queue;
-    // once Action Scheduler is installed it runs its OWN cron-driven
-    // batch runner internally, so this method (and the cron event that
-    // calls it) simply has nothing to do — left registered rather than
-    // conditionally unhooked, since an empty-table SELECT every minute
-    // is negligible cost and this keeps the fallback path always ready
-    // to resume seamlessly if Action Scheduler were ever removed.
+    // Runs a bounded batch of due fallback-queue jobs from WP-Cron every minute. Left hooked even
+    // with Action Scheduler active (empty SELECT is cheap) so the fallback is always ready.
     public static function run_due_jobs(int $batch_size = 20): void {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
@@ -440,10 +291,7 @@ class OUS_Jobs {
         global $wpdb;
         $id = (int) $row['id'];
 
-        // Claim it first (pending -> running) via an atomic conditional
-        // UPDATE, same TOCTOU-avoidance reasoning as BHM_Wallet::debit()
-        // — if two cron ticks somehow overlap, only one can actually
-        // claim a given row.
+        // Atomic pending -> running claim so overlapping cron ticks can't both run a row.
         $claimed = $wpdb->query($wpdb->prepare(
             "UPDATE " . self::table() . " SET status = 'running' WHERE id = %d AND status = 'pending'", $id
         ));
@@ -453,11 +301,7 @@ class OUS_Jobs {
         $args = json_decode($row['args'], true) ?: [];
 
         if (!isset(self::$handlers[$hook])) {
-            // No registered handler this request — could be a load-order
-            // fluke (plugin that would register it hasn't run its init()
-            // yet) rather than a permanently-orphaned job, so this counts
-            // as a failed ATTEMPT (with backoff) rather than an instant
-            // permanent failure.
+            // Missing handler may be a load-order fluke, so it counts as a retried attempt, not a permanent failure.
             self::mark_failed($id, $row['attempts'], 'No handler registered for hook: ' . $hook, $hook);
             return;
         }
@@ -479,22 +323,13 @@ class OUS_Jobs {
         if ($attempts >= self::MAX_ATTEMPTS) {
             $wpdb->update(self::table(), ['status' => 'failed', 'attempts' => $attempts, 'last_error' => $error], ['id' => $id]);
             self::maybe_trim_finished();
-            // Audit fix (2026-07-25): a job's final-attempt failure
-            // previously went nowhere but this row's own 'last_error'
-            // column — the shared OUS_DebugLog console (where every
-            // other failure in this ecosystem shows up) never saw it,
-            // matching the pattern OUS_Notifications::send_email_now()
-            // already uses for its own failures.
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('warning', "Job permanently failed after $attempts attempts: $hook — $error", ['job_id' => $id, 'hook' => $hook], 'OUS_Jobs');
             }
             return;
         }
 
-        // Simple exponential backoff (1, 2, 4, 8 minutes...) rather than
-        // an immediate retry next tick — a transient failure (an
-        // external feed timing out, say) gets a real chance to clear up
-        // before hammering it again every 60 seconds.
+        // Exponential backoff (1, 2, 4, 8 minutes...).
         $backoff_minutes = pow(2, $attempts - 1);
         $wpdb->update(self::table(), [
             'status' => 'pending', 'attempts' => $attempts, 'last_error' => $error,

@@ -2,12 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * v1's two tiers, per ROADMAP-feedback-and-courses-v2.md's own scoping
- * (the third, timestamped-audio-annotation tier, is explicitly
- * deferred — see bh-feedback.php's top docblock). Flat, filterable
- * prices rather than a full pricing-editor UI — the roadmap's own v1
- * scope is "ship the two simple tiers," not "build a merchandising
- * page for them."
+ * The two tiers ('quick_take', 'detailed') with flat, filterable prices.
  */
 class BHF_Pricing {
     const TIERS = [
@@ -19,12 +14,7 @@ class BHF_Pricing {
         return self::TIERS[$tier]['label'] ?? $tier;
     }
 
-    // Audit fix (2026-07-25): the submission flow never set a turnaround-
-    // time expectation anywhere, so a paying user had no baseline for
-    // what "normal wait" looked like. Deliberately a rough, filterable
-    // ballpark rather than an SLA guarantee — this plugin has no queue-
-    // depth-aware estimator, so promising anything more precise would be
-    // its own "accept-and-hope" problem.
+    // A rough, filterable turnaround ballpark, not an SLA.
     public static function turnaround_days_for(string $tier): int {
         $days = self::TIERS[$tier]['turnaround_days'] ?? 5;
         return (int) apply_filters('bhf_tier_turnaround_days', $days, $tier);

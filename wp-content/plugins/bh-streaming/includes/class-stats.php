@@ -2,28 +2,15 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Artist-facing aggregate metrics — plays over time, top tracks, a
- * skip-rate signal (from Jam vote-skips), and a rough geo/referrer
- * breakdown. Deliberately AGGREGATE ONLY: every row this writes is a
- * (day, dimension) counter, never a per-listener record — nothing here
- * is a new privacy surface, it's a dashboard built entirely on data
- * this plugin already generates (bhs_play_count) or that a play/skip
- * event already carries in the request (referrer, Accept-Language).
- *
- * Geo is explicitly NOT true GeoIP — this ecosystem has no IP-to-
- * location database and isn't taking on that dependency for a "nice to
- * have" dashboard. Country is approximated from the Accept-Language
- * header, labeled as such everywhere it's shown, which is honest about
- * being a rough signal (a VPN or a browser set to English doesn't mean
- * "this listener is in the US") rather than pretending to precision
- * this plugin doesn't have.
+ * Artist-facing aggregate metrics: plays over time, top tracks, Jam
+ * skip-rate, and region/referrer. Aggregate only: (day, dimension)
+ * counters, never per-listener rows. Region comes from Accept-Language,
+ * not GeoIP, and is labeled as rough everywhere it's shown.
  */
 class BHS_Stats {
     public static function init(): void {
         add_action('admin_menu', [self::class, 'add_admin_page']);
-        // BH_Event registration, per EVENT-TRACKING-ARCHITECTURE-PLAN.md
-        // Section 6 — additive, does not replace this class's own
-        // aggregate bhs_daily_stats rollup below.
+        // BH_Event registration, in addition to the bhs_daily_stats rollup.
         if (class_exists('BH_Event')) {
             BH_Event::register_event_type('bhs/play', ['track_id' => 'int']);
             BH_Event::register_event_type('bhs/skip', ['track_id' => 'int']);
@@ -32,18 +19,12 @@ class BHS_Stats {
 
     private static function table(): string { return BHS_Tables::daily_stats(); }
 
-    // Called once per allowed play (see class-api.php's record_play())
-    // and once per executed Jam vote-skip (see class-jam.php). One
-    // shared table, a `metric` column distinguishing 'play' from
-    // 'skip' so both live in the same simple rollup rather than two
-    // near-identical tables.
+    // Called per allowed play (class-api.php record_play()) and per executed
+    // Jam vote-skip; `metric` distinguishes 'play' from 'skip'.
     public static function record_play(int $track_id, \WP_REST_Request $req): void {
         self::bump($track_id, 'play', $req);
-        // Real per-event record alongside the aggregate rollup above —
-        // both coexist (see EVENT-TRACKING-ARCHITECTURE-PLAN.md Section
-        // 6): this table stays the fast rollup for the artist dashboard,
-        // bhcore_events becomes the first per-listener, identity-
-        // joinable record of the same activity.
+        // Also records a per-event bhcore_events row; this table stays the
+        // fast dashboard rollup.
         if (class_exists('BH_Event')) {
             BH_Event::emit('bhs/play', [
                 'subject_type' => 'bhs_track',
@@ -76,11 +57,7 @@ class BHS_Stats {
         ));
     }
 
-    // Rough, explicitly-labeled-as-rough proxy for "what region are our
-    // listeners roughly in" without adding a GeoIP dependency — the
-    // first language tag in Accept-Language, which is at least real
-    // signal (a listener's own browser/OS locale) rather than fabricated
-    // data, just not the same thing as their actual location.
+    // Rough region proxy: the first Accept-Language tag (locale, not location).
     private static function guess_country(\WP_REST_Request $req): string {
         $header = $req->get_header('accept_language') ?: ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '');
         if (!$header) return 'unknown';
@@ -136,14 +113,7 @@ class BHS_Stats {
              WHERE metric = 'play' AND stat_date >= %s GROUP BY referrer_bucket ORDER BY plays DESC", $since
         ));
 
-        // Real D3 charts (vendored, assets/js/vendor/d3.min.js) replace
-        // what used to be a hand-rolled inline-CSS div bar chart here and
-        // plain tables for region/referrer below — same server-aggregated
-        // rows as before, just JSON-encoded for stats-charts.js to render
-        // instead of looped into `echo` calls. wp_enqueue_script() is
-        // safe to call directly inside this admin-page render method
-        // (same pattern several other admin screens in this ecosystem
-        // already use for a page-specific asset).
+        // D3 charts (vendored) render these server-aggregated rows via stats-charts.js.
         wp_enqueue_script('bhs-d3', BHS_URL . 'assets/js/vendor/d3.min.js', [], '7.9.0', true);
         wp_enqueue_script('bhs-stats-charts', BHS_URL . 'assets/js/stats-charts.js', ['bhs-d3'], BHS_VER, true);
 

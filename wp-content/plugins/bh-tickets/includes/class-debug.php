@@ -1,7 +1,7 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/** Dev-only seed/reset, registered into the shared Debug Tools page — same convention every peer plugin's own class-debug.php follows. */
+/** Dev-only seed/reset section for the shared Debug Tools page. */
 class BHT_Debug {
     public static function init(): void {
         add_filter('ous_debug_tools', [self::class, 'register']);

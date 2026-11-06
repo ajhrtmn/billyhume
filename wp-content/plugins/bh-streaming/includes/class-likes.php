@@ -2,11 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Likes — a dedicated table (see class-activator.php) rather than user
- * meta, matching the same reasoning bh-contest's votes table uses: a
- * JSON blob in user meta gets slow and awkward to query the moment you
- * need "how many people liked this track" or "show me this user's
- * liked tracks" as a real query instead of unpacking a blob every time.
+ * Likes, in a dedicated table (not user meta) so per-track counts and
+ * per-user lists are real queries.
  */
 class BHS_Likes {
     public static function register_routes(): void {
@@ -25,10 +22,7 @@ class BHS_Likes {
         return new WP_REST_Response(['success' => true, 'track_ids' => array_map('intval', $ids)], 200);
     }
 
-    // Toggle rather than separate like/unlike endpoints — the client
-    // always knows its own current state from the /tracks or /likes
-    // response, so one endpoint that flips it is simpler than two that
-    // both need "already in that state" guards.
+    // One toggle endpoint; the client already knows the current state.
     /** @return \WP_REST_Response|\WP_Error */
     public static function toggle_like(\WP_REST_Request $req) {
         global $wpdb;

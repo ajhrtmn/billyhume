@@ -2,17 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The fan-facing half of the federated-library vision (AJ's own direct
- * description, 2026-08-21): admins curate the site's own shared catalog
- * via bh-registry's "Browse Registry" (one-click, creates a real
- * bhs_feed_source, visible to everyone); fans curate a PERSONAL,
- * platform-independent library from the same global registry, without
- * that ever polluting the shared local catalog. Deliberately a
- * separate table from bhs_likes/bhs_playlists (both keyed to a real
- * local bhs_track post ID) — a track a fan adds here may never become
- * a permanent local post at all. Same "never re-host, just point at
- * the real source" principle bh-streaming's own admin-side feed import
- * already follows, just personal instead of shared.
+ * Fan-curated personal library of remote registry tracks, kept in its own
+ * table (not bhs_likes/bhs_playlists) since these tracks have no local post.
  */
 class BHS_FanLibrary {
     public static function register_routes(): void {
@@ -40,11 +31,8 @@ class BHS_FanLibrary {
         return new WP_REST_Response(['success' => true, 'items' => $out], 200);
     }
 
-    // Real validation on every field a client could get wrong or send
-    // maliciously — this endpoint takes arbitrary strings describing a
-    // REMOTE track (there's no local post to validate against the way
-    // toggle_like() checks get_post_type()), so it has to do more work
-    // itself than a same-site endpoint would.
+    // Validates every field: these strings describe a remote track with no
+    // local post to check against.
     /** @return \WP_REST_Response|\WP_Error */
     public static function add_item(\WP_REST_Request $req) {
         $feed_url  = esc_url_raw((string) $req->get_param('feed_url'));
@@ -90,10 +78,8 @@ class BHS_FanLibrary {
         $uid = get_current_user_id();
         $id = (int) $req->get_param('id');
 
-        // Ownership checked in the WHERE clause itself, not a separate
-        // read-then-check — a delete matching zero rows (someone else's
-        // item, or one that never existed) can't be distinguished from
-        // "not yours" by the caller either way, and shouldn't be.
+        // Ownership is in the WHERE clause; "not yours" and "doesn't exist"
+        // are deliberately indistinguishable.
         $deleted = $wpdb->delete(self::table(), ['id' => $id, 'user_id' => $uid], ['%d', '%d']);
         if (!$deleted) {
             return new WP_Error('not_found', 'No such item in your library.', ['status' => 404]);

@@ -2,14 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Staff-facing list + detail view. A plain top-level admin.php page,
- * NOT a Debug Tools section — this is real, everyday feature UI (same
- * distinction bh-crm's People page makes), not dev/admin-only tooling.
- * Registered with 'parent' => null in this plugin's own
- * ous_registered_plugins self-registration (see bh-tickets.php),
- * matching bh-crm's own documented pattern for exactly this reason —
- * CLAUDE.md's real, multi-session-documented page-hook-resolution
- * incident.
+ * Staff-facing list + detail view: everyday feature UI, so a real admin page rather than a Debug Tools section.
+ * WHY: registered with 'parent' => null (see bh-tickets.php) to avoid this install's page-hook-resolution failures.
  */
 class BHT_Admin {
     public static function init(): void {

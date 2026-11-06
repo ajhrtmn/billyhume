@@ -1,40 +1,17 @@
 /*
  * The Self-Hosted Self theme chrome.
  *
- * Deliberately namespaced under .oust-* / oust- classes throughout —
- * distinct from every plugin's own prefix (bh-, bhc-, bhy-, bhi-) — so
- * theme and plugin CSS can never collide or accidentally override one
- * another, even though both read the SAME --bh-* custom-property tokens
- * (the-self-hosted-self/includes/class-style.php, printed via wp_head on every
- * front-end page already). The theme intentionally invents zero new
- * colors/spacing values of its own — every fallback below matches the
- * ecosystem's own default "The Door" palette (class-style.php DEFAULTS
- * / bh-contest/assets/css/player.css :root), so an install with no
- * BHY_Style settings saved yet still looks correct, not just once a
- * plugin's inline_css() has run.
- *
- * Reference implementations pulled from: bh-contest/assets/css/player.css
- * (pill buttons, --bh-font-display for headings, --bh-accent-muted-bg,
- * disc/bar depth language) and bh-courses/assets/css/courses.css
- * (Streamline Moderne kicker+rule header, card grid depth/hover,
- * gradient+SVG placeholder art). the-self-hosted-self/includes/class-user-bar.php
- * already reserves bottom viewport space via body.bhi-has-user-bar
- * (padding-bottom) — this stylesheet does not duplicate that.
+ * Namespaced under .oust-* so theme and plugin CSS never collide, while both
+ * read the same --bh-* tokens (the-self-hosted-self/includes/class-style.php).
+ * Fallbacks match the default "The Door" palette so an install with no saved
+ * BHY_Style settings still looks right. body.bhi-has-user-bar bottom padding
+ * is handled by class-user-bar.php, not here.
  */
 
-/* Depth-aware cross-document navigation — front-end half of the same
-   feature built for wp-admin (self-hosted-self-admin-skin), direct
-   feedback: "Frontend and admin." Real requirement, not decoration:
-   this whole site is server-rendered, so every link click is a full
-   page load with zero visual continuity by default. functions.php's
-   oust_print_nav_depth_script() (wp_head priority 1) stamps
-   data-oust-nav-direction/-depth on <html> before each real
-   navigation; the rules below are the actual payoff — same two
-   treatments as the admin skin (lateral slide within a site section,
-   softer zoom-through jumping between sections), same haze-on-exit
-   language, so the whole ecosystem's navigation feels like one
-   consistent hand rather than admin and front end each inventing
-   their own motion language independently. */
+/* Depth-aware cross-document navigation, the front-end half of the admin
+   skin's. functions.php's oust_print_nav_depth_script() stamps
+   data-oust-nav-direction/-depth on <html>: lateral = slide within a
+   section, jump = zoom-through between sections. */
 @supports (view-transition-name: none) {
     @view-transition { navigation: auto; }
 }
@@ -60,12 +37,8 @@
 @keyframes oust-nav-jump-out { from { transform: scale(1); opacity: 1; } to { transform: scale(1.015); opacity: 0; } }
 @keyframes oust-nav-jump-in { from { transform: scale(.985); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-/* Same real bug already caught and fixed on the admin side, applied
-   here from the start: the rules above are more specific (extra
-   attribute selectors) than a plain animation:none reduced-motion
-   override would be, so a naive override here would silently lose the
-   cascade. Matched at equal specificity so reduced-motion genuinely
-   wins. */
+/* WHY: matched at the same specificity as the rules above, or the
+   reduced-motion override loses the cascade. */
 @media (prefers-reduced-motion: reduce) {
     :root[data-oust-nav-depth="lateral"][data-oust-nav-direction="forward"]::view-transition-old(root),
     :root[data-oust-nav-depth="lateral"][data-oust-nav-direction="forward"]::view-transition-new(root),
@@ -95,43 +68,19 @@ body {
     display: flex;
     flex-direction: column;
 }
-/* Text selection — same real field report that fixed the admin skin
-   ("it shouldn't be blue at all - it looks broken" / "any color would
-   - it's bad design"). Nothing in this ecosystem styled ::selection,
-   so the browser's stock blue painted straight over the warm palette
-   on the FRONT END too — the half real visitors actually see.
-
-   Pure luminance, no chroma: the surface lifts rather than a color
-   arriving. A translucent tint of the ink itself (rather than a fixed
-   color) is the only version that behaves over every ground it can
-   land on — hero, cards, tables, inputs — lifting each by the same
-   relative amount. Text color untouched so contrast stays as designed.
-
-   ::selection and ::-moz-selection cannot share a selector list: one
-   unknown pseudo-element invalidates the entire rule. */
+/* Text selection: a translucent wash of the ink (no hue), lifting any
+   ground by the same amount. ::selection and ::-moz-selection can't share a
+   selector list: one unknown pseudo-element invalidates the whole rule. */
 ::selection { background: rgba(237, 223, 203, 0.24); }
 ::-moz-selection { background: rgba(237, 223, 203, 0.24); }
 
 .oust-main { flex: 1 0 auto; }
 img { max-width: 100%; height: auto; display: block; }
 
-/* Accessibility audit finding: --bh-accent (#C1503A in the default
-   preset) on --bh-bg is only 4.17:1 in "The Door — Night" and 3.92:1 in
-   "The Door — Day" — both fail WCAG AA (4.5:1) for normal-size text,
-   even though the two presets sit at opposite ends of the lightness
-   scale. Neither --bh-accent-soft nor --bh-accent-hover fix this
-   universally: they lighten/darken in one FIXED direction, so whichever
-   one helps a dark preset actively makes a light preset worse (checked:
-   --bh-accent-soft on Door Day's light bg is 1.53:1). Every accent-
-   colored TEXT use in this file (kickers, link color, "current page"
-   nav state, etc.) instead mixes toward --bh-text — which is always
-   independently tuned by whoever set up that preset for ~15:1 contrast
-   against bg — so the mix reliably lands >=4.5:1 in either direction
-   without this theme needing to know if a given preset is light or
-   dark. Verified against three real presets: Door Night 6.61:1, Door
-   Day 6.37:1, Neon Vinyl 8.71:1. Decorative, non-text accent uses
-   (rules, borders, button backgrounds with contrast-safe text on top)
-   are unaffected and still use plain --bh-accent. */
+/* WHY: plain --bh-accent fails AA as text on some presets, and
+   --bh-accent-soft/-hover only shift one direction. Accent text mixes toward
+   --bh-text, which lands >=4.5:1 on light and dark presets alike.
+   Decorative accent uses stay plain --bh-accent. */
 a { color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); }
 a:hover { color: var(--bh-text, #EDDFCB); }
 h1, h2, h3, h4, h5, h6 { font-family: var(--bh-font-display, 'Space Grotesk', 'Segoe UI', sans-serif); font-weight: 700; line-height: 1.2; margin: 0 0 0.5em; }
@@ -147,9 +96,7 @@ p { margin: 0 0 1em; }
 }
 .oust-skip-link { z-index: 100000; }
 
-/* Explicit, high-contrast focus ring everywhere interactive — nav
-   links, buttons, cards, and pagination all sit on the dark surface
-   tokens where a default browser outline can be nearly invisible. */
+/* High-contrast focus ring; default outlines vanish on the dark surfaces. */
 a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible,
 .oust-card:focus-within, .oust-nav-toggle:focus-visible {
     outline: 2px solid var(--bh-accent, #C1503A); outline-offset: 3px; border-radius: 4px;
@@ -162,39 +109,14 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
     .oust-container { padding: 28px 16px 48px; }
 }
 
-/* ---------------- Site header / nav ----------------
-   Streamline Moderne cue: confident geometric brand type, a thin
-   accent underline standing in for the era's speed-line motif, pill
-   nav items matching the badge/button vocabulary the plugins already
-   use (border-radius:999px). */
-/* top:0 alone collides with wp-admin's own #wpadminbar (fixed,
-   z-index 99999, 32px tall desktop / 46px at the mobile breakpoint it
-   itself uses) whenever a logged-in user with the admin bar showing
-   views the front end — WP core adds these exact heights via
-   body.admin-bar's own margin-top, so reusing them here keeps the
-   sticky offset correct at both breakpoints without inventing a new
-   number. z-index kept well below 99999 so the admin bar always wins
-   the overlap on the rare frame where they still touch. */
+/* ---------------- Site header / nav ---------------- */
+/* Offset by #wpadminbar's height (32px, 46px on mobile), matching core's
+   body.admin-bar margin. z-index stays below the admin bar's 99999. */
 .oust-site-header {
     position: sticky; top: 0; z-index: 400;
-    /* Reported from a real phone (iOS Safari): after scrolling, a band of
-       STALE pixels -- the previous frame's page content -- was left above
-       the header. It cleared on reload or in a new tab, which is the
-       signature of a compositing artifact rather than a layout offset:
-       no measurement on this element is wrong, the browser simply never
-       repainted the region the header vacated.
-
-       Cause is the documented iOS interaction between `position: sticky`
-       and `backdrop-filter` below. The backdrop filter samples what is
-       behind the element, so Safari keeps it in the scroller's own layer
-       instead of promoting it, and the sampled region goes stale during
-       momentum scroll.
-
-       translateZ(0) forces the header onto its own compositing layer, so
-       the backdrop is resampled per frame. NOT verified on a real iOS
-       device from here -- this environment has no iOS Safari -- so it is
-       reasoned from the artifact's signature, not measured. Verify on the
-       phone before assuming it is closed. */
+    /* translateZ(0) puts the header on its own compositing layer: iOS Safari
+       leaves stale pixels above a sticky header with backdrop-filter during
+       momentum scroll. Not verified on a real iOS device. */
     transform: translateZ(0);
     will-change: transform;
     background: color-mix(in srgb, var(--bh-surface, #220C0A) 92%, transparent);
@@ -203,19 +125,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 }
 body.admin-bar .oust-site-header { top: 32px; }
 @media screen and (max-width: 782px) {
-    /* Reported from a real phone: after scrolling, a 46px dead band opened
-       above the sticky header and page content showed through it.
-
-       Cause: below 782px WordPress core switches #wpadminbar from fixed to
-       `position: absolute`, so the bar scrolls AWAY with the document. This
-       rule was still reserving 46px for it. Measured at 390px after scrolling
-       to y=600: the admin bar sat at y -600 (off screen) while the header
-       stuck at top:46px, leaving exactly the reported gap.
-
-       The offset is only correct while the bar is actually fixed, which below
-       this breakpoint it never is. Sticky `top` applies once the element is
-       stuck -- i.e. after scrolling -- which is precisely when the bar is
-       already gone. */
+    /* WHY top:0 here: below 782px core makes #wpadminbar position:absolute, so
+       it scrolls away before the header sticks. */
     body.admin-bar .oust-site-header { top: 0; }
 }
 .oust-site-header-inner {
@@ -223,24 +134,10 @@ body.admin-bar .oust-site-header { top: 32px; }
     display: flex; align-items: center; justify-content: space-between; gap: 24px;
     height: 72px;
 }
-/* Real bug, caught live measuring actual layout: .oust-site-brand and
-   .oust-primary-nav were both default flex-shrink:1 in the same row,
-   but the nav's own items are white-space:nowrap (can't shrink below
-   their own text width at all), so 100% of any shrink pressure landed
-   on the brand name instead — confirmed live, it crushed down to
-   ~136px and ellipsis-truncated "Billy Hume Blank test" to "Billy Hume
-   B…" well before the nav gave up an inch. Brand identity is the wrong
-   thing to sacrifice first. flex-shrink:0 here (paired with
-   .oust-primary-nav's own overflow-x:auto below) moves the "what gives
-   when it's tight" decision to the secondary nav instead of the
-   primary brand mark. */
+/* flex-shrink:0 so the brand isn't truncated; the nav's nowrap items can't
+   shrink, and the More menu absorbs overflow instead. */
 .oust-site-brand {
-    /* OPEN.md touch-target gap, fixed 2026-08-26: measured 202x30 —
-       width is fine, height is under the 44px minimum. The 72px-tall
-       header (.oust-site-header-inner above) has real space above/
-       below this link already (it's vertically centered), so an
-       invisible ::after hit-area extension fits without growing the
-       header itself or touching the primary nav to its right. */
+    /* Invisible ::after extends the tap target to 44px without growing the header. */
     position: relative;
     display: flex; flex-direction: column; justify-content: center; gap: 2px;
     text-decoration: none; flex-shrink: 0;
@@ -258,27 +155,16 @@ body.admin-bar .oust-site-header { top: 32px; }
 }
 .oust-site-brand .custom-logo { max-height: 44px; width: auto; display: block; }
 
-/* Real UX fix, replacing an earlier horizontal-scroll "safety net" for
-   a nav wider than its row: scrolling still meant a clipped/cut-off
-   item (most visibly the "Go to Portal" CTA button, the one item that
-   should never look broken) sitting right at the edge with no
-   affordance beyond a thin 4px scrollbar. A "More" overflow menu
-   (Priority+/"more nav" pattern) is the standard real answer — nothing
-   is ever clipped or hidden behind a scroll gesture; whatever doesn't
-   fit collapses into one extra dropdown, same as any other submenu.
-   See theme.js's priority-nav IIFE for the measurement/collapse logic,
-   and header.php for the trigger's own markup right after the menu. */
+/* Priority+ "More" menu instead of horizontal scroll: items that don't fit
+   collapse into one dropdown. Logic in theme.js, trigger markup in header.php. */
 .oust-primary-nav {
     min-width: 0;
 }
 .oust-nav-list {
     display: flex; align-items: center; gap: 4px; list-style: none; margin: 0; padding: 0;
 }
-/* The "More" trigger reuses every other top-level item's look/dropdown
-   mechanism (same LI, same position:fixed <ul> below) — hidden by
-   default, theme.js only reveals it once it's actually collected at
-   least one overflowed item. A <button>, not an <a>, since it opens a
-   menu rather than navigating anywhere itself. */
+/* The "More" trigger: hidden until theme.js moves at least one item into it.
+   A <button> because it opens a menu rather than navigating. */
 .oust-nav-more { display: none; }
 .oust-nav-more.has-items { display: block; }
 .oust-nav-more > button {
@@ -302,30 +188,10 @@ body.admin-bar .oust-site-header { top: 32px; }
     color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); background: var(--bh-accent-muted-bg, rgba(193,80,58,.18));
 }
 
-/* Sub-menus: a plain dropdown, matched to the surface/border/radius
-   vocabulary used everywhere else rather than a browser-default panel.
-   `position: fixed`, not `absolute`: this nav row needs overflow-x:auto
-   as a horizontal-scroll safety net (above), and per the CSS Overflow
-   spec, overflow-x set to anything but visible silently forces
-   overflow-y to auto too on that SAME box (confirmed live — measured
-   overflow-y: auto despite no rule ever setting it), which clipped
-   every dropdown extending below the row to the row's own ~38-72px
-   height. Fixed positioning is laid out against the viewport, not any
-   ancestor, so it is never clipped by an ancestor's overflow at all —
-   theme.js sets top/left as inline styles the moment a dropdown opens
-   (mouseenter/focusin), computed from the trigger's own
-   getBoundingClientRect(), and flips right-aligned there too when it
-   would run off the right edge.
-
-   Without JS (or before it runs), fixed positioning has no ancestor to
-   inherit a sane position from the way `absolute` would, so this needs
-   a real static fallback rather than silently rendering at 0,0 — the
-   header is a constant 72px tall (.oust-site-header-inner), so
-   top:78px (72 + 6, same gap the old absolute version used) plus the
-   header's own admin-bar offset lines up with the header's bottom edge
-   either way; left matches the header's own horizontal padding. Not
-   pixel-perfect per item without JS, but visible and usable rather
-   than broken. */
+/* Sub-menus. WHY position:fixed: overflow-x on the nav forces overflow-y to
+   auto, which clipped absolute dropdowns. theme.js sets top/left on open and
+   flips right-aligned near the edge. Static fallback without JS: top:78px
+   (72px header + 6px gap). */
 .oust-nav-list ul {
     display: none; position: fixed; top: 78px; left: 24px; z-index: 50;
     min-width: 200px; list-style: none; margin: 0; padding: 6px;
@@ -335,15 +201,8 @@ body.admin-bar .oust-site-header { top: 32px; }
 body.admin-bar .oust-nav-list ul { top: 110px; }
 .oust-nav-list li:hover > ul, .oust-nav-list li:focus-within > ul { display: block; }
 .oust-nav-list ul a { height: 34px; border-radius: 6px; width: 100%; }
-/* An item that lands in the More dropdown (theme.js's priority-nav
-   collapse) can bring its own submenu with it (e.g. "Courses" with
-   "Songwriting Fundamentals" nested under it) — requiring a second
-   hover, on an item already one hover deep inside More, to ever
-   discover that submenu exists is a real discoverability trap. Inside
-   More specifically, show it inline/expanded and indented instead,
-   the same always-visible treatment the mobile menu already uses for
-   every submenu regardless of depth — one hover opens everything
-   there is to see under that trigger. */
+/* Inside More, nested submenus show inline and indented, so one hover
+   reveals everything. */
 .oust-nav-more ul ul {
     display: block; position: static; margin: 2px 0 4px 12px; padding: 0;
     border: 0; box-shadow: none; background: transparent;
@@ -351,10 +210,7 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
 .oust-nav-more ul ul a { height: 30px; font-size: 13px; }
 
 .oust-nav-toggle {
-    /* OPEN.md touch-target gap, fixed 2026-08-26: was 40x40, under the
-       44px minimum — a real square icon button (not text riding on a
-       larger click area), so grown directly rather than via an
-       invisible hit-area trick. */
+    /* 44px square icon button (tap-target minimum). */
     display: none; flex-direction: column; justify-content: center; align-items: center; gap: 4px;
     width: 44px; height: 44px; border-radius: 8px; border: 1px solid var(--bh-border, #3D1B14);
     background: transparent; cursor: pointer; flex-shrink: 0;
@@ -385,11 +241,8 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
 }
 
 /* ---------------- Hero (front page) ----------------
-   North star: Googie/Streamline Moderne — atomic starburst, a boomerang
-   sweep, an upswept "roofline" edge — but decorative layers only:
-   aria-hidden, z-index'd behind copy, never touching text contrast or
-   layout, and never in the way of a screen reader/keyboard user, so the
-   period styling stays a flourish, not a barrier. */
+   Googie/Streamline Moderne decorative layers only: aria-hidden, behind
+   copy, never affecting text contrast or layout. */
 .oust-hero {
     position: relative; overflow: hidden;
     padding: 104px 24px 88px; text-align: center;
@@ -399,17 +252,7 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
     border-bottom: 1px solid var(--bh-border, #3D1B14);
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 18px), 50% 100%, 0 calc(100% - 18px));
 }
-/* Real, found-not-invented "magic" gap: a prefers-reduced-motion guard
-   already existed below for this element's animation — but the
-   animation itself was never actually written, so the starburst has
-   sat completely static this whole time. A slow ambient rotation is
-   the obvious finish: radiating implied-motion light rays are a real
-   Googie/atomic-age motif (sunburst clocks, diner signage), not
-   invented decoration, and a 140s rotation is slow enough to read as
-   ambient/alive rather than a distraction competing with the actual
-   heading text in front of it. transform-origin stays centered
-   (inherits from the translate(-50%,-50%) below) so it spins in place
-   rather than orbiting. */
+/* Slow ambient rotation (140s); spins in place around its center. */
 .oust-hero-starburst {
     position: absolute; top: 50%; left: 50%; width: min(900px, 140vw); height: min(900px, 140vw);
     transform: translate(-50%, -50%); z-index: 0; pointer-events: none;
@@ -459,9 +302,7 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
 }
 
 /* ---------------- Page header (archive/page/search/404/single) ----
-   Same shape as bh-courses's .bhc-archive-header — the whole point is
-   that a plugin catalog title and a plain theme page title read as
-   the same considered system, not two different levels of polish. */
+   Same shape as bh-courses's .bhc-archive-header. */
 .oust-page-header { max-width: 1200px; margin: 0 auto 32px; }
 .oust-page-header-kicker {
     display: block; font-family: var(--bh-font-display, sans-serif); font-size: 11px; font-weight: 700;
@@ -470,8 +311,7 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
 .oust-page-header-title {
     margin: 0; font-size: clamp(26px, 4vw, 38px); font-weight: 700; letter-spacing: -.01em;
     color: var(--bh-text, #EDDFCB);
-    /* Long titles must not blow past the header's own measure — wraps
-       gracefully instead of overflowing the container. */
+    /* Long titles wrap instead of overflowing. */
     overflow-wrap: break-word;
 }
 .oust-page-header-rule {
@@ -490,17 +330,10 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
 .oust-section-title { margin: 0; font-size: 22px; }
 
 /* ---------------- Card grid ----------------
-   Same fixes as bh-courses's .bhc-catalog: auto-fit (not auto-fill) so
-   a short result list doesn't leave a lonely card floating in dead
-   track space, and align-items:start so CSS Grid's default stretch
-   doesn't force every card in a row to match its tallest sibling. */
-/* minmax(260px, 340px) — not 1fr — caps how wide a single card can
-   grow: with a flexible 1fr max, one lone card (or the last odd one in
-   a row) stretched to fill the ENTIRE container width, which combined
-   with the fixed-ratio thumb below produced a 600px+ tall placeholder
-   slab. Capping the track max means auto-fit still collapses genuinely
-   empty tracks, but existing cards stop at a sane width instead of
-   ballooning to fill leftover space. */
+   auto-fit so a short list doesn't leave empty tracks; align-items:start
+   so cards don't stretch to their tallest sibling. */
+/* minmax(260px, 340px), not 1fr: caps a lone card's width so its 16:9 thumb
+   doesn't become a huge slab. */
 .oust-card-grid {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 340px));
     gap: 24px; align-items: start;
@@ -520,18 +353,12 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
     .oust-card { transition: none; }
     .oust-card:hover { transform: none; }
 }
-/* Every card gets the same 16:9 thumb slot whether it holds a real
-   featured image or the placeholder, so a mix of illustrated/plain
-   posts never looks jagged. */
+/* Same 16:9 thumb slot for real images and placeholders. */
 .oust-card-thumb { position: relative; aspect-ratio: 16 / 9; max-height: 220px; overflow: hidden; background: var(--bh-surface-2, #2C120E); }
 .oust-card-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform .3s ease; }
 .oust-card:hover .oust-card-thumb img { transform: scale(1.05); }
-/* Real placeholder art, not a flat tint — STYLE-SYSTEM.md's own rule
-   (see bh-courses's waveform mark). A small inline-SVG atomic
-   starburst/orbit motif (this theme's own Googie signature, echoing
-   .oust-hero-starburst) centered over the accent gradient, white at low
-   opacity so it reads correctly against whatever accent color a given
-   site is themed with. */
+/* Placeholder art: inline-SVG starburst over the accent gradient, white at
+   low opacity so it works on any accent. */
 .oust-card-thumb-placeholder {
     width: 100%; height: 100%;
     background-image:
@@ -555,21 +382,14 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
     min-height: 2.8em;
 }
-/* Reserves the same footer height whether a card has a real excerpt or
-   not — margin-top:auto keeps it pinned to the bottom of each card's
-   own flex column regardless of how tall the content above it is. */
+/* margin-top:auto pins the footer to the bottom of each card. */
 .oust-card-footer {
     margin-top: auto; padding-top: 10px; border-top: 1px solid var(--bh-border, #3D1B14);
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     font-size: 12px; color: var(--bh-text-dim, #B99584);
 }
-/* OPEN.md touch-target gap, fixed 2026-08-26: measured 61x18, well
-   under the 44px minimum. A real footer link (not a decorative
-   affordance riding on a whole-card click — the thumb/title links are
-   separate), so it needed its own real tap target. Expanded via an
-   invisible ::after pseudo-element rather than padding, since padding
-   would grow the visible footer row and shift the date span it sits
-   next to in this flex, space-between row. */
+/* Invisible ::after tap target (44px) rather than padding, which would shift
+   the date span in this space-between row. */
 .oust-card-readmore { position: relative; font-weight: 600; color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); text-decoration: none; white-space: nowrap; }
 .oust-card-readmore::after { content: ''; position: absolute; top: 50%; right: 0; transform: translateY(-50%); width: 100%; min-width: 44px; height: 44px; }
 .oust-card-readmore:hover { color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); }
@@ -731,14 +551,7 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
 }
 .oust-footer-tagline { color: var(--bh-text-dim, #B99584); font-size: 14px; margin: 0; max-width: 320px; }
 .oust-footer-widget-title { font-size: 13px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--bh-text-dim, #B99584); margin-bottom: 10px; }
-/* Generic core-widget coverage (search/recent-posts/categories/tag-cloud/
-   calendar/RSS/text/nav-menu) — the footer sidebar is a real,
-   admin-editable widget area (functions.php's register_sidebar()), and
-   without this, any widget other than the two used in this session's
-   testing (Archives, Categories — which happen to just be plain <ul><li>
-   and inherit the list reset below) would render with raw browser
-   defaults sitting right next to the considered brand/nav columns either
-   side of it. */
+/* Generic core-widget coverage for the footer widget area. */
 .oust-footer-widgets .oust-footer-widget + .oust-footer-widget { margin-top: 28px; }
 .oust-footer-widgets ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .oust-footer-widgets li { font-size: 14px; color: var(--bh-text-dim, #B99584); }
@@ -750,19 +563,15 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
     background: var(--bh-surface-2, #2C120E); border: 1px solid var(--bh-border, #3D1B14); color: var(--bh-text, #EDDFCB);
     border-radius: 999px; padding: 8px 14px; font-size: 13px; font-family: inherit; box-sizing: border-box;
 }
-/* Search widget: WP core's form markup wraps input+button in a label,
-   with no hook to reuse .oust-search-form's own flex row without a
-   template override — this is the minimal equivalent for the narrower
-   footer-column context. */
+/* Search widget: core wraps input+button in a label, so this mirrors
+   .oust-search-form for the footer column. */
 .oust-footer-widgets .search-form { display: flex; gap: 8px; }
 .oust-footer-widgets .search-form input[type="search"] { flex: 1; min-width: 0; }
 .oust-footer-widgets .search-form input[type="submit"] {
     background: var(--bh-accent, #C1503A); color: var(--bh-accent-contrast, #150705); border: none;
     border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
-/* Tag cloud — WP core renders tags as bare inline <a> tags with a
-   font-size gradient (its own "cloud" logic); wrapped in the same pill
-   shape as .oust-tag elsewhere so it doesn't read as a raw link dump. */
+/* Tag cloud links get the .oust-tag pill shape. */
 .oust-footer-widgets .tagcloud { display: flex; flex-wrap: wrap; gap: 6px; }
 .oust-footer-widgets .tagcloud a {
     display: inline-block; padding: 4px 10px; border-radius: 999px; background: var(--bh-surface-2, #2C120E);
@@ -788,33 +597,15 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
     .oust-site-footer-inner { grid-template-columns: 1fr; gap: 24px; padding: 36px 20px; }
 }
 
-/* No-sidebar container adjustment — kept for future widget-area use;
-   currently theme ships no sidebar template, this only affects the
-   footer widget area check in functions.php. */
+/* No-sidebar container adjustment; currently only affects the footer
+   widget area check in functions.php. */
 .oust-no-sidebar .oust-container { max-width: 1200px; }
 
 /* ================================================================
    WooCommerce
    ================================================================
-   Real gap found auditing the front end: grepping this file for any
-   WooCommerce selector returned ZERO matches — the entire storefront
-   (shop archive, single product, cart, checkout) rendered in stock
-   WooCommerce styling, completely disconnected from the rest of the
-   site. Measured live before writing any of this: product cards had
-   no background/border/radius at all, "Add to cart" was WooCommerce's
-   default light grey (#e9e6ed) with grey text, and the ordering
-   <select> was raw white/black/Arial. Typography was already
-   inheriting correctly (Atkinson/Josefin) — so this is specifically
-   about surfaces, controls, and rhythm, not type.
-
-   Everything below is deliberately built from the SAME vocabulary the
-   rest of the site already uses rather than a parallel "shop theme":
-   product cards reuse .bhc-course-card's exact treatment (surface +
-   border + 10px radius + translateY(-4px) hover with an accent-tinted
-   glow), buttons reuse the pill/accent language, and every color is a
-   --bh-* token so a re-themed site re-themes the store too. That's
-   the whole point — a visitor should not be able to tell where the
-   theme ends and WooCommerce begins. */
+   Built from the site's own vocabulary (card treatment, pill buttons,
+   --bh-* tokens) so a re-themed site re-themes the store too. */
 
 /* ---- shop archive: toolbar ---- */
 .woocommerce .woocommerce-result-count { color: var(--bh-text-dim, #B99584); font-size: 14px; margin: 0; }
@@ -830,10 +621,7 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
 }
 
 /* ---- shop archive: product grid ----
-   auto-fit/minmax rather than WooCommerce's own float-based columns,
-   so the column COUNT follows real available width instead of a fixed
-   per-theme number — same approach as the admin card grids and
-   bh-courses' own catalog. */
+   auto-fit/minmax instead of WooCommerce's float columns. */
 .woocommerce ul.products {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
     gap: 20px; margin: 0; padding: 0; list-style: none; align-items: start;
@@ -853,28 +641,8 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
     border-color: var(--bh-accent, #C1503A);
     box-shadow: 0 16px 32px -12px color-mix(in srgb, var(--bh-accent, #C1503A) 35%, transparent), 0 4px 8px rgba(0, 0, 0, .06);
 }
-/* Card-group focus mode — the front-end half of the admin skin's own
-   card-grid haze/focus rule (self-hosted-self-admin-skin/assets/css/
-   admin-skin.css, .ous-cards:has(...)), same "Half-Blood Prince"
-   depth-of-field language this ecosystem's design brief describes:
-   hovering one product card recedes its SIBLINGS into haze while the
-   hovered card itself stays exactly as sharp as always. :has() makes
-   this possible with zero JS — unsupported browsers simply don't get
-   the recede effect, the grid and hover state both still work exactly
-   as before, never broken. Literal values (not custom properties) to
-   match this file's own established pattern — every --bh-* token here
-   is a var() with an inline fallback printed by PHP, not something a
-   NEW single-use local token would meaningfully improve on. */
-/* WAS hover-triggered sibling-recede, the same pattern removed from the
-   admin card grids. Direct feedback from a real device: it reads as a
-   tap glitch rather than atmosphere, and on a touch screen there is no
-   hover for it to key off at all. Replaced with the continuous
-   viewport-proximity depth of field the catalogs use, so every grid in the
-   ecosystem behaves the same way.
-
-   Gentler than the hover values it replaces (was saturate .5,
-   brightness .85, blur 1.5px): a continuous effect has to be lighter than a
-   momentary one to stay useful. */
+/* Viewport-proximity depth of field (same as the catalogs), not hover, so
+   it works on touch. Kept gentle because it's continuous. */
 @keyframes oust-product-depth {
     0% {
         filter: blur(1px) saturate(0.82);
@@ -897,7 +665,7 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
     @media (prefers-reduced-motion: no-preference) {
         .woocommerce ul.products li.product {
             animation-name: oust-product-depth;
-            /* auto, never the 0s an omitted duration implies. */
+            /* WHY auto: an omitted duration (0s) disables a scroll-driven animation. */
             animation-duration: auto;
             animation-timing-function: linear;
             animation-fill-mode: both;
@@ -914,20 +682,10 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
 @media (prefers-reduced-motion: reduce) {
     .woocommerce ul.products li.product { transition: none; animation: none !important; }
     .woocommerce ul.products li.product:hover { transform: none; }
-    /* Real specificity bug caught before shipping, not after: a plain
-       `.woocommerce ul.products li.product { transition: none; }` here
-       is LESS specific than the card-group focus-mode rule above
-       (which carries an extra :has() and :not() pseudo-class), so it
-       would have silently lost the cascade and reduced-motion users
-       would still have gotten the sibling-recede transition. Matched
-       here at equal specificity so this reduced-motion override
-       actually wins. */
+    /* WHY: matched at the focus-mode rule's specificity so reduced-motion wins. */
     .woocommerce ul.products:has(li.product:hover) li.product:not(:hover) { transition: none; }
 }
-/* Image sits flush to the card's top edge (negative margin cancels the
-   card padding) and keeps one fixed aspect for every product, so a
-   grid of mixed-ratio uploads still reads as one tidy row rather than
-   a jagged one — same fix bh-courses' own catalog cards use. */
+/* Image flush to the card top (negative margin) at one fixed aspect. */
 .woocommerce ul.products li.product a img {
     margin: -16px -16px 0; width: calc(100% + 32px); max-width: none;
     aspect-ratio: 1 / 1; object-fit: cover; display: block;
@@ -949,8 +707,7 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
 }
 .woocommerce ul.products li.product .price del { color: var(--bh-text-dim, #B99584); font-weight: 400; opacity: .7; }
 .woocommerce ul.products li.product .price ins { text-decoration: none; color: var(--bh-accent, #C1503A); }
-/* Pushes the button to the card's bottom edge so every card's CTA
-   lines up across a row regardless of title length. */
+/* Pushes the button to the bottom so CTAs line up across a row. */
 .woocommerce ul.products li.product .button { margin-top: auto; }
 
 /* ---- buttons (shared across archive/single/cart/checkout) ---- */
@@ -992,9 +749,7 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
     .woocommerce a.button, .woocommerce button.button, .woocommerce input.button { transition: none; }
     .woocommerce a.button:hover, .woocommerce button.button:hover, .woocommerce input.button:hover { transform: none; }
 }
-/* Secondary/"outlined" actions (Continue shopping, Update cart) —
-   same shape, quieter weight, so the real CTA stays the loudest thing
-   on the page. */
+/* Secondary actions (Continue shopping, Update cart): same shape, quieter. */
 .woocommerce a.button.wc-backward,
 .woocommerce button[name="update_cart"],
 .woocommerce input[name="update_cart"] {
@@ -1026,9 +781,7 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
 }
 .woocommerce div.product .product_meta { color: var(--bh-text-dim, #B99584); font-size: 13px; }
 .woocommerce div.product .product_meta a { color: var(--bh-accent, #C1503A); }
-/* Product tabs — WooCommerce ships these as faux-3D bordered tabs;
-   flattened to the same quiet underline idiom the rest of the site
-   uses for tabbed nav. */
+/* Product tabs flattened to the site's underline idiom. */
 .woocommerce div.product .woocommerce-tabs ul.tabs { padding: 0; margin: 0 0 20px; border-bottom: 1px solid var(--bh-border, #3D1B14); }
 .woocommerce div.product .woocommerce-tabs ul.tabs::before { display: none; }
 .woocommerce div.product .woocommerce-tabs ul.tabs li {
@@ -1125,45 +878,22 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
     .woocommerce ul.products li.product { padding: 12px; }
     .woocommerce ul.products li.product a img { margin: -12px -12px 0; width: calc(100% + 24px); }
     .woocommerce ul.products li.product .woocommerce-loop-product__title { font-size: 14px; }
-    /* Cart/checkout tables get genuinely unusable at phone width in
-       WooCommerce's default layout — let them scroll horizontally
-       inside their own lane rather than forcing the whole page wide. */
+    /* Cart/checkout tables scroll horizontally in their own lane on phones. */
     .woocommerce table.shop_table { display: block; overflow-x: auto; white-space: nowrap; }
 }
 
-/* Real layout bug, caught live on a single product page: WooCommerce's
-   single-product template still lays out with FLOATS (.woocommerce-
-   product-gallery floats left, .summary floats right). Nothing closes
-   those floats, so the very next thing this theme renders — single.php's
-   own prev/next post nav — got squeezed into the leftover ~46px gutter
-   beside them, wrapping its titles into an unreadable vertical sliver.
-   Measured, not guessed: nav computed 46px wide inside a 1200px
-   container while its own child overflowed to 106px.
-   Clearing on div.product fixes it at the source, so ANYTHING following
-   a product (post nav, comments, related products, a plugin's own
-   appended block) lays out correctly rather than each one needing its
-   own clear. */
+/* WHY: WooCommerce's single-product template uses floats (gallery left,
+   summary right); clearing on div.product keeps whatever follows from being
+   squeezed into the gutter. */
 .woocommerce div.product::after {
     content: ''; display: table; clear: both;
 }
 
 /* ---- storefront "magic" layer ----
-   Same composing-with-light language the admin skin and portal use, so
-   the shop reads as part of one designed system rather than a bolted-on
-   store. Three restrained moments, each doing a real job:
-
-   1. Product cards resolve OUT of haze on load, staggered down the
-      grid — light gathering into focus, matching the admin sidebar's
-      own entrance. Short (280ms) and small (4px/3px blur): a felt
-      arrival, never a loading screen between someone and the thing
-      they came to buy.
-   2. The price gains a soft accent glow on card hover — the one number
-      a shopper is actually hunting for, lit up exactly when they're
-      looking at that card. Importance signalled by light, not by
-      shouting louder in size or weight.
-   3. Sale badges get the frosted-glass treatment (tint + blur + bloom)
-      already used for badges everywhere else in the ecosystem.
-   All three fully opt out under prefers-reduced-motion. */
+   1. Product cards resolve out of haze on load, staggered.
+   2. Price gets a soft accent glow on card hover.
+   3. Sale badges get the frosted-glass badge treatment.
+   All opt out under prefers-reduced-motion. */
 .woocommerce ul.products li.product {
     animation: oust-card-in 280ms ease-out both;
 }
@@ -1205,20 +935,9 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
 }
 
 /* ---- WooCommerce Blocks (cart / checkout) ----
-   Real finding, caught by checking the live cart rather than assuming
-   the classic-template rules above covered it: this site's cart and
-   checkout are the newer BLOCK-based ones, not the classic
-   [woocommerce_cart] shortcode templates. That's an entirely separate
-   class namespace (wc-block-*, 39 distinct classes on the cart page
-   alone) — table.shop_table doesn't exist there at all, and the
-   "Proceed to Checkout" button was still rendering stock grey
-   (rgb(50,55,60)) with square corners while everything around it was
-   themed. Since this is the actual path a customer takes to give you
-   money, leaving it stock would undercut the whole storefront pass.
-
-   WooCommerce Blocks exposes real CSS custom properties for its own
-   button/base colors, so several of these are set at the container
-   level and inherited, rather than overriding every descendant. */
+   Block-based cart/checkout use the wc-block-* namespace, not
+   table.shop_table. Several values are set via WooCommerce Blocks' own
+   custom properties at the container level. */
 .wp-block-woocommerce-cart,
 .wp-block-woocommerce-checkout,
 .wc-block-components-sidebar-layout {
@@ -1275,9 +994,7 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
 .wc-block-components-totals-item__value,
 .wc-block-components-formatted-money-amount { color: var(--bh-text, #EDDFCB); }
 .wc-block-components-totals-item__label { color: var(--bh-text-dim, #B99584); }
-/* The cart/checkout sidebar is the one panel that should read as a
-   real raised surface — it's the running total, the thing a shopper
-   keeps glancing back at. */
+/* The cart/checkout sidebar (running total) reads as a raised surface. */
 .wc-block-components-sidebar {
     background: var(--bh-surface, #220C0A);
     border: 1px solid var(--bh-border, #3D1B14);

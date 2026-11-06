@@ -2,29 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Everyone who self-registers through the portal (BHI_Auth::register)
- * gets a real wp_users row — that's deliberate: the whole ecosystem
- * (course progress, contest identity, CRM, wallet, notifications, 2FA,
- * password reset) joins on user ID, and reimplementing WordPress auth
- * for a parallel "person" type would be a larger, more fragile, LESS
- * safe surface than hardening the one WordPress already ships.
+ * Hardens self-registered fan accounts (real wp_users rows on the low-privilege `bh_member`
+ * role, locked out of wp-admin): blocks user enumeration, Application Passwords, XML-RPC
+ * pingback methods, and user-exists login error text.
  *
- * So instead: a fan account is the lowest-privilege thing it can be —
- * the dedicated `bh_member` role (read, nothing else — see OUS_Roles),
- * locked out of wp-admin (BHI_Portal::excluded_roles), and this class
- * closes the ambient surface a low-value account otherwise still has:
- *
- *   - author / user enumeration (?author=N, /author/slug/, the REST
- *     users route, the users sitemap, oEmbed author fields)
- *   - Application Passwords (an API-token factory a read-only fan has
- *     no use for)
- *   - XML-RPC pingback methods (amplification / probing)
- *   - login error text that distinguishes "no such user" from "wrong
- *     password"
- *
- * Every piece is filterable so a site that genuinely needs one back
- * can have it, and nothing here touches administrator/editor/author or
- * any logged-in request from a non-excluded role.
+ * Every piece is filterable; staff roles and non-fan logged-in requests are never touched.
  */
 class BHI_MemberHardening {
 
@@ -50,12 +32,9 @@ class BHI_MemberHardening {
         add_action('admin_init', [self::class, 'maybe_migrate_subscribers']);
     }
 
-    /* ------------------------------------------------------------------ */
-    /* helpers                                                            */
-    /* ------------------------------------------------------------------ */
+    /* ---------------- helpers ---------------- */
 
-    /** Roles treated as "ordinary fan/student/supporter" — the same set
-     *  the portal locks out of wp-admin, so the two stay in lockstep. */
+    /** Fan roles: the same set the portal locks out of wp-admin, so the two stay in lockstep. */
     private static function fan_roles(): array {
         if (class_exists('BHI_Portal') && method_exists('BHI_Portal', 'excluded_roles')) {
             return (array) BHI_Portal::excluded_roles();
@@ -63,8 +42,7 @@ class BHI_MemberHardening {
         return apply_filters('bhi_portal_excluded_roles', ['subscriber', 'customer', OUS_Roles::MEMBER_ROLE]);
     }
 
-    /** True when EVERY role the user holds is a fan role (so elevating a
-     *  member to administrator later doesn't accidentally cage them). */
+    /** True when EVERY role the user holds is a fan role (an elevated member is never caged). */
     public static function user_is_fan(?\WP_User $user): bool {
         if (!$user || !$user->exists()) return false;
         $roles = (array) $user->roles;
@@ -73,16 +51,11 @@ class BHI_MemberHardening {
         return array_intersect($fan, $roles) && !array_diff($roles, $fan);
     }
 
-    /* ------------------------------------------------------------------ */
-    /* enumeration                                                        */
-    /* ------------------------------------------------------------------ */
+    /* ---------------- enumeration ---------------- */
 
     /**
-     * `?author=1` is the classic "map user IDs to login names" probe
-     * (WordPress 302-redirects it to /author/<login>/). Numeric author
-     * queries are blocked outright for everyone who isn't staff;
-     * pretty /author/<slug>/ archives are 404'd unless a site opts them
-     * back on. Filter `bhi_allow_author_archives` (bool) to keep them.
+     * Blocks numeric ?author=N probes for non-staff and 404s /author/<slug>/ archives.
+     * Filter `bhi_allow_author_archives` (bool) to keep the archives.
      */
     public static function block_author_enumeration(): void {
         if (apply_filters('bhi_allow_author_archives', false)) return;
@@ -93,8 +66,7 @@ class BHI_MemberHardening {
         $is_numeric_probe = $raw_author !== '' && preg_match('/^\d+$/', trim($raw_author));
 
         if ($is_numeric_probe || is_author()) {
-            // 404 rather than redirect — a redirect to /author/<slug>/
-            // still leaks the slug, which is the whole point of the probe.
+            // WHY: 404 rather than redirect — redirecting to /author/<slug>/ leaks the slug.
             global $wp_query;
             $wp_query->set_404();
             status_header(404);
@@ -104,8 +76,7 @@ class BHI_MemberHardening {
                 include $tpl;
                 exit;
             }
-            // A block theme with no classic 404.php — hand back to the
-            // theme's own template resolution instead of a blank exit.
+            // Block theme with no classic 404.php: hand back to the theme's template resolution.
             $wp_query->is_author = false;
             $wp_query->is_archive = false;
             wp_safe_redirect(home_url('/'), 302);
@@ -114,13 +85,8 @@ class BHI_MemberHardening {
     }
 
     /**
-     * Remove the REST users collection/item for unauthenticated callers.
-     * Logged-in behaviour is left to WordPress core (which already gates
-     * the full list on `list_users` and only ever exposes users with
-     * published posts) so the block editor's author controls keep
-     * working for editors. `/wp/v2/users/me` is a separate route and is
-     * left intact.
-     *
+     * Removes the REST users routes for unauthenticated callers only; logged-in access stays
+     * with core so editor author controls work. /wp/v2/users/me is unaffected.
      */
     public static function filter_rest_user_endpoints(array $endpoints): array {
         if (is_user_logged_in()) return $endpoints;
@@ -146,10 +112,7 @@ class BHI_MemberHardening {
     }
 
     /**
-     * Belt-and-braces for the authenticated case: when a non-staff
-     * account somehow reaches a user object over REST, hand back only
-     * the fields that are safe and self-referential, never slug/email/
-     * registered-date/meta for anyone else.
+     * For a non-staff account reaching a user object over REST, return only safe self-referential fields.
      */
     public static function trim_rest_user_fields($response, $user, $request) {
         if (!is_object($response) || !isset($response->data) || !is_array($response->data)) return $response;
@@ -164,9 +127,7 @@ class BHI_MemberHardening {
         return $response;
     }
 
-    /* ------------------------------------------------------------------ */
-    /* account surface                                                    */
-    /* ------------------------------------------------------------------ */
+    /* ---------------- account surface ---------------- */
 
     /** No Application Passwords for a read-only fan account. */
     public static function app_passwords_for_user($available, $user) {
@@ -177,9 +138,7 @@ class BHI_MemberHardening {
         return $available;
     }
 
-    /** Drop pingback/blog-list XML-RPC methods — enumeration/amplification
-     *  vectors with no upside for this ecosystem. The rest of XML-RPC is
-     *  left alone unless a site also flips `bhi_disable_xmlrpc`. */
+    /** Drop pingback/blog-list XML-RPC methods; `bhi_disable_xmlrpc` disables the rest too. */
     public static function filter_xmlrpc_methods(array $methods): array {
         foreach (['pingback.ping', 'pingback.extensions.getPingbacks', 'wp.getUsersBlogs', 'blogger.getUsersBlogs', 'system.multicall'] as $m) {
             unset($methods[$m]);
@@ -191,14 +150,9 @@ class BHI_MemberHardening {
         return apply_filters('bhi_disable_xmlrpc', false) ? false : $enabled;
     }
 
-    /* ------------------------------------------------------------------ */
-    /* login error text                                                   */
-    /* ------------------------------------------------------------------ */
+    /* ---------------- login error text ---------------- */
 
-    /** Collapse "invalid username" / "incorrect password" / "invalid
-     *  email" into one message so wp-login.php isn't a user-exists
-     *  oracle. The portal's own REST login (BHI_Auth::login) already
-     *  does this; this covers the raw wp-login.php form. */
+    /** One generic message for all credential errors so wp-login.php isn't a user-exists oracle. */
     public static function generic_login_errors($error) {
         if (!is_string($error) || $error === '') return $error;
         $needles = ['username', 'password', 'email address', 'incorrect', 'unknown', 'not registered'];
@@ -210,17 +164,11 @@ class BHI_MemberHardening {
         return $error;
     }
 
-    /* ------------------------------------------------------------------ */
-    /* migration                                                          */
-    /* ------------------------------------------------------------------ */
+    /* ---------------- migration ---------------- */
 
     /**
-     * One-time, conservative: move accounts whose ONLY role is the stock
-     * `subscriber` onto `bh_member`. Multi-role users, customers, staff
-     * and admins are never touched (the exact-match guard), and
-     * `bh_member` is a strict subset of what a lone `subscriber` could
-     * do, so this can only ever reduce privilege. Runs once, in admin,
-     * and records how many it moved.
+     * One-time: moves accounts whose ONLY role is `subscriber` onto `bh_member` (a strict
+     * subset of subscriber's caps, so it can only reduce privilege). Records the count moved.
      */
     public static function maybe_migrate_subscribers(): void {
         if (get_option(self::MIGRATED_OPTION)) return;

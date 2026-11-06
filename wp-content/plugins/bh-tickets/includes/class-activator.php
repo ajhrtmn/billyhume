@@ -1,14 +1,7 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/**
- * Two tables: a ticket is its own lifecycle (open/pending/resolved/
- * closed, optional assignment), a reply is a flat append-only thread —
- * same "a table when the shape doesn't fit post/meta" convention
- * bh-crm's own bhcrm_notes/bhcrm_projects already established, not a
- * custom post type (a ticket has no reason to appear in WP's own
- * post-list/search machinery).
- */
+/** Two tables: tickets (status lifecycle, optional assignee) and a flat append-only reply thread. */
 class BHT_Activator {
     const DB_VERSION = '1.0';
 

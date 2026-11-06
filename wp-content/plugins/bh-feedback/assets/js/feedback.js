@@ -1,14 +1,8 @@
 "use strict";
-// Timestamped waveform annotations — vanilla TS, no bundler, no framework
-// (CLAUDE.md's standing "no JSX, no build step beyond plain tsc" rule).
-// Decodes the submitted track client-side (Web Audio API) purely to
-// draw a peaks waveform — no server-side peak generation, no new
-// dependency. One BHFData global (localized per-page, not per-instance)
-// carries the ajax URL + nonce; each .bhf-waveform element on the page
-// carries its own request id, audio url, "can I add a NEW marker" flag,
-// and its initial annotation tree as a JSON data attribute (server-
-// rendered, same "no extra round trip just to paint the first frame"
-// posture bh-courses' own courses.ts already established).
+// Timestamped waveform annotations. Decodes the track client-side (Web
+// Audio API) only to draw a peaks waveform. BHFData carries the ajax URL and
+// nonce; each .bhf-waveform carries its request id, audio url, canMark flag,
+// and initial annotation tree as JSON data attributes.
 function formatTime(seconds) {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
@@ -152,7 +146,7 @@ function initWaveform(root) {
         return;
     const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextCtor)
-        return; // no Web Audio API support — the plain <audio> player elsewhere on the card still works, this is enhancement-only
+        return; // no Web Audio API; the plain <audio> player still works
     fetch(audioUrl)
         .then((r) => r.arrayBuffer())
         .then((buf) => new AudioContextCtor().decodeAudioData(buf))
@@ -179,9 +173,7 @@ function initWaveform(root) {
         }
     })
         .catch(() => {
-        // Decoding failed (unsupported format, network hiccup) — leave the
-        // canvas blank; the plain <audio controls> element on the same
-        // card is the real fallback, this whole feature is enhancement.
+        // Decoding failed; leave the canvas blank. The <audio> element is the fallback.
     });
 }
 document.addEventListener('DOMContentLoaded', () => {

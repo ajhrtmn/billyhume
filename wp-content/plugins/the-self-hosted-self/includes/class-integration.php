@@ -2,36 +2,14 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_Integration — a light registry for CLAUDE.md's standing rule:
- * "critical infrastructure always ships with a minimal, self-hosted,
- * built-in default; a third-party integration is an enhancement layered
- * on top, never the only implementation." This class doesn't ENFORCE
- * that rule (no auto-failover, no implementation-switching UI) — it's a
- * visibility layer, so "what's the built-in default here, is anything
- * enhancing it right now, and what plugin do I install to get that"
- * is one real answer instead of something only readable by grepping
- * changelog comments.
+ * Visibility registry for "built-in default + optional third-party enhancer" contracts.
+ * Reports which implementation is active; does not enforce or switch anything.
  *
- * Deliberately thin, matching how BH_Content/BH_Commerce actually got
- * built in this codebase — extracted from real, already-working call
- * sites rather than designed in the abstract first. The first three
- * registrations below (see the-self-hosted-self.php, bh-crm.php, bh-mailpoet.php)
- * are retrofits of contracts that already existed and already proved
- * this shape works, not speculative new scope.
- *
- * USAGE, from any plugin's own bootstrap (typically right after the
- * class being registered as the built-in default has itself loaded):
- *
- *   add_action('init', function () {
- *       if (class_exists('OUS_Integration')) {
- *           OUS_Integration::register('email_broadcast', [
- *               'label' => 'Email broadcast / marketing',
- *               'description' => 'Reach a live-queried audience with a one-off or list-driven email.',
- *               'builtin_class' => 'OUS_Campaigns',
- *               'enhancer_class' => 'BHMP_Sync', // optional — omit or leave null if nothing enhances this yet
- *           ]);
- *       }
- *   }, 20); // after both classes involved have had a chance to load
+ *   OUS_Integration::register('email_broadcast', [
+ *       'label' => 'Email broadcast / marketing',
+ *       'builtin_class' => 'OUS_Campaigns',
+ *       'enhancer_class' => 'BHMP_Sync', // optional
+ *   ]);   // call on 'init' priority 20, after both classes could have loaded
  */
 class OUS_Integration {
     /** @var array<string, array<string, mixed>> */
@@ -42,6 +20,9 @@ class OUS_Integration {
     }
 
     /**
+     * Merges onto any existing registration for $key, so an enhancer plugin only needs
+     * register($key, ['enhancer_class' => '...']).
+     *
      * @param string $key Stable, namespaced identifier — e.g. 'email_broadcast', 'bh_mail'.
      * @param array $args {
      *   @type string $label           Required the FIRST time this key is registered. Short human name.
@@ -49,18 +30,8 @@ class OUS_Integration {
      *   @type string $builtin_class  Required the FIRST time this key is registered. The class that must always work, no third party needed.
      *   @type string $enhancer_class Optional. A class that, if present (class_exists()), provides a richer implementation of the same contract.
      * }
-     *
-     * Merges onto whatever's already registered under this key, rather
-     * than overwriting wholesale — the point being zero-central-
-     * registration, same shape as ous_registered_plugins/ous_debug_tools:
-     * the plugin that OWNS the built-in default (typically the-self-hosted-self
-     * itself, since most of today's defaults live in core) registers the
-     * contract with label/description/builtin_class; a later, entirely
-     * separate peer plugin that happens to enhance that same contract
-     * only needs to call register($same_key, ['enhancer_class' => '...'])
-     * — it doesn't need to know or repeat the builtin side's details.
+     * @param array<string, mixed> $args
      */
-    /** @param array<string, mixed> $args */
     public static function register(string $key, array $args): void {
         $key = sanitize_key($key);
         $existing = self::$contracts[$key] ?? ['label' => $key, 'description' => '', 'builtin_class' => '', 'enhancer_class' => null];
@@ -75,10 +46,8 @@ class OUS_Integration {
     }
 
     /**
-     * 'enhancer' if this contract has a registered enhancer class AND
-     * it's actually loaded right now, 'builtin' otherwise, null if the
-     * key was never registered at all. Call-time only — never cached
-     * across requests, since which plugins are active can change.
+     * 'enhancer' if a registered enhancer class is loaded now, 'builtin' otherwise, null if
+     * the key was never registered. Evaluated per call, never cached.
      */
     public static function active_implementation(string $key): ?string {
         $contract = self::$contracts[sanitize_key($key)] ?? null;
@@ -95,9 +64,7 @@ class OUS_Integration {
         $tools['ous-integrations'] = [
             'label'  => 'Integration Contracts',
             'render' => [self::class, 'render_debug_section'],
-            // Read-only report — nothing here writes anything, safe to
-            // show even on a production install, same posture the
-            // registry's own bundled-zip-freshness report takes.
+            // Read-only report.
             'safe_in_production' => true,
             'group'  => OUS_Debug::GROUP_MONITORING,
         ];

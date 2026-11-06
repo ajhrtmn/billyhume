@@ -2,23 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Abstracted SEPARATELY from BHL_StreamEngine, per wondrous-mixing-
- * forest.md's own "Decided" call: "chat is abstracted SEPARATELY from
- * the video engine (its own small interface) so Owncast's bundled chat
- * can later be replaced by a custom polling-based one (matching
- * class-jam.php's own proven pattern) independent of which video
- * engine is active underneath." Keeping this its own interface — not
- * a method on BHL_StreamEngine — is exactly what makes that later swap
- * possible without touching the video-engine choice at all.
- *
- * render() takes the current stream's post ID rather than the
- * embed-only get_embed_html() this started as (audit pass 2026-07-26,
- * adding BHL_PollingChat/BHL_WorkersChat): a native (non-iframe) widget
- * needs to know WHICH stream's messages to poll/relay, and an iframe-
- * based implementation (BHL_OwncastChat) can simply ignore the
- * argument. 'type' tells the front end whether to just inject 'html'
- * as-is (an iframe is self-contained) or additionally call the native
- * chat widget's own JS init function against it.
+ * Chat contract, separate from BHL_StreamEngine so chat can be swapped
+ * independently. render() takes the stream post ID; 'type' says whether the
+ * front end injects 'html' as-is (iframe) or also mounts the native widget.
  */
 interface BHL_Chat {
     public function is_configured(): bool;
@@ -27,10 +13,7 @@ interface BHL_Chat {
 }
 
 /**
- * v1's default for the Owncast engine — Owncast's own bundled chat,
- * embedded via its documented /embed/chat route
- * (owncast.online/docs/embed/), the same real, no-custom-build-needed
- * feature get_embed_html() for video already leans on.
+ * Owncast's bundled chat via its /embed/chat route.
  */
 class BHL_OwncastChat implements BHL_Chat {
     public function is_configured(): bool {
@@ -38,12 +21,7 @@ class BHL_OwncastChat implements BHL_Chat {
         return !empty($s['server_url']);
     }
 
-    // The interactive route (not /embed/chat/readonly) — AJ's own call
-    // on scope was explicitly "two-way interactive," and Owncast's own
-    // chat iframe handles a viewer's display-name/access-token flow
-    // itself, so nothing further is needed here to make posting work.
-    // $stream_id is unused — Owncast has exactly one chat room, tied to
-    // the server itself, not per-bhl_stream-post.
+    // Interactive route (not /embed/chat/readonly); Owncast has one chat room per server, so $stream_id is unused.
     /** @return array{type:string, html:string} */
     public function render(int $stream_id): array {
         $s = BHL_OwncastEngine::settings();

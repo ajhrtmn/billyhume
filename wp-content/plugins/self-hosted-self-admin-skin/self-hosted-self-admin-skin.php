@@ -15,24 +15,8 @@ define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 
 /**
- * Deliberately admin-only — is_admin() covers wp-admin screens
- * (including AJAX-adjacent admin pages) without ever touching a
- * front-end request, so this plugin can never conflict with any
- * theme's own front-end styles regardless of what site it's on.
- */
-/**
- * 2026-08-25: native-by-default, matching the same instruction behind
- * shsas_screen_is_owned()'s new default. Rather than loading the full
- * stylesheet everywhere and RESETTING it back to native on unowned
- * screens (fragile -- the reset can only ever cover UI patterns someone
- * thought to add a rule for, and core wp-admin has far more of those
- * than WooCommerce/MailPoet combined), unowned screens simply never
- * load this plugin's CSS/fonts at all. Nothing to reset means nothing
- * can be missed.
- *
- * The counterpart: a site can still opt into the pre-2026-08-25 "full
- * skin everywhere" behavior via the shsas_full_skin option (Design
- * Suite setting) -- native is the default, not the only mode.
+ * Native by default: unowned screens never load this plugin's CSS/fonts, so
+ * there is nothing to reset. The shsas_full_skin option skins every screen.
  */
 function shsas_full_skin_enabled(): bool {
     return (bool) get_option('shsas_full_skin', false);
@@ -42,56 +26,25 @@ function shsas_enqueue_assets(): void {
     if (!shsas_full_skin_enabled() && !shsas_screen_is_owned()) {
         return;
     }
-    // 'wp-admin' as a dependency (not just registered/loaded some other
-    // way) guarantees WP core's own admin stylesheet prints BEFORE this
-    // one — real bug found live: an empty deps array left load order to
-    // chance, and core's own .wp-menu-name rule won a cascade tie
-    // against this plugin's truncation rule on this exact install.
-    // Defense in depth alongside the !important fix in the CSS itself.
+    // WHY 'wp-admin' dependency: core's admin CSS must print first so this
+    // stylesheet wins cascade ties.
     wp_enqueue_style('shsas-admin-skin', SHSAS_URL . 'assets/css/admin-skin.css', ['wp-admin'], SHSAS_VER);
-    // Same two fonts as the ecosystem-wide front-end default (own-ur-
-    // shit's BHY_Style::FONT_OPTIONS) — Righteous for display, Atkinson
-    // Hyperlegible for body — loaded independently here rather than via
-    // a class_exists() call into the-self-hosted-self, matching this plugin's
-    // own stated "standalone and portable" scope (it must keep working
-    // even if the-self-hosted-self isn't the active core plugin on some other
-    // install). Real gap this closes: the CSS tokens below
-    // (--shsas-font/--shsas-font-display) were pointing at these fonts
-    // with nothing fetching the actual webfont files — the exact same
-    // bug just fixed on the front end (BHY_Style::print_global_css()),
-    // just never wired into wp-admin at all in the first place.
+    // Jost + Atkinson Hyperlegible, loaded directly (not via
+    // the-self-hosted-self) so this plugin stays standalone.
     wp_enqueue_style('shsas-fonts', 'https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap', [], SHSAS_VER);
     wp_enqueue_script('shsas-admin-skin', SHSAS_URL . 'assets/js/admin-skin.js', [], SHSAS_VER, true);
 
-    // The command palette needs a flat list of every real admin-menu
-    // link WordPress core already built for THIS user (capability-
-    // filtered, current site) — reading it straight out of $menu/
-    // $submenu (the same globals wp-admin's own menu renderer uses)
-    // rather than re-deriving access rules is the only way this stays
-    // correct for a role that isn't a full admin, and the only way it
-    // stays accurate for whatever mix of plugins happens to be active.
+    // Command palette entries come from core's already capability-filtered
+    // $menu/$submenu, so access rules are never re-derived.
     wp_localize_script('shsas-admin-skin', 'shsasMenu', ['items' => shsas_flatten_admin_menu()]);
 }
 add_action('admin_enqueue_scripts', 'shsas_enqueue_assets');
 
-/**
- * The admin bar and #adminmenu sidebar are now DELIBERATELY left at
- * WordPress core's own stock appearance everywhere, always — AJ's own
- * call, 2026-08-25: our distinctive skin treatment stays scoped to
- * #wpbody-content's page CONTENT (postboxes, tables, forms) on screens
- * this skin owns (see shsas_screen_is_owned()), matching how a
- * well-behaved third-party plugin like WooCommerce or MailPoet themes
- * only its own pages and never touches the shared chrome around them.
- *
- * assets/css/admin-bar.css (the file this used to enqueue) is no
- * longer loaded anywhere — left on disk with its own header noting why,
- * since real structural fixes are documented in it (menu-item icon
- * treatment is the known follow-up still open).
- */
+// The admin bar and sidebar stay at core's stock appearance; the skin is
+// scoped to page content on owned screens. assets/css/admin-bar.css is not
+// enqueued anywhere.
 
-// wp-login.php is NOT an is_admin() screen — its own hook, and
-// deliberately CSS-only there (no command palette/menu data makes
-// sense on a page with no admin menu yet).
+// wp-login.php isn't an is_admin() screen; CSS only there.
 function shsas_enqueue_login_assets(): void {
     wp_enqueue_style('shsas-admin-skin', SHSAS_URL . 'assets/css/admin-skin.css', [], SHSAS_VER);
     wp_enqueue_style('shsas-fonts', 'https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap', [], SHSAS_VER);
@@ -99,53 +52,19 @@ function shsas_enqueue_login_assets(): void {
 add_action('login_enqueue_scripts', 'shsas_enqueue_login_assets');
 
 /**
- * Real, high-leverage bug found auditing bh-crm's People screen (Track
- * A of the design audit): the-self-hosted-self's own shared admin design-token
- * system (BHY_UI::print_design_system_css(), class-ui.php) defines a
- * whole SECOND set of CSS custom properties — --bhy-surface,
- * --bhy-ink, --bhy-border, --bhy-accent, etc. — that bh-crm, bh-contest,
- * and the-self-hosted-self's own admin screens (Design Suite, Setup Wizard,
- * Reports, the Portal, "Layer 3" components like .bhy-card/.bhy-alert)
- * all reference directly, INCLUDING via inline `style="background:
- * var(--bhy-surface,#fff)"` attributes rendered straight from PHP.
- * Those tokens are hardcoded to WP core's stock LIGHT admin colors with
- * no dark-mode awareness at all — every one of those screens was
- * silently rendering in light mode no matter what this skin did,
- * because nothing here ever redefined the SAME variable names.
+ * Remaps BHY_UI's --bhy-* admin tokens (class-ui.php) onto this skin's
+ * tokens. CSS variables only, no PHP dependency; unused without the core.
  *
- * This is a soft interop bridge, not a hard dependency: it only
- * redefines CSS custom properties by name (never calls any the-self-hosted-self
- * PHP/class), so this plugin stays exactly as portable as its own
- * doc comment above promises — on a bare WordPress install with no
- * the-self-hosted-self, these variables are simply unused. Where the-self-hosted-self
- * (or any plugin using this same, apparently ecosystem-wide --bhy-*
- * naming convention) IS active, every one of its own components
- * re-themes for free, instead of needing an individual CSS override
- * per component the way every other fix in this file's changelog has
- * worked so far.
- *
- * Priority 999 is load-bearing: class-ui.php's own token block is also
- * a plain :root rule with equal specificity, printed via its own
- * admin_head hook at the default priority (10) — later-in-source wins
- * a specificity tie, so this MUST fire after it, not just be present.
+ * WHY priority 999: class-ui.php prints an equal-specificity :root block at
+ * priority 10, so this must print after it.
  */
 function shsas_bridge_bhy_tokens(): void {
     echo '<style id="shsas-bhy-token-bridge">:root{'
         . '--bhy-ink:var(--shsas-text);--bhy-ink-dim:var(--shsas-text-dim);'
         . '--bhy-border:var(--shsas-border);--bhy-surface:var(--shsas-surface);'
         . '--bhy-subtle:var(--shsas-surface-2);--bhy-accent:var(--shsas-accent);'
-        // The ink that sits ON a filled accent/neon chip, not next to
-        // it. Its absence was a real, measured bug: the bridge mapped
-        // every FILL colour but never the foreground meant to sit on
-        // one, so the-self-hosted-self's log-level pills kept the hardcoded
-        // `#fff` that is correct against their bare-WordPress fallback
-        // (#2271b1, dark) and wrong against the periwinkle this skin
-        // bridges in (#8FA6E8, light) — white on light periwinkle
-        // measures 2.39:1. --shsas-accent-text already flips per theme
-        // for exactly this job (#1a1710 dark / #f5f9ff light), and
-        // because every neon in this palette is light in dark mode and
-        // deepened in light mode, the same ink is correct on ALL of
-        // them — danger and warning chips included, not just accent.
+        // Ink that sits ON a filled accent/neon chip; without it chips keep
+        // a hardcoded #fff that fails on the light periwinkle accent.
         . '--bhy-accent-text:var(--shsas-accent-text);'
         . '--bhy-success:var(--shsas-success);--bhy-success-bg:color-mix(in srgb,var(--shsas-success) 16%,var(--shsas-surface));'
         . '--bhy-warning:var(--shsas-warning);--bhy-warning-bg:color-mix(in srgb,var(--shsas-warning) 16%,var(--shsas-surface));'
@@ -159,30 +78,13 @@ function shsas_bridge_bhy_tokens(): void {
 add_action('admin_head', 'shsas_bridge_bhy_tokens', 999);
 
 /**
- * Marks each admin screen as one this skin owns, or one it does not.
+ * Whether this skin owns the current admin screen.
  *
- * WHY this exists, measured rather than assumed: on WooCommerce Analytics,
- * WooCommerce text computed rgb(30,30,30) against a background of
- * rgb(22,20,15) -- a contrast ratio of 1.1:1. Neither color is a mistake on
- * its own. WooCommerce paints no background on that component because it
- * expects to inherit WordPress's white canvas; this skin repaints the canvas
- * dark on `body.wp-admin, #wpcontent, #wpbody-content`. Their hardcoded dark
- * text then lands on our dark ground.
- *
- * That mechanism is not specific to WooCommerce -- it hits any plugin whose
- * CSS was written against WordPress's own light admin, which is all of them
- * unless they opted into a dark mode. So recoloring plugins one at a time is
- * an unbounded job that regresses on every third-party update. Instead we
- * stop repainting the canvas on screens we do not own, and let those plugins
- * render against the surface their CSS was authored for.
- *
- * Adopting a third-party plugin properly (mapping its surfaces onto our
- * tokens) is then an opt-in, per-plugin, verified-by-measurement job -- see
- * the `shsas_owned_screen` filter and THIRD-PARTY-SKINNING.md.
+ * WHY: third-party CSS is written against core's white canvas; repainting
+ * it dark puts their hardcoded dark text on a dark ground. Unowned screens
+ * keep core's surface. Adopt a plugin via the `shsas_owned_screen` filter.
  */
 function shsas_screen_is_owned(): bool {
-    // Opted into the pre-2026-08-25 "full skin everywhere" behavior --
-    // every screen is owned, same as this function's original default.
     if (shsas_full_skin_enabled()) return true;
 
     $screen = function_exists('get_current_screen') ? get_current_screen() : null;
@@ -203,23 +105,9 @@ function shsas_screen_is_owned(): bool {
         return (bool) apply_filters('shsas_owned_screen', false, $id, $screen);
     }
 
-    // 2026-08-25: generic core screens (Dashboard, Posts, Media, Users,
-    // Settings...) are unowned/native by default now -- direct, repeated
-    // instruction: "our styles should only impact our own pages." Only a
-    // screen for one of THIS ecosystem's own custom post types
-    // (bh_course, bh_contest, a CPT list/edit screen, which never goes
-    // through the _page_ branch above) stays owned.
-    //
-    // An EARLIER attempt at this same change (same day) shipped broken:
-    // flipping only this default, while still loading admin-skin.css's
-    // shsas-unowned RESET block on the now-unowned screen, produced a
-    // half-reset mess (the reset was only ever built/verified against
-    // WooCommerce/MailPoet's markup, not core's own dashboard widgets --
-    // the welcome panel rendered illegible dark-on-dark). Caught live,
-    // reverted immediately. The real fix, alongside this one: don't rely
-    // on a reset chasing every core UI pattern -- shsas_enqueue_assets()
-    // now skips loading admin-skin.css entirely on unowned screens, so
-    // there is nothing to reset. See that function's own comment.
+    // Core screens are unowned; only this ecosystem's own CPT screens
+    // (post types starting with "bh") stay owned. Relies on
+    // shsas_enqueue_assets() skipping the CSS entirely on unowned screens.
     $post_type = !empty($screen->post_type) ? (string) $screen->post_type : '';
     if ($post_type !== '' && strpos($post_type, 'bh') === 0) {
         return true;
@@ -237,28 +125,10 @@ function shsas_admin_body_class(string $classes): string {
 add_filter('admin_body_class', 'shsas_admin_body_class');
 
 /**
- * Real bug caught by verifying live, not by trusting the plan on
- * paper: the depth-aware cross-document navigation transition
- * (admin-skin.css's data-shsas-nav-depth/-direction-scoped keyframes)
- * needs its 'pagereveal' listener (admin-skin.js) registered BEFORE
- * that event fires — but admin-skin.js is enqueued with in_footer=true
- * (correct for everything else it does: the theme toggle, the command
- * palette, the Wallet-stack default all have no reason to block
- * rendering). 'pagereveal' fires very early, essentially as soon as
- * the browser has resolved the page's `@view-transition` opt-in from
- * <head> — confirmed live: by the time footer-loaded admin-skin.js
- * ran, navigation.activation already held the right data, but the
- * listener attached too late to ever see the event that would have
- * used it.
+ * Stamps nav direction/depth for admin-skin.css's view-transition keyframes.
  *
- * Fix: this ONE listener gets its own tiny, synchronous, INLINE script
- * printed as early in <head> as this plugin can manage (priority 1,
- * lower number than every other admin_head hook here), completely
- * separate from the main admin-skin.js file. Everything else this
- * plugin does stays exactly where it was — this is a narrow exception
- * for the one piece of logic that has a genuine "must run before a
- * specific early browser event" constraint, not a wholesale move of
- * admin-skin.js into <head>.
+ * WHY inline in <head> at priority 1: 'pagereveal' fires before the
+ * footer-loaded admin-skin.js runs, so its listener must be registered early.
  */
 function shsas_print_nav_depth_script(): void {
     ?>
@@ -294,54 +164,14 @@ window.addEventListener('pagereveal', function () {
 add_action('admin_head', 'shsas_print_nav_depth_script', 1);
 
 /**
- * A real, working light/dark toggle living in the admin bar (visible
- * on every admin screen) rather than a buried settings-page checkbox —
- * the whole point of a system preference is that you change your mind
- * about it in the moment, not that you go find a settings screen to
- * change it. admin-skin.js does the actual toggling (reads/writes
- * data-shsas-theme + localStorage); this just gives it somewhere real
- * to live and a11y-correct markup (a real <button>, not a div with a
- * click handler).
- */
-/**
- * Makes the site-name item in the admin bar navigate on a tap, both ways.
+ * Makes the admin-bar site-name item navigate on the first tap below 782px.
  *
- * Reported from a phone, in both directions: no way back to admin from the
- * user side, and the counterpart inside wp-admin equally useless. It is the
- * same control either way -- on the front end it links to /wp-admin/, inside
- * wp-admin it links to the site -- and the same defect either way: it is a
- * .menupop, and core's admin-bar script treats the first tap on a menupop as
- * "open the submenu" and only a second tap as "follow the link". On a touch
- * screen there is no hover to open it with, so the affordance reads as doing
- * nothing. Fixing it once fixes the round trip.
- *
- * An earlier attempt added a separate Dashboard node instead. That was the
- * wrong call, correctly pushed back on: it put a seventh icon into an
- * already-crowded bar to route around a control that should simply work.
- * Removed in favour of fixing the control.
- *
- * Below 782px only -- at desktop widths hover opens the submenu normally,
- * and that submenu is genuinely useful.
- *
- * BUG FOUND LIVE, 2026-08-25: this never actually worked, on the front end
- * or in wp-admin. wp_add_inline_script('admin-bar', ...) attaches to a
- * script WordPress prints late -- in the footer on the front end, and after
- * the toolbar markup in wp-admin -- so by the time this code runs,
- * `document.readyState` is already "complete" and `DOMContentLoaded` has
- * already fired. Waiting for it inside a script that only runs after it
- * happened means the listener is never attached. Confirmed directly:
- * document.readyState read "complete" and the script tag's own position
- * was mid-body, well after the admin bar markup it targets. The href was
- * always correct; nothing was ever listening for the tap.
- *
- * Fix is to stop waiting for an event that has already happened. The admin
- * bar markup this script targets is guaranteed to exist by the time an
- * inline script attached to the 'admin-bar' handle runs, so the setup runs
- * immediately.
+ * Core treats the first tap on a .menupop as "open submenu". WHY no
+ * DOMContentLoaded wait: the 'admin-bar' script prints after the toolbar
+ * markup, by which point that event has already fired.
  */
 function shsas_admin_bar_tap_to_dashboard(): void {
     if (!is_admin_bar_showing()) return;
-    // 'admin-bar' is the same registered handle in both contexts.
     wp_add_inline_script('admin-bar', <<<'JS'
 (function () {
     if (!window.matchMedia || !window.matchMedia('(max-width: 782px)').matches) return;
@@ -363,27 +193,18 @@ add_action('admin_enqueue_scripts', 'shsas_admin_bar_tap_to_dashboard', 20);
 
 function shsas_admin_bar_toggle(WP_Admin_Bar $wp_admin_bar): void {
     if (!is_admin()) return;
-    // Direct feedback: the Cmd/Ctrl+K command palette existed but
-    // nothing on screen told anyone it was there — a keyboard shortcut
-    // nobody knows about isn't a feature, it's a secret. A real, visible
-    // trigger button makes the "smart" part of this skin discoverable
-    // instead of hidden, same a11y-correct <button>-via-add_node pattern
-    // as the theme toggle right next to it.
+    // Visible trigger for the Cmd/Ctrl+K command palette, plus the
+    // light/dark toggle (admin-skin.js handles both).
     $wp_admin_bar->add_node([
         'id' => 'shsas-palette-trigger',
-        // Empty span, not a unicode glyph — the artwork is a CSS mask
-        // (Lucide search icon) so it matches every other icon in the UI
-        // rather than being whatever the system font renders for U+26B2.
+        // Icon artwork is a CSS mask on the empty span.
         'title' => '<span class="shsas-palette-trigger-icon" aria-hidden="true"></span><span class="shsas-palette-trigger-label">Jump to&hellip;</span><kbd class="shsas-palette-trigger-kbd" aria-hidden="true">&#8984;K</kbd>',
         'href' => '#',
         'meta' => ['class' => 'shsas-palette-trigger', 'title' => 'Jump to any admin page (Cmd/Ctrl+K)'],
     ]);
     $wp_admin_bar->add_node([
         'id' => 'shsas-theme-toggle',
-        // Empty span for the same reason as the palette trigger above —
-        // the sun/moon artwork is a CSS mask keyed off
-        // :root[data-shsas-theme], so it swaps with the theme
-        // automatically and matches the rest of the icon set.
+        // Sun/moon mask keyed off :root[data-shsas-theme].
         'title' => '<span class="shsas-toggle-icon" aria-hidden="true"></span><span class="screen-reader-text">Toggle light/dark admin theme</span>',
         'href' => '#',
         'meta' => ['class' => 'shsas-theme-toggle', 'title' => 'Toggle light/dark admin theme'],
@@ -399,9 +220,8 @@ function shsas_flatten_admin_menu(): array {
     $items = [];
 
     foreach ((array) $menu as $item) {
-        // Core's own $menu rows: [0]=label (may carry a <span> update-count
-        // badge), [2]=slug/url, [4]=css classes — a separator row's [4]
-        // contains 'wp-menu-separator' and has no real label, skip it.
+        // $menu rows: [0]=label (may include a count badge), [2]=slug,
+        // [4]=classes; skip separators.
         if (empty($item[0]) || (isset($item[4]) && strpos((string) $item[4], 'wp-menu-separator') !== false)) continue;
         $label = trim(wp_strip_all_tags((string) $item[0]));
         if ($label === '') continue;
@@ -420,10 +240,8 @@ function shsas_flatten_admin_menu(): array {
 
 function shsas_menu_url(string $slug): string {
     if ($slug === '') return '';
-    // A real top-level page slug (no '.php', no query string) resolves
-    // to admin.php?page=<slug> — the same fallback menu_page_url()
-    // itself uses internally; anything else (edit.php?post_type=..., a
-    // plain *.php core screen) is already a real, relative admin URL.
+    // A bare page slug maps to admin.php?page=<slug> (as menu_page_url()
+    // does); anything with .php or a query is already a relative admin URL.
     if (strpos($slug, '.php') === false && strpos($slug, '?') === false) {
         return admin_url('admin.php?page=' . $slug);
     }
@@ -431,12 +249,8 @@ function shsas_menu_url(string $slug): string {
 }
 
 /**
- * The opt-in counterpart to native-by-default (2026-08-25): a single
- * checkbox on Settings > General, WordPress's own long-standing home for
- * "site-wide behavior toggles that aren't really a whole settings page."
- * Deliberately NOT a new admin page -- see CLAUDE.md's own documented
- * incident history with add_submenu_page()/get_plugin_page_hook() on
- * this install before reaching for that again.
+ * Full-skin opt-in as a checkbox on Settings > General.
+ * WHY not its own admin page: see CLAUDE.md on add_submenu_page() failures here.
  */
 function shsas_register_full_skin_setting(): void {
     register_setting('general', 'shsas_full_skin', [

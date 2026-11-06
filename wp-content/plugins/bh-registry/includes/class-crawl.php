@@ -2,31 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Automatic discovery — an open, unauthenticated PULL/crawl model.
- * Replaces an earlier push+shared-secret design (shipped briefly as
- * 0.1.18, then redesigned): that design required two site admins to
- * manually exchange a secret before anything could flow, which not
- * only reintroduced the manual coordination this whole feature exists
- * to remove, but had a real, undiscovered bug (no way to make two
- * independently-generated secrets match) that would have kept it from
- * ever actually working bidirectionally. This design has no secret,
- * no privileged inbound endpoint, and no per-relationship setup step
- * at all beyond knowing a peer's base_url.
+ * Open, unauthenticated pull/crawl discovery: fetch each peer's public manifest and follow its known_peers.
  *
- * Three ways a candidate base_url can enter this site's bhr_peers
- * table — a manually-added genesis peer, an ActivityPub relay hit, or
- * a search-index hit (both of the latter still real, separate,
- * larger pieces of work, not built here) — all funnel into the exact
- * same table and the exact same crawl/ingest/verify loop below. No
- * layer gets its own parallel trust tier.
- *
- * Trust model, unchanged from the original design and from manual
- * submission before it: this class NEVER marks anything verified and
- * NEVER trusts a peer's claim about a candidate's status. A crawled
- * candidate is a thin pointer, inserted through the exact same
- * pending-row shape POST /submissions already writes, then queued for
- * this site's own independent BHR_Verification::verify_link() check —
- * completely unchanged, never bypassed, never sped up.
+ * WHY: this class never marks anything verified or trusts a peer's claim; crawled candidates are
+ * inserted as pending rows and queued for this site's own BHR_Verification::verify_link().
  */
 class BHR_Crawl {
     const MAX_LINKS_PER_MANIFEST = 50;
@@ -39,53 +18,15 @@ class BHR_Crawl {
     const MAX_SEED_ATTEMPTS = 30;
 
     /**
-     * Default bootstrap seeds. MULTIPLE on purpose — a single seed is
-     * a single point of failure for the entire cold-start path: if it
-     * is down (or gone) at the moment a new install first crawls, that
-     * install never joins the network. Bitcoin ships several DNS
-     * seeds and DNS itself has 13 root servers for precisely this
-     * reason; the cost of extra entries is nil and the failure mode
-     * they prevent is total.
-     *
-     * Seeds are tried in order and ANY single success is enough — they
-     * are alternates, not a set to be exhausted. Being listed here
-     * grants no authority and no trust whatsoever: a seed is crawled
-     * exactly like any other peer, and everything it offers is still
-     * independently verified by this site before it counts.
-     *
-     * Currently one real entry. The additional slots are deliberately
-     * left for genuine, reachable registries rather than filled with
-     * plausible-looking URLs that do not exist — a seed that 404s is
-     * worse than no seed, since it burns a retry and teaches nobody
-     * anything. Add more via the `bhr_bootstrap_seeds` filter, or here
-     * as the network grows real independent nodes.
+     * Default bootstrap seeds: alternates, any one success is enough; a seed confers no trust.
+     * Only add genuinely reachable registries (a 404ing seed burns a retry); see `bhr_bootstrap_seeds`.
      */
     const DEFAULT_SEEDS = [
         'https://billyhume.wasmer.app',
     ];
 
     /**
-     * Bootstrap seeds — the honest answer to "two sites that have never
-     * heard of each other should find each other with no setup."
-     *
-     * Nothing built from scratch by two isolated nodes can discover
-     * each other from nothing; SOMETHING has to be the first known
-     * point. Every real decentralized system solves this identically:
-     * BitTorrent ships default bootstrap nodes, Mastodon needs a known
-     * handle or relay, DNS has root servers. This is that, and it is
-     * deliberately the weakest possible form of it:
-     *
-     *   - It is a STARTING POINT, not an authority. A seed's only
-     *     power is to be crawled once, exactly like any other peer.
-     *   - It confers zero trust. Anything found through a seed is
-     *     re-verified locally by this site, same as everything else.
-     *   - It runs ONCE per install (bhr_bootstrap_seeded), so an admin
-     *     who deletes a seeded peer never has it silently reappear.
-     *   - It is filterable, so a fork, a private network, or a site
-     *     that wants no bootstrap at all can change or empty it.
-     *
-     * Once any single connection exists, the peer mesh takes over and
-     * seeds stop mattering — this only solves the cold-start moment.
+     * Cold-start seeds, filterable (empty the filter to disable bootstrap entirely).
      *
      * @return array<int, string>
      */
@@ -97,21 +38,9 @@ class BHR_Crawl {
     }
 
     /**
-     * Adds the bootstrap seeds, retrying until at least one actually
-     * lands. Runs on the normal daily crawl rather than on activation,
-     * so a site installed while offline still gets seeded on its first
-     * real crawl instead of silently never being seeded at all.
-     *
-     * The retry matters more than it looks: seeding is a ONE-SHOT
-     * moment that decides whether an install ever joins the network at
-     * all. An earlier version stamped "done" before trying, so an
-     * install whose first crawl happened during a seed outage — or
-     * before DNS/networking was ready on a fresh host — would be
-     * permanently orphaned, with no error anywhere and no way back
-     * except an admin manually adding a peer. Now it only marks itself
-     * done once a seed genuinely resolved and was added, and gives up
-     * permanently after MAX_SEED_ATTEMPTS so a site with no reachable
-     * seeds doesn't retry forever.
+     * Adds bootstrap seeds once per install, retried on each crawl until one lands (max MAX_SEED_ATTEMPTS).
+     * WHY: marks done only after success, so a seed outage at first crawl does not orphan the install;
+     * runs once so a seeded peer an admin deletes never silently reappears.
      */
     public static function maybe_seed_bootstrap(): void {
         if (get_option(self::SEEDED_OPTION)) return;
@@ -120,8 +49,7 @@ class BHR_Crawl {
         if ($attempts >= self::MAX_SEED_ATTEMPTS) return;
         update_option(self::SEED_ATTEMPTS_OPTION, $attempts + 1, false);
 
-        // Already peered by some other route (a manual add, a relay
-        // hit) — the cold-start problem seeds exist to solve is gone.
+        // Already peered by another route; no cold-start problem to solve.
         global $wpdb;
         $existing = (int) $wpdb->get_var("SELECT COUNT(*) FROM " . BHR_Tables::peers());
         if ($existing > 0) {
@@ -152,11 +80,7 @@ class BHR_Crawl {
 
     /* ---------- inbound: serving our own manifest ---------- */
 
-    // Open, __return_true — matches every other read route in this
-    // namespace. Nothing here is privileged: it's this site's own
-    // already-public verified-artist data, plus the base_urls of peers
-    // this site has already chosen to crawl (themselves public
-    // information once you're crawling this site at all).
+    // Public by design: only already-public verified links and active peer base_urls.
     public static function handle_manifest(\WP_REST_Request $req): \WP_REST_Response {
         global $wpdb;
 
@@ -177,7 +101,7 @@ class BHR_Crawl {
         return new WP_REST_Response([
             'base_url' => home_url(),
             'registry_version' => defined('BHR_VER') ? BHR_VER : '',
-            'peer_protocol_version' => 2, // bumped from 1 — this is a new, incompatible wire shape (manifest, not announce)
+            'peer_protocol_version' => 2, // v2 = manifest wire shape, incompatible with v1
             'verified_links' => array_map(function ($l) {
                 return [
                     'protocol'      => $l->protocol,
@@ -192,24 +116,14 @@ class BHR_Crawl {
 
     /* ---------- outbound: crawling known peers ---------- */
 
-    // Daily cron target — enqueues one job per active peer rather than
-    // crawling all of them inline, same staggering convention the rest
-    // of this ecosystem uses for fan-out-shaped work.
     /**
-     * @param bool $immediate Run every peer inline instead of queueing.
-     *        The scheduled daily run queues (so one slow/hanging peer
-     *        can't stall the rest, and the queue's own retry/backoff
-     *        applies). An admin clicking "Crawl peers now" means NOW —
-     *        queueing there would show "ran" while nothing visibly
-     *        changed until the next cron tick, which is exactly the
-     *        kind of quietly-lying UI this project tries not to ship.
+     * Daily cron target: enqueues one staggered job per active peer so a hanging peer can't stall the rest.
+     *
+     * @param bool $immediate Run every peer inline instead of queueing (the admin "Crawl peers now" button).
      */
     public static function crawl_all_peers(bool $immediate = false): void {
         global $wpdb;
 
-        // Cold start: on the very first crawl an install has no peers
-        // at all, so there is nothing to crawl and discovery could
-        // never begin. Seeding here (once) is what closes that gap.
         self::maybe_seed_bootstrap();
 
         $peers = $wpdb->get_results("SELECT id FROM " . BHR_Tables::peers() . " WHERE status = 'active'");
@@ -225,9 +139,7 @@ class BHR_Crawl {
     }
 
     /**
-     * OUS_Jobs handler for 'bhr_crawl_one_peer'. Fetches one peer's
-     * manifest, ingests its verified links as candidates, and follows
-     * its known_peers list onward (hop-limited, capped, SSRF-guarded).
+     * OUS_Jobs handler: fetch one peer's manifest, ingest its links, follow known_peers (hop-limited).
      *
      * @param array<string, mixed> $args
      */
@@ -241,11 +153,7 @@ class BHR_Crawl {
         if (!$peer || $peer->status !== 'active') return;
 
         if (!self::is_safe_external_url($peer->base_url)) {
-            // A peer's own base_url should have been validated at
-            // add-time, but re-check on every crawl too — DNS can
-            // change after the fact (a real, if unlikely, way a
-            // previously-safe URL could start resolving to a private
-            // address later).
+            // WHY: re-checked every crawl because DNS can later resolve to a private address.
             self::record_crawl_failure($peer);
             return;
         }
@@ -298,9 +206,7 @@ class BHR_Crawl {
     }
 
     /**
-     * One candidate from a fetched manifest. Never verifies inline —
-     * only ever queues this site's own independent verification, same
-     * as before.
+     * One candidate from a fetched manifest; only queues this site's own verification.
      *
      * @param mixed $candidate
      */
@@ -338,9 +244,7 @@ class BHR_Crawl {
         $artists_t = BHR_Tables::artists();
         $links_t   = BHR_Tables::links();
 
-        // Gossip never carries contact_email, so unlike create_submission()
-        // there's no email-based artist dedup — every newly-seen
-        // candidate is its own new artist row.
+        // Gossip carries no contact_email, so there is no email dedup: each candidate is a new artist row.
         if (!$wpdb->insert($artists_t, ['display_name' => $display_name ?: 'Unknown artist', 'status' => 'pending'])) return;
         $artist_id = (int) $wpdb->insert_id;
 
@@ -370,12 +274,7 @@ class BHR_Crawl {
 
     /* ---------- peer auto-discovery (any layer feeds this one function) ---------- */
 
-    /**
-     * Called with a candidate base_url discovered via ANY of the three
-     * layers (a peer's own known_peers list, an ActivityPub relay
-     * Announce, or a search-index hit) — one shared entry point, one
-     * shared set of safety checks, regardless of source.
-     */
+    /** Single entry point (crawl, relay, seed) for adding a discovered peer, with shared safety checks. */
     public static function maybe_add_discovered_peer(string $base_url, int $discovered_hop): bool {
         $base_url = self::normalize_base_url($base_url);
         if (!$base_url || !wp_http_validate_url($base_url)) return false;
@@ -390,10 +289,7 @@ class BHR_Crawl {
         $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM $peers_table");
         if ($total >= self::MAX_TOTAL_PEERS) return false;
 
-        // Confirm it's actually a live, real bh-registry install before
-        // adding — same "fail closed" principle the old manual Add Peer
-        // flow already used, now applied automatically instead of by an
-        // admin clicking a button.
+        // Fail closed: only add a live bh-registry install that serves a manifest.
         $res = wp_remote_get($base_url . '/wp-json/bhr/v1/peers/manifest', ['timeout' => 8, 'redirection' => 2]);
         if (is_wp_error($res) || wp_remote_retrieve_response_code($res) !== 200) return false;
         $body = json_decode(wp_remote_retrieve_body($res), true);
@@ -432,13 +328,8 @@ class BHR_Crawl {
     }
 
     /**
-     * SSRF guard — the real, new attack surface this pull/crawl
-     * redesign introduces versus the old design: this class now
-     * fetches URLs a REMOTE PEER merely claims exist (its known_peers
-     * list), not just URLs a local admin chose. Resolves the host and
-     * rejects anything in a private/loopback/link-local/reserved
-     * range, plus any non-http(s) scheme. Checked before every single
-     * outbound request this class makes to a peer-supplied URL.
+     * SSRF guard for peer-supplied URLs: rejects non-http(s) schemes and hosts resolving to
+     * private/loopback/link-local/reserved ranges. Check before every outbound fetch.
      */
     public static function is_safe_external_url(string $url): bool {
         $parts = wp_parse_url($url);
@@ -450,18 +341,12 @@ class BHR_Crawl {
             $ip = $host;
         } else {
             $resolved = gethostbyname($host);
-            // gethostbyname() returns the original hostname unchanged
-            // on resolution failure — treat that as unsafe rather than
-            // silently letting an unresolvable host through.
+            // gethostbyname() returns the input unchanged on failure; treat as unsafe.
             if ($resolved === $host) return false;
             $ip = $resolved;
         }
 
-        // FILTER_FLAG_NO_PRIV_RANGE + FILTER_FLAG_NO_RES_RANGE together
-        // reject RFC1918 private ranges, loopback, link-local, and
-        // other reserved blocks for both IPv4 and IPv6 in one call —
-        // exactly the set that matters for SSRF (internal services,
-        // cloud metadata endpoints like 169.254.169.254, etc.).
+        // Rejects RFC1918, loopback, link-local (incl. 169.254.169.254 metadata) and reserved, v4 and v6.
         return (bool) filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
     }
 }

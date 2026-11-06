@@ -2,35 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Ecosystem depth-pass Tier 2 — email broadcast/campaigns, the last of
- * the four marketing gaps VISION.md named. OUS_Notifications' email
- * channel is one-to-one/event-triggered (a course finished, an order
- * refunded) — wrong shape for "email everyone in tier X," which is what
- * this class is for.
- *
- * Segments are LIVE queries, evaluated at send time, not a snapshot list
- * frozen at creation — same "authoritative source, no denormalized
- * counter that can drift" convention this ecosystem already uses for
- * enrollment counts and wallet balances (AJ's explicit call on this one,
- * ecosystem depth-pass Tier 2). A campaign scheduled for later sends to
- * whoever is ACTUALLY in the segment when it goes out.
- *
- * Segments are zero-central-registration, same shape as
- * `bhi_portal_panels`/`bhcore_metrics_widgets`: any plugin adds one via
- * the `bhcore_campaign_segments` filter —
- *
- *     add_filter('bhcore_campaign_segments', function ($segments) {
- *         $segments['my_segment'] = [
- *             'label' => 'People who did X',
- *             'user_ids' => function () { return [...]; },
- *         ];
- *         return $segments;
- *     });
- *
- * Sending reuses OUS_Jobs (one job per recipient) rather than a
- * synchronous mail loop in the request that clicks "Send" — the exact
- * bug class this session's own event-tracking work already fixed once
- * in bh-contest.
+ * Email broadcast campaigns ("email everyone in segment X"); the
+ * one-to-one event emails live in OUS_Notifications.
+ * Segments are LIVE queries evaluated at send time, never a stored list.
+ * Plugins add segments via the `bhcore_campaign_segments` filter:
+ *   $segments['key'] = ['label' => '...', 'user_ids' => fn () => [...]];
+ * Sending is one OUS_Jobs job per recipient, not a loop in the request.
  */
 class OUS_Campaigns {
     public static function init(): void {
@@ -68,10 +45,8 @@ class OUS_Campaigns {
     }
 
     public static function add_menu(): void {
-        // Same working parent ('the-self-hosted-self') the Roles/Metrics/Security
-        // submenus already use without issue — VISION.md's own documented
-        // get_plugin_page_hook() failure was isolated to submenus
-        // registered under the 'ous-debug' parent specifically.
+        // WHY: stays under the 'ous' parent; submenus under 'ous-debug' have
+        // hit get_plugin_page_hook() failures.
         add_submenu_page('ous', 'Campaigns', 'Campaigns', 'manage_options', 'ous-campaigns', [self::class, 'render']);
     }
 
@@ -87,11 +62,7 @@ class OUS_Campaigns {
         return (int) $wpdb->insert_id;
     }
 
-    // The live recipient list is computed HERE, at send time, and never
-    // stored — only the resulting per-recipient jobs are. This is what
-    // makes the segment a live query rather than a snapshot: rerunning
-    // send_now() later (a different campaign, or a resend) would compute
-    // a different, currently-accurate list.
+    // Recipients are computed here at send time and never stored.
     /** @return true|\WP_Error */
     public static function send_now(int $campaign_id) {
         global $wpdb;
@@ -103,7 +74,7 @@ class OUS_Campaigns {
         if (!$segment || !is_callable($segment['user_ids'])) return new WP_Error('bad_segment', 'That segment no longer exists.');
 
         $user_ids = array_unique(array_map('intval', call_user_func($segment['user_ids'])));
-        $user_ids = array_filter($user_ids); // drop any 0/falsy entries a segment callback might return
+        $user_ids = array_filter($user_ids);
 
         $wpdb->update(self::table(), [
             'status' => 'sending', 'total_recipients' => count($user_ids), 'sent_at' => current_time('mysql'),
@@ -119,9 +90,7 @@ class OUS_Campaigns {
                 OUS_Jobs::enqueue('bhcore_send_campaign_email', ['campaign_id' => $campaign_id, 'user_id' => $user_id]);
             }
         } else {
-            // No job queue active — fail toward sending anyway (same
-            // posture OUS_Notifications::notify() takes) rather than
-            // silently dropping a campaign an admin explicitly sent.
+            // No job queue: send inline rather than drop an explicit send.
             foreach ($user_ids as $user_id) {
                 self::send_one(['campaign_id' => $campaign_id, 'user_id' => $user_id]);
             }
@@ -129,11 +98,8 @@ class OUS_Campaigns {
         return true;
     }
 
-    // The job queue's own per-recipient send. A user who globally opted
-    // out of email (the same 'bhcore_notifications_email_optout' flag
-    // Tier 1b's per-notification-type preferences already respect) is
-    // honored here too — one "stop emailing me entirely" switch, not two
-    // separate unsubscribe mechanisms a person has to find and use twice.
+    // Per-recipient job. Honors the global email opt-out flag shared with
+    // OUS_Notifications.
     /** @param array<string, mixed> $args */
     public static function send_one($args): void {
         global $wpdb;
@@ -160,11 +126,8 @@ class OUS_Campaigns {
             }
         }
 
-        // sent_count still increments for an opted-out recipient — this
-        // is "processed," not "delivered," so total_recipients ==
-        // sent_count still means the send run is genuinely finished, not
-        // stuck forever waiting for a count that opted-out users will
-        // never contribute to.
+        // Counts "processed", not "delivered", so opted-out users still let
+        // the run reach total_recipients.
         $wpdb->query($wpdb->prepare("UPDATE " . self::table() . " SET sent_count = sent_count + 1 WHERE id = %d", $campaign_id));
 
         $updated = $wpdb->get_row($wpdb->prepare("SELECT sent_count, total_recipients FROM " . self::table() . " WHERE id = %d", $campaign_id), ARRAY_A);
@@ -269,12 +232,10 @@ class OUS_Campaigns {
         $rows = [];
 
         $recipient = OUS_Debug::get_or_create_test_user('ous_campaign_suite_recipient', false);
-        delete_user_meta($recipient, 'bcore_notifications_email_optout'); // typo-guard: ensure the REAL key below starts clean
+        delete_user_meta($recipient, 'bcore_notifications_email_optout');
         delete_user_meta($recipient, 'bhcore_notifications_email_optout');
 
-        // A fake, single-user segment registered ONLY for this test run —
-        // proves the filter-based extension mechanism actually works
-        // end-to-end, not just that the built-in segment does.
+        // Test-only segment, proving the filter extension point end to end.
         $capture = ['sent' => 0];
         $add_segment = function ($segments) use ($recipient) {
             $segments['ous_campaign_suite_segment'] = [
@@ -298,29 +259,18 @@ class OUS_Campaigns {
         $rows[] = OUS_TestRunner::assert_same(1, (int) $enqueued['total_recipients'], 'send_now() resolves the live segment to exactly 1 recipient');
         $rows[] = OUS_TestRunner::assert_same('sending', $enqueued['status'], 'send_now() only ENQUEUES the per-recipient job and moves to "sending" — it never sends synchronously in the request that clicked Send');
 
-        // send_one() is the job queue's own per-recipient handler —
-        // whether OUS_Jobs' actual queue is backed by Action Scheduler
-        // (async, processed on its own schedule) or the plain wpdb
-        // fallback, that's OUS_Jobs' OWN concern to guarantee, already
-        // covered by its own test suite. What THIS suite verifies is
-        // send_one()'s contract once it does run: does it actually
-        // deliver, count correctly, and flip the campaign to "sent" —
-        // so it's called directly here rather than depending on a real
-        // queue draining on this exact request.
+        // send_one() is called directly to test its contract without
+        // depending on the queue draining in this request.
         self::send_one(['campaign_id' => $campaign_id, 'user_id' => $recipient]);
         $after = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table() . " WHERE id = %d", $campaign_id), ARRAY_A);
         $rows[] = OUS_TestRunner::assert_same('sent', $after['status'], 'Status becomes "sent" once every enqueued recipient has actually been processed');
         $rows[] = OUS_TestRunner::assert_same(1, (int) $after['sent_count'], 'sent_count reflects exactly one processed recipient');
 
-        // Draft-only guard — a campaign already sent (or sending) can't
-        // be re-triggered by calling send_now() again.
         $resend = self::send_now($campaign_id);
         $rows[] = OUS_TestRunner::assert_true(is_wp_error($resend), 'send_now() on an already-sent campaign is rejected, not silently resent');
 
-        // Opt-out is honored — recipient still gets counted as
-        // "processed" but wp_mail() is skipped (can't assert wp_mail was
-        // NOT called without a mock; assert the counting contract
-        // instead, which is the part this class actually controls).
+        // Opt-out: can't assert wp_mail() was skipped without a mock, so
+        // assert the counting contract instead.
         update_user_meta($recipient, 'bhcore_notifications_email_optout', '1');
         $campaign_id_2 = self::create('Test subject 2', 'Test body 2', 'ous_campaign_suite_segment', $recipient);
         self::send_now($campaign_id_2);

@@ -1,18 +1,7 @@
-// bh-live's real-time chat Worker, deployed to the user's own Cloudflare
-// account by BHL_WorkersChat::deploy() via Cloudflare's Workers script-
-// upload API (PUT /accounts/{id}/workers/scripts/{name}). Runs entirely
-// on Cloudflare's edge, independent of this WordPress install.
-//
-// v1 scope, stated honestly: this is an ANONYMOUS, UNMODERATED chat —
-// there is no bridge from WordPress's own login/capability system into
-// this Worker (that would need a signed token WordPress mints and this
-// script verifies, real future work, not built here). Anyone with the
-// room's URL can post under a self-chosen name. If real WP-identity-
-// aware moderation matters more than the free/built-in BHL_PollingChat's
-// ~2-4s delay, that tradeoff should weigh against choosing this option.
-//
-// One ChatRoom Durable Object instance per bh-live stream (looked up by
-// stream_id via idFromName), so different streams' chats never cross.
+// bh-live's real-time chat Worker, deployed to the user's Cloudflare account by
+// BHL_WorkersChat::deploy(). Anonymous and unmoderated: there is no bridge from
+// WordPress identity, and anyone with the room URL can post under any name.
+// One ChatRoom Durable Object per stream (idFromName(stream_id)).
 
 const CHAT_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;font-family:-apple-system,sans-serif;background:#18181b;color:#fff;">
@@ -81,12 +70,7 @@ export class ChatRoom {
     this.sessions.push(server);
 
     server.addEventListener('message', (msg) => {
-      // Relay-only, no history buffer kept server-side in v1 — a
-      // viewer who joins mid-conversation only sees new messages from
-      // that point on, same limitation BHL_PollingChat's own history
-      // (a real DB table) doesn't have. A future version could persist
-      // recent messages in the Durable Object's own storage if that
-      // gap matters enough to close.
+      // Relay only; no server-side history, so late joiners see only new messages.
       for (const s of this.sessions) {
         try { s.send(msg.data); } catch (e) { /* a stale/closed session — drop it below on its own close event */ }
       }

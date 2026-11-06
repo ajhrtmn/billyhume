@@ -2,12 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Registry contribution only — bh-live's actual settings UI lives
- * inside OUS_MediaWizard (the-self-hosted-self/includes/class-media-wizard.php),
- * not a separate admin screen, per the "one place for setup" call in
- * wondrous-mixing-forest.md: live-engine setup is one more step in the
- * same wizard that already handles storage/CDN, not a second onboarding
- * flow to discover.
+ * bh-live's engine settings live in OUS_MediaWizard; this adds the registry entry,
+ * the OBS Automation page, and the stream metaboxes.
  */
 class BHL_Admin {
     public static function init(): void {
@@ -18,11 +14,7 @@ class BHL_Admin {
         add_action('admin_menu', [self::class, 'add_automation_page']);
     }
 
-    // Broadcaster-level, not per-stream — a submenu page rather than a
-    // second wizard step, since OUS_MediaWizard's own "one place for
-    // setup" call (see class docblock above) covers engine/host/chat
-    // choice, not a per-user OBS connection + rule list a broadcaster
-    // will come back and edit repeatedly.
+    // Per-broadcaster OBS settings and rules, edited repeatedly, so a page rather than a wizard step.
     public static function add_automation_page(): void {
         add_submenu_page('edit.php?post_type=bhl_stream', 'OBS Automation', 'OBS Automation', 'edit_posts', 'bhl-obs-automation', [self::class, 'render_automation_page']);
     }
@@ -177,14 +169,8 @@ class BHL_Admin {
     }
 
     /**
-     * ROADMAP-obs-integration.md Phase 1 — the URLs a broadcaster pastes
-     * into an OBS Browser Source, plus a live health check so "is OBS
-     * actually able to pull this" is answered here instead of guessed
-     * at (the #1 documented StreamElements complaint this was scoped to
-     * avoid). Votes overlay needs a contest slug/id typed in by hand —
-     * bhl_stream has no stored link to a bh-contest post, so this stays
-     * a plain input rather than a new meta field for a v1 that may
-     * never need one.
+     * OBS Browser Source URLs plus a live health check. The votes overlay takes a
+     * hand-typed contest slug/id (bhl_stream has no stored contest link).
      */
     public static function render_overlays_metabox(\WP_Post $post): void {
         $chat_url = rest_url('bhl/v1/overlay/' . $post->ID . '/chat');
@@ -243,18 +229,8 @@ class BHL_Admin {
     }
 
     /**
-     * The one manual step in bh-live's whole VOD story. Owncast's own
-     * recording-to-file feature (a real, documented Owncast setting)
-     * writes the finished recording to THAT server's own local disk —
-     * its public API has no endpoint to fetch that file remotely, so
-     * there is no honest way to auto-import it into this WordPress
-     * install without either direct filesystem/SFTP access to the
-     * Owncast box (out of scope for a "thin integration" plugin) or a
-     * custom upload step Owncast itself doesn't provide. Until that
-     * changes, whoever runs the Owncast server downloads the finished
-     * recording and uploads it here — same real wp.media video-type
-     * picker bh-video's own admin metabox already uses, so at least
-     * the WordPress-side half of this is exactly as easy as it can be.
+     * Manual replay attachment: Owncast records to its own disk and its API cannot
+     * fetch the file, so the operator uploads the recording here.
      */
     public static function render_replay_metabox(\WP_Post $post): void {
         wp_nonce_field('bhl_save_replay', 'bhl_replay_nonce');

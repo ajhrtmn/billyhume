@@ -2,20 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * bhso_platform_stats and bhso_ad_campaigns are real tables (not
- * postmeta) because both need querying/trending across platforms and
- * over time — the same "queried across X, has a real lifecycle"
- * reasoning this ecosystem already uses elsewhere for
- * bhf_.../bhm_wallet_ledger-shape tables. OAuth credentials/tokens are
- * NOT in either table — they stay in wp_options, one option per
- * platform (bhso_youtube_settings, ...), matching bh-live's
- * BHL_FlyProvisioner::settings() convention exactly (including "blank
- * field keeps existing secret").
+ * Creates bhso_platform_stats and bhso_ad_campaigns. OAuth credentials live in
+ * one wp_options entry per platform (bhso_{platform}_settings), not these tables.
  */
 class BHSO_Activator {
-    // 1.1 (0.3.0): added bhso_ad_campaigns for the BH_AdsPlatform group
-    // (Roku/Spotify/Amazon DSP/Samsung/Vizio) — draft-capture-plus-
-    // handoff campaign plans, distinct from bhso_platform_stats.
     const DB_VERSION = '1.1';
 
     public static function activate(): void {

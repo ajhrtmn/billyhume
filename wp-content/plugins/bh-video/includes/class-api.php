@@ -2,13 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Read-only public catalog API, mirroring BHS_API's shape
- * (bh-streaming/includes/class-api.php) — /bhv/v1/videos (list) and
- * /bhv/v1/videos/{id} (single). No play-count/likes/monetization-gate
- * concepts yet — those exist for audio because a monetization plugin
- * already gates them there; add the same 'bhv_video_access_allowed'
- * extension point later if/when bh-monetization-woo grows a video
- * gating story, following bhs_track_access_allowed's exact shape.
+ * Read-only public catalog API: /bhv/v1/videos and /bhv/v1/videos/{id}, mirroring BHS_API's shape.
  */
 class BHV_API {
     public static function register_routes(): void {

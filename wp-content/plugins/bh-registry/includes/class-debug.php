@@ -1,20 +1,9 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// BHR_VER 0.1.4 — register() now sets 'group' => OUS_Debug::GROUP_SEED_RESET
-// (the-self-hosted-self's Debug Tools reorganization pass — see that plugin's
-// class-debug.php docblock), filing this section under "Seed & Reset
-// Tools" instead of the default bucket. No other change.
 
 /**
- * Registers this plugin's section on the core's shared Debug Tools page
- * — same extension point bh-contest and bh-streaming already use.
- * Seeds a handful of fake, already-verified artists/links (skipping the
- * real network-fetch verification checks entirely, since seed data is
- * for exercising the browse/search UI and admin queue, not for testing
- * the verification network calls themselves) tagged so "Reset
- * Everything" can find and remove them regardless of which plugin
- * created them.
+ * Debug Tools section: seeds tagged, pre-verified fake artists/links (no network checks) for UI testing.
  */
 class BHR_Debug {
     const SEED_TAG = '__bhr_seed__';

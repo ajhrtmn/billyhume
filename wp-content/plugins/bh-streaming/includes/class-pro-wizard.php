@@ -2,44 +2,25 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * PRO (Performing Rights Organization) registration — a guided links-
- * plus-storage flow, scoped and named in this plugin's own README.
- *
- * Deliberately NOT the same shape as OUS_MediaWizard: that wizard can
- * do live, real credential validation (an actual S3 headBucket() call)
- * because it's wrapping an API. A PRO has no public membership-
- * verification API — ASCAP/BMI don't expose "is this IPI number real"
- * as a service, and SESAC/GMR are invitation-only and don't even have
- * a self-serve signup page to link to. So this is honestly a THINNER
- * tool than the media wizard: explain the landscape, link out to each
- * PRO's own real site (verified live before writing this, not
- * guessed), and give the artist a place to record their own
- * affiliation once they've done that elsewhere. No "test connection"
- * step exists here because there's nothing this code can verify.
- *
- * Stores a single site option (bhs_pro_affiliation) rather than a
- * per-track/per-user record — PRO affiliation is a fact about the
- * RIGHTS HOLDER (the artist running this site), not about any one
- * recording, matching how ISRC (per-track, BHS_ISRC) and PRO
- * affiliation (site-wide) are genuinely different shapes of fact.
+ * PRO (Performing Rights Organization) registration: a guided links-plus-
+ * storage flow. PROs expose no verification API, so there is no "test
+ * connection" step. Affiliation is a site-wide fact about the rights holder,
+ * stored in the bhs_pro_affiliation option.
  */
 class BHS_PROWizard {
     const PROS = [
         'ascap' => [
             'name' => 'ASCAP',
             'open' => true,
-            // Audit fix (2026-07-25): tried to verify a direct join-page
-            // URL the same way bmi.com's was confirmed below — ascap.com
-            // blocks automated fetches (403), so this stays the homepage
-            // rather than risk shipping a guessed deep link. The note
-            // text below points to where to look instead.
+            // ascap.com blocks automated fetches, so a direct join URL couldn't be
+            // verified; link the homepage and point to it in the note.
             'url' => 'https://www.ascap.com',
             'note' => 'Open direct signup for songwriters — look for "Join" or "Membership" in their site nav. A one-time application fee applies (historically around $50, confirm current pricing on their site).',
         ],
         'bmi' => [
             'name' => 'BMI',
             'open' => true,
-            // Verified live 2026-07-25 — bmi.com's own nav labels this exact URL "Join BMI".
+            // bmi.com labels this URL "Join BMI"
             'url' => 'https://www.bmi.com/creators#join',
             'note' => 'Open direct signup for songwriters, free to join.',
         ],
@@ -75,15 +56,8 @@ class BHS_PROWizard {
         add_action('admin_post_bhs_export_royalty_report', [self::class, 'handle_export_royalty_report']);
     }
 
-    // A CSV export for a PRO/MLC royalty claim, built from
-    // bh-monetization-woo's anchored purchase ledger (ROADMAP-
-    // streaming-media-scope-and-blockchain.md Part 2's "the real
-    // integration is a report, not an API" conclusion — no PRO exposes
-    // a submission API, they all just want a usage report attached to a
-    // manual claim). Deliberately guarded, not a hard dependency: this
-    // whole page already works with no bh-monetization-woo installed,
-    // this export just doesn't appear until there's ledger data to
-    // export.
+    // CSV usage report for a PRO/MLC royalty claim, built from
+    // bh-monetization-woo's purchase ledger. Only shown when ledger data exists.
     /**
      * bh-monetization-woo is optional to this plugin, so every read of its
      * ledger is guarded at call time, never at file-parse time.
@@ -122,11 +96,8 @@ class BHS_PROWizard {
         exit;
     }
 
-    // Guards against CSV/formula injection (a track title or affiliation
-    // name starting with =, +, -, @, tab, or CR would otherwise be
-    // interpreted as a formula by Excel/Sheets when this file is opened) —
-    // this export is explicitly meant to be forwarded to a third-party
-    // PRO/MLC, so a malicious track title is a real cross-trust-boundary risk.
+    // WHY: guards against CSV formula injection (=, +, -, @, tab, CR); the
+    // export is forwarded to a third party.
     /** @param mixed $value */
     private static function csv_safe($value): string {
         $value = (string) $value;
@@ -137,26 +108,12 @@ class BHS_PROWizard {
     }
 
     public static function add_menu(): void {
-        // Was parented under 'the-self-hosted-self' — same reasoning as ISRC
-        // Registrant's own move (class-isrc.php): a rights-registration
-        // tool specific to this plugin's own tracks belongs with the
-        // rest of Streaming's own admin surface, not the cross-cutting
-        // ecosystem hub.
+        // Lives under Streaming's admin menu, not the ecosystem hub.
         add_submenu_page(BHS_PostTypes::MENU_PARENT, 'PRO Registration', 'PRO Registration', 'manage_options', 'bhs-pro-wizard', [self::class, 'render']);
     }
 
-    // Audit fix (2026-07-25) — restructured from one long page into a
-    // real step-by-step flow (pick PRO -> confirm/register elsewhere ->
-    // record affiliation), matching this ecosystem's "it just works"
-    // wizard convention: one plain-language question per screen. The "no
-    // verification API" limitation documented in this class's own
-    // docblock only excuses skipping a live "test connection" step, not
-    // skipping step-by-step structure entirely — those are two separate
-    // things this used to conflate. An already-affiliated artist (or one
-    // who wants to skip straight to the raw settings, per this
-    // ecosystem's own "wizard is an on-ramp, not a wall" rule) lands on
-    // the status/settings view directly rather than being forced back
-    // through steps 1-2 every time.
+    // Step-by-step flow (pick PRO -> register elsewhere -> record affiliation).
+    // An already-affiliated artist lands on the status/settings view instead.
     public static function render(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['response' => 403, 'back_link' => true]);
 
@@ -180,17 +137,14 @@ class BHS_PROWizard {
         } elseif ($step === 3 && $picked_pro) {
             self::render_step_record($picked_pro, $current);
         } else {
-            // Landing view for someone who already has an affiliation on
-            // file — the settings underneath the wizard, reachable
-            // directly, plus a way back into the guided flow to change it.
+            // Already affiliated: settings view plus a way back into the guided flow.
             self::render_status_and_settings($current);
         }
 
         echo '</div>';
     }
 
-    // Step 1: "Where do you want your PRO affiliation?" — one plain
-    // question, pick a card, nothing else on screen yet.
+    // Step 1: pick a PRO.
     private static function render_step_pick_pro(): void {
         $base = remove_query_arg(['step', 'pro'], admin_url('admin.php?page=bhs-pro-wizard'));
         echo '<h2>1. Pick a PRO</h2>';
@@ -205,8 +159,7 @@ class BHS_PROWizard {
         echo '</div>';
     }
 
-    // Step 2: "Go register with them" — explains what to do next and why
-    // (this tool can't do it for you), before asking for anything back.
+    // Step 2: explain how to register with them elsewhere.
     /** @param array<string, mixed> $current */
     private static function render_step_confirm(string $pro_key, array $current): void {
         $p = self::PROS[$pro_key];
@@ -221,8 +174,7 @@ class BHS_PROWizard {
         echo '<a href="' . esc_url(add_query_arg(['step' => 1], $base)) . '">&larr; Pick a different PRO</a></p>';
     }
 
-    // Step 3: the actual record-affiliation form, pre-filled with the
-    // PRO picked in step 1 — the one place this screen asks for anything.
+    // Step 3: record-affiliation form, pre-filled with the step 1 pick.
     /** @param array<string, mixed> $current */
     private static function render_step_record(string $pro_key, array $current): void {
         $base = remove_query_arg(['step', 'pro'], admin_url('admin.php?page=bhs-pro-wizard'));
@@ -248,10 +200,7 @@ class BHS_PROWizard {
         echo '</form>';
     }
 
-    // Landing view once an affiliation is already on file — the raw
-    // settings underneath the wizard, reachable directly (this
-    // ecosystem's "wizard is an on-ramp, not a wall" rule), plus the
-    // royalty export, plus a way back into the guided flow to change PRO.
+    // Status/settings view with the royalty export and a way to change PRO.
     /** @param array<string, mixed> $current */
     private static function render_status_and_settings(array $current): void {
         $base = remove_query_arg(['step', 'pro'], admin_url('admin.php?page=bhs-pro-wizard'));

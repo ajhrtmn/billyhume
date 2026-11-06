@@ -2,17 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_TestRunner suite for bh-registry — same convention as
- * bh-contest/bh-courses/bh-monetization-woo's own class-test-suite.php.
- * This plugin had ZERO test coverage before this pass, despite
- * class-verification.php being the actual trust mechanism the whole
- * registry depends on (domain-ownership + protocol-openness — see that
- * file's own docblock). Covers exactly that class, plus a fixture-based
- * end-to-end run of verify_link() against a real bhr_links row.
- *
- * HTTP calls (wp_remote_get()) are mocked via WordPress core's own
- * 'pre_http_request' filter — the standard, real short-circuit hook
- * every HTTP-calling plugin already respects, not a bespoke test seam.
+ * OUS_TestRunner suite for BHR_Verification, with HTTP mocked via the 'pre_http_request' filter.
  */
 class BHR_TestSuite {
     const SEED_TAG = 'bhr_test_suite';
@@ -49,7 +39,6 @@ class BHR_TestSuite {
         $rows = [];
         $check = new ReflectionMethod('BHR_Verification', 'check_domain_ownership');
 
-        // Exact-line token match, HTTP 200 — the success path.
         $filter = function () { return ['response' => ['code' => 200], 'body' => "some\nOTHERTOKEN123\nmore"]; };
         add_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_true(
@@ -58,11 +47,7 @@ class BHR_TestSuite {
         );
         remove_filter('pre_http_request', $filter, 10);
 
-        // Substring match must NOT pass — this is an exact-line match by
-        // design (this class's own docblock: "not a substring-of-
-        // arbitrary-page"). A regression here would let a page merely
-        // CONTAINING the token (e.g. embedded in unrelated text) count
-        // as proof of control.
+        // Exact-line match by design: a page merely containing the token is not proof of control.
         $filter = function () { return ['response' => ['code' => 200], 'body' => 'prefix-OTHERTOKEN123-suffix']; };
         add_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_false(
@@ -71,7 +56,6 @@ class BHR_TestSuite {
         );
         remove_filter('pre_http_request', $filter, 10);
 
-        // Right domain, wrong token — must fail, not just "any 200 passes".
         $filter = function () { return ['response' => ['code' => 200], 'body' => 'WRONGTOKEN']; };
         add_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_false(
@@ -80,9 +64,6 @@ class BHR_TestSuite {
         );
         remove_filter('pre_http_request', $filter, 10);
 
-        // A non-200 status (challenge file not published, or a redirect
-        // to an error page) must fail even if the body happens to be
-        // empty rather than throwing.
         $filter = function () { return ['response' => ['code' => 404], 'body' => '']; };
         add_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_false(
@@ -91,7 +72,6 @@ class BHR_TestSuite {
         );
         remove_filter('pre_http_request', $filter, 10);
 
-        // A WP_Error (DNS failure, timeout) must fail cleanly, not throw.
         $filter = function () { return new WP_Error('http_request_failed', 'Could not resolve host'); };
         add_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_false(
@@ -100,8 +80,6 @@ class BHR_TestSuite {
         );
         remove_filter('pre_http_request', $filter, 10);
 
-        // An unparseable URL (no host) must fail without ever attempting
-        // a request.
         $rows[] = OUS_TestRunner::assert_false(
             $check->invoke(null, 'not-a-url', 'OTHERTOKEN123'),
             'check_domain_ownership(): a URL with no parseable host correctly fails'
@@ -117,7 +95,6 @@ class BHR_TestSuite {
         $rows = [];
         $check = new ReflectionMethod('BHR_Verification', 'check_activitypub_actor');
 
-        // A real, spec-shaped actor document passes.
         $filter = function () {
             return ['response' => ['code' => 200], 'body' => wp_json_encode([
                 'type' => 'Person', 'name' => 'Test Artist', 'outbox' => 'https://example.test/outbox',
@@ -135,9 +112,7 @@ class BHR_TestSuite {
             'check_activitypub_actor(): metadata carries the actor\'s display name through'
         );
 
-        // Missing outbox must fail — this is the actual anti-spoofing
-        // check (this class's own docblock: "any recognized JSON blob"
-        // must NOT pass just by claiming a valid type).
+        // Missing outbox is the anti-spoofing check.
         $filter = function () {
             return ['response' => ['code' => 200], 'body' => wp_json_encode(['type' => 'Person', 'name' => 'No Outbox'])];
         };
@@ -149,9 +124,6 @@ class BHR_TestSuite {
             'check_activitypub_actor(): a "Person" type with NO outbox correctly fails (missing outbox is the actual spoof-prevention check)'
         );
 
-        // An unrecognized type must fail even with an outbox present —
-        // a regression that dropped/loosened $valid_types would let
-        // arbitrary JSON pass.
         $filter = function () {
             return ['response' => ['code' => 200], 'body' => wp_json_encode(['type' => 'NotAnActorType', 'outbox' => 'https://example.test/outbox'])];
         };
@@ -163,7 +135,6 @@ class BHR_TestSuite {
             'check_activitypub_actor(): an unrecognized "type" value correctly fails even with an outbox present'
         );
 
-        // Non-JSON / arbitrary body must fail without throwing.
         $filter = function () { return ['response' => ['code' => 200], 'body' => '<html>not json</html>']; };
         add_filter('pre_http_request', $filter, 10);
         $result = $check->invoke(null, 'https://example.test/actor');
@@ -201,11 +172,7 @@ class BHR_TestSuite {
         ]);
         $link_id = (int) $wpdb->insert_id;
 
-        // Both checks pass: domain ownership (well-known file has the
-        // token) AND the actor document is valid — verify_link() should
-        // mark the link verified, reset fail_count, and activate the
-        // artist (maybe_activate_artist()'s own "first verified link
-        // makes it public" rule).
+        // Both checks pass: expect verified, fail_count reset, artist activated.
         $filter = function ($preempt, $args, $url) use ($token) {
             if (strpos($url, '.well-known') !== false) {
                 return ['response' => ['code' => 200], 'body' => $token];
@@ -226,10 +193,7 @@ class BHR_TestSuite {
         $artist = $wpdb->get_row($wpdb->prepare("SELECT * FROM $artists_table WHERE id = %d", $artist_id));
         $rows[] = OUS_TestRunner::assert_same('active', $artist->status, 'verify_link(): a first verified link activates the previously-pending artist (maybe_activate_artist())');
 
-        // Ownership passes but the actor document is invalid (no
-        // outbox) — verify_link() must NOT verify on a partial pass
-        // (this class's own rule: BOTH checks must pass), and must
-        // increment fail_count from whatever it was.
+        // Partial pass (no outbox): expect failed and fail_count incremented.
         $wpdb->update($links_table, ['verification_status' => 'pending', 'fail_count' => 2], ['id' => $link_id]);
         $filter = function ($preempt, $args, $url) use ($token) {
             if (strpos($url, '.well-known') !== false) {
@@ -247,7 +211,6 @@ class BHR_TestSuite {
         $rows[] = OUS_TestRunner::assert_same('failed', $row->verification_status, 'verify_link(): a partial pass persists verification_status = failed, not verified');
         $rows[] = OUS_TestRunner::assert_same(3, (int) $row->fail_count, 'verify_link(): fail_count increments (not resets) on a failed re-check');
 
-        // Cleanup — real DB rows, no stray fixture data left behind.
         $wpdb->delete($links_table, ['id' => $link_id]);
         $wpdb->delete($artists_table, ['id' => $artist_id]);
 

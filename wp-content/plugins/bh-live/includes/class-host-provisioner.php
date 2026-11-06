@@ -2,17 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The abstraction the "which cloud runs the box" decision hinges on —
- * same posture as BHL_StreamEngine/BHL_Chat. Fly.io Machines is v1's
- * only implementation; a future BHL_DigitalOceanProvisioner (or
- * anything else with a real API) implements this same contract, so
- * swapping providers is a new class, not a rewrite of the wizard or
- * anything that calls provision()/destroy() today.
- *
- * Deliberately small: provision a box running the configured live-
- * engine image, check its current state, tear it down. Nothing here
- * knows anything about Owncast specifically — that's BHL_StreamEngine's
- * job once the box is up and its URL is in bhl_owncast_settings.
+ * Contract for provisioning the box that runs the live engine: provision, status,
+ * destroy. Engine-agnostic; BHL_StreamEngine takes over once the box is up.
  */
 interface BHL_HostProvisioner {
     public function is_configured(): bool;

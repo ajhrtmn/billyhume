@@ -1,65 +1,18 @@
 /**
- * Kanban board — vanilla JS, no build step (this ecosystem's standing
- * convention; see the-self-hosted-self/assets/js/element-builder.js for the
- * sibling REST-call/nonce pattern this file's api() helper is copied
- * from verbatim). Mounts into #bhcrm-kanban-board
- * (bh-crm/includes/class-projects.php's render_board()).
+ * Project kanban board, mounted into #bhcrm-kanban-board (BHCRM_Projects::render_board()).
  *
- * THIS IS A THIN PRESENTATION LAYER, NOT A PARALLEL DATA MODEL: every
- * read/write below goes through the EXISTING BH_Element REST bridge
- * (the-self-hosted-self's class-element.php) —
- *   GET  ous/v1/elements/placements/{surface}/{context_id}
- *   POST ous/v1/elements/placements/{surface}/{context_id}   (full-slot upsert, same as element-builder.js's "Save slot")
- *   DELETE ous/v1/elements/placements/{id}                    (true delete, for the card's own "Delete" action)
- * — no bh-crm-owned table stores card content anywhere; a card IS a
- * bh/sticky-card placement row, full stop. The "kanban column" a card
- * sits in is just its own config.attrs.column literal (see
- * class-projects.php's docblock for why that's a plain attr, not a
- * separate slot) — dragging a card to another column edits that one
- * attr client-side, then re-saves the WHOLE slot in the new order, the
- * same full-slot-upsert contract rest_save_placements() already defines.
- *
- * Recursive sub-task nesting (a card's own children) is NOT edited here
- * — a card's "Edit sub-tasks" link opens the EXISTING Content Studio
- * canvas (admin.php?page=bh-studio&context_type=bh_element&context_id=)
- * against that placement's content_context_id, exactly the way
- * element-builder.js's own inspector already tells a user to do for any
- * container element. Building a second, bespoke recursive-tree editor
- * inside this board was deliberately out of scope for this pass.
- *
- * Drag-and-drop uses SortableJS (assets/js/vendor/sortable.min.js,
- * MIT, vendored not npm — this ecosystem's no-build-step convention),
- * enqueued as this script's own dependency (class-projects.php's
- * maybe_enqueue()). Replaces an earlier hand-rolled HTML5 DnD
- * implementation (dragstart/dragover/drop) that only ever supported
- * dropping a card at the END of a column — no real same-column
- * reorder, and genuinely untested cross-browser/touch-device drag
- * behavior, exactly the risk a real drag library exists to absorb.
- * One Sortable instance per column list (`group: 'bhcrm-kanban'` lets
- * cards move between columns), `onEnd` rebuilds state.placements from
- * the live DOM order across every column and re-saves the whole slot —
- * same full-slot-upsert contract saveSlot() already uses everywhere
- * else in this file, so drag-reorder isn't a second write path.
- *
- * TypeScript pilot conversion — same posture as subtasks.ts (this
- * plugin's sibling multi-column Sortable board). Sortable and
- * BHCoreToast are untyped external globals; the placement row shape
- * mirrors the-self-hosted-self's BH_Element placement REST response loosely
- * (config.attrs values are either {literal: T} or {bind: string}).
+ * A card is a bh/sticky-card placement; all reads/writes go through core's
+ * ous/v1/elements/placements routes. Every edit (including drag) re-saves the
+ * whole 'board' slot in order; a card's column is its config.attrs.column literal.
+ * Drag-and-drop uses vendored SortableJS, one instance per column list.
  */
 
 interface SortableInstance {
     destroy(): void;
 }
 
-// SortableOptions/SortableApi and the `Sortable`/`BHCoreToast` globals
-// are declared once, in subtasks.ts — both files compile as part of the
-// same tsc program (module: "none" means shared global scope, same as
-// the plain <script> tags this compiles to), so redeclaring them here
-// would conflict rather than merge. Sortable.create()'s real return
-// value (a Sortable instance with .destroy()) is typed `unknown` over
-// there since that file never calls .destroy(); cast it locally instead
-// of widening the shared interface.
+// WHY: SortableApi and the Sortable/BHCoreToast globals are declared in subtasks.ts;
+// module "none" shares global scope, so redeclaring them here would conflict.
 
 interface BHCrmKanbanConfig {
     restUrl?: string;
@@ -115,12 +68,7 @@ interface BHPlacementsResponse {
         }).then((res) => {
             if (!res.ok) {
                 return res.json().catch(() => ({})).then((err: { message?: string }) => {
-                    // A 401/403 previously surfaced whatever generic
-                    // REST error text WordPress happened to send (or
-                    // none at all, falling back to "HTTP 403") — reads
-                    // like the SAVE failed, not that the admin's own
-                    // session/nonce went stale (e.g. this tab sat open
-                    // past a login timeout).
+                    // A bare 401/403 almost always means a stale session or nonce.
                     if ((res.status === 401 || res.status === 403) && !(err && err.message)) {
                         throw new Error('Your session has expired — refresh the page and log in again.');
                     }
@@ -139,25 +87,10 @@ interface BHPlacementsResponse {
         flashId: number | null;
     } = {
         placements: [], // raw rows from GET .../placements/{surface}/{context}, slot 'board' only
-        sortables: [], // live Sortable instances, one per column list — destroyed before each re-render since render() wipes the DOM they're attached to
-        // {placementId: [done, total]} — a card's own recursive
-        // sub-task rollup (AJ's own ask: "each card should track the
-        // total progress of everything under it... display it back up
-        // on the card itself"). NOT part of the generic BH_Element
-        // placements response (that returns a placement's own config/
-        // attrs, never its BH_Content tree) — fetched once per board
-        // load from bh-crm's own small rollups route
-        // (BHCRM_Projects::rest_rollups()) instead of a per-card round
-        // trip.
-        rollups: {},
-        // {placementId: daysSinceLastMove} — Phase C stall analytics,
-        // fetched from bh-crm's own /stalled-cards route (see
-        // loadStalledCards()). Only ever contains cards that actually
-        // cross BHCRM_Projects::STALL_DAYS — a card's absence here
-        // means "not stalled" OR "no move history yet," not "stalled by
-        // some other unknown amount."
-        stalled: {},
-        flashId: null, // set by saveSlot(), consumed once by renderCard() — see saveSlot()'s own docblock
+        sortables: [], // one per column list; destroyed before each re-render since render() wipes the DOM
+        rollups: {}, // {placementId: [done, total]} recursive sub-task rollup, from bh-crm/v1/rollups
+        stalled: {}, // {placementId: daysSinceLastMove}, only cards past STALL_DAYS
+        flashId: null, // set by saveSlot(), consumed once by renderCard()
     };
 
     function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
@@ -181,10 +114,6 @@ interface BHPlacementsResponse {
             .catch(() => { state.rollups = {}; });
     }
 
-    // Phase C stall analytics — {placementId: daysSinceLastMove}, only
-    // for cards that actually cross BHCRM_Projects::STALL_DAYS; same
-    // "one small bh-crm route, fetched once per board load" shape as
-    // loadRollups() above.
     function loadStalledCards(): Promise<void> {
         if (!cfg.stalledCardsUrl) return Promise.resolve();
         return fetch(cfg.stalledCardsUrl + '?project_id=' + encodeURIComponent(String(cfg.projectId ?? '')), {
@@ -202,11 +131,6 @@ interface BHPlacementsResponse {
             state.placements = (grouped && grouped.board) ? grouped.board : [];
             render();
         }).catch((err) => {
-            // Previously surfaced the raw exception message straight to
-            // the user (e.g. a fetch/parse error string) — inconsistent
-            // with the friendly copy this ecosystem uses everywhere
-            // else. Real detail still goes to the console for whoever's
-            // actually debugging it.
             console.error('bh-crm kanban board load failed:', err);
             root!.innerHTML = '';
             const p = el('p', 'description', 'Could not load the board — please try again.');
@@ -214,18 +138,16 @@ interface BHPlacementsResponse {
         });
     }
 
-    // BHCoreToast (the-self-hosted-self core, loaded on every admin screen — see
-    // class-toast.php's enqueue_assets(), hooked to admin_enqueue_scripts
-    // unconditionally) replaces every alert() that used to run this
-    // board's error path silently-broken-into-a-blocking-dialog. Same
-    // typeof guard every other call site in this ecosystem uses in case
-    // toast.js somehow isn't loaded.
+    // BHCoreToast is loaded on every admin screen by core; alert() is only a fallback.
     function reportSaveError(err: Error, action?: string): void {
         const msg = 'Failed to ' + (action || 'save') + ': ' + err.message;
         if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'error'); } else { alert(msg); }
     }
 
-    /** Full-slot upsert — mirrors element-builder.js's "Save slot" exactly: send every current placement in the desired order, 'position' is reconstructed server-side from array order. flashId, when given, is the ONE card render() should visually flash as "just saved" — render() wipes and rebuilds every card element on every call, so a reference to the pre-save DOM node would be stale; tracking the id instead lets renderCard() re-attach the flash to whichever fresh element ends up representing that same card. */
+/**
+     * Full-slot upsert; 'position' is rebuilt server-side from array order.
+     * flashId is tracked by id because render() rebuilds every card element.
+     */
     function saveSlot(flashId?: number): Promise<void> {
         const body = {
             slot: 'board',
@@ -258,24 +180,10 @@ interface BHPlacementsResponse {
         p.config.attrs[key] = { literal: value };
     }
 
-    /**
-     * Reads the live DOM (every column's card list, in on-screen order)
-     * back into state.placements — the one place a drag result becomes
-     * the new source of truth. Each card's column attr is set from
-     * whichever column list it's physically in now; overall array order
-     * follows cfg.columns order, then on-screen order within each
-     * column, matching saveSlot()'s existing "position reconstructed
-     * server-side from array order" contract exactly.
-     */
+    /** Reads on-screen card order and columns back into state.placements after a drag. */
     function reorderFromDom(): void {
         const columns = cfg.columns || [];
-        // Last column = "done", same one-directional convention
-        // BHCRM_Subtasks::handle_reorder() uses server-side for the
-        // nested boards — AJ's own ask: "should update to done once
-        // the task has been dragged to done." Dropping OUT of the done
-        // column deliberately does NOT un-check it, so reorganizing
-        // columns can never silently erase a completion someone set
-        // on purpose.
+        // WHY: one-directional — dropping into the last column marks done; dragging out never un-marks.
         const doneColumn = columns[columns.length - 1];
         const next: BHPlacement[] = [];
         columns.forEach((colName) => {
@@ -321,11 +229,7 @@ interface BHPlacementsResponse {
 
         root!.appendChild(grid);
 
-        // One Sortable instance per column list, all sharing a group
-        // name so a card can be dragged from one column into another —
-        // onEnd (fires once, after the DOM already reflects the drop)
-        // rebuilds state.placements from that live DOM and re-saves the
-        // whole slot, same as every other edit in this file.
+        // A shared group lets cards move between columns.
         if (win.Sortable) {
             root!.querySelectorAll('.bhcrm-kanban-column-cards').forEach((list) => {
                 // @ts-expect-error subtasks.ts's shared SortableApi types create()'s return as unknown; it really is a Sortable instance with .destroy()
@@ -334,21 +238,9 @@ interface BHPlacementsResponse {
                     animation: 150,
                     ghostClass: 'is-drag-ghost',
                     handle: '.bhcrm-kanban-card-drag-handle',
-                    // SortableJS's own recommended setting for more
-                    // consistent behavior — without this it defaults to
-                    // the native HTML5 draggable API, which has real,
-                    // well-documented cross-browser/touch-device
-                    // inconsistencies (part of what this whole swap was
-                    // meant to fix). forceFallback makes Sortable
-                    // simulate the drag itself via plain mouse/pointer
-                    // events instead of relying on the browser's own
-                    // native drag gesture recognition.
+                    // Simulated drag avoids native HTML5 DnD's cross-browser/touch inconsistencies.
                     forceFallback: true,
-                    // Belt-and-suspenders alongside the explicit handle
-                    // above — filter stops a drag from even starting on
-                    // a card's own interactive controls (title/notes/
-                    // checkbox/buttons), preventOnFilter:false so the
-                    // normal click/focus still reaches them.
+                    // Never start a drag from a control; preventOnFilter:false lets clicks still reach it.
                     filter: 'input, textarea, button, a',
                     preventOnFilter: false,
                     onEnd: function () {
@@ -366,11 +258,7 @@ interface BHPlacementsResponse {
         const done = !!attrLiteral(p, 'done', false);
 
         const card = el('div', 'bhcrm-kanban-card' + (done ? ' is-done' : ''));
-        // data-placement-id is what reorderFromDom() reads back after a
-        // drop; the drag itself only starts from the dedicated handle
-        // below (Sortable's `handle` option), not the card body, so
-        // clicking into the title/notes/checkbox/buttons never fights
-        // with drag detection.
+        // Read back by reorderFromDom() after a drop.
         card.setAttribute('data-placement-id', String(p.id));
         if (state.flashId === p.id) {
             state.flashId = null;
@@ -400,10 +288,6 @@ interface BHPlacementsResponse {
         titleRow.appendChild(titleInput);
         card.appendChild(titleRow);
 
-        // Phase C stall analytics — "hasn't moved in N days," surfaced
-        // directly on the card itself (AJ's own ask: a visible flag
-        // BEFORE it's obviously a problem, not a separate report page
-        // nobody remembers to open).
         const daysStalled = state.stalled[p.id];
         if (daysStalled) {
             const badge = el('span', 'bhy-badge bhy-badge-warning bhcrm-kanban-stalled-badge', '⚠ ' + daysStalled + 'd stalled');
@@ -411,13 +295,7 @@ interface BHPlacementsResponse {
             card.appendChild(badge);
         }
 
-        // A card's own recursive sub-task rollup — AJ's own ask, "each
-        // card should track the total progress of everything under
-        // it... display it back up on the card itself... add up for
-        // every grandchild." Same visual treatment
-        // (BHCRM_Subtasks::render_progress_bar()'s mini variant) as
-        // the nested sub-task board itself, so a top-level card and a
-        // deeply-nested one read the same way.
+        // Same markup as BHCRM_Subtasks::render_progress_bar()'s mini variant.
         const rollup = state.rollups[p.id];
         if (rollup && rollup[1] > 0) {
             const rDone = rollup[0], rTotal = rollup[1];
@@ -444,14 +322,7 @@ interface BHPlacementsResponse {
         card.appendChild(notesArea);
 
         const actions = el('div', 'bhcrm-kanban-card-actions');
-        // QA change: this used to open Content Studio (a generic
-        // WordPress block-editor canvas, no board/column concept, no
-        // rollup display of its own) in a new tab. Replaces it
-        // entirely with BHCRM_Subtasks — a real nested tracking view
-        // in-page, same tab, with breadcrumb navigation and a progress
-        // rollup at every level. Same-tab (not target=_blank) since
-        // it's now a real part of this same admin screen, not an
-        // unrelated external tool.
+        // Opens the nested sub-task board (BHCRM_Subtasks) in the same tab.
         const subtaskUrl = new URL(window.location.href);
         subtaskUrl.searchParams.set('card_id', String(p.id));
         subtaskUrl.searchParams.delete('subtask_path');
@@ -461,13 +332,7 @@ interface BHPlacementsResponse {
         subtaskLink.textContent = 'View sub-tasks';
         actions.appendChild(subtaskLink);
 
-        // Arm/disarm instead of a native confirm() — banned elsewhere in
-        // this ecosystem for the same reason (blocking dialog, worse UX,
-        // a known hazard for automated QA tooling). First click arms it
-        // (relabeled, distinct color, 3s window); a second click while
-        // armed actually deletes. Any other interaction on the card
-        // (typing, checking done, dragging) disarms it via blur/dragstart
-        // below so a stray second click days later can't misfire.
+        // Two-click delete instead of confirm(): first click arms for 3s, any other pointerdown on the card disarms.
         const delBtn = el('button', 'button button-small bhcrm-delete-btn', 'Delete');
         let armed = false;
         let armTimer: ReturnType<typeof setTimeout> | null = null;
@@ -512,10 +377,7 @@ interface BHPlacementsResponse {
         let adding = false;
 
         function addCard() {
-            // Guarded against a fast double-Enter or Enter-then-click —
-            // state.placements is mutated synchronously (optimistic UI,
-            // before saveSlot() confirms), so without this a second
-            // addCard() firing mid-save could push a near-duplicate card.
+            // WHY: placements are pushed optimistically, so a double-Enter mid-save would duplicate the card.
             if (adding) return;
             const title = input.value.trim();
             if (!title) return;

@@ -2,21 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Long-form audio, Phase 1 (ROADMAP-streaming-media-scope-and-
- * blockchain.md Part 5) — chapter markers and per-listener resume
- * position, deliberately scoped as the "barely an expansion" phase the
- * ROADMAP doc calls it: no schema change beyond one meta field on
- * bhs_track, and one small per-user meta field for where a specific
- * listener left off. No CPT change, no new post type.
- *
- * Chapters are stored as a JSON array of {time (seconds, int), label}
- * on '_bhs_chapters', authored by whoever can edit the track (same
- * capability as everything else on the Track Details screen).
- * Resume position is per-track, per-listener ('_bhs_resume_' . $track_id
- * on the user, so a listener's progress on one track never collides
- * with another) — logged-out listeners simply never get resume
- * (nothing to key it to), same as this ecosystem's existing posture on
- * play-count/like state for anonymous visitors.
+ * Chapter markers and per-listener resume position for long-form audio.
+ * Chapters: JSON [{time, label}] in '_bhs_chapters'. Resume: user meta
+ * '_bhs_resume_' . $track_id; logged-out listeners get none.
  */
 class BHS_Chapters {
     public static function init(): void {
@@ -46,7 +34,7 @@ class BHS_Chapters {
         foreach (preg_split('/\r\n|\r|\n/', $raw) as $line) {
             $line = trim($line);
             if ($line === '') continue;
-            if (!preg_match('/^(\d{1,3}):(\d{2})\s+(.+)$/', $line, $m)) continue; // silently skip a malformed line rather than reject the whole save — an artist typo shouldn't lose every other chapter they entered correctly
+            if (!preg_match('/^(\d{1,3}):(\d{2})\s+(.+)$/', $line, $m)) continue; // skip a malformed line rather than lose every other chapter
             $chapters[] = ['time' => ((int) $m[1]) * 60 + (int) $m[2], 'label' => sanitize_text_field($m[3])];
         }
         usort($chapters, fn($a, $b) => $a['time'] <=> $b['time']);
@@ -73,12 +61,8 @@ class BHS_Chapters {
         ]);
     }
 
-    // Fire-and-forget from the player's own timeupdate handler
-    // (throttled client-side, see player.js) — this is a convenience
-    // ("pick up where I left off"), not an authoritative play record,
-    // so it deliberately doesn't validate that $seconds is even
-    // plausible for the track's real duration; a bad value just means a
-    // resume that seeks somewhere odd next time, not a security issue.
+    // Called throttled from the player's timeupdate. A convenience, not a
+    // play record, so $seconds isn't validated against duration.
     /** @return \WP_REST_Response|\WP_Error */
     public static function save_resume_position(\WP_REST_Request $req) {
         $track_id = (int) $req->get_param('id');

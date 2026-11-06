@@ -2,17 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Wires WordPress core's native Tools > Export/Erase Personal Data
- * screens for wp_bhs_likes, wp_bhs_jam_sessions, and
- * wp_bhs_jam_participants — all safe to hard-delete on request
- * (a like is only meaningful to the person who made it; Jam sessions/
- * participation are ephemeral, tied to a past listening session, not
- * referenced by any other feature). wp_bhs_daily_stats is deliberately
- * excluded — it's aggregate-only, no user_id column at all.
- *
- * A hosted Jam session (host_user_id) is deleted outright rather than
- * reassigned — an orphaned session with no host isn't meaningfully
- * useful to keep around, and it's already ephemeral by design.
+ * Core personal-data export/erase for likes, Jam sessions, and Jam
+ * participants (all safe to hard-delete). wp_bhs_daily_stats is excluded:
+ * aggregate-only, no user_id. Hosted Jam sessions are deleted, not reassigned.
  */
 class BHS_Privacy {
     public static function init(): void {

@@ -2,10 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The Test Runner version of this plugin's own real-branching logic —
- * the claim/release/complete state machine and its concurrency guards
- * — same convention every other plugin's own class-test-suite.php uses.
- * Runs against real, tagged fixture users/posts, cleaned up afterward.
+ * Test Runner suite for the claim/release/complete state machine and its
+ * concurrency guards, using tagged fixtures cleaned up afterward.
  */
 class BHF_TestSuite {
     public static function init(): void {

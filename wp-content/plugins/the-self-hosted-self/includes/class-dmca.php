@@ -2,22 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Per-site DMCA designated-agent contact info, admin-editable, plus a
- * [bh_dmca_notice] shortcode that renders it publicly.
- *
- * The Self-Hosted Self is open-source software installed by independent site
- * owners — it is NOT itself a hosted service, so it cannot register a
- * DMCA agent on anyone's behalf. Each site owner who wants safe-harbor
- * protection has to register their OWN agent directly with the U.S.
- * Copyright Office (copyright.gov/dmca-directory) and keep that
- * registration current. This class only stores what THEY entered and
- * displays it — it makes no claim about whether the info is actually
- * registered, valid, or current. See the admin notice on the settings
- * page itself for that reminder.
- *
- * Deliberately NOT the takedown-notice intake/processing workflow —
- * that's BHI_Reports (the existing report queue). This is just the
- * "who do I send a notice to" contact-info half.
+ * Per-site DMCA designated-agent contact info plus a [bh_dmca_notice]
+ * shortcode. Only stores and displays what the owner entered; each owner
+ * must register their own agent with the U.S. Copyright Office.
+ * Takedown intake/tracking lives in OUS_DMCA_Notices, not here.
  */
 class OUS_DMCA {
     const OPTION = 'ous_dmca_agent';

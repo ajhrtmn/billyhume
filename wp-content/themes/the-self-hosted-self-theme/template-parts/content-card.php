@@ -1,11 +1,8 @@
 <?php
 if (!defined('ABSPATH')) exit;
 /**
- * Post-summary card for archive/search grids — deliberately mirrors
- * bh-courses's .bhc-course-card shape (fixed 16:9 thumb slot with SVG
- * placeholder gradient when there's no featured image, depth+hover lift,
- * clamped excerpt, reserved footer space) so theme-rendered archives read
- * as the same card language as plugin catalog grids, not a second style.
+ * Post-summary card for archive/search grids, mirroring bh-courses's
+ * .bhc-course-card shape.
  */
 ?>
 <article <?php post_class('oust-card'); ?>>

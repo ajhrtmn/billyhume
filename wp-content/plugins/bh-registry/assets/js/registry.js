@@ -31,10 +31,7 @@
           load();
         });
       } else {
-        // Real day-one state for a brand-new registry, not just a
-        // theoretical edge case — the shared BHY_Style empty-state
-        // component (same one bh-courses' catalog uses), rendered once
-        // server-side and handed over via BHRData.emptyHtml.
+        // Server-rendered BHY_Style empty state, passed in via BHRData.emptyHtml.
         grid.innerHTML = (window.BHRData && BHRData.emptyHtml) || '<p class="bhr-empty">No artists yet.</p>';
       }
       return;
@@ -58,10 +55,7 @@
         '</div>';
     }).join('');
 
-    // Applied as a real style-property assignment, not string-concatenated
-    // into the HTML/CSS itself — the browser treats this as one CSS value,
-    // so it can't be used to break out into arbitrary CSS/markup the way
-    // interpolating it directly into a style="" attribute string could.
+    // WHY: set as a style property, never interpolated into style="", so it can't break out into markup/CSS.
     grid.querySelectorAll('.bhr-card-avatar').forEach(function (el) {
       var url = el.getAttribute('data-avatar');
       if (url) el.style.backgroundImage = 'url("' + url.replace(/"/g, '') + '")';
@@ -70,16 +64,7 @@
     bindReportButtons();
   }
 
-  // Reporting an entry (impersonation, an ownership dispute over the
-  // linked feed/actor, harassment via the bio field, etc.) posts to
-  // the-self-hosted-self's shared moderation queue (BHI_Reports) rather than
-  // this plugin building its own — a human reviews it from the
-  // The Self-Hosted Self → Reports admin page, same as any other plugin's
-  // report button.
-  // BHCoreToast (the-self-hosted-self core, loaded on every front-end page — see
-  // class-toast.php's enqueue_assets(), hooked to wp_enqueue_scripts
-  // unconditionally) — same typeof guard every other call site in this
-  // ecosystem uses.
+  // Reports post to the core's shared BHI_Reports moderation queue. BHCoreToast is guarded with typeof.
   function notify(msg, isError) {
     if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, isError ? 'error' : 'success'); } else { alert(msg); }
   }
@@ -89,10 +74,7 @@
     grid.querySelectorAll('.bhr-report-link').forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (!BHIData.loggedIn) { notify('Log in to report an entry.', true); return; }
-        // Inline reveal instead of prompt() — a native dialog was banned
-        // elsewhere in this ecosystem for the same reasons (blocking,
-        // worse UX, a known automated-QA hazard); this is the one place
-        // it had survived.
+        // Inline reveal rather than prompt(): native dialogs are not used in this ecosystem.
         var form = btn.nextElementSibling;
         form.hidden = false;
         btn.hidden = true;
@@ -165,9 +147,7 @@
       protocol: document.getElementById('bhr-f-protocol').value,
       url: document.getElementById('bhr-f-url').value,
     };
-    // Was never disabled/relabeled while in flight — unlike bhr-verify-now
-    // just below it, nothing stopped a slow-connection double-click or
-    // told the user their click had even registered.
+    // Disabled while in flight to prevent double submits.
     var originalLabel = submitBtn.textContent;
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting…';
@@ -213,12 +193,7 @@
         .then(function (r) { return r.json(); })
         .then(function (res) {
           if (res.verified) {
-            // Was left open indefinitely on success — the real listing
-            // had already appeared in the grid behind this modal (load()
-            // refreshes it), but the modal itself just sat there with a
-            // small inline message, covering the very thing it just
-            // confirmed. Now closes itself after a beat so the "you're
-            // listed!" moment is the grid, not a lingering dialog.
+            // Auto-close so the refreshed grid behind the modal is visible.
             resultBox.className = 'bhr-form-success';
             resultBox.textContent = "You're listed! " + (res.message || '');
             if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show("You're listed in the registry!", 'success'); }

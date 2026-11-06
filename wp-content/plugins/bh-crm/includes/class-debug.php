@@ -2,17 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BHCRM_Debug — this plugin's own Debug Tools section, added 1.2.0
- * alongside the project tracker (class-projects.php). The shape here is copied
- * EXACTLY from bh-registry's BHR_Debug (bh-registry/includes/class-debug.php)
- * — same register()/render_section()/handle_action()/reset() contract,
- * same GROUP_SEED_RESET bucket, same seed-tag-in-the-name-so-Reset-
- * Everything-can-find-it convention. A standalone admin page was
- * deliberately NOT used for this seed button, for the same documented
- * reason element-builder.js's own docblock gives: this install has a
- * confirmed WordPress-core hook-resolution bug that broke standalone
- * pages outright — a Debug Tools SECTION is the one access pattern
- * proven to work here.
+ * Debug Tools section with project-tracker seed/reset, same contract as BHR_Debug.
+ * WHY: a Debug Tools section, not a standalone admin page; standalone pages have failed hook resolution on this install.
  */
 class BHCRM_Debug {
     const SEED_TAG = '__bhcrm_seed__';
@@ -55,18 +46,7 @@ class BHCRM_Debug {
             : 'Failed to seed demo project data.';
     }
 
-    /**
-     * Creates one demo project for a tagged test user (reusing
-     * OUS_Debug::get_or_create_test_user(), the shared "tagged fake
-     * account" helper every other seed action in this ecosystem already
-     * uses — see class-debug.php's own docblock), then places four
-     * bh/sticky-card placements across the project's default columns,
-     * one of which ('In Progress') gets two nested 'bhcrm/sub-card'
-     * children in its own BH_Content tree — a standard commission
-     * checklist ("sketch, lineart") — so the roll-up label
-     * (rollup_counts()) has something real to show and the nesting
-     * bridge is exercised, not just the flat card list.
-     */
+    /** Seeds a demo project for the tagged test user: four cards, one with nested sub-cards to exercise roll-up. */
     /** @return array<string, int>|false */
     private static function seed() {
         $person_id = OUS_Debug::get_or_create_test_user('bhcrm_project');
@@ -103,13 +83,7 @@ class BHCRM_Debug {
             if (!$placement_id) continue;
             $card_count++;
 
-            // The "Sketch pass" card gets a standard commission-checklist
-            // sub-tree, one level of nesting — the flagship "standard
-            // commission checklist: sketch -> lineart -> color -> final
-            // delivery" example the task brief names directly, saved as a
-            // real BH_Content tree so it's also a genuine end-to-end proof
-            // that the same shape is prefab-able (see BH_Element_Prefab::
-            // save_from_slot()'s 'content_tree' snapshot handling).
+            // One level of nested sub-cards.
             if ($c['column'] === 'In Progress' && class_exists('BH_Content')) {
                 BH_Content::save('bh_element', (int) $placement_id, [
                     ['type' => 'bhcrm/sub-card', 'attrs' => ['title' => 'Thumbnail sketch', 'notes' => '', 'done' => true], 'children' => []],
@@ -123,16 +97,7 @@ class BHCRM_Debug {
         return ['project_id' => $project_id, 'person_id' => $person_id, 'card_count' => $card_count];
     }
 
-    /**
-     * Removes every project whose name carries SEED_TAG (and, via
-     * BHCRM_Projects::delete()'s own cascade, every placement/content
-     * document that belonged to it) — same "find by tag in the name,
-     * regardless of which run created it" convention BHR_Debug::reset()
-     * already establishes. The tagged test user itself is left alone,
-     * matching OUS_Debug::get_or_create_test_user()'s own reuse-pool
-     * design (other plugins' seed data may still reference the same
-     * tagged account).
-     */
+    /** Deletes every SEED_TAG project (cascading placements/content); the shared test user is kept. */
     public static function reset(): string {
         global $wpdb;
         if (!class_exists('BHCRM_Projects')) return '0 seeded BH CRM project(s) removed.';

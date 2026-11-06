@@ -2,21 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * DMCA takedown-notice intake and tracking — admin-entered, not a
- * public form. A real DMCA notice arrives however the site owner's
- * registered agent (see class-dmca.php) receives it — email, in most
- * cases — and this is where they log it and track it through to
- * resolution. Deliberately NOT the report-queue (class-reports.php):
- * a copyright claim needs claimant identity, a sworn attestation, and
- * a counter-notice deadline as real fields, not a generic reason/
- * category pair.
- *
- * Deliberately does NOT generate notice language, determine legal
- * validity, or compute a "real" counter-notice deadline — those need
- * actual legal review (17 U.S.C. §512), not code written without a
- * lawyer's input. This is intake/tracking scaffolding only: log what
- * came in, track status, note a deadline the site owner determines
- * themselves. See the admin notice on the page itself.
+ * Admin-entered DMCA takedown-notice intake and tracking (claimant,
+ * attestation, counter-notice deadline as real fields).
+ * Deliberately generates no legal language and computes no deadlines;
+ * those need legal review (17 U.S.C. §512).
  */
 class OUS_DMCA_Notices {
     const STATUSES = [

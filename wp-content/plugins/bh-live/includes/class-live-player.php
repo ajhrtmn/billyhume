@@ -2,9 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * [bh_live] shortcode — current live status/embed, plus a replay list
- * below it. Same theme-isolation posture as bh-video/bh-streaming's
- * own player CSS, same --bh-* design tokens.
+ * [bh_live] shortcode: live status/embed plus a replay list.
  */
 class BHL_Player {
     public static function init(): void {
@@ -20,11 +18,7 @@ class BHL_Player {
         wp_enqueue_style('bhl-player', BHL_URL . 'assets/css/live-player.css', [], BHL_VER);
         if (class_exists('BHY_Style')) wp_add_inline_style('bhl-player', BHY_Style::inline_css());
 
-        // chat.js registered as a dependency (not just enqueued
-        // alongside) so WordPress guarantees it loads and defines
-        // window.BHLChatWidget BEFORE live-player.js's own status-fetch
-        // callback ever tries to call .mount() on it — enqueuing both
-        // with no declared relationship would leave that a race.
+        // WHY: chat.js is a dependency so window.BHLChatWidget exists before live-player.js mounts it.
         wp_enqueue_script('bhl-chat', BHL_URL . 'assets/js/chat.js', [], BHL_VER, true);
         wp_enqueue_script('bhl-player', BHL_URL . 'assets/js/live-player.js', ['bhl-chat'], BHL_VER, true);
         wp_localize_script('bhl-player', 'BHLData', [

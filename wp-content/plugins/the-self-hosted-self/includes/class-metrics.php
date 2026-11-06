@@ -2,58 +2,23 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * A real creator dashboard rather than per-plugin stats pages: a
- * bhcore_metrics_widgets filter, one shared dashboard page, each
- * plugin contributing its own KPI card. Foundational infrastructure
- * meant to grow in tandem with bh-courses/bh-contest/bh-crm, not a
- * bolt-on.
+ * Creator metrics dashboard: one shared page where each plugin contributes a KPI card via
+ * the bhcore_metrics_widgets filter. Read-only aggregation over bhcore_events.
  *
- * Reads `bhcore_events` (BH_Event's table — see class-event.php), the
- * self-hosted event-tracking envelope every GA/Meta-Pixel/Segment
- * replacement in this ecosystem emits into. This class adds nothing
- * new to WRITE that table — it's purely a read/aggregate layer, so it
- * can't introduce a new place tracking data could diverge from what
- * BH_Event already records.
- *
- * Security posture: gated to `manage_options` only, same as every
- * other cross-cutting admin surface in this ecosystem — this is the
- * site owner's own aggregate view of their audience's activity, never
- * a per-visitor identity lookup. Widgets are expected to render
- * COUNTS/TRENDS, not raw per-user event rows — a widget needing an
- * individual person's activity belongs on that person's CRM detail
- * page (bh-crm), not this aggregate dashboard.
- *
- * Purpose: not vanity numbers or competitive pressure against other
- * artists, but understanding how an artist's own community engages
- * with their content. That's why event_trend_monthly() exists
- * alongside the daily event_trend() — a single day spiking or dipping
- * isn't the story; whether a community is actually growing over
- * months is. Two related ideas deliberately NOT built here yet: (1)
- * benchmarking a creator's numbers against the global market — only
- * buildable without a surveillance/leaderboard dynamic if opt-in and
- * anonymized, same constraint as federated cross-instance metrics;
- * (2) richer engagement views beyond simple counts (return-visitor
- * patterns, content-type affinity) — a Phase 2, not a same-day add.
+ * WHY: manage_options only, and widgets show counts/trends, never per-person event rows
+ * (individual activity belongs on the CRM person page).
  */
 class OUS_Metrics {
     public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
     }
 
-    // Same proven-safe parent as OUS_MediaWizard/BHI_Reports — see
-    // class-media-wizard.php's own docblock for why 'the-self-hosted-self' is
-    // used instead of 'ous-debug' on this specific install.
+    // 'the-self-hosted-self' parent, not 'ous-debug' — same as OUS_MediaWizard (see its docblock).
     public static function add_menu(): void {
         add_submenu_page('ous', 'Metrics', 'Metrics', 'manage_options', 'ous-metrics', [self::class, 'render']);
     }
 
-    /**
-     * Total count of a given event type in the last $days days.
-     * The one query every simple "N somethings this month" KPI card
-     * needs — shared here so six plugins don't each write a slightly-
-     * different version of the same COUNT(*)...WHERE type=...AND
-     * occurred_at >= ... query.
-     */
+    /** Total count of a given event type in the last $days days. */
     public static function count_events(string $type, int $days = 30): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
@@ -63,12 +28,10 @@ class OUS_Metrics {
     }
 
     /**
-     * Day-bucketed counts for the last $days days, always returning
-     * one entry per day (0-filled, never a gap) — the shape a simple
-     * sparkline/bar-chart renderer needs without doing its own gap-
-     * filling. Returns ['Y-m-d' => count, ...] in chronological order.
+     * Day-bucketed counts for the last $days days, 0-filled, chronological: ['Y-m-d' => count].
+     *
+     * @return array<string, int>
      */
-    /** @return array<string, int> */
     public static function event_trend(string $type, int $days = 30): array {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
@@ -88,14 +51,10 @@ class OUS_Metrics {
     }
 
     /**
-     * Month-bucketed counts for the last $months months — the long-
-     * pattern counterpart to event_trend()'s daily view. A 30-day daily
-     * sparkline answers "is this week unusual," not "is this actually
-     * growing." Always 0-filled, same gap-free contract as
-     * event_trend(). Returns ['Y-m' => count, ...] in chronological
-     * order.
+     * Month-bucketed counts for the last $months months, 0-filled, chronological: ['Y-m' => count].
+     *
+     * @return array<string, int>
      */
-    /** @return array<string, int> */
     public static function event_trend_monthly(string $type, int $months = 12): array {
         global $wpdb;
         $since = gmdate('Y-m-01 00:00:00', strtotime("-$months months"));
@@ -115,21 +74,10 @@ class OUS_Metrics {
         return $trend;
     }
 
-    // A tiny inline SVG sparkline — zero external chart library
-    // dependency, matching this ecosystem's own no-external-runtime
-    // convention (see the API Docs viewer's own docblock for the same
-    // instinct applied earlier). Good enough for "is this trending up
-    // or down at a glance," not meant to replace a real charting tool
-    // for deeper analysis later.
+    // Tiny inline SVG sparkline, no chart library.
     /**
-     * $color defaults to the shared --bhy-accent token rather than a
-     * hardcoded #2271b1. An SVG `stroke` attribute accepts a var()
-     * reference the same as any CSS value, so this inherits whatever
-     * the active token set defines — the admin skin previously had to
-     * override this exact polyline's stroke from its own stylesheet to
-     * theme it, which is no longer necessary. The literal is retained
-     * as the var() fallback so a context with no tokens loaded still
-     * renders a visible line rather than defaulting to black.
+     * $color defaults to the --bhy-accent token, with a literal fallback so a page without
+     * tokens still draws a visible line.
      *
      * @param array<string, int> $trend
      */
@@ -161,16 +109,7 @@ class OUS_Metrics {
             return;
         }
 
-        // Every value below reads a --bhy-* token (BHY_UI::
-        // print_design_system_css(), class-ui.php) with the previous
-        // hardcoded hex kept as its fallback — identical rendering on a
-        // stock install, but this block now participates in the shared
-        // token system instead of being a parallel one. It previously
-        // hardcoded WP core's light palette (#fff/#dcdcde/#646970),
-        // which is why the admin skin had to override these exact class
-        // names from the outside to theme them; consuming the tokens
-        // means anything that redefines them re-themes this screen for
-        // free, with no knowledge of this file.
+        // Every value reads a --bhy-* token (BHY_UI) with a hex fallback, so token overrides re-theme this screen.
         echo '<style>
             .ous-metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--bhy-space-4, 16px); margin-top: var(--bhy-space-4, 16px); }
             .ous-metrics-card { background: var(--bhy-surface, #fff); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px); padding: var(--bhy-space-4, 16px) var(--bhy-space-4, 18px); }
@@ -192,10 +131,7 @@ class OUS_Metrics {
         echo '</div></div>';
     }
 
-    // Shared card-body renderer every widget's own render callback can
-    // reuse — one consistent look (big number, trend sparkline,
-    // sub-label) instead of six plugins each hand-rolling the same
-    // card markup slightly differently.
+    // Shared card body (big number, sparkline, sub-label) for widget render callbacks.
     /**
      * @param mixed $value
      * @param array<string, int>|null $trend

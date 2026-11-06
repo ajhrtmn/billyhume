@@ -2,22 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The dashboard page itself, plus the admin-post request handlers that
- * back its buttons. Deliberately thin: every handler here does
- * permission/nonce checking and redirect handling, then delegates the
- * actual work to OUS_Installer or OUS_ActivationManager — this class
- * doesn't contain business logic of its own, just the HTTP-facing
- * plumbing around it.
+ * Dashboard page plus its admin-post handlers. Handlers only check
+ * permissions/nonces and redirect; the work is in OUS_Installer and
+ * OUS_ActivationManager.
  */
 class OUS_Dashboard {
-    /**
-     * Registers the 'dashboard' surface for BH_Element (§3.3/§5.1 of
-     * ELEMENT-BUILDER-DESIGN-PLAN.md) — a singleton surface
-     * (surface_context_id always 0, there's only one dashboard) with a
-     * 'main' slot rendered below the existing status block. Context is
-     * the current viewer's user_id, since Phase 2's demo binding
-     * ('bhcore_events.count') needs a subject to count for.
-     */
+    /** Registers the singleton 'dashboard' surface for BH_Element ('main' slot, viewer user_id as context). */
     /**
      * @param array<string, mixed> $surfaces
      * @return array<string, mixed>
@@ -36,18 +26,8 @@ class OUS_Dashboard {
     }
 
     public static function add_menu(): void {
-        // Custom icon (OUS_MenuIcons::hub()) instead of the generic
-        // dashicons-admin-multisite — the shared rounded-square badge
-        // frame every OUS-owned top-level menu now carries (see
-        // class-menu-icons.php) is the actual ecosystem-membership
-        // signal; this is the one glyph in that family that represents
-        // the ecosystem hub itself rather than one feature area.
         add_menu_page('The Self-Hosted Self', 'The Self-Hosted Self', 'manage_options', 'ous', [self::class, 'render'], OUS_MenuIcons::hub(), 3);
-        // WordPress auto-creates a first submenu item duplicating the
-        // top-level menu's own label unless explicitly overridden —
-        // this replaces that duplicate with a clearer "Dashboard" label
-        // rather than literally repeating "The Self-Hosted Self" twice in the
-        // sidebar.
+        // Relabels WP's auto-created duplicate first submenu item.
         add_submenu_page('ous', 'The Self-Hosted Self', 'Dashboard', 'manage_options', 'ous', [self::class, 'render']);
     }
 
@@ -55,15 +35,7 @@ class OUS_Dashboard {
         if (strpos($hook, 'ous') === false) return;
         wp_enqueue_style('ous-admin', OUS_URL . 'assets/css/admin.css', [], OUS_VER);
 
-        // §3.2 v1 — this page renders the 'dashboard' surface's 'main'
-        // slot (register_element_surface() above), which is where a
-        // live element (bh/stat-card, see class-element.php's own
-        // docblock) can actually appear once
-        // someone clicks "Add live stat-card" in Debug Tools. Enqueued
-        // unconditionally on this page rather than only when a live
-        // placement is known to exist — element-live.js itself is a
-        // no-op (early-returns) if it finds zero '[data-bhel-live]'
-        // nodes, so this costs nothing on a page with none yet.
+        // element-live.js is a no-op when no [data-bhel-live] nodes exist.
         wp_enqueue_script('ous-element-live', OUS_URL . 'assets/js/element-live.js', [], OUS_VER, true);
         wp_localize_script('ous-element-live', 'bhElLiveConfig', [
             'restUrl'    => esc_url_raw(rest_url('ous/v1/')),
@@ -86,13 +58,7 @@ class OUS_Dashboard {
         echo '<h1>The Self-Hosted Self</h1>';
         echo '<p class="description">One dashboard for the whole ecosystem. Activate pieces in order below — dependencies get activated automatically when you activate something that needs them.</p>';
 
-        // First-run nudge: a brand-new install lands on this same page (the-self-hosted-self's own
-        // activation redirect) with nothing active yet; this is the
-        // one moment worth pointing at the guided flow before the wall
-        // of individual plugin cards below. Self-hides once the
-        // ecosystem is fully active — a returning admin who already
-        // finished setup doesn't need to see this every time, though
-        // Guided Setup itself stays reachable from the submenu either way.
+        // First-run nudge toward Guided Setup; hides once everything is active.
         if (class_exists('OUS_SetupWizard') && !self::ecosystem_fully_active_for_banner()) {
             echo '<div class="bhy-alert bhy-alert-info"><p><strong>New here?</strong> The <a href="' . esc_url(admin_url('admin.php?page=ous-setup-wizard')) . '">Guided Setup</a> walks you through activating everything and setting your brand basics, in order.</p></div>';
         }
@@ -114,17 +80,13 @@ class OUS_Dashboard {
             echo '<p><a class="button button-hero" href="' . esc_url($url) . '">Install &amp; Activate Everything</a></p>';
         }
 
-        // Clutter control, shared with the Debug Tools update panels: on
-        // a site that only uses a few ecosystem plugins, the rest show as
-        // "Not installed" cards forever. Hide those by default.
+        // Hide "Not installed" cards by default on a partially used site.
         $show_absent = class_exists('OUS_GithubUpdates') && OUS_GithubUpdates::show_absent_rows();
         $missing = $present = 0;
         foreach ($registry as $k => $i) {
             if (OUS_Registry::status($k) === 'missing') $missing++; else $present++;
         }
-        // On a fresh install (nothing set up yet) the whole point of this
-        // page is the install list — don't hide it. Only collapse the
-        // "Not installed" cards once the ecosystem is partially in use.
+        // A fresh install keeps the full install list visible.
         $collapse_missing = !$show_absent && $missing > 0 && $present > 0;
         $hidden = $collapse_missing ? $missing : 0;
         if ($hidden || $show_absent) {
@@ -162,20 +124,12 @@ class OUS_Dashboard {
         echo '</div>';
     }
 
-    // Small operational-status block: Job Queue health (Action
-    // Scheduler vs. the fallback table, plus live pending/running/done/
-    // failed counts, reusing OUS_Jobs::counts_by_status() rather than
-    // re-querying bhcore_jobs here) and a Query Monitor pointer. Neither
-    // is a "card" in the activation-flow sense above — nothing to
-    // install/activate through THIS dashboard for Job Queue (it's
-    // core, always active) and Query Monitor is deliberately left as an
-    // optional, user-chosen third-party dev tool (not bundled, not
-    // auto-installed) rather than folded into OUS_Registry.
+    // Operational status: Job Queue health/counts and a Query Monitor pointer
+    // (QM is optional and deliberately not bundled).
     private static function render_status_block(): void {
         echo '<h2 style="margin-top:32px;">System status</h2>';
         echo '<div class="ous-cards">';
 
-        // Job Queue
         echo '<div class="ous-card">';
         echo '<div class="ous-card-header"><strong>Job Queue</strong></div>';
         if (class_exists('OUS_Jobs')) {
@@ -192,17 +146,10 @@ class OUS_Dashboard {
         }
         echo '</div>';
 
-        // Query Monitor
         echo '<div class="ous-card">';
         echo '<div class="ous-card-header"><strong>Query Monitor</strong></div>';
         if (!function_exists('is_plugin_active')) require_once ABSPATH . 'wp-admin/includes/plugin.php';
         if (is_plugin_active('query-monitor/query-monitor.php')) {
-            // 3.4.58 — this used to just point at QM's own generic
-            // toolbar panel; class-qm-integration.php now registers a
-            // real "The Self-Hosted Self" tab INSIDE that panel showing this
-            // request's own OUS_DebugLog entries, so this card can say
-            // something more specific than "go look at a third-party
-            // tool."
             echo '<p class="ous-card-desc">&#9989; Query Monitor is active — its panel lives in the admin toolbar (top of every admin page), including an "The Self-Hosted Self" tab showing this request\'s own log entries.</p>';
         } else {
             echo '<p class="ous-card-desc">Not installed. A recommended, free, self-hosted diagnostic tool (queries, hooks, HTTP requests, PHP errors) — optional, not bundled with this ecosystem.</p>';
@@ -213,32 +160,17 @@ class OUS_Dashboard {
         echo '</div>';
     }
 
-    // The Phase 1/2 element-builder proof-of-concept slice
-    // (ELEMENT-BUILDER-DESIGN-PLAN.md §5.1, §6 Phases 1-2): renders
-    // whatever's been placed into the 'dashboard' surface's 'main' slot
-    // via BH_Element::render_slot(). Additive only — every existing
-    // dashboard card/status block above is untouched; this renders
-    // BELOW them and is empty (no heading, no markup at all) when no
-    // placements exist yet, so a fresh install looks unchanged.
+    // Renders the 'dashboard' surface's 'main' slot; outputs nothing when empty.
     private static function render_element_slot(): void {
-        if (!class_exists('BH_Element')) return; // element-builder files didn't load for some reason — degrade silently, same posture as every other class_exists() guard in this ecosystem
+        if (!class_exists('BH_Element')) return;
 
         $ctx = ['user_id' => get_current_user_id()];
         $html = BH_Element::render_slot('dashboard', 0, 'main', $ctx);
-        if ($html === '') return; // nothing placed yet — render nothing, not an empty heading
+        if ($html === '') return;
 
         echo '<h2 style="margin-top:32px;">Dashboard elements</h2>';
-        // Real dead-link bug, caught and fixed: pointed at
-        // admin.php?page=bh-element-builder, a page deleted in an
-        // earlier cleanup pass (class-style-gallery.php's own docblock)
-        // and never replaced. There IS a real management UI for this
-        // specific surface/slot, just relocated — Debug Tools' own
-        // "Element Builder" section (class-element.php's
-        // render_debug_section()) is a real add/remove/reorder list,
-        // just scoped to exactly this one surface/slot (dashboard/main,
-        // context 0) rather than a general visual builder.
         echo '<p class="description">Placed via <a href="' . esc_url(admin_url('admin.php?page=ous-debug#ous-section-bh-element')) . '">Debug Tools &rarr; Element Builder</a>.</p>';
-        echo $html; // BH_Element::render_slot()'s own output is already escaped per-attribute by BH_Element::render_placement()/each type's own 'render' callable — see class-element.php and class-element-data.php's docblocks for the escaping contract this depends on.
+        echo $html; // Already escaped per attribute by BH_Element::render_placement().
     }
 
     /** @param array<string, mixed> $info */
@@ -278,15 +210,8 @@ class OUS_Dashboard {
         echo '</div>';
     }
 
-    // OPEN.md item 15a: per-card inline GitHub status, not only
-    // centrally on Debug Tools. Deliberately reads OUS_GithubUpdates'
-    // own cached result (the 'ous_github_update_status' option, written
-    // by its cron-scheduled check_all()/check_one()) rather than making
-    // a live API call per card per dashboard load — this page can show
-    // 14 cards, and a live GitHub round-trip for each would make a
-    // routine visit slow and burn API rate limit for no reason the
-    // cron job doesn't already serve. "Unknown" (never checked yet) is
-    // a real, expected state right after activation, not an error.
+    // Reads OUS_GithubUpdates' cached status option, never a live API call
+    // per card. "Not checked yet" is a normal state after activation.
     private static function render_github_status(string $key): void {
         if (!class_exists('OUS_GithubUpdates')) return;
         $status = get_option('ous_github_update_status', []);
@@ -340,10 +265,7 @@ class OUS_Dashboard {
             wp_safe_redirect(admin_url('admin.php?page=ous&ous_installed=1'));
             exit;
         }
-        // last_error() carries the SPECIFIC reason when install() has
-        // one worth surfacing (bundle_stale, see OUS_Installer's own
-        // docblock) — falls back to the existing generic "missing"
-        // code for every other failure shape, unchanged.
+        // last_error() carries a specific reason (e.g. bundle_stale) when there is one.
         $code = (class_exists('OUS_Installer') && OUS_Installer::last_error()) ? OUS_Installer::last_error() : 'missing';
         wp_safe_redirect(admin_url('admin.php?page=ous&ous_error=' . $code));
         exit;
@@ -364,9 +286,6 @@ class OUS_Dashboard {
         exit;
     }
 
-    // The "Install & Activate Everything" button — runs the exact same
-    // per-plugin logic as a single Activate click, just looped across
-    // every registered plugin that isn't already active.
     public static function handle_activate_all(): void {
         if (!current_user_can('activate_plugins') || !current_user_can('install_plugins')
             || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ous_activate_all')) {

@@ -1,6 +1,4 @@
-/* Theme-isolation reset — same reasoning as bh-streaming's player.css:
-   scoped entirely under .bhv-app so theme-level resets can't bleed in,
-   and this can't leak back out onto the rest of the theme's page. */
+/* Theme-isolation reset, scoped under .bhv-app so styles neither bleed in nor leak out. */
 .bhv-app, .bhv-app * { box-sizing: border-box; }
 .bhv-app :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li) {
     margin: 0;

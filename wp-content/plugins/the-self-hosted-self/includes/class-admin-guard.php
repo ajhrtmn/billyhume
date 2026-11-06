@@ -2,22 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * `current_user_can($cap) || !wp_verify_nonce($nonce, $action)` (usually
- * negated as the guard-clause condition for a wp_die()/redirect/JSON
- * error) was duplicated nearly word-for-word at 18+ admin-post/admin-
- * ajax handler call sites across this core plugin and every consuming
- * plugin (bh-contest, bh-courses, bh-monetization-woo, bh-streaming,
- * bh-registry). This consolidates the boolean predicate itself into one
- * place — each call site keeps its own failure handling (a specific
- * wp_die() message, a redirect, a JSON error response), since THAT
- * varies legitimately by context and isn't what was actually
- * duplicated.
- *
- * Also accepts a nonce value that was never set at all (an unset
- * $_POST/$_GET key) the same way every existing call site's own
- * `$_POST['x'] ?? ''` fallback already did — wp_verify_nonce('', ...)
- * is already a clean, safe false, so callers don't need their own
- * isset() check first.
+ * Shared "user can $cap AND nonce is valid" predicate for admin-post/AJAX
+ * handlers; each caller keeps its own failure handling. An unset nonce
+ * ('') is a clean false.
  */
 class OUS_AdminGuard {
     /** @param mixed $nonce_value */

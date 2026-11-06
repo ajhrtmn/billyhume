@@ -2,31 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * HTTP Signatures (draft-cavage-http-signatures-12) — the
- * authentication mechanism the whole ActivityPub federation layer
- * depends on. Every real Fediverse server signs its outbound POSTs
- * and verifies inbound ones this way; an unsigned (or wrongly-signed)
- * activity is rejected by every serious implementation, and ours must
- * do the same or the inbox becomes a trivially-spoofable write
- * endpoint.
- *
- * Deliberately hand-rolled rather than pulling a Composer package:
- * this ecosystem ships no-build, self-hosted, with vendored
- * dependencies only where genuinely necessary (see CLAUDE.md), and
- * the signing/verifying surface here is small and well-specified —
- * RSA-SHA256 over a canonical string built from a named subset of
- * headers. PHP's own openssl_sign()/openssl_verify() do the actual
- * cryptography; nothing security-critical is reimplemented here.
- *
- * Verified working against real signature round-trips (sign → verify,
- * plus real tamper-detection assertions) in BHR_ActivityPubTestSuite.
+ * HTTP Signatures (draft-cavage-http-signatures-12), RSA-SHA256, authenticating the ActivityPub inbox.
+ * Only the canonical-string handling is ours; openssl_sign()/openssl_verify() do the cryptography.
  */
 class BHR_HttpSignature {
     /**
-     * Builds the canonical signing string from a header list. Order
-     * matters and must match exactly between signer and verifier —
-     * this is why both sides derive it from the same $headers list
-     * rather than each assembling their own.
+     * Builds the canonical signing string; order must match exactly between signer and verifier.
      *
      * @param array<string, string> $headers
      * @param array<int, string>    $header_names
@@ -39,8 +20,7 @@ class BHR_HttpSignature {
                 $lines[] = '(request-target): ' . strtolower($method) . ' ' . $path;
                 continue;
             }
-            // Header lookup is case-insensitive per RFC; normalize both
-            // sides rather than trusting the caller's casing.
+            // Header lookup is case-insensitive per RFC.
             $value = '';
             foreach ($headers as $k => $v) {
                 if (strtolower($k) === $lower) { $value = $v; break; }
@@ -82,9 +62,7 @@ class BHR_HttpSignature {
      */
     public static function parse_header(string $signature_header): array {
         $parts = [];
-        // Matches key="value" pairs; values themselves never contain an
-        // unescaped double-quote in this spec, so this is sufficient
-        // without a full quoted-string parser.
+        // Values never contain an unescaped double-quote in this spec, so a regex suffices.
         if (preg_match_all('/([a-zA-Z]+)="([^"]*)"/', $signature_header, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $m) {
                 $parts[$m[1]] = $m[2];
@@ -99,22 +77,17 @@ class BHR_HttpSignature {
      * @param array<string, string> $headers
      */
     public static function verify(string $method, string $path, array $headers, string $signature_header, string $public_key_pem): bool {
-        // Fail CLOSED when crypto is unavailable — an unverifiable
-        // request must never be treated as verified.
+        // Fail closed when crypto is unavailable.
         if (!function_exists('openssl_verify') || !function_exists('openssl_pkey_get_public')) return false;
 
         $parts = self::parse_header($signature_header);
         if (empty($parts['signature']) || empty($parts['headers'])) return false;
 
-        // Only RSA-SHA256 is accepted. An attacker-chosen algorithm is
-        // a real downgrade vector — never trust the algorithm field to
-        // select the verification path.
+        // WHY: only RSA-SHA256; never let the attacker-chosen algorithm field pick the path (downgrade).
         if (isset($parts['algorithm']) && stripos($parts['algorithm'], 'rsa-sha256') === false) return false;
 
         $header_names = preg_split('/\s+/', trim($parts['headers'])) ?: [];
-        // A signature that doesn't cover (request-target) and date is
-        // not meaningfully binding — it could be replayed against a
-        // different route entirely.
+        // Must cover (request-target) and date, or it could be replayed elsewhere.
         $lower_names = array_map('strtolower', $header_names);
         if (!in_array('(request-target)', $lower_names, true) || !in_array('date', $lower_names, true)) return false;
 
@@ -129,11 +102,7 @@ class BHR_HttpSignature {
         return openssl_verify($signing_string, $signature, $key, OPENSSL_ALGO_SHA256) === 1;
     }
 
-    /**
-     * Replay guard — rejects a request whose Date header is too far
-     * from now in either direction. Standard Fediverse practice; a
-     * signature with no freshness bound is replayable forever.
-     */
+    /** Replay guard: rejects a Date header too far from now in either direction. */
     public static function date_is_fresh(string $date_header, int $tolerance_seconds = 300): bool {
         if (!$date_header) return false;
         $ts = strtotime($date_header);

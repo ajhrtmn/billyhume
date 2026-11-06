@@ -2,10 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Same plain-array-registry-plus-factory shape as BHSO_PlatformRegistry
- * (and BHL_EngineRegistry before it) — separate from that registry
- * because BH_AdsPlatform and BH_SocialPlatform are different
- * interfaces, not two flavors of the same one.
+ * Registry and factory for BH_AdsPlatform implementations.
  */
 class BHSO_AdsPlatformRegistry {
     const PLATFORMS = [

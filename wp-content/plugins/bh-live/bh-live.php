@@ -41,11 +41,7 @@ add_action('plugins_loaded', function () {
     add_action('rest_api_init', ['BHL_Automation', 'register_routes']);
 });
 
-// Cleared on deactivation, same convention every other cron-scheduling
-// plugin in this ecosystem follows (bh-streaming's BHS_Feeds does not
-// currently clear its own — worth revisiting there too, out of scope
-// here) — a deactivated plugin shouldn't leave a dangling scheduled
-// event calling a hook nothing will ever handle again.
+// Clear scheduled events on deactivation so nothing calls an unhandled hook.
 register_deactivation_hook(__FILE__, function () {
     wp_clear_scheduled_hook(BHL_Streams::CRON_HOOK);
 });

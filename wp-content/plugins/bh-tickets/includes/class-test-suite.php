@@ -1,7 +1,7 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/** OUS_TestRunner suite, registered via bhcore_test_suites — same convention as OUS_Campaigns::run_tests()/bh-crm's own suite. */
+/** OUS_TestRunner suite, registered via bhcore_test_suites. */
 class BHT_TestSuite {
     public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);

@@ -2,20 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Twitch Helix API — second platform, reusing BHSO_YouTube's exact
- * OAuth shape (id.twitch.tv/oauth2/{authorize,token,validate}) but a
- * genuinely different use-case shape underneath: Twitch has no
- * generic "post content" endpoint the way YouTube's videos.insert is,
- * so cross_post() here means sending a real chat announcement to the
- * artist's own channel (the closest real analog to "push an update
- * out"), not uploading media. Stats are live status + follower count.
- *
- * Confirmed against Twitch's own documented Helix API as of the scoping
- * pass this plugin started from — re-verify scope names/endpoints
- * against dev.twitch.tv/docs/api before relying on this in production,
- * since Twitch has changed follower-related scopes before (the
- * followers endpoint now requires moderator:read:followers, not the
- * older public follower count it once exposed).
+ * Twitch Helix API. Twitch has no content-posting endpoint, so cross_post()
+ * sends a chat announcement to the artist's channel. Stats are live status
+ * plus follower count.
  */
 class BHSO_Twitch implements BH_SocialPlatform {
     const STATS_CRON_HOOK = 'bhso_twitch_pull_stats_cron';
@@ -27,10 +16,7 @@ class BHSO_Twitch implements BH_SocialPlatform {
     const VALIDATE_URL = 'https://id.twitch.tv/oauth2/validate';
     const HELIX_BASE   = 'https://api.twitch.tv/helix';
 
-    // moderator:read:followers and moderator:manage:announcements both
-    // work for a broadcaster acting as their own moderator (Twitch
-    // treats the channel owner as implicitly having moderator rights
-    // over their own channel for these scopes).
+    // moderator:* scopes work because the broadcaster is implicitly a moderator of their own channel.
     const SCOPE = 'channel:read:stream_key moderator:read:followers moderator:manage:announcements';
 
     public static function init(): void {
@@ -188,9 +174,7 @@ class BHSO_Twitch implements BH_SocialPlatform {
 
         self::save_tokens($data['access_token'], $data['refresh_token'] ?? '', $data['expires_in'] ?? 3600);
 
-        // /oauth2/validate is the documented way to resolve the
-        // connected user's own id/login from a fresh token — cheaper
-        // than a separate Helix /users call and doesn't need Client-Id.
+        // /oauth2/validate resolves the user's id/login without a Helix /users call.
         $instance = new self();
         $validated = $instance->validate_token($data['access_token']);
         if (!is_wp_error($validated) && !empty($validated['user_id'])) {
@@ -286,12 +270,7 @@ class BHSO_Twitch implements BH_SocialPlatform {
 
     /**
      * $args: ['message' => string, 'color' => 'primary'|'blue'|'green'|'orange'|'purple']
-     * The Twitch analog of "push an update to this platform" — no
-     * generic content-posting endpoint exists here the way it does for
-     * YouTube uploads, so a chat announcement is the real, closest
-     * equivalent: a visible, timestamped push to the artist's own
-     * channel, usable for "new track is out" / "going live in 10" type
-     * announcements.
+     * Sends a chat announcement to the artist's own channel.
      */
     /** @param array<string, mixed> $args */
     public function cross_post($args) {

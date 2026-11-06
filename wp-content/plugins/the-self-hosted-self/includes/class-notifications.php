@@ -2,27 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * A shared notification inbox any plugin can write into with ONE static
- * call — `OUS_Notifications::notify()` — and zero registration step,
- * zero central config, zero awareness of what any other plugin is
- * doing with the same system. This lives in the core specifically so
- * every feature plugin (which already depends only on the core, never
- * on each other) gets it for free the moment it's active, the same
- * relationship BHM_Gate or bhi_reports already has.
- *
- * Two delivery channels: in-app (always written to bhcore_notifications
- * — an admin-bar bell + a `[bh_notifications]` front-end shortcode both
- * read from it) and email, which is OPTIONAL per call and routed
- * through the job queue (class-jobs.php) rather than sent inline, so a
- * plugin calling notify() during a request never blocks on an SMTP
- * round-trip.
- *
- * USAGE, from any plugin that depends on this one:
+ * Shared notification inbox: any plugin calls notify() with no registration step. In-app rows
+ * feed the admin-bar bell and the `[bh_notifications]` shortcode; optional email is queued
+ * through OUS_Jobs so notify() never blocks on SMTP.
  *
  *   OUS_Notifications::notify($user_id, 'course_completed', 'Course complete!',
  *       'You finished "Songwriting Fundamentals".', get_permalink($course_id), 'BH Courses');
- *
- * That's the entire contract. No filter to hook, no class to extend.
  */
 class OUS_Notifications {
     public static function init(): void {
@@ -35,19 +20,10 @@ class OUS_Notifications {
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
 
-        // This plugin's own contribution to BHI_Portal — reuses the exact
-        // same render_shortcode() output the [bh_notifications] shortcode
-        // already produces (see below) rather than a second, parallel
-        // rendering path. maybe_enqueue() above already fires on the
-        // portal's own page for free: render_shell() (class-portal.php)
-        // calls wp_head(), and WordPress core fires 'wp_enqueue_scripts'
-        // from wp_head itself — no extra enqueue wiring needed here.
+        // Portal panel reuses render_shortcode(); the portal shell calls wp_head(), so maybe_enqueue() already runs there.
         add_filter('bhi_portal_panels', [self::class, 'register_portal_panel']);
 
-        // The job queue's own registered handler for actually sending a
-        // queued email — see class-jobs.php. Registered here (where the
-        // job TYPE is defined) rather than in class-jobs.php itself,
-        // which has no opinion about what any given job hook means.
+        // Job handler for queued emails, registered here where the job type is defined.
         add_action('init', function () {
             if (class_exists('OUS_Jobs')) {
                 OUS_Jobs::register('bhcore_send_notification_email', [self::class, 'send_queued_email']);
@@ -59,10 +35,7 @@ class OUS_Notifications {
         return OUS_Tables::notifications();
     }
 
-    // Bounded-growth cap — this table has no other trim/expiry path
-    // (audit finding, 2026-07-25). Same opportunistic shape as
-    // OUS_DebugLog::maybe_trim(): a cheap COUNT+DELETE on roughly 1/50
-    // writes, no separate cron job needed to keep it bounded.
+    // Size cap: cheap COUNT+DELETE on roughly 1 in 50 writes.
     const MAX_ROWS = 20000;
 
     private static function maybe_trim(): void {
@@ -77,12 +50,8 @@ class OUS_Notifications {
     }
 
     /**
-     * The one call any plugin needs. $email: true to also queue an
-     * email (respecting the recipient's own opt-out — see
-     * user_wants_email() below), false for in-app-only. Source is a
-     * plain human label ("BH Courses") shown next to the notification,
-     * purely cosmetic — never used to gate or route anything, so a
-     * typo'd source string can't break another plugin's notifications.
+     * $email also queues an email (respecting user_wants_email()). $source is a cosmetic label
+     * only, never used for routing.
      */
     public static function notify(int $user_id, string $type, string $title, string $body = '', string $url = '', string $source = '', bool $email = true): int {
         if (!$user_id) return 0;
@@ -91,10 +60,7 @@ class OUS_Notifications {
             'user_id' => $user_id, 'type' => sanitize_key($type), 'source' => sanitize_text_field($source),
             'title' => sanitize_text_field($title), 'body' => wp_kses_post($body), 'url' => esc_url_raw($url),
         ]);
-        // Audit fix (2026-07-25): $wpdb->insert()'s return value was
-        // previously ignored — on a schema-drift failure this would
-        // enqueue an email keyed to a notification row that doesn't
-        // exist. Fail loud (to DebugLog) and stop before queuing anything.
+        // Stop before queuing an email for a row that was never inserted.
         if (!$inserted) {
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('warning', 'OUS_Notifications::notify() insert failed: ' . $wpdb->last_error, ['user_id' => $user_id, 'type' => $type], 'OUS_Notifications');
@@ -108,50 +74,34 @@ class OUS_Notifications {
             if (class_exists('OUS_Jobs')) {
                 OUS_Jobs::enqueue('bhcore_send_notification_email', ['notification_id' => $id, 'user_id' => $user_id, 'title' => $title, 'body' => $body, 'url' => $url]);
             } else {
-                // No job queue active (shouldn't happen — same plugin,
-                // same activation) — fail toward still delivering the
-                // email rather than silently dropping it.
+                // No job queue: send inline rather than drop the email.
                 self::send_email_now($user_id, $title, $body, $url);
             }
         }
         return $id;
     }
 
-    // A user can opt out of EMAIL entirely (in-app notifications always
-    // still happen — that's just this plugin's own inbox, not an
-    // external send) via a simple user meta checkbox on their profile —
-    // an absolute override, checked first. Layered on top: per-TYPE
-    // preferences (bhcore_notification_email_prefs, a serialized
-    // type => bool map, absent-or-missing-key means default-on) — see
-    // type_wants_email() below. Existing call sites needed zero changes;
-    // this filter's own signature already carried $type before this,
-    // it just wasn't consulted per-type until now.
+    // The profile-level email opt-out overrides everything (in-app always happens); then
+    // per-type prefs via type_wants_email().
     public static function user_wants_email(int $user_id, string $type): bool {
         $opt_out = get_user_meta($user_id, 'bhcore_notifications_email_optout', true);
         $wants = $opt_out ? false : self::type_wants_email($user_id, $type);
         return apply_filters('bhcore_notification_should_email', $wants, $user_id, $type);
     }
 
-    // Absent key (a type the user has never seen a preference toggle
-    // for, or a brand-new type a plugin just started sending) means
-    // "on" — a user who has never touched the preferences UI keeps
-    // getting exactly the emails they always did, same as before this
-    // existed.
+    // A type with no stored preference defaults to on.
     public static function type_wants_email(int $user_id, string $type): bool {
         $prefs = get_user_meta($user_id, 'bhcore_notification_email_prefs', true);
         if (!is_array($prefs) || !array_key_exists($type, $prefs)) return true;
         return (bool) $prefs[$type];
     }
 
-    // Progressive disclosure, not a settings grid dumped on everyone:
-    // only the notification TYPES this specific user has actually ever
-    // received — a type they've never seen has no business appearing as
-    // a togglable preference (obvious-or-gone). A plugin can optionally
-    // register a human label via the `bhcore_notification_type_labels`
-    // filter (type => label); an unregistered type falls back to a
-    // humanized version of its own raw string rather than requiring
-    // every emitter to register just to be readable here.
-    /** @return array<int, string> */
+    /**
+     * Notification types this user has actually received (only those get a preference toggle).
+     * Labels come from the `bhcore_notification_type_labels` filter, else a humanized type string.
+     *
+     * @return array<int, string>
+     */
     public static function distinct_types_for_user(int $user_id): array {
         global $wpdb;
         return $wpdb->get_col($wpdb->prepare(
@@ -165,15 +115,12 @@ class OUS_Notifications {
         return ucfirst(str_replace(['_', '-'], ' ', $type));
     }
 
-    // The same queued job can fire more than once (e.g. a manual test
-    // call plus Action Scheduler's own background processing of the
-    // same scheduled job both running it), which would otherwise mean a
-    // silent duplicate email. notification_id (present for every call
-    // site going forward — see notify() above) lets this claim the row
-    // atomically before mailing; a call with no notification_id (an old
-    // queued job predating this fix) just sends once with no dedup,
-    // same as before.
-    /** @param array<string, mixed> $args */
+    /**
+     * WHY: the same queued job can fire twice, so the notification row is claimed atomically
+     * before mailing. Jobs without notification_id just send once with no dedup.
+     *
+     * @param array<string, mixed> $args
+     */
     public static function send_queued_email($args): void {
         $notification_id = (int) ($args['notification_id'] ?? 0);
         if ($notification_id) {
@@ -191,12 +138,7 @@ class OUS_Notifications {
         $message = wp_strip_all_tags($body);
         if ($url) $message .= "\n\n" . $url;
 
-        // Routed through BH_Mail (class-mail.php) — the shared send/
-        // emit-on-success/log-on-failure boilerplate this method used
-        // to hand-roll itself now lives there, shared with every other
-        // plugin's own notification emails instead of being reimplemented
-        // per call site. Falls back to the raw wp_mail() path only if
-        // BH_Mail somehow isn't loaded (shouldn't happen — same plugin).
+        // Falls back to raw wp_mail() only if BH_Mail isn't loaded.
         if (class_exists('BH_Mail')) {
             BH_Mail::send([
                 'user_id' => $user_id,
@@ -242,7 +184,7 @@ class OUS_Notifications {
         ));
     }
 
-    /* ---------------- UI: admin bar bell (works in wp-admin AND front end) ---------------- */
+    /* ---------------- UI: admin bar bell (wp-admin and front end) ---------------- */
 
     public static function admin_bar(\WP_Admin_Bar $wp_admin_bar): void {
         if (!is_user_logged_in()) return;
@@ -251,17 +193,8 @@ class OUS_Notifications {
 
         $wp_admin_bar->add_node([
             'id' => 'bhcore-notifications',
-            // A real dashicon glyph, not the raw bell emoji character this used
-            // to be. WordPress silently rewrites a raw unicode emoji in node
-            // TEXT into an <img class="emoji"> at render time -- a coloured,
-            // chunky raster image with none of the other toolbar icons' thin
-            // monochrome weight. Forcing its box to match their 24px size
-            // (an earlier fix) still looked wrong once matched, because box
-            // size was never the mismatch -- rendering TECHNIQUE was. A bare
-            // .ab-icon span is the same element every other core toolbar
-            // item uses; content is supplied by one matching CSS rule below
-            // (#wp-admin-bar-bhcore-notifications .ab-icon:before), exactly
-            // core's own per-item pattern.
+            // WHY: a dashicon .ab-icon span, not an emoji — WP rewrites emoji text into a raster <img>
+            // that doesn't match core toolbar icons. Glyph comes from the .ab-icon:before rule below.
             'title' => '<span class="ab-icon" aria-hidden="true"></span>' . ($count ? ' <span class="bhcore-notif-count">' . (int) $count . '</span>' : ''),
             'href' => '#',
             'meta' => ['class' => 'bhcore-notif-bar-item'],
@@ -303,17 +236,10 @@ class OUS_Notifications {
 
     public static function render_portal_panel(): void {
         echo '<h1>Notifications</h1>';
-        echo self::render_shortcode(); // phpcs:ignore -- render_shortcode() already returns fully-escaped markup, same output the [bh_notifications] shortcode itself echoes on the front end
+        echo self::render_shortcode(); // phpcs:ignore -- render_shortcode() already returns fully-escaped markup
     }
 
-    // A plain <details> disclosure, closed by default — the whole point
-    // is that a user who's never wanted finer control than the existing
-    // single opt-out never sees a settings grid at all (VISION.md's own
-    // "it just works" section: a wall of options is a wall for the
-    // person who doesn't already know what every one of them means).
-    // Nothing renders here at all if this user has never received any
-    // notification yet — obvious-or-gone, never an empty preferences
-    // panel for a brand-new account with nothing to configure.
+    // Closed <details> disclosure; renders nothing for a user who has never received a notification.
     private static function render_email_prefs(int $user_id): string {
         $types = self::distinct_types_for_user($user_id);
         if (!$types) return '';
@@ -357,29 +283,14 @@ class OUS_Notifications {
         return ob_get_clean();
     }
 
-    // A dedicated handle of our own, registered with no source file
-    // (register a no-op script/style, then attach everything via
-    // wp_add_inline_*) rather than piggybacking on WordPress core's
-    // 'admin-bar' handle — that handle is only actually enqueued when
-    // the toolbar is showing, which a user can turn off in their own
-    // profile ("Show Toolbar when viewing site") or a theme can
-    // suppress entirely. Piggybacking on it would make the
-    // `[bh_notifications]` shortcode's mark-all-read button silently do
-    // nothing for exactly the visitors who disabled the admin bar —
-    // this way the bell (which DOES live in the admin bar) and the
-    // shortcode (which doesn't) both work regardless of that setting.
+    // WHY: our own no-source handle rather than core's 'admin-bar', which isn't enqueued when the
+    // toolbar is hidden; the shortcode's mark-all-read must work regardless.
     public static function maybe_enqueue(): void {
         if (!is_user_logged_in()) return;
 
         wp_register_style('bhcore-notifications', false);
         wp_enqueue_style('bhcore-notifications');
-        // Uses --bh-* tokens (the-self-hosted-self's front-end brand vars, see
-        // class-style.php) with the original hardcoded WP-admin-bar
-        // colors (admin blue #72aee6, etc.) kept as fallbacks — this
-        // same markup renders both in the admin-bar dropdown and, via
-        // render_portal_panel(), in the front-end portal/shortcode,
-        // where hardcoded admin blue clashed against the site's warm
-        // cream/terracotta brand.
+        // --bh-* tokens with the admin-bar colors as fallbacks; this markup renders in wp-admin and the portal.
         wp_add_inline_style('bhcore-notifications', '
             .bhcore-notif-count { background: #d63638; color: #fff; border-radius: 9px; font-size: 11px; padding: 0 5px; margin-left: 2px; }
             .bhcore-notifications-list { max-width: 600px; }
@@ -479,10 +390,7 @@ class OUS_Notifications {
         wp_send_json_success();
     }
 
-    // Only ever writes the ONE type being toggled — reads the user's
-    // existing prefs map first rather than replacing it wholesale, so
-    // toggling one type in a fresh page load can't accidentally clobber
-    // a preference set from a different browser tab/session.
+    // Read-modify-write of only the toggled type, so another tab's settings aren't clobbered.
     public static function ajax_save_pref(): void {
         check_ajax_referer('bhcore_notifications', 'nonce');
         $user_id = get_current_user_id();
@@ -509,12 +417,12 @@ class OUS_Notifications {
         return $suites;
     }
 
-    // The one piece of real branching logic in this pass worth pinning
-    // down: default-on for an absent/never-toggled type, per-type
-    // toggle respected once set, and the full opt-out overriding
-    // everything regardless of any per-type preference. Runs against a
-    // real, tagged fixture user, cleaned up afterward.
-    /** @return array<int, mixed> */
+    /**
+     * Default-on for untouched types, per-type toggle respected, full opt-out overrides all.
+     * Uses a tagged fixture user, cleaned up afterward.
+     *
+     * @return array<int, mixed>
+     */
     public static function run_tests(): array {
         if (!class_exists('OUS_TestRunner') || !class_exists('OUS_Debug')) return [];
         $rows = [];
@@ -537,7 +445,6 @@ class OUS_Notifications {
 
         $rows[] = OUS_TestRunner::assert_same('Course completed', self::type_label('course_completed'), 'type_label(): an unregistered type humanizes its own raw string');
 
-        // Cleanup.
         delete_user_meta($uid, 'bhcore_notification_email_prefs');
         delete_user_meta($uid, 'bhcore_notifications_email_optout');
 

@@ -2,28 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BHCRM_Links — a generic, typed relationship table between entities,
- * replacing bhcrm_projects.crm_person_id's hard single-owner column
- * with something more like Jira/DevOps-style relationships: a project
- * can link to MULTIPLE people with a typed relation ('owner',
- * 'collaborator', 'watcher', or any
- * other free-text relation a future feature wants), and the same table
- * extends to any future entity pair (e.g. a course linked to an
- * instructor, a contest linked to a judge) without a new column or a
- * new table, just a new ($from_type, $to_type) pairing.
- *
- * Row shape: id, from_type, from_id, to_type, to_id, relation,
- * created_at. Direction is a modeling convenience, not a hard
- * semantic — 'project'->'person' owner and 'person'->'project' owner
- * would be the same fact from either side; this class always stores
- * project->person for that pairing (see link_project_person()) so
- * queries don't need to check both directions.
- *
- * A (from_type, from_id, to_type, to_id, relation) row is unique —
- * the same person can't be linked to the same project as 'owner'
- * twice, but CAN hold two different relations to the same project
- * ('owner' AND 'watcher' as separate rows), matching Jira/DevOps's own
- * "a person can wear more than one hat on the same item" behavior.
+ * Generic typed relationship table between entities (from_type/from_id -> to_type/to_id, relation).
+ * Project<->person links are always stored project(from)->person(to).
+ * (from, to, relation) is unique; one person may hold several relations to the same item.
  */
 class BHCRM_Links {
     const DB_VERSION = '1.0';
@@ -76,13 +57,7 @@ class BHCRM_Links {
         return BHCRM_Tables::links();
     }
 
-    /**
-     * One-time backfill: every existing bhcrm_projects row with a
-     * nonzero crm_person_id becomes a project->person 'owner' link.
-     * Idempotent (the UNIQUE key makes a re-run a harmless no-op via
-     * INSERT IGNORE) — safe to call from maybe_upgrade() on every
-     * version bump that touches this, not just the very first install.
-     */
+    /** Backfills crm_person_id owners as 'owner' links; idempotent via the UNIQUE key + INSERT IGNORE. */
     public static function migrate_legacy_project_owners(): void {
         global $wpdb;
         $projects_table = BHCRM_Tables::projects();
@@ -118,16 +93,13 @@ class BHCRM_Links {
             'created_at' => current_time('mysql'),
         ]);
         if ($ok === false && class_exists('OUS_DebugLog')) {
-            // Debug-log wiring pass — previously silent on failure.
             OUS_DebugLog::log('error', 'BHCRM_Links::link() insert failed.', [
                 'from_type' => $from_type, 'from_id' => $from_id, 'to_type' => $to_type, 'to_id' => $to_id, 'relation' => $relation, 'db_error' => $wpdb->last_error,
             ], 'BH CRM Links');
         }
         $link_id = (int) $wpdb->insert_id;
 
-        // Feeds the CRM's unified per-person activity timeline — only
-        // meaningful when one side of the link IS a person, same as
-        // the rest of this class's project<->person convenience layer.
+        // Activity-timeline event, only when one side is a person.
         if ($link_id && class_exists('BH_Event')) {
             $person_id = $to_type === 'person' ? (int) $to_id : ($from_type === 'person' ? (int) $from_id : 0);
             if ($person_id) {
@@ -166,9 +138,7 @@ class BHCRM_Links {
     }
 
     /* =================================================================
-     * project<->person convenience wrappers — the first real consumer.
-     * Direction is always stored project(from)->person(to); these
-     * wrappers hide that so callers on either side don't need to know it.
+     * project<->person wrappers (hide the stored project->person direction)
      * ================================================================= */
 
     public static function link_project_person(int $project_id, int $person_id, string $relation = 'owner'): int {
