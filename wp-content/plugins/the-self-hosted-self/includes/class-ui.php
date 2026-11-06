@@ -495,20 +495,7 @@ class BHY_UI {
         }
     }
     /* ---------------- component renderers ----------------
-       Single source for shared component markup, escaped by construction.
-       Each renders through Twig when available, else a PHP string build.
-       WHY: the fallback is not dead code; the live host runs no composer
-       install, so a plugin uploaded without vendor/ must still render. */
-
-    /**
-     * Is the Twig layer usable right now?
-     *
-     * WHY: class_exists() too, because tools outside WordPress (the Storybook
-     * fixture generator) load this file without BHY_View or a bootable Timber.
-     */
-    private static function view_engine_ready(): bool {
-        return class_exists('BHY_View') && BHY_View::is_available();
-    }
+       Single source for shared component markup, escaped by construction. */
 
     public const BADGE_VARIANTS = ['neutral', 'success', 'warning', 'danger', 'info'];
     public const ALERT_VARIANTS = ['info', 'success', 'warning', 'danger'];
@@ -529,15 +516,6 @@ class BHY_UI {
         // fixed-vocabulary label should never truncate — see STYLE-SYSTEM.md.
         if (!empty($args['truncate'])) $classes[] = 'bhy-badge-truncate';
 
-        if (self::view_engine_ready()) {
-            return trim(BHY_View::render('@ous/badge.twig', [
-                'label'    => $label,
-                'variant'  => $variant,
-                'dot'      => !empty($args['dot']),
-                'truncate' => !empty($args['truncate']),
-                'title'    => $args['title'] ?? null,
-            ]));
-        }
         $title = isset($args['title']) ? ' title="' . esc_attr((string) $args['title']) . '"' : '';
         return '<span class="' . esc_attr(implode(' ', $classes)) . '"' . $title . '>' . esc_html($label) . '</span>';
     }
@@ -553,14 +531,6 @@ class BHY_UI {
         $variant = (string) ($args['variant'] ?? 'info');
         if (!in_array($variant, self::ALERT_VARIANTS, true)) $variant = 'info';
 
-        if (self::view_engine_ready()) {
-            return trim(BHY_View::render('@ous/alert.twig', [
-                'variant'   => $variant,
-                'title'     => $args['title'] ?? null,
-                'message'   => $message,
-                'body_html' => $args['html'] ?? null,
-            ]));
-        }
         $out = '<div class="bhy-alert bhy-alert-' . esc_attr($variant) . '">';
         if (!empty($args['title'])) {
             $out .= '<strong class="bhy-alert-title">' . esc_html((string) $args['title']) . '</strong> ';
@@ -577,14 +547,6 @@ class BHY_UI {
      * @param array{title?:string, footer?:string, class?:string} $args
      */
     public static function card(string $body, array $args = []): string {
-        if (self::view_engine_ready()) {
-            return trim(BHY_View::render('@ous/card.twig', [
-                'body_html'   => $body,
-                'title'       => $args['title'] ?? null,
-                'footer_html' => $args['footer'] ?? null,
-                'extra_class' => $args['class'] ?? null,
-            ]));
-        }
         $extra = isset($args['class']) ? ' ' . (string) $args['class'] : '';
         $out = '<div class="bhy-card' . esc_attr($extra) . '">';
         if (!empty($args['title'])) {
@@ -602,12 +564,6 @@ class BHY_UI {
      * @param array{tall?:bool} $args
      */
     public static function table_wrap(string $table_html, array $args = []): string {
-        if (self::view_engine_ready()) {
-            return trim(BHY_View::render('@ous/table-wrap.twig', [
-                'table_html' => $table_html,
-                'tall'       => !empty($args['tall']),
-            ]));
-        }
         $class = 'bhy-table-wrap' . (!empty($args['tall']) ? ' bhy-table-wrap--tall' : '');
         return '<div class="' . esc_attr($class) . '">' . $table_html . '</div>';
     }

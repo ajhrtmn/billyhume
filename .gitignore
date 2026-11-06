@@ -41,9 +41,8 @@ wp-content/plugins/*/tests-integration/.phpunit.result.cache
 # with its own composer.json — bh-monetization-woo's real-database
 # integration suite (tests-integration/, dev/CI only, never shipped).
 # composer.lock stays committed here too, for the SAME Wasmer-build
-# reason /vendor/'s own comment documents (the-self-hosted-self's own
-# composer.lock is committed for the identical reason) — only vendor/
-# itself is safe to regenerate and skip.
+# reason /vendor/'s own comment documents — only vendor/ itself is safe
+# to regenerate and skip.
 wp-content/plugins/bh-monetization-woo/tests-integration/vendor/
 
 # node_modules/ is dev-only tooling too (TypeScript compiler for the

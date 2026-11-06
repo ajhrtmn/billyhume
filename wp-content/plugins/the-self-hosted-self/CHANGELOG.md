@@ -7,6 +7,8 @@ why version history lives here and in git rather than in source.
 Entries are newest-first, exactly as they were written in-file. Nothing
 has been reworded or dropped.
 
+3.21.48 - Removed Timber/Twig (and the Symfony polyfills they pulled in): 390 vendored files used only by BHY_UI's badge/alert/card/table_wrap, which already had plain-PHP renderers. Deleted BHY_View, views/*.twig, vendor/{timber,twig,symfony,composer,autoload.php}, this plugin's composer.json/lock, tools/check-render-parity.php, the Dependabot entry and the runtime composer-audit step. FPDF stays (vendor/fpdf, loaded by path). Before removal, the parity tool proved Twig and the PHP renderers byte-identical across 22 cases. Also fixed tools/gen-storybook-fixtures.php, which needed OUS_PATH after 3.21.43 moved design-system CSS into a file. Runtime-verified: renderers escape correctly, the dashboard renders, Test Runner 479/479, Storybook fixtures regenerate.
+
 3.21.47 - Security: Codebase Docs' snippet endpoint (admin-only, nonce-checked) compared the resolved path against the plugins root without a trailing separator, so a sibling folder such as plugins-old/ passed. It now requires the root plus a separator. Runtime-verified: a .md file in a temporary sibling folder is refused, and a real plugins/ file still loads. Also corrected the ProductionLockTest note: an unknown WP_ENVIRONMENT_TYPE locks Debug Tools on a real site, because WordPress normalizes it to 'production'; only the test's stub returns it verbatim.
 
 3.21.46 - Retired the unused parts of the element system. Confirmed on the

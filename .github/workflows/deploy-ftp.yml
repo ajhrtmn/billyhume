@@ -59,7 +59,7 @@ jobs:
       # Two artifacts are produced:
       #   1. assets/js/*.js from assets/ts/*.ts (tsc, no bundler)
       #   2. each plugin's own vendor/ dir, from its own composer.json if it
-      #      has one (Timber/Twig live here)
+      #      has one (none do today; FPDF is vendored by hand)
       #
       # Both are committed today, so this is currently a VERIFICATION step —
       # it fails the deploy if the committed artifacts are stale rather than

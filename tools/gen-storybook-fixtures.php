@@ -18,6 +18,8 @@
  */
 
 if (!defined('ABSPATH')) define('ABSPATH', __DIR__ . '/../');
+// BHY_UI reads its stylesheets from the plugin folder.
+if (!defined('OUS_PATH')) define('OUS_PATH', __DIR__ . '/../wp-content/plugins/the-self-hosted-self/');
 
 if (!function_exists('esc_html')) {
     function esc_html($t) { return htmlspecialchars((string) $t, ENT_QUOTES, 'UTF-8'); }

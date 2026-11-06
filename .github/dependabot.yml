@@ -21,20 +21,6 @@ updates:
       - "dependencies"
       - "dev-tooling"
 
-  # The one real RUNTIME dependency in this ecosystem (Timber/Twig),
-  # installed at build time by deploy-ftp.yml and shipped inside the
-  # plugin folder -- see this file's own docblock. Kept separate from the
-  # root composer group above since a bump here ships to production, a
-  # bump there never does.
-  - package-ecosystem: "composer"
-    directory: "/wp-content/plugins/the-self-hosted-self"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    labels:
-      - "dependencies"
-      - "runtime"
-
   # Playwright, Storybook, TypeScript, Stylelint, Vitest -- all dev/CI
   # tooling. No npm runtime dependency exists anywhere in this ecosystem
   # (module: none, no bundler -- see TOOLING-EVALUATION.md), so every
