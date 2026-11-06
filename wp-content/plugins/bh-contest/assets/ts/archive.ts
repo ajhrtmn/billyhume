@@ -1,14 +1,6 @@
 /**
- * Archive/Library — fetches the full catalog once, then filters
- * client-side (search + contest dropdown) rather than re-fetching per
- * keystroke. Reasonable for a catalog of the size this plugin is likely
- * to accumulate; worth revisiting with real pagination if a site ends up
- * with a genuinely large number of contests down the line.
- *
- * TypeScript pilot conversion — same posture as reveal.ts/bh-common.ts.
- * bhEsc is declared as an untyped external global (defined in the
- * already-converted bh-common.ts, loaded first — see bh-contest.php's
- * enqueue order).
+ * Archive: fetches the whole catalog once, then filters client-side (no pagination).
+ * bhEsc comes from bh-common.js, enqueued first.
  */
 
 declare function bhEsc(value: unknown): string;

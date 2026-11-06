@@ -2,20 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The archive — a single, unified library across every contest ever
- * run, not a "pick a contest first" browsing structure. Closer to how
- * an actual streaming service works: everything's in one catalog,
- * filtered by contest/search rather than navigated into contest by
- * contest.
- *
- * Uses the site-wide theme only, never a per-contest override — there's
- * no single "correct" contest to theme this page after since it spans
- * all of them at once.
- *
- * Winner badges only appear for a contest whose results are actually
- * published (same _bh_results_published gate used everywhere else) —
- * an in-progress contest's tracks show up in the library with no
- * placement info at all, never a leaked ranking.
+ * One catalog of entries across every contest, filtered by contest/search.
+ * Uses the site-wide theme only. Winner badges appear only once a contest's
+ * results are published, so rankings never leak.
  */
 class BH_Archive {
     public static function init(): void {
@@ -61,10 +50,7 @@ class BH_Archive {
         ], 200);
     }
 
-    // Every medal a submission earned in a contest — category wins and
-    // an overall win are both possible for the same track, so this
-    // returns a list, not a single result. Empty entirely (not
-    // partially withheld) for a contest that hasn't published results.
+    // Every medal a submission earned (category and overall); empty until results publish.
     /** @return array<int, array<int, string>> */
     private static function compute_placements(int $cid): array {
         if (get_post_meta($cid, '_bh_results_published', true) !== '1') return [];
@@ -87,10 +73,7 @@ class BH_Archive {
     }
 
     public static function render_display_shortcode(): string {
-        // Shared catalog structure/elevation, registered by the core plugin.
-        // By handle, so this plugin never needs to know where core keeps the
-        // file; enqueueing an unregistered handle is a no-op, so a
-        // core-absent install degrades to this plugin's own styles.
+        // Core's catalog styles, by handle; a no-op if core didn't register it.
         wp_enqueue_style('ous-catalog');
         ob_start();
         ?>

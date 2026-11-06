@@ -2,12 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Test Runner coverage for BH_Studio's default block types (registered
- * against BH_Content — see class-studio.php) and BH_Content's own
- * validate()/render() round trip through them. Pure logic, no database
- * required — every block type tested here has a stateless schema +
- * renderer, so this suite exercises the same code path a real
- * BH_Studio save/render cycle uses without needing a live install.
+ * Test Runner coverage for BH_Studio's default block types and BH_Content's
+ * validate()/render() round trip. Pure logic, no database.
  */
 class OUS_StudioTestSuite {
     public static function init(): void {
@@ -73,11 +69,7 @@ class OUS_StudioTestSuite {
         $empty_image = BH_Content::render(BH_Content::validate([['type' => 'bh/image', 'attrs' => [], 'children' => []]]));
         $rows[] = OUS_TestRunner::assert_same('', $empty_image, 'Image block with no url renders nothing, never a broken <img src="">');
 
-        /* ---------- output never contains an inline "position:absolute" ----------
-         * The concrete enforcement point for "expressive control, never
-         * absolute-positioned div soup" (see studio.js's own COMMON_SUPPORTS
-         * comment) — checked here on the actual rendered HTML string, not
-         * just asserted in a code comment. */
+        /* ---------- output never contains an inline "position:absolute" ---------- */
         $rows[] = OUS_TestRunner::assert_false(
             strpos(strtolower($html), 'position:absolute') !== false || strpos(strtolower($html), 'position: absolute') !== false,
             'Rendered output contains no inline position:absolute anywhere'

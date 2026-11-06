@@ -1,7 +1,6 @@
 /**
- * TypeScript pilot conversion — same posture as this plugin's other
- * converted files. BHJudgeData/BHCoreToast are untyped external
- * globals (localized data + an optional shared toast helper).
+ * Judge panel save/submit. BHJudgeData (localized) and BHCoreToast (optional)
+ * are untyped external globals.
  */
 
 interface BHJudgeDataGlobal {
@@ -70,16 +69,8 @@ interface BHJudgeSaveResponse {
                     if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(submitted ? 'Score submitted.' : 'Draft saved.', 'success'); }
                 })
                 .catch(() => {
-                    // Retry-audit pass, AJ's own standing ask: this had
-                    // no .catch() at all — a dropped connection here
-                    // silently failed with zero feedback, and (worse)
-                    // a judge could reasonably think their submitted
-                    // score went through when it never left the
-                    // browser. Safe to retry — the server side
-                    // (BH_Judging::save_score()) is a real
-                    // ON DUPLICATE KEY UPDATE upsert keyed on judge+
-                    // submission+category, confirmed by reading it, not
-                    // an insert-only log a retry could duplicate.
+                    // WHY: safe to retry; save_score() is an upsert keyed on
+                    // judge+submission+category, so retries never duplicate.
                     if (attempt < 2) {
                         if (statusEl) statusEl.textContent = 'Retrying…';
                         setTimeout(() => { save(entry, status, attempt + 1); }, 500 * Math.pow(2, attempt) + Math.random() * 200);

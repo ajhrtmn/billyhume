@@ -1,26 +1,9 @@
 /**
- * Controls-pane side of BHY_Customize_Css_Rules_Control (class-customize-
- * css-rules-control.php) — the visual Custom CSS rule editor, rebuilt so
- * it lives directly in the Customizer instead of only the Design Suite
- * admin page ("Both sides should be able to have acces to the rule
- * builder" — AJ, 2026-09-19). Deliberately mirrors the property-registry-
- * driven control-building logic in class-style-gallery.php's own inline
- * JS (color picker / keyword dropdown / font field / number+unit per
- * css_property_registry() type) rather than sharing code across the two
- * very different script-loading contexts (a normal admin page vs. the
- * Customizer's controls iframe) — same accepted duplication as that
- * file's PHP/JS mirror for the identical reason.
- *
- * Talks to the Customize API directly (wp.customize(id).get()/.set())
- * rather than WP_Customize_Control::link()'s "bind one form field"
- * helper — this control's value is a whole array of rule objects, and
- * Customizer settings transport arbitrary JS values structurally (JSON
- * under the hood, both over postMessage to the preview and in the save
- * request), not just a plain input's string .value.
- *
- * Run `npx tsc` from this plugin's root after editing; the compiled
- * assets/js/customizer-css-rules-control.js is what class-customize-css-
- * rules-control.php's enqueue() loads.
+ * Controls-pane side of BHY_Customize_Css_Rules_Control: the visual Custom CSS
+ * rule editor inside the Customizer. Mirrors the gallery's inline JS control
+ * builder (the two load in very different contexts, so code is not shared).
+ * Uses wp.customize(id).get()/.set() directly because the value is a whole
+ * array of rule objects, not one input's string.
  */
 interface BhyCssPropertyDef {
     label: string;
@@ -138,21 +121,9 @@ interface BhyCssRule {
 
     function readRules(container: HTMLElement): BhyCssRule[] {
         const rules: BhyCssRule[] = [];
-        // Real bug caught live (AJ: "seems to bork if you create a rule,
-        // but dont populate it, but then right click to select and
-        // element for a rule to add"): an in-progress rule with no
-        // selector yet used to be silently DROPPED from the pushed
-        // array — harmless on its own, but the moment any EXTERNAL
-        // change arrived (the right-click "Add custom rule" message),
-        // setting.bind()'s re-render rebuilt the whole list from that
-        // truncated array, wiping out the still-empty rule the admin
-        // hadn't finished typing into yet. Every rule row is now always
-        // included, complete or not — an incomplete one simply emits no
-        // CSS (ruleToCssText()/BHY_Style::inline_css() both already
-        // skip an empty selector or empty declarations), and the real
-        // sanitizer (BHY_Style::sanitize_custom_css_rules()) already
-        // drops genuinely-empty rules at actual SAVE time, same as
-        // before — only the live, still-editing buffer got more lenient.
+        // WHY: always include every rule row, complete or not. Dropping empty
+        // ones meant an external change re-rendered from a truncated array and
+        // wiped a rule still being typed. Empty rules emit no CSS and are dropped on save.
         container.querySelectorAll('.bhy-css-rule').forEach(function (ruleEl) {
             const selectorInput = ruleEl.querySelector('.bhy-cz-selector') as HTMLInputElement;
             const selector = selectorInput.value.trim();
@@ -186,12 +157,8 @@ interface BhyCssRule {
         customizeApi(settingId, function (setting) {
             renderRules(list, (setting.get() as BhyCssRule[]) || []);
             setting.bind(function (newRules: BhyCssRule[]) {
-                // Skip re-render when this is the exact change we just
-                // pushed ourselves — otherwise every keystroke would
-                // rebuild the DOM (and drop focus) it just came from.
-                // An external change (the "Add custom rule for this
-                // element" cross-frame message, see class-customizer.php)
-                // won't match, and correctly re-renders.
+                // Skip re-rendering our own push (it would drop focus on every
+                // keystroke); external changes still re-render.
                 if (JSON.stringify(newRules) === lastPushed) return;
                 renderRules(list, newRules || []);
             });
@@ -230,19 +197,9 @@ interface BhyCssRule {
     function initAll() {
         document.querySelectorAll('.bhy-cz-rules-editor').forEach(function (el) { initEditor(el as HTMLElement); });
 
-        // "Add custom rule for this element" (customizer-preview.ts's
-        // right-click menu) — appends a new, still-empty rule pre-filled
-        // with the clicked element's selector directly into this
-        // control's own setting; the setting.bind() above picks up this
-        // EXTERNAL change and re-renders, so the new rule just appears
-        // already open. Real bug caught live: `wp.customize.previewer`
-        // is NOT necessarily populated yet at this script's own load
-        // time (same race as customizer-preview.ts's `preview` object —
-        // see its own docblock note on this) even though this script
-        // depends on 'customize-controls' — checking its truthiness at
-        // load time silently skipped attaching this listener at all.
-        // Deferred inside the same 'ready' callback as initAll() above,
-        // by which point it reliably exists.
+        // "Add custom rule for this element" from the preview's right-click menu
+        // appends a prefilled rule. WHY: previewer is populated async, so this is
+        // attached inside the 'ready' callback.
         if (customizeApi.previewer) {
             customizeApi.previewer.bind('bhy-add-custom-rule', function (selector: unknown) {
                 customizeApi('bhy_style_settings[custom_css_rules]', function (setting) {

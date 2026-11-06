@@ -2,31 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Optional TOTP (RFC 6238) two-factor auth — standard enough to work
- * with Google Authenticator, Authy, 1Password, etc., implemented in
- * plain PHP (hash_hmac + a small base32 codec) rather than pulling in a
- * Composer dependency, matching this codebase's no-build-step
- * convention everywhere else.
- *
- * Two independent layers of "optional," on purpose:
- *
- * 1. SITE-WIDE: the site holder decides whether this feature exists on
- *    their install at all (The Self-Hosted Self → Security). Off by default.
- *    While off, nothing changes about login for anyone — no code
- *    field, no enforcement, completely inert.
- * 2. PER-USER: even with the site setting on, 2FA is opt-in per
- *    account, enrolled from the user's own WP profile screen (their
- *    own decision, not something an admin flips on for them). Only
- *    users who've actually completed enrollment (which requires
- *    confirming one real code first, so nobody can lock themselves out
- *    with a mistyped secret) are ever challenged at login.
- *
- * One enforcement point covers both the classic wp-login.php form and
- * this plugin's own REST login endpoint: WordPress's own 'authenticate'
- * filter chain, which wp_signon() (used by BOTH bhi/v1/login and
- * wp-login.php under the hood) already runs through — see gate_login()
- * below. That's the one place this needs to hook, rather than
- * duplicating the check in two different code paths.
+ * Optional TOTP (RFC 6238) two-factor auth in plain PHP. Off site-wide by
+ * default; when on, opt-in per user, and only enforced after enrollment is
+ * confirmed with a real code. Enforced once in the 'authenticate' filter, which
+ * covers both wp-login.php and the REST login (both use wp_signon()).
  */
 class BHI_TwoFactor {
     const SECRET_META_KEY = 'bhcore_2fa_secret';
@@ -92,8 +71,7 @@ class BHI_TwoFactor {
         return self::base32_encode(random_bytes(20)); // 160-bit secret, standard for TOTP
     }
 
-    // 30-second step, 6 digits, SHA-1 — the universal defaults every
-    // authenticator app assumes without being told otherwise.
+    // 30-second step, 6 digits, SHA-1: the defaults every authenticator assumes.
     private static function totp_at(string $secret, int $timeslice): string {
         $key = self::base32_decode($secret);
         $time_bin = str_pad(pack('N', 0) . pack('N', $timeslice), 8, "\0", STR_PAD_LEFT);
@@ -106,10 +84,7 @@ class BHI_TwoFactor {
         return str_pad((string) ($truncated % 1000000), 6, '0', STR_PAD_LEFT);
     }
 
-    // Accepts the current 30-second window and one step on either side —
-    // a real, common allowance for clock drift between the server and
-    // whatever phone the authenticator app is running on, without
-    // opening the window so wide a code stays guessable for minutes.
+    // Accepts the current window plus one step either side for clock drift.
     /** @param mixed $code */
     public static function verify_code(int $user_id, $code, ?string $secret = null): bool {
         $secret = $secret ?: get_user_meta($user_id, self::SECRET_META_KEY, true);
@@ -133,9 +108,7 @@ class BHI_TwoFactor {
 
     /* ---------------- login enforcement ---------------- */
 
-    // Runs at priority 30 — after WP core's own username/password check
-    // (priority 20) has already turned $user into either a valid
-    // WP_User or a WP_Error. Nothing here re-checks the password itself.
+    // Priority 30: after core's password check (20). Never re-checks the password.
     /**
      * @param mixed $user
      * @return mixed
@@ -148,16 +121,8 @@ class BHI_TwoFactor {
         $code = isset($_POST['bhcore_2fa_code']) ? sanitize_text_field(wp_unslash($_POST['bhcore_2fa_code'])) : '';
         if (self::verify_code($user->ID, $code)) return $user;
 
-        // A genuinely wrong code (not just "the field hasn't been shown
-        // yet") was previously invisible — this is a real brute-force/
-        // account-takeover-attempt signal on a security-critical path
-        // that had zero trace before. Only logged when a code was
-        // actually submitted (not the blank-field first render, which
-        // would otherwise log on every single password-only login
-        // attempt for a 2FA-enabled account and drown out real signal).
-        // Throttled per-user, not per-request, so a scripted brute-force
-        // attempt against one account still shows up as "repeated
-        // failures" in the log rather than either silence or a flood.
+        // Log wrong submitted codes (not the blank first render), throttled per
+        // user so brute force shows as repeated failures.
         if ($code !== '' && class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log_throttled('warning', 'bhcore_2fa_fail_' . $user->ID, 30,
                 'Failed 2FA code attempt at login.', ['user_id' => $user->ID, 'username' => $username], 'Two-Factor'
@@ -167,12 +132,8 @@ class BHI_TwoFactor {
         return new WP_Error('bhcore_2fa_required', __('<strong>Error</strong>: Enter the 6-digit code from your authenticator app.'));
     }
 
-    // Always rendered on wp-login.php once the site FEATURE is on
-    // (regardless of whether THIS particular visitor's account has 2FA
-    // enabled) — a field a non-2FA account simply leaves blank and
-    // gate_login() never looks at, since user_has_2fa() is false for
-    // them. Simpler than trying to know in advance, before a password is
-    // even submitted, whether to show it.
+    // Always shown once the feature is on; accounts without 2FA leave it blank
+    // and gate_login() ignores it.
     public static function render_code_field(): void {
         if (!self::site_enabled()) return;
         echo '<p><label for="bhcore_2fa_code">Authentication code <span class="description">(only if you have 2FA enabled on your account)</span><br>';
@@ -188,10 +149,7 @@ class BHI_TwoFactor {
             }
             return;
         }
-        // Only the account owner enrolls their OWN 2FA — an admin
-        // viewing someone else's profile can see status, not set it up
-        // on their behalf (they wouldn't have the authenticator app to
-        // scan the QR code with anyway).
+        // Only the account owner can enroll their own 2FA.
         $is_own_profile = get_current_user_id() === $user->ID;
         $enabled = self::user_has_2fa($user->ID);
 
@@ -302,12 +260,8 @@ class BHI_TwoFactor {
         $user_id = get_current_user_id();
         if (!$user_id || !self::site_enabled()) wp_send_json_error(['message' => 'Not available.'], 403);
 
-        // A freshly-generated secret each time "start setup" is clicked
-        // (not reused across attempts) stored as PENDING, not live yet —
-        // only promoted to the real, enforced secret once a real code
-        // confirms it actually works (see ajax_confirm_enroll()), so a
-        // botched scan can never leave someone's account silently
-        // requiring a code they can't produce.
+        // WHY: a fresh secret is stored as PENDING and only goes live after a
+        // real code confirms it, so a botched scan cannot lock anyone out.
         $secret = self::generate_secret();
         update_user_meta($user_id, self::PENDING_META_KEY, $secret);
 
@@ -343,12 +297,7 @@ class BHI_TwoFactor {
         delete_user_meta($user_id, self::SECRET_META_KEY);
         delete_user_meta($user_id, self::ENABLED_META_KEY);
         delete_user_meta($user_id, self::PENDING_META_KEY);
-        // A security-relevant account change with zero audit trail
-        // before this — a stolen/hijacked session disabling 2FA to
-        // remove a barrier to further account takeover would leave no
-        // trace at all. Unthrottled (this is a rare, deliberate action,
-        // not a per-request check) and always logged, not just on
-        // suspicion — the point is a searchable record existing at all.
+        // Always log disabling 2FA (rare, security-relevant).
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('warning', '2FA disabled for account.', ['user_id' => $user_id], 'Two-Factor');
         }

@@ -2,28 +2,16 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Split out of class-admin.php (DRY/SOLID audit Phase 3b) — every
- * contest/submission edit-screen metabox (settings, categories, judging,
- * rounds, shortcode, revisions, site menu, share-card style, branding)
- * plus the single save handler that persists all of them. No list-table
- * columns, moderation actions, or CSV/results reporting here.
+ * Every contest/submission edit-screen metabox, plus the single save handler for them.
  */
 class BH_AdminMetaboxes {
     public static function init(): void {
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes']);
-        // The branding/style override box is an opt-in, per-contest
-        // feature most contests never touch (the site-wide theme from
-        // Settings & Style already applies by default) — starting it
-        // collapsed when a contest hasn't turned the override on keeps
-        // it out of the way without hiding or removing it.
         add_filter('postbox_classes_bh_contest_bh_contest_style', [self::class, 'maybe_collapse_style_box']);
         add_action('save_post_bh_contest', [self::class, 'save_contest_meta']);
     }
 
-    // Adds WordPress's own "closed" postbox class when this contest's
-    // style override isn't enabled yet — the box is still fully present
-    // and expandable, just not competing for attention by default the
-    // way it would if it always opened expanded.
+    // Starts the opt-in style override box collapsed until the override is on.
     /**
      * @param array<int, string> $classes
      * @return array<int, string>
@@ -35,23 +23,8 @@ class BH_AdminMetaboxes {
     }
 
     /**
-     * Submission review box — covers the file-replace workflow ("wrong
-     * file uploaded") and a real reject path. Three states
-     * this renders:
-     *  1. No pending swap, not rejected: original behavior — live
-     *     audio player + the existing "set Status to Published"
-     *     instruction, PLUS a new Reject form.
-     *  2. A pending swap exists (`_bh_pending_audio_id`): shows BOTH
-     *     the currently-live file (still what's actually playing/
-     *     being voted on) and the pending replacement, with Approve/
-     *     Discard buttons for the swap specifically — first-time
-     *     Publish approval and the swap review are two independent
-     *     actions once a submission has ever been approved once.
-     *  3. post_status === 'rejected': shows the stored reason/note
-     *     read-only, plus the same Reject-again path is naturally
-     *     unavailable (nothing to re-reject) — a contestant re-
-     *     submitting a new file automatically flips this back to
-     *     'pending' (see BH_API::replace_audio()).
+     * Submission review box: live audio plus a Reject form; Approve/Discard
+     * for a pending audio swap; or the stored reason when already rejected.
      */
     public static function render_approval_box(\WP_Post $post): void {
         $note = get_post_meta($post->ID, '_bh_admin_note', true);
@@ -101,17 +74,8 @@ class BH_AdminMetaboxes {
         } else {
             echo '<hr><p><strong>To Approve:</strong> set Status to <em>Published</em> and click Update.</p>';
 
-            // QA fix: a metabox renders INSIDE WordPress's own outer
-            // post-edit <form id="post">, so a second, nested <form>
-            // here is invalid HTML — the browser silently resolves a
-            // submit click to the OUTER form (a normal post Update),
-            // never actually hitting admin-post.php at all (the reject
-            // button appeared to work but the submission's status/meta
-            // never actually changed). Fixed by dropping the nested
-            // <form> entirely — these are
-            // plain fields plus a button with no form ancestor, and a
-            // small inline script does a fetch() POST to admin-post.php
-            // directly instead of relying on native form submission.
+            // WHY: no nested <form>; metaboxes sit inside the post-edit form, which
+            // would swallow the submit. A fetch() POSTs to admin-post.php instead.
             echo '<details><summary style="cursor:pointer;color:#b32d2e;">Reject this submission</summary>';
             $reject_nonce = wp_create_nonce('bh_reject_submission_' . $post->ID);
             $box_id = 'bh-reject-box-' . (int) $post->ID;
@@ -152,16 +116,7 @@ class BH_AdminMetaboxes {
     public static function add_meta_boxes(): void {
         add_meta_box('bh_approval', 'Submission Details & Approval', [self::class, 'render_approval_box'], 'bh_submission', 'normal', 'high');
 
-        // Live-robustness/UX audit (2026-08-27): this was 'side' —
-        // roughly 30 interdependent fields crammed into WordPress's
-        // ~280px sidebar column, by a wide margin the worst screen in
-        // this ecosystem. Moved to 'normal'/'high' (the main, wide
-        // column, same context BH_AdminReports' own live dashboard
-        // uses) and restructured into real BHY_UI::card() sections
-        // below — every field name/id and every line of the existing,
-        // working client-side logic (live status dots, the contact-
-        // field dependency rules, the Discord announce fetch) is
-        // UNCHANGED, only the layout wrapping it moved.
+        // Main column, not 'side': ~30 interdependent fields need the width.
         add_meta_box('bh_contest_settings', 'Contest Rules & Results', [self::class, 'render_contest_settings_box'], 'bh_contest', 'normal', 'high');
 
         add_meta_box('bh_contest_categories', 'Voting Categories', [self::class, 'render_contest_categories_box'], 'bh_contest', 'normal', 'default');
@@ -178,27 +133,15 @@ class BH_AdminMetaboxes {
 
         add_meta_box('bh_contest_site_menu', 'Site Menu', [self::class, 'render_contest_site_menu_box'], 'bh_contest', 'side', 'default');
 
-        // Real, deliberate default: a contest is publicly viewable
-        // (that's how voting/engagement is meant to work — fans need to
-        // see and share it without an account, login is only required
-        // to VOTE). This is the explicit per-contest opt-IN for the
-        // rare case an artist wants a contest restricted to logged-in
-        // members only — see OUS_Visibility's own docblock for why this
-        // is the opposite default polarity from bh-courses.
+        // Contests are public by default (only voting needs login); this is the
+        // members-only opt-in. Opposite polarity from bh-courses, see OUS_Visibility.
         add_meta_box('bh_contest_access', 'Access', [self::class, 'render_contest_access_box'], 'bh_contest', 'side', 'default');
 
-        // Separate from the "Contest Branding & Style" override below —
-        // this picks a CARD TEMPLATE (brand vs. poster), not a color
-        // override; a contest that never turns on style override at all
-        // can still choose poster-style share cards.
+        // Picks a share-card template, independent of the style override below.
         add_meta_box('bh_contest_share_cards', 'Shareable images', [self::class, 'render_contest_share_cards_box'], 'bh_contest', 'side', 'default');
 
         add_meta_box('bh_contest_style', 'Contest Branding & Style', [self::class, 'render_contest_style_box'], 'bh_contest', 'normal', 'default');
 
-        // Vote breakdown pies — the two overview charts (by category, by
-        // song) inline on the editor, with a link through to the full
-        // per-category breakdown on the Results page. Only worth showing
-        // once the contest exists and could have votes.
         add_meta_box('bh_contest_charts', 'Vote breakdown', [self::class, 'render_contest_charts_box'], 'bh_contest', 'normal', 'default');
     }
 
@@ -220,59 +163,19 @@ class BH_AdminMetaboxes {
         $base  = get_post_meta($post->ID, '_bh_vote_base', true);
         $bonus = get_post_meta($post->ID, '_bh_vote_bonus', true);
 
-        // A brand-new contest (nothing saved yet) naturally has both
-        // fields blank, so this defaults to checked — "submissions
-        // open the moment I publish" is the sensible out-of-the-box
-        // behavior, not something that has to be configured first.
+        // Blank dates (incl. a new contest) mean "open as soon as published".
         $sub_always_open = ($sub_start === '' && $sub_end === '');
 
-        // Visual polish pass: this ad-hoc inline-styled banner (and the
-        // matching ad-hoc "Live now"/"Closed" dots further down) never
-        // matched the shared BHY_UI::badge() component the rest of this
-        // ecosystem uses for exactly this "status pill" job — three
-        // fixed colors (contest_phase_summary()'s own #1DB954/#8a8a8a/
-        // #b3261e) map cleanly onto badge()'s existing success/neutral/
-        // danger variants, so there's no reason for a one-off here.
+        // Maps contest_phase_summary()'s fixed colors onto BHY_UI::badge() variants.
         $phase = BH_Helpers::contest_phase_summary($post->ID);
         $phase_variant = ['#1DB954' => 'success', '#8a8a8a' => 'neutral', '#b3261e' => 'danger'][$phase['color']] ?? 'neutral';
         echo '<p style="margin:0 0 16px;">' . (class_exists('BHY_UI')
             ? BHY_UI::badge($phase['label'], ['variant' => $phase_variant, 'dot' => true])
             : esc_html($phase['label'])) . '</p>';
 
-        // Inline, scoped to this metabox — same convention this file's
-        // own style/branding metabox and class-admin-reports.php's live
-        // dashboard already use for admin-screen-specific CSS, no
-        // separate enqueued stylesheet needed for something this scoped.
-        //
-        // minmax is 230px, not the more typical 320px, because this
-        // metabox's own "normal" context column measured only ~480px
-        // wide on this screen (bh-contest's own postbox layout splits
-        // "normal" into two sub-columns alongside Voting Categories/
-        // Judging Format) — confirmed live, not assumed, since a naive
-        // 320px minimum meant auto-fit could only ever place one column
-        // per row here.
-        //
-        // Real bug caught writing this exact line: an early version put
-        // this same reasoning as a /* CSS comment */ INSIDE the single-
-        // quoted PHP string below, with a plain apostrophe in
-        // "metabox's own" — silently terminating the PHP string early,
-        // the identical failure class documented in this repo's own
-        // CLAUDE.md ("BHY_UI::admin_page_css() ... an unescaped
-        // apostrophe inside a comment inside that string silently
-        // terminated the string mid-file"). Caught immediately by
-        // `php -l` before this ever reached a real page. Comment stays
-        // out here as a real PHP comment; the CSS string below is now
-        // plain rules only, no embedded prose.
-        //
-        // No custom checkbox styling below on purpose. WP core forms.css
-        // already sets appearance:none on input[type=checkbox] and draws
-        // the checkmark via a sized, negative-margin ::before
-        // background-image tuned to its own default 1rem box --
-        // accent-color has no effect on an appearance:none control, and
-        // overriding width/height/margin here fought that positioning and
-        // broke the checkmark. Left unstyled deliberately; the label rule
-        // below only wraps long label text, it does not touch the
-        // checkbox box model.
+        // WHY: minmax(230px): this column is only ~480px wide, so 320px forced one column.
+        // Keep prose out of the single-quoted CSS string (an apostrophe ends it).
+        // Checkboxes are left unstyled on purpose: core forms.css draws them.
         echo '<style>
             .bhc-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; align-items: start; }
             .bhc-settings-grid-full { grid-column: 1 / -1; }
@@ -303,13 +206,7 @@ class BH_AdminMetaboxes {
         echo "<p>Opens: <input type='datetime-local' id='bh_sub_start' name='bh_sub_start' value='" . esc_attr($sub_start) . "'></p>";
         echo "<p>Closes: &nbsp;<input type='datetime-local' id='bh_sub_end' name='bh_sub_end' value='" . esc_attr($sub_end) . "'></p>";
         echo '</div>';
-        // Off by default — a submission with no audio yet ('draft'
-        // status) can't earn the bonus vote or reach admin review
-        // until it's finished (class-api.php's submit()/replace_audio()),
-        // but it DOES reserve the entry (blocks a second attempt) —
-        // an admin opts a specific contest into this rather than it
-        // being silently on everywhere, since most contests want a
-        // real file at submit time.
+        // Opt-in: a no-audio 'draft' reserves the entry but skips review and the bonus vote until finished.
         $allow_audio_optional = (bool) get_post_meta($post->ID, '_bh_allow_audio_optional', true);
         echo '<p><label><input type="checkbox" name="bh_allow_audio_optional" value="1" ' . checked($allow_audio_optional, true, false) . '> Allow submitting without audio yet — a fan can reserve their entry with title/artist/contact info, then finish by uploading a file later (from their account portal) any time before submissions close</label></p>';
         $submissions_html = ob_get_clean();
@@ -706,10 +603,7 @@ class BH_AdminMetaboxes {
         echo '<button type="button" class="button" id="bh_contest_logo_remove" style="' . ($logo_url ? '' : 'display:none;') . '">Remove</button>';
         echo '</div></div>';
 
-        // Quick pick — same THEME_GROUPS as Settings & Style, filtered
-        // to just the fields a contest is allowed to override. Fills
-        // every field below in one click; each stays editable
-        // afterward for fine-tuning.
+        // Theme quick pick, limited to the fields a contest may override.
         echo '<p><label for="bh_style_theme_pick"><strong>Quick pick from a theme</strong></label><br>';
         echo '<select id="bh_style_theme_pick" style="max-width:280px;">';
         echo '<option value="">Choose a theme…</option>';
@@ -813,9 +707,7 @@ class BH_AdminMetaboxes {
         update_post_meta($post_id, '_bh_share_card_style', (class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style($posted_style)) ? $posted_style : 'brand');
 
         if (!empty($_POST['bh_sub_always_open'])) {
-            // Toggle checked — always-open, regardless of whatever might
-            // still be sitting in the (hidden, but still submitted)
-            // date fields from a previous explicit schedule.
+            // Always-open wins over the hidden (but still submitted) date fields.
             update_post_meta($post_id, '_bh_sub_start', '');
             update_post_meta($post_id, '_bh_sub_end', '');
         } else {
@@ -829,9 +721,7 @@ class BH_AdminMetaboxes {
         if (isset($_POST['bh_vote_base']))  update_post_meta($post_id, '_bh_vote_base', max(0, (int) $_POST['bh_vote_base']));
         if (isset($_POST['bh_vote_bonus'])) update_post_meta($post_id, '_bh_vote_bonus', max(0, (int) $_POST['bh_vote_bonus']));
 
-        // Sanitized against the known field list rather than trusted
-        // as-is — a stray/unexpected value in bh_contact_show[] should
-        // never end up persisted just because it showed up in $_POST.
+        // Whitelisted against the known field list.
         $shown = array_values(array_intersect(
             (array) ($_POST['bh_contact_show'] ?? []),
             BH_Helpers::CONTACT_FIELDS
@@ -883,20 +773,12 @@ class BH_AdminMetaboxes {
                     'cut_count' => max(1, (int) ($cuts[$i] ?? 8)),
                 ];
             }
-            // Exactly 1 round stored as an EMPTY meta value, not a
-            // single-item array — is_multi_round()'s count() > 1 check
-            // (class-rounds.php) means this is functionally identical
-            // either way, but storing '' for the common single-round
-            // case keeps get_post_meta() cheap-and-empty for every
-            // contest that never touches this feature, matching
-            // _bh_categories'/_bh_rubric's own "blank means off" convention.
+            // A single round is stored as '' ("blank means off", like _bh_categories).
             update_post_meta($post_id, '_bh_rounds', $count > 1 ? wp_json_encode($rounds) : '');
         }
 
         if (isset($_POST['bh_judges'])) {
-            // Usernames -> IDs, resolved (not trusted) on the way in — a
-            // typo'd or since-deleted username just silently drops from
-            // the list rather than storing a dangling/invalid entry.
+            // Usernames -> IDs; unknown usernames are dropped.
             $ids = [];
             foreach (preg_split('/[\r\n]+/', wp_unslash($_POST['bh_judges'])) as $line) {
                 $login = trim($line);
@@ -909,9 +791,7 @@ class BH_AdminMetaboxes {
 
         update_post_meta($post_id, '_bhy_style_override', isset($_POST['bh_style_override']) ? '1' : '');
 
-        // Only fields the admin actually filled in get stored — a blank
-        // field means "use the site-wide value", not "override with an
-        // empty string". See BHY_Style::entity_overrides().
+        // Only filled fields are stored; blank means "use the site-wide value".
         $style = [];
         if (!empty($_POST['bh_style_logo_id']))     $style['brand_logo_id']    = (int) $_POST['bh_style_logo_id'];
         if (!empty($_POST['bh_style_brand1']))      $style['brand_part1']      = sanitize_text_field($_POST['bh_style_brand1']);
@@ -936,20 +816,8 @@ class BH_AdminMetaboxes {
         }
         OUS_Visibility::save_members_only_from_request($post_id);
 
-        // Real OUS_Revisions consumer — versioning matters most for
-        // anything that's a post, like contests and lessons. Lessons
-        // get WordPress core's own NATIVE post-
-        // revisions for free (bh_lesson's real post_content, just
-        // needed 'revisions' support added — see class-post-types.php).
-        // A contest is different: its real configuration (dates, rounds,
-        // rubric, contact requirements, brand style) lives entirely in
-        // postmeta, never post_content/title — native WP revisions
-        // would capture nothing meaningful for it. get_post_meta()'s
-        // full flat dump is the honest "complete current state" here,
-        // rather than hand-curating a field list that would silently
-        // drift out of sync with this save method's own field list.
-        // (Audit fix, 2026-07-25: this comment used to sit 12 lines
-        // above, over two unrelated menu-visibility meta updates.)
+        // WHY: a contest's config lives in postmeta, which native revisions miss,
+        // so snapshot every _bh_* key rather than a hand-kept list that would drift.
         if (class_exists('OUS_Revisions')) {
             $all_meta = get_post_meta($post_id);
             $flat = [];
@@ -963,10 +831,7 @@ class BH_AdminMetaboxes {
         BH_AdminMenus::resync_menu();
     }
 
-    // <input type="datetime-local"> requires "YYYY-MM-DDTHH:MM" (a literal
-    // T, optionally with seconds). Values written by "Start now"/"End now"
-    // come from current_time('mysql') ("YYYY-MM-DD HH:MM:SS", a space) —
-    // convert back so the field re-populates instead of showing blank.
+    // datetime-local needs "YYYY-MM-DDTHH:MM"; stored mysql times use a space and seconds.
     /** @param mixed $v */
     private static function dt_for_input($v): string {
         if (!$v) return '';

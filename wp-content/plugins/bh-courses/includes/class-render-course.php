@@ -2,21 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Extracted from the old monolithic class-render.php (SRP QA pass,
- * bh-courses 0.4.8) — see class-render-catalog.php's own docblock for
- * the full "why three classes" reasoning; this is a pure move, not a
- * rewrite. This class owns exactly one page: the [bh_course] shortcode /
- * single course detail view (cover, header, description, terms,
- * enrollment CTA, lesson list or locked syllabus preview).
- *
- * render_continue_cta() is PUBLIC here (it used to be a private helper
- * shared within one file) because BHC_Render_Catalog's own course-card
- * rendering also needs the exact same "where should this student go
- * next" decision — both call sites need the identical logic, so it lives
- * on whichever of the two classes is the more natural owner (the course
- * page itself) and the catalog calls across to it, rather than either
- * duplicating the logic or inventing a third shared-helper class for one
- * method.
+ * The [bh_course] shortcode / single course detail view: header, description,
+ * enrollment CTA, lesson list or locked syllabus preview, completion and orientation screens.
+ * render_continue_cta() is public because BHC_Render_Catalog's cards need the same decision.
  */
 class BHC_Render_Course {
     private static function render_course_header(int $course_id, int $uid, bool $locked): string {
@@ -30,13 +18,7 @@ class BHC_Render_Course {
         $has_cover = has_post_thumbnail($course_id);
 
         ob_start();
-        // A single course was a dead end: nothing on the page led back to the
-        // catalog it came from, so the only way out was the browser Back
-        // button or the site menu. OUS_Pages resolves the catalog rather than
-        // hardcoding a slug, because which page hosts [bh_courses] is the
-        // author's choice. class_exists() at hook-call time, and the link is
-        // simply omitted when core is absent or no catalog page exists --
-        // never a link to nowhere.
+        // Back link to the catalog, resolved via OUS_Pages; omitted when there's no catalog page.
         if (method_exists('OUS_Pages', 'url')) {
             $catalog = OUS_Pages::url('bh_courses', 'bhc_catalog_page_id');
             if ($catalog) {
@@ -46,17 +28,7 @@ class BHC_Render_Course {
             }
         }
         echo '<div class="bhc-course-header">';
-        // Real live-caught inconsistency (2026-08): this used to skip the
-        // hero entirely with no cover set ("obvious-or-gone"), falling
-        // back to plain stacked text — but that meant the exact same
-        // course looked like two different products depending on
-        // whether an image happened to be uploaded yet, and a course
-        // with no cover got a visibly less finished page than the
-        // catalog card that led here (which always gets a hero image
-        // slot as of the same pass — see .bhc-card-thumb-placeholder).
-        // Every course page now gets the hero treatment; a missing cover
-        // gets the same gradient+waveform placeholder the catalog uses
-        // instead of silently degrading to a plainer layout.
+        // Every course gets the hero; no cover means the catalog's gradient placeholder.
         echo '<div class="bhc-course-hero' . ($has_cover ? '' : ' bhc-course-hero-placeholder') . '">';
         if ($has_cover) echo get_the_post_thumbnail($course_id, 'large');
         echo '<div class="bhc-course-hero-scrim"><div class="bhc-course-hero-content">';
@@ -65,19 +37,13 @@ class BHC_Render_Course {
         echo '</div></div>';
         echo '</div>';
 
-        // Instructor presence pulled forward into its own row (a real
-        // "who's teaching you this" moment) instead of one more compact
-        // badge buried in the meta line — only when there's an actual
-        // instructor to show (obvious-or-gone).
+        // Instructor row, only when there is one.
         if ($instructor) {
             $inst_name = $instructor->display_name ?: $instructor->user_login;
             echo '<div class="bhc-course-instructor-row">' . self::instructor_avatar($instructor, $inst_name)
                 . '<div><span class="bhc-course-instructor-label">Taught by</span><span class="bhc-course-instructor-name">' . esc_html($inst_name) . '</span></div></div>';
         }
 
-        // Difficulty badge now always lives in the hero overlay above
-        // (every course gets a hero, real cover or placeholder), so it's
-        // no longer duplicated here for the no-cover case.
         echo '<div class="bhc-course-meta">';
         echo '<span>' . (int) $lesson_count . ' lesson' . ($lesson_count === 1 ? '' : 's') . '</span>';
         if ($duration) echo '<span>' . esc_html($duration) . '</span>';
@@ -105,35 +71,15 @@ class BHC_Render_Course {
             $percent = BHC_Progress::course_percent($uid, $course_id);
             $cta = self::render_continue_cta($uid, $course_id, $percent);
             if ($cta) echo '<div class="bhc-course-header-cta">' . $cta . '</div>';
-            // The flat "Download certificate" link that used to live here
-            // is now the dedicated completion screen (render_completion_screen()
-            // below, called from render_course()) — a real payoff moment
-            // instead of a bare afterthought link.
         }
         echo '</div>';
         return ob_get_clean();
     }
 
     /**
-     * Real, live-verified bug (production-readiness sweep, 2026-08-16):
-     * this SEO-setting logic used to live inline at the top of
-     * render_course() below, which only ever runs from the `the_content`
-     * filter (a shortcode/block render, or the CPT's own single-view
-     * `the_content` hook in bh-courses.php) — i.e. DURING template
-     * body output. `wp_head` (where BH_SEO::render_head_tags() actually
-     * echoes the tags) has already fired by then on every normal
-     * WordPress page load (get_header() runs before the_content()) — so
-     * this call was always too late to matter. Confirmed live: a real
-     * course detail page had zero meta description/OG tags despite
-     * this exact code "setting" them every time it rendered. Extracted
-     * so it can also be called from `template_redirect` (fires before
-     * headers) for the one case that actually needs to win the race —
-     * see bh-courses.php's own `template_redirect` hook. Left in place
-     * here too since render_course() is also reachable via the
-     * `[bh_course]` shortcode/block embedded on an arbitrary OTHER
-     * page, where "too late for THIS page's own SEO" doesn't apply the
-     * same way and the existing behavior (best-effort, may or may not
-     * win depending on template structure) is unchanged.
+     * Sets BH_SEO page data for a course.
+     * WHY: render_course() runs during the_content, after wp_head, so bh-courses.php also
+     * calls this from template_redirect for the course's own page.
      */
     public static function set_seo_data(int $course_id): void {
         if (!class_exists('BH_SEO')) return;
@@ -176,37 +122,20 @@ class BHC_Render_Course {
         self::set_seo_data($course_id);
 
         $uid = get_current_user_id();
-        // Real gap found live: a course with no required tier set was
-        // fully viewable by a logged-OUT visitor — BHC_Gate's tier
-        // check only asks "is the tier requirement satisfied," which is
-        // vacuously true when there's no tier at all. Login and tier
-        // are different questions (see OUS_Visibility's own docblock) —
-        // checked separately so the syllabus-preview treatment below
-        // covers both "you need an account" and "you need a higher
-        // tier" with the right message for each, not one generic lock.
+        // Login and tier are separate checks, so the locked view shows the right message.
+        // Tier checks pass vacuously when no tier is set.
         $requires_login = !$uid && !OUS_Visibility::is_public($course_id);
         $locked = $requires_login || !BHC_Gate::user_can_access_course($uid, $course_id);
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
 
-        // The moment a logged-in student is confirmed to have real
-        // access, start their drip-scheduling clock for this course —
-        // see BHC_Progress::enroll_if_needed()'s docblock for why this
-        // is the one place that's safe/correct to call it from (access
-        // just got confirmed, not merely attempted). $just_enrolled is
-        // true only on this exact request, the real first-ever
-        // enrollment — used below to show a one-time orientation moment
-        // instead of dropping straight into the ordinary progress/lesson-
-        // list view a returning student sees.
+        // Start the drip clock once access is confirmed. $just_enrolled is true only on
+        // the first-ever enrollment, for the one-time orientation screen.
         $just_enrolled = false;
         if ($uid && !$locked) $just_enrolled = BHC_Progress::enroll_if_needed($uid, $course_id);
 
         ob_start();
         echo '<div class="bhc-course-view">';
-        // Detail-page header (QUIZ-AND-CATALOG-DESIGN-PLAN.md Section
-        // 2.7): wraps the existing lesson-list output below rather than
-        // replacing it — full cover, description, instructor,
-        // difficulty, duration, category/topic terms, enrollment CTA.
-        // Ratings/reviews now live in BHC_Reviews (class-reviews.php).
+        // Detail-page header wraps the lesson-list output below.
         echo self::render_course_header($course_id, $uid, $locked);
         if ($locked) {
             if ($requires_login) {
@@ -214,10 +143,7 @@ class BHC_Render_Course {
             } else {
                 echo BHC_Gate::render_paywall_notice($course_id);
             }
-            // Even locked, a prospective student can see what they'd be
-            // signing up for — a syllabus of lesson TITLES only (no
-            // content, no permalink), same "tease, don't leak" posture
-            // the drip-lock notice already takes for individual lessons.
+            // Locked: a syllabus of lesson titles only (no content or permalinks).
             if ($lesson_ids) {
                 echo '<div class="bhc-syllabus-preview"><h4>What you\'ll learn</h4><ol class="bhc-lesson-list bhc-lesson-list-preview">';
                 foreach ($lesson_ids as $lesson_id) {
@@ -227,44 +153,18 @@ class BHC_Render_Course {
                 echo '</ol></div>';
             }
         } else {
-            // First-ever enrollment: a one-time "here's what you're
-            // about to learn" moment instead of dropping straight into
-            // the ordinary progress/lesson-list view — sets real
-            // expectations before the day-to-day lesson queue begins,
-            // same Disneyland-queue framing as the rest of this pass.
-            // Bug fix (2026-07-25 audit): this used to render ALONGSIDE
-            // the ordinary progress bar + full lesson list below, not
-            // "instead of" as the comment above claims — the syllabus
-            // showed twice on one page. $just_enrolled now gates the
-            // rest of this branch too (see the matching check below).
+            // First-ever enrollment shows the orientation screen instead of the usual view.
             if ($just_enrolled) echo self::render_orientation_screen($uid, $course_id, $lesson_ids);
 
-            // The real payoff moment — a dedicated completion screen
-            // (stats, certificate, share card, next steps) once this
-            // student has actually finished, in place of the flat
-            // "Download certificate" link this section used to carry.
-            // Placed above the progress bar/lesson list rather than
-            // below: the completion moment is the headline once it's
-            // true, not a footnote after a now-100%-full progress bar.
+            // Completion screen sits above the progress bar once the course is done.
             if ($uid) echo self::render_completion_screen($uid, $course_id);
 
-            // Enrollment/continue CTA now lives in render_course_header()
-            // above (shown for every locked/unlocked state consistently)
-            // — not duplicated here anymore.
-            // Suppressed on the orientation screen itself ($just_enrolled):
-            // the orientation card already shows its own syllabus <ol> and
-            // a "Start" CTA — showing the ordinary progress bar + full
-            // lesson list right underneath duplicated that same content
-            // on one page. This block now renders on every visit AFTER
-            // the one-time orientation moment, same as before.
+            // Skipped on the orientation screen, which already shows the syllabus and a Start CTA.
             if (!$just_enrolled) {
                 if ($uid) {
                     $percent = BHC_Progress::course_percent($uid, $course_id);
                     echo '<div class="bhc-progress-bar bhc-progress-bar-large"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label"><span class="bhc-progress-pct">' . (int) $percent . '%</span> complete</p>';
-                    // Mastery signal — only ever shown once a real quiz has
-                    // actually been scored (course_quiz_average() returns
-                    // null, not 0, until then), never a "0%" placeholder
-                    // nagging a student who hasn't reached a quiz yet.
+                    // Only shown once a quiz has been scored (null until then).
                     $quiz_average = BHC_Progress::course_quiz_average($uid, $course_id);
                     if ($quiz_average !== null) {
                         echo '<p class="bhc-mastery-label">Mastery: ' . (int) $quiz_average . '%</p>';
@@ -279,21 +179,15 @@ class BHC_Render_Course {
         return ob_get_clean();
     }
 
-    // Whole-star glyphs, rounded to the nearest star — simple on
-    // purpose (matches the admin moderation table's own str_repeat
-    // approach) rather than half-star rendering, which would need a
-    // second glyph/SVG this codebase doesn't otherwise use anywhere.
+    // Whole stars rounded to the nearest; no half-star glyph.
     private static function render_stars(float $rating): string {
         $full = (int) round($rating);
         $full = max(0, min(5, $full));
         return '<span class="bhc-stars" aria-hidden="true">' . str_repeat('&#9733;', $full) . str_repeat('&#9734;', 5 - $full) . '</span>';
     }
 
-    // Reviews list (approved only — a pending/rejected review is only
-    // ever visible to the student who wrote it, via the form state
-    // below) + the submission/edit form. Eligibility is ENROLLMENT, not
-    // completion — locked-out visitors never see this section at all
-    // (the caller already gates on !$locked).
+    // Approved reviews plus the submission/edit form for enrolled students.
+    // The caller already hides this when locked.
     private static function render_reviews_section(int $course_id, int $uid): string {
         ob_start();
         echo '<div class="bhc-reviews-section" id="bhc-reviews">';
@@ -351,12 +245,8 @@ class BHC_Render_Course {
         return ob_get_clean();
     }
 
-    // Shared between the course page's own lesson list (unlocked branch
-    // above) and BHC_Render_Lesson's per-lesson view — a student inside a
-    // lesson previously had no way to see the rest of the course or jump
-    // between lessons without going back to the course page first.
-    // $current_lesson_id highlights the lesson currently open; null on
-    // the course page itself (nothing is "current" there).
+    // Lesson list + progress, shared by the course page and the lesson view.
+    // $current_lesson_id highlights the open lesson; null on the course page.
     public static function render_lesson_sidebar(int $course_id, int $uid, ?int $current_lesson_id = null): string {
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
         if (!$lesson_ids) return '';
@@ -373,17 +263,9 @@ class BHC_Render_Course {
         return ob_get_clean();
     }
 
-    // One lesson <li>'s markup, shared by both list modes below — the
-    // sidebar and course-page lists previously duplicated this near-
-    // identically, which is exactly how the sidebar's aria-current/
-    // current-lesson highlighting had drifted from the course page's
-    // drip-notice/step-progress display instead of just being the two
-    // real differences they are.
-    /** @return array{html:string, complete:bool, is_current:bool} */
     /**
-     * The real profile avatar when the instructor set one, otherwise a
-     * monogram — never WordPress's grey mystery-person, which reads as
-     * "broken" next to a considered course header.
+     * The real profile avatar when the instructor set one, otherwise a monogram
+     * (never WordPress's grey mystery-person).
      */
     private static function instructor_avatar(\WP_User $user, string $name): string {
         $has_real = class_exists('BHI_Profiles') && (int) (BHI_Profiles::get($user->ID)['avatar_id'] ?? 0) > 0;
@@ -394,6 +276,7 @@ class BHC_Render_Course {
         return '<span class="bhc-course-instructor-avatar bhc-instructor-monogram" aria-hidden="true">' . esc_html(mb_strtoupper($initial)) . '</span>';
     }
 
+    /** @return array{html:string, complete:bool, is_current:bool} */
     private static function render_lesson_li(int $lesson_id, int $uid, ?int $current_lesson_id, bool $is_sidebar): array {
         $open = BHC_Gate::lesson_is_open($uid, $lesson_id);
         $step_count = BHC_Steps::count($lesson_id);
@@ -409,9 +292,7 @@ class BHC_Render_Course {
             $html .= '<span>' . esc_html(get_the_title($lesson_id)) . '</span> <span class="bhc-drip-notice">&#128274;'
                 . ($is_sidebar ? '' : ' ' . BHC_Gate::drip_notice($uid, $lesson_id)) . '</span>';
         }
-        // The step ratio is a real progress figure, not a parenthetical
-        // aside — done count carries the weight, the total is context.
-        // A finished lesson shows the check chip instead (never both).
+        // Step ratio for in-progress lessons; finished lessons show the check instead.
         if (!$is_sidebar && $open && $uid && $step_count && !$complete) {
             $html .= ' <span class="bhc-lesson-progress"><b>' . (int) $done_count . '</b>/' . (int) $step_count . '</span>';
         }
@@ -420,15 +301,8 @@ class BHC_Render_Course {
         return ['html' => $html, 'complete' => $complete, 'is_current' => $is_current];
     }
 
-    // Groups from BHC_PostTypes::grouped_lesson_order() render as
-    // collapsible <details> sections when a group has a module title;
-    // a blank-titled group's lesson renders as a bare <li>, exactly the
-    // pre-module-feature markup, so an ungrouped course looks unchanged.
-    // A section starts open unless every lesson inside it is already
-    // complete (and doesn't contain the current lesson) — finished
-    // modules collapse out of the way, current/upcoming ones stay
-    // visible, matching how the stepper already treats past vs. current
-    // steps.
+    // Module groups render as <details>, open unless complete and not holding the current
+    // lesson. Untitled groups render bare <li>s.
     private static function render_grouped_lesson_list(int $course_id, int $uid, ?int $current_lesson_id, bool $is_sidebar): string {
         $list_class = $is_sidebar ? 'bhc-lesson-list bhc-sidebar-lesson-list' : 'bhc-lesson-list';
         $out = '<ol class="' . $list_class . '">';
@@ -455,23 +329,14 @@ class BHC_Render_Course {
         return $out;
     }
 
-    // Shared between the catalog card (BHC_Render_Catalog) and this
-    // course page itself — both need the exact same "where should this
-    // student go next" decision, just rendered at different sizes.
-    // $percent is passed in rather than recomputed since both call sites
-    // already have it (or compute it themselves right before calling
-    // this).
+    // "Where should this student go next", shared with the catalog card.
     public static function render_continue_cta(int $uid, int $course_id, int $percent): string {
         $target_lesson = BHC_Progress::first_incomplete_lesson($uid, $course_id);
         if ($target_lesson) {
             $label = $percent > 0 ? 'Continue' : 'Start';
             return '<a class="bhc-btn bhc-continue-btn" href="' . esc_url(get_permalink($target_lesson)) . '">' . esc_html($label) . ' &rarr;</a>';
         }
-        // Nothing left to resume into — either genuinely 100% done, or
-        // every lesson is either empty or drip-locked (first_incomplete_lesson()
-        // can't tell those apart, and neither needs a CTA either way).
-        // Only show "Review" once actually complete, not for the
-        // ambiguous "nothing open yet" case.
+        // Nothing to resume: only offer "Review" when actually complete.
         if ($percent >= 100) {
             $lesson_ids = BHC_PostTypes::lesson_order($course_id);
             if ($lesson_ids) {
@@ -482,24 +347,10 @@ class BHC_Render_Course {
     }
 
     /**
-     * The biggest single payoff moment in this whole redesign — replaces
-     * what used to be a bare "Download certificate" link with a real
-     * dedicated completion state: stats pulled from data already tracked
-     * (no new storage), the certificate/share card promoted from
-     * afterthought links to the actual centerpiece, and a clear next
-     * step. Returns '' (renders nothing) unless this specific student
-     * has actually completed this specific course — never a
-     * congratulations screen shown speculatively.
+     * Completion screen (stats, certificate, share card, next steps); '' unless completed.
      *
-     * $assume_complete: for the one caller (class-render-lesson.php's
-     * final-step reveal) where the completion write is GUARANTEED to
-     * have just happened by construction — this markup is server-
-     * rendered at page LOAD (before the student has clicked anything),
-     * then revealed client-side only after the final step's own AJAX
-     * call succeeds. is_course_completed() at render time would still
-     * read false on a student's first-ever completion (the DB write
-     * hasn't happened yet at that point), so that one call site passes
-     * true to skip the check it would otherwise incorrectly fail.
+     * $assume_complete: for the lesson page's final-step reveal, which is rendered at page
+     * load before the completing AJAX write, so is_course_completed() would still be false.
      */
     public static function render_completion_screen(int $uid, int $course_id, bool $assume_complete = false): string {
         if (!$uid || !class_exists('BHC_Progress')) return '';
@@ -516,11 +367,7 @@ class BHC_Render_Course {
         $with_distinction = $quiz_average !== null && $quiz_average >= $distinction_threshold;
 
         ob_start();
-        // '.bhc-completion' (not a new wrapper class) so this inherits
-        // the existing gradient-ring surface treatment AND the one-shot
-        // confetti burst courses.js already fires for any element found
-        // at that exact selector (querySelector('.bhc-completion')) —
-        // one visual language for this moment, not two.
+        // WHY: '.bhc-completion' is the selector courses.js fires confetti on.
         echo '<div class="bhc-completion">';
         echo '<div class="bhc-completion-badge" aria-hidden="true">&#127942;</div>';
         echo '<h2 class="bhc-completion-title">Course complete' . ($with_distinction ? ' — with distinction' : '') . '!</h2>';
@@ -543,16 +390,12 @@ class BHC_Render_Course {
                 echo '<a class="bhc-btn bhc-btn-primary" href="' . esc_url(BHC_Certificates::download_url($course_id)) . '">Download certificate' . ($with_distinction ? ' (with distinction)' : '') . '</a>';
             }
             if ($has_share_card) {
-                // Audit fix (2026-07-25): opened a raw PNG in a new tab
-                // with no download/save affordance — download attribute
-                // makes the browser save it directly instead.
+                // download attribute saves the PNG directly.
                 echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(BHC_ShareCards::card_url($uid, $course_id)) . '" target="_blank" rel="noopener" download>Get share image</a>';
             }
             echo '</div>';
         }
-        // The actual generated share card, shown inline — the whole
-        // point of a share card is to be SEEN, not filed behind a link
-        // nobody clicks to preview first.
+        // Show the share card inline.
         if ($has_share_card) {
             echo '<img class="bhc-completion-share-preview" src="' . esc_url(BHC_ShareCards::card_url($uid, $course_id)) . '" alt="' . esc_attr(get_the_title($course_id)) . ' completion share card" loading="lazy">';
         }
@@ -567,12 +410,7 @@ class BHC_Render_Course {
     }
 
     /**
-     * The queue's real starting line — shown exactly once, the moment
-     * BHC_Progress::enroll_if_needed() confirms a genuine first
-     * enrollment. Reuses the same grouped-lesson-list markup the
-     * ordinary progress view renders (render_grouped_lesson_list()) so
-     * a student sees the real syllabus they're about to work through,
-     * not a generic "you're enrolled!" toast with no substance.
+     * One-time orientation on first enrollment, showing the real syllabus.
      */
     /** @param array<int, int> $lesson_ids */
     private static function render_orientation_screen(int $uid, int $course_id, array $lesson_ids): string {
@@ -592,10 +430,7 @@ class BHC_Render_Course {
             }
             echo '</ol>';
         }
-        // first_incomplete_lesson() (not a bare $lesson_ids[0]) — same
-        // drip-lock/unpublished/no-steps skipping render_continue_cta()
-        // already relies on, so "Start" never links to a lesson that
-        // isn't actually open yet on day one of a drip-scheduled course.
+        // first_incomplete_lesson() so "Start" never links to a drip-locked lesson.
         $start_lesson = BHC_Progress::first_incomplete_lesson($uid, $course_id);
         if ($start_lesson) {
             echo '<a class="bhc-btn bhc-orientation-start" href="' . esc_url(get_permalink($start_lesson)) . '">Start &rarr;</a>';

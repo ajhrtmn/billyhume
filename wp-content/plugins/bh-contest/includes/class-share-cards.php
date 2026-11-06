@@ -2,30 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Social sharing cards. Two card types, both generated on demand via the shared BH_ShareCard
- * engine (the-self-hosted-self/includes/class-share-card.php): "entered" (a
- * submitter shares straight after entering) and "vote" (a submitter
- * shares while voting is still open, to drum up votes). Same on-demand
- * posture bh-courses' completion card and certificate use — nothing
- * stored, regenerated per request.
- *
- * Public (no login) — a submitter shares this OUTWARD, to people who
- * are never going to be logged into this site, and a platform's own
- * link-preview crawler needs to fetch it unauthenticated too. This
- * plugin's own submission/voting data is otherwise locked down
- * (bh_contest and bh_submission are both 'public' => false — see
- * class-post-types.php), but a card image containing only a title,
- * artist name, and contest name is a deliberately narrow, harmless
- * exception carved out for exactly this feature — never the
- * submission's audio, notes, or any contact info.
- *
- * No per-submission public page exists for the "vote" card to deep-link
- * to (bh_submission has no public single template) — it links to the
- * contest's own auto-created page (_bh_page_id, see BH_AdminMenus::
- * maybe_create_contest_page() in class-admin-menus.php) instead, same page the contest's own
- * "Shortcode & Page" meta box already links an admin to. A viewer lands
- * on the real voting UI and finds the submission themselves, rather
- * than a deep link into a page that doesn't exist.
+ * "Now entered" and "Vote now" share-card PNGs, generated per request by BH_ShareCard.
+ * WHY: public (no login) so crawlers can fetch them; they expose only title, artist,
+ * and contest name, never audio, notes, or contact info.
  */
 class BH_ShareCards {
     public static function init(): void {
@@ -40,10 +19,7 @@ class BH_ShareCards {
         return add_query_arg(['bh_share_vote' => (int) $submission_id], home_url('/'));
     }
 
-    // Public — the frontend submit-success JS pairs this alongside the
-    // card image link (a downloadable/attachable PNG has no click
-    // target of its own; this is the actual URL a "vote for me" post
-    // should point people to).
+    // The link to pair with a "vote for me" card: the contest page, else home.
     public static function contest_page_url(int $contest_id): string {
         $page_id = (int) get_post_meta($contest_id, '_bh_page_id', true);
         $status = $page_id ? get_post_status($page_id) : false;
@@ -75,9 +51,6 @@ class BH_ShareCards {
         if (!class_exists('BH_ShareCard')) wp_die('Share cards are unavailable right now.', '', ['response' => 501, 'back_link' => true]);
 
         $stored_style = $contest_id ? get_post_meta($contest_id, '_bh_share_card_style', true) : '';
-        // PHPStan-confirmed redundant: the wp_die() a few lines above
-        // already guarantees class_exists('BH_ShareCard') is true by
-        // this point.
         $style = BH_ShareCard::is_valid_style($stored_style) ? $stored_style : 'brand';
         $subtitle = $contest ? ('"' . $submission->post_title . '" — ' . $contest->post_title) : $submission->post_title;
 

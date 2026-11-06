@@ -2,34 +2,10 @@
 use PHPUnit\Framework\TestCase;
 
 /**
- * Real correctness tests for the TOTP implementation — this is the one
- * piece of code in the whole ecosystem where "looks right" isn't good
- * enough, since a subtle bug either locks real people out of their
- * accounts or, worse, makes the codes guessable/predictable. Verified
- * against RFC 6238's own published Appendix B test vectors, not just
- * "does encode(decode(x)) == x" round-tripping against itself (which
- * would happily pass even if the WHOLE algorithm were wrong, as long as
- * it were wrong consistently in both directions).
- *
- * RFC 6238 Appendix B uses the literal 20-byte ASCII string
- * "12345678901234567890" as the raw HMAC-SHA1 key, and publishes
- * 8-DIGIT codes. Our implementation always base32-decodes whatever
- * secret it's given first (since a real secret is generated as base32
- * — see generate_secret()) and truncates to 6 digits, not 8. Two
- * reconciliations, both worth stating explicitly rather than leaving
- * implicit:
- *
- *   1. The base32 encoding of that RFC test key is the well-known,
- *      independently-published constant "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
- *      (this exact secret/base32 pairing shows up across many
- *      independent TOTP library test suites — it is NOT something
- *      derived by running our own base32_encode() on the key, which
- *      would make this test circular).
- *   2. Truncating to 6 digits instead of 8 is just "the last 6 digits
- *      of the 8-digit code" mathematically (x mod 1e8, then mod 1e6, is
- *      the same as x mod 1e6 directly, since 1e6 evenly divides 1e8) —
- *      so RFC's 8-digit vectors are re-derived to 6-digit expected
- *      values by simply taking their last 6 digits.
+ * TOTP correctness against RFC 6238 Appendix B vectors (not self round-trips).
+ * The RFC key "12345678901234567890" is used via its independently published
+ * base32 form, and the RFC's 8-digit codes reduce to 6 digits by taking the
+ * last 6 (1e6 divides 1e8).
  */
 final class TwoFactorTest extends TestCase
 {
@@ -66,10 +42,8 @@ final class TwoFactorTest extends TestCase
         $this->assertTrue(BHI_TwoFactor::verify_code(0, $code, self::RFC_TEST_SECRET_B32));
     }
 
-    // The whole POINT of the ±1 window is tolerating clock drift between
-    // server and phone — if this regresses to an exact-match-only check,
-    // real users start getting locked out by ordinary clock skew, not a
-    // security improvement, just a support-ticket generator.
+    // WHY: the ±1 window tolerates server/phone clock drift; exact-match only
+    // would lock real users out.
     public function testVerifyCodeAcceptsOneStepBeforeAndAfter()
     {
         $timeslice = (int) floor(time() / 30);
@@ -80,11 +54,7 @@ final class TwoFactorTest extends TestCase
         $this->assertTrue(BHI_TwoFactor::verify_code(0, $after, self::RFC_TEST_SECRET_B32), 'One step in the future should still be accepted (clock drift tolerance).');
     }
 
-    // Equally important as accepting valid drift: NOT accepting codes
-    // outside that window — a ±1-step tolerance that quietly became
-    // ±10 steps (5 minutes) would make a leaked/observed code usable
-    // for far longer than anyone signing off on "clock drift tolerance"
-    // actually intended.
+    // Codes outside the window must be rejected.
     public function testVerifyCodeRejectsTwoStepsAway()
     {
         $timeslice = (int) floor(time() / 30);
@@ -99,10 +69,7 @@ final class TwoFactorTest extends TestCase
 
     public function testVerifyCodeRejectsMalformedInput()
     {
-        // Real inputs a user's browser autofill or a bot could plausibly
-        // send — none of these should ever reach hash_hmac() as a "valid
-        // 6-digit code," and none should throw either (this runs on a
-        // public, unauthenticated-until-verified login form).
+        // Malformed input must be rejected without throwing (public login form).
         $this->assertFalse(BHI_TwoFactor::verify_code(0, '', self::RFC_TEST_SECRET_B32));
         $this->assertFalse(BHI_TwoFactor::verify_code(0, '12345', self::RFC_TEST_SECRET_B32));   // too short
         $this->assertFalse(BHI_TwoFactor::verify_code(0, '1234567', self::RFC_TEST_SECRET_B32)); // too long
@@ -112,10 +79,7 @@ final class TwoFactorTest extends TestCase
 
     public function testVerifyCodeRejectsWhenNoSecretAvailable()
     {
-        // get_user_meta() is stubbed in bootstrap.php to always return
-        // '' — this exercises the real "account never enrolled" path,
-        // not a stub artifact: an empty secret must never be treated as
-        // "any code passes."
+        // get_user_meta() is stubbed to ''; an empty secret must never pass.
         $this->assertFalse(BHI_TwoFactor::verify_code(123, '123456', null));
     }
 
@@ -123,12 +87,7 @@ final class TwoFactorTest extends TestCase
 
     public function testBase32RoundTripsArbitraryBytes()
     {
-        // A real 160-bit secret, the exact shape generate_secret()
-        // produces (random_bytes(20)) — round-tripping through
-        // encode/decode must reproduce the original bytes exactly, or
-        // every TOTP code computed from the DECODED secret would be
-        // silently wrong despite the ENCODED secret (the one actually
-        // shown to the user to scan/type) looking completely normal.
+        // A 160-bit secret (generate_secret()'s shape) must round-trip exactly.
         $original = random_bytes(20);
         $encoded = bhi_2fa_call_private('base32_encode', $original);
         $decoded = bhi_2fa_call_private('base32_decode', $encoded);
@@ -143,12 +102,7 @@ final class TwoFactorTest extends TestCase
 
     public function testBase32DecodeStripsInvalidCharactersRatherThanCorrupting()
     {
-        // A user manually retyping a secret plausibly adds a stray space
-        // or dash (most authenticator apps display secrets in 4-char
-        // groups) — decode() should just ignore those characters rather
-        // than either erroring out or silently shifting every subsequent
-        // bit, which is why base32_decode() strips non-alphabet
-        // characters before decoding.
+        // Retyped secrets often include spaces/dashes; decode() strips them.
         $clean = bhi_2fa_call_private('base32_encode', 'test-secret-value!!');
         $withSeparators = substr($clean, 0, 4) . '-' . substr($clean, 4, 4) . ' ' . substr($clean, 8);
         $this->assertSame(

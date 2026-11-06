@@ -1,21 +1,7 @@
 /**
- * Registers bhm/product-grid and bhm/product-filter for BH_Studio's own
- * canvas (the-self-hosted-self/assets/js/studio.js) — same no-build-step,
- * wp.element.createElement-only convention that file itself establishes.
- * Loaded ONLY on the BH_Studio admin page (see
- * BHM_Storefront::maybe_enqueue_studio_blocks()), never on the front end
- * — the front end never edits these blocks, it only ever sees their
- * server-rendered HTML (BHM_Storefront::render_product_grid_block()/
- * render_product_filter_block(), called through BH_Content::render()).
- *
- * Both blocks are DYNAMIC — real product data is never stored in the
- * block tree, only the query parameters (collection/category/columns/
- * limit) are. The edit() UI below is deliberately a simple, honest
- * placeholder ("Product Grid — collection: X") rather than attempting a
- * live WooCommerce product preview inside the canvas itself — building a
- * full live-data preview is real additional scope, not a shortcut, and
- * this ecosystem's own convention (see BH_Studio's own five block types)
- * is to ship a working authoring control first, richer preview later.
+ * Editor registration for the storefront blocks (BH_Studio canvas and block editor screens;
+ * never the front end). Dynamic blocks: only query attributes are stored, and edit() shows
+ * a placeholder rather than a live product preview.
  */
 (function (wp) {
     'use strict';
@@ -53,10 +39,7 @@
                 )
             );
         },
-        // Dynamic block — no static save output. render_callback lives
-        // server-side (BH_Content's own renderer, wired through
-        // BHM_Storefront::register_content_block_types()), matching how
-        // WordPress core's own dynamic blocks (Latest Posts, etc.) work.
+        // Dynamic block: rendered server-side.
         save: function () { return null; },
     });
 

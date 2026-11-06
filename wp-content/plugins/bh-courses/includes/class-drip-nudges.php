@@ -2,23 +2,15 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * A real, un-admitted gap the LMS audit flagged: drip scheduling
- * (class-gate.php) and lifecycle notifications (class-nudges.php,
- * class-crm-integration.php) were both fully built but never talked to
- * each other — a student on a drip schedule got no signal when a new
- * lesson actually unlocked for them; they'd only find out by manually
- * revisiting the course page. This closes that gap the same way
- * class-nudges.php already does: a daily, self-rescheduling OUS_Jobs
- * sweep (no new cron/queue infrastructure of this plugin's own), one
- * notification per lesson-unlock event, deduped per user+lesson so it
- * only ever fires once.
+ * Daily self-rescheduling OUS_Jobs sweep that notifies students when a drip-scheduled
+ * lesson unlocks; once per user+lesson.
  */
 class BHC_DripNudges {
     const JOB_HOOK = 'bhc_check_drip_unlocks';
     const INTERVAL = DAY_IN_SECONDS;
 
     public static function init(): void {
-        if (!class_exists('OUS_Jobs')) return; // no queue infra, no job — same guard class-nudges.php's own registration uses
+        if (!class_exists('OUS_Jobs')) return; // no queue infra, no job
         OUS_Jobs::register(self::JOB_HOOK, [self::class, 'run']);
         add_action('init', [self::class, 'maybe_schedule_first_run']);
     }
@@ -31,9 +23,7 @@ class BHC_DripNudges {
 
     /** @param array<string, mixed> $args */
     public static function run($args = []): void {
-        // Reschedule first — a fatal error partway through the sweep
-        // below shouldn't silently kill the recurring job forever, same
-        // reasoning as class-nudges.php's own run().
+        // Reschedule first so a fatal mid-sweep can't kill the recurring job.
         OUS_Jobs::enqueue(self::JOB_HOOK, [], self::INTERVAL);
 
         if (!class_exists('OUS_Notifications')) return;
@@ -42,9 +32,7 @@ class BHC_DripNudges {
 
         foreach ($courses as $course) {
             $lesson_ids = BHC_PostTypes::lesson_order($course->ID);
-            // Only lessons with an actual drip rule set are candidates —
-            // an un-dripped lesson is already open the moment its course
-            // is, so there's no "just unlocked" moment to notify about.
+            // Only lessons with a drip rule have an unlock moment.
             $drip_lesson_ids = array_filter($lesson_ids, function ($lid) {
                 return BHC_Gate::drip_after_days($lid) !== null || BHC_Gate::drip_on_date($lid) !== null;
             });
@@ -54,17 +42,14 @@ class BHC_DripNudges {
             if (!$enrolled_ids) continue;
 
             foreach ($enrolled_ids as $user_id) {
-                // Access gate first (tier/benefit) — if they've lost
-                // course access entirely, an "unlocked" email about
-                // content they can no longer see would be actively
-                // misleading, not just unhelpful.
+                // Skip students who've lost course access.
                 if (!BHC_Gate::user_can_access_course($user_id, $course->ID)) continue;
 
                 foreach ($drip_lesson_ids as $lesson_id) {
                     if (!BHC_Gate::lesson_is_open($user_id, $lesson_id)) continue;
 
                     $meta_key = '_bhc_drip_notified_' . $lesson_id;
-                    if (get_user_meta($user_id, $meta_key, true)) continue; // already told them once — never repeat
+                    if (get_user_meta($user_id, $meta_key, true)) continue; // already notified
 
                     OUS_Notifications::notify(
                         $user_id,

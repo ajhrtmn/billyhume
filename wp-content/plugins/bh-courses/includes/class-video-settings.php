@@ -2,20 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * A configurable max direct-upload size for lesson video steps. Rather
- * than guessing at what any given host allows, this is an admin-set
- * policy (default 0 = no limit, unchanged behavior) that steers an
- * author toward the video block's existing "URL (oEmbed)" source
- * (YouTube/Vimeo) once a file exceeds it — the right answer for long
- * video anyway (self-hosting large files has no adaptive bitrate/CDN
- * and eats the host's own storage/bandwidth regardless of PHP's
- * upload ceiling).
- *
- * Enforced in two places: the block editor warns before an author
- * finishes picking a file (immediate feedback, non-blocking), and
- * BHC_ContentBridge::sync_legacy_steps() re-checks the real attached
- * file size on every save (authoritative — a REST/programmatic save
- * never touches the JS).
+ * Admin-set max direct-upload size for lesson videos (0 = no limit). The editor warns on
+ * pick; check_tree() re-checks the real file on every save, which is authoritative.
  */
 class BHC_VideoSettings {
     const OPTION = 'bhc_max_direct_video_mb';
@@ -72,13 +60,8 @@ class BHC_VideoSettings {
     }
 
     /**
-     * Authoritative, server-side check — walks a lesson's real block
-     * tree for any bhc/video step using the 'upload' source, and flags
-     * (via a transient admin notice, never blocking the save outright —
-     * a false positive here shouldn't trap an author) any whose actual
-     * attached file exceeds the configured limit. Called from
-     * BHC_ContentBridge::sync_legacy_steps(), which already parses this
-     * exact tree on every save.
+     * Flags (via a transient admin notice, never blocking the save) any uploaded video step
+     * whose attached file exceeds the limit. Called from sync_legacy_steps().
      */
     /** @param array<int, array<string, mixed>> $tree */
     public static function check_tree(int $post_id, $tree): void {

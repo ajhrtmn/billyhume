@@ -2,18 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * A prepaid credit wallet, backing pay-as-you-listen. Topped up via a
- * normal WooCommerce product (see BHM_Frontend's wallet-topup product
- * + on_order_completed() in class-products.php), debited per play.
- * Deliberately its OWN small ledger rather than reusing bhm_entitlements
- * — an entitlement is "can you access this at all," a wallet debit is
- * "you did access it and here's what it cost," a genuinely different
- * kind of row queried differently (a running balance vs. a yes/no check).
+ * Prepaid credit wallet for pay-per-play: topped up via WooCommerce products, debited per play.
+ * Has its own balance + ledger, separate from entitlements.
  */
 class BHM_Wallet {
     public static function init(): void {
-        // Pure API class, no hooks of its own to register — see
-        // BHM_Gate::init() for the same reasoning.
+        // Stateless API; no hooks needed.
     }
 
     public static function balance_cents(int $user_id): int {
@@ -28,22 +22,15 @@ class BHM_Wallet {
         return $held === null ? 0 : (int) $held;
     }
 
-    /** What's actually still spendable/biddable right now — balance minus whatever's already committed to an open auction bid. */
+    /** Spendable now: balance minus held. */
     public static function available_cents(int $user_id): int {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare("SELECT balance_cents, held_cents FROM " . BHM_Tables::wallet() . " WHERE user_id = %d", $user_id), ARRAY_A);
         return $row ? ((int) $row['balance_cents'] - (int) $row['held_cents']) : 0;
     }
 
-    // Auction bidding (class-auctions.php's own use, 1.7): commits
-    // $cents against a bid WITHOUT touching balance_cents yet — a bid
-    // that gets outbid or loses only ever needs release_hold(), never a
-    // separate refund/credit, because the spendable balance was never
-    // actually debited. Same TOCTOU-safe shape as debit() above: the
-    // "is there enough available to hold" check and the write are the
-    // SAME atomic UPDATE, guarded by its own WHERE clause, so two bids
-    // racing for the same low-available-balance user can't both pass a
-    // prior read before either commits.
+    // Reserves $cents without touching balance_cents. WHY: check and write are one atomic
+    // UPDATE ... WHERE, so concurrent holds can't both pass a prior read.
     public static function hold(int $user_id, int $cents, string $reason, ?int $ref_id = null): bool {
         global $wpdb;
         $cents = abs((int) $cents);
@@ -65,15 +52,11 @@ class BHM_Wallet {
         $wpdb->insert(BHM_Tables::wallet_ledger(), [
             'user_id' => $user_id, 'delta_cents' => 0, 'reason' => $reason, 'track_id' => $ref_id,
         ]);
-        // delta_cents is deliberately 0 here — a hold moves money between
-        // "available" and "held," it never changes the actual
-        // balance_cents total the ledger's delta_cents column tracks.
-        // The ledger row still exists (reason + ref_id) purely as an
-        // audit trail entry: "a hold happened, here's when and why."
+        // delta_cents 0: a hold doesn't change the balance; the row is an audit entry.
         return true;
     }
 
-    /** Releases a hold without ever touching balance_cents — the outbid/lost path. Floors at 0 so a duplicate release call can't drive held_cents negative. */
+    /** Releases a hold without touching balance_cents; floors at 0 so a duplicate release can't go negative. */
     public static function release_hold(int $user_id, int $cents, string $reason, ?int $ref_id = null): bool {
         global $wpdb;
         $cents = abs((int) $cents);
@@ -95,12 +78,7 @@ class BHM_Wallet {
         return $ok !== false;
     }
 
-    // The actual spend, once an auction closes in this bidder's favor —
-    // moves the already-held amount out of BOTH held_cents AND
-    // balance_cents together, in one atomic statement. Requires
-    // held_cents >= $cents in its own WHERE clause rather than trusting
-    // the caller's bookkeeping — a capture can only ever spend money
-    // that was genuinely held for it.
+    // Spends held money: decrements held_cents and balance_cents atomically; can only spend what was held.
     public static function capture_hold(int $user_id, int $cents, string $reason, ?int $ref_id = null): bool {
         global $wpdb;
         $cents = abs((int) $cents);
@@ -137,26 +115,14 @@ class BHM_Wallet {
 
     public static function credit(int $user_id, int $cents, string $reason, ?int $track_id = null, ?int $order_id = null): void {
         self::apply_delta($user_id, abs((int) $cents), $reason, $track_id, $order_id);
-        // Fraud/abuse velocity cap — only real purchased
-        // top-ups count against this, not admin grants or refund-
-        // reversal adjustments (apply_ledger_delta() below is the
-        // separate entry point those use).
+        // Velocity cap counts only purchased top-ups (adjustments use apply_ledger_delta()).
         if ($reason === 'topup' && class_exists('BHM_Fraud')) {
             BHM_Fraud::track_topup_velocity($user_id, abs((int) $cents));
         }
     }
 
-    // Returns true if the debit succeeded (sufficient balance), false if
-    // declined (insufficient funds) — the caller (BHM_Products' play-gate
-    // check, wired through bh-streaming's /tracks/{id}/play flow) decides
-    // what "declined" means for playback.
-    //
-    // Deliberately NOT "check balance, then separately write" (a real
-    // TOCTOU race — two concurrent debits for a low-balance user could
-    // both pass the check before either write commits, driving the
-    // balance negative) — the check and the write are the SAME atomic
-    // UPDATE statement, guarded by its own WHERE clause, with success
-    // determined by $wpdb->rows_affected rather than a prior read.
+    // False when declined for insufficient funds. WHY: check and write are one atomic
+    // UPDATE ... WHERE (success = rows_affected), so concurrent debits can't go negative.
     public static function debit(int $user_id, int $cents, ?int $track_id = null, string $reason = 'play'): bool {
         global $wpdb;
         $cents = abs((int) $cents);
@@ -167,16 +133,7 @@ class BHM_Wallet {
             $cents, current_time('mysql'), $user_id, $cents
         ));
         if ($wpdb->rows_affected !== 1) {
-            // Previously silent — a declined debit (insufficient
-            // balance, the expected/common case) and a genuinely missing
-            // wallet row (a real data-integrity gap: a user with no
-            // wallet row at all shouldn't be reachable via normal
-            // sign-up/purchase flow) looked identical to every caller.
-            // Logged at 'info' (not 'warning') since insufficient-balance
-            // declines are routine, not a bug — but now at least visible
-            // and filterable by user_id if a pattern of declines needs
-            // investigating (e.g. a fraud signal, or a UI bug offering
-            // plays a user can't actually afford).
+            // 'info': declines are routine, but a missing wallet row looks the same, so keep it visible.
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('info', 'Wallet debit declined — insufficient balance or no wallet row exists for this user.', [
                     'user_id' => $user_id, 'cents' => $cents, 'track_id' => $track_id,
@@ -188,10 +145,7 @@ class BHM_Wallet {
         $ledger_ok = $wpdb->insert(BHM_Tables::wallet_ledger(), [
             'user_id' => $user_id, 'delta_cents' => -$cents, 'reason' => $reason, 'track_id' => $track_id,
         ]);
-        // Feeds the CRM's unified per-person activity timeline
-        // (BHCRM's render_timeline(), the-self-hosted-self's BH_Event) — same
-        // "harmless no-op if the core event system isn't loaded"
-        // posture every other emit() call site in this ecosystem uses.
+        // Feeds the CRM activity timeline.
         if ($ledger_ok !== false && class_exists('BH_Event')) {
             BH_Event::emit('bhm/wallet_debit', [
                 'user_id' => $user_id, 'subject_type' => 'bhm_wallet', 'subject_id' => $user_id,
@@ -199,11 +153,7 @@ class BHM_Wallet {
             ]);
         }
         if ($ledger_ok === false && class_exists('OUS_DebugLog')) {
-            // The balance mutation above already committed — this is a
-            // real desync risk (balance moved, ledger didn't record why)
-            // that was previously completely invisible. 'error', not
-            // 'warning': the wallet's balance and its own audit trail
-            // just went out of sync, on a money-handling path.
+            // The balance already moved; ledger and balance are now out of sync.
             OUS_DebugLog::log('error', 'Wallet debit succeeded but the ledger row failed to insert — balance and ledger are now out of sync for this user.', [
                 'user_id' => $user_id, 'cents' => $cents, 'track_id' => $track_id, 'db_error' => $wpdb->last_error,
             ], 'BH Wallet');
@@ -211,12 +161,7 @@ class BHM_Wallet {
         return true;
     }
 
-    // Public entry point for a reason neither credit() nor debit() quite
-    // fits: reversing a refunded/cancelled top-up (see class-products.php's
-    // on_order_reversed()) is neither "the listener bought more credit"
-    // nor "the listener spent credit on a play" — it's undoing a grant
-    // after the fact, with its own explicit reason string in the ledger
-    // rather than being disguised as either of those two.
+    // Signed adjustment with its own reason (e.g. reversing a refunded top-up); skips the velocity check.
     public static function apply_ledger_delta(int $user_id, int $delta_cents, string $reason, ?int $track_id = null, ?int $order_id = null): void {
         self::apply_delta($user_id, (int) $delta_cents, $reason, $track_id, $order_id);
     }
@@ -226,10 +171,7 @@ class BHM_Wallet {
         $w = BHM_Tables::wallet();
         $l = BHM_Tables::wallet_ledger();
 
-        // INSERT ... ON DUPLICATE KEY UPDATE — a single atomic statement
-        // rather than a read-then-write, so two plays debiting the same
-        // wallet in quick succession can't race each other into an
-        // incorrect balance.
+        // Atomic upsert, not read-then-write.
         $balance_ok = $wpdb->query($wpdb->prepare(
             "INSERT INTO $w (user_id, balance_cents, updated_at) VALUES (%d, %d, %s)
              ON DUPLICATE KEY UPDATE balance_cents = balance_cents + %d, updated_at = %s",
@@ -252,10 +194,6 @@ class BHM_Wallet {
             ]);
         }
         if ($ledger_ok === false && class_exists('OUS_DebugLog')) {
-            // Same balance/ledger desync risk as debit() above — this is
-            // the credit/reversal-side counterpart (top-ups and refund
-            // reversals both flow through here), previously equally
-            // silent.
             OUS_DebugLog::log('error', 'Wallet balance updated but the ledger row failed to insert — balance and ledger are now out of sync for this user.', [
                 'user_id' => $user_id, 'delta_cents' => $delta_cents, 'reason' => $reason, 'order_id' => $order_id, 'db_error' => $wpdb->last_error,
             ], 'BH Wallet');

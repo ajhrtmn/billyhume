@@ -1,16 +1,6 @@
 /**
- * TypeScript pilot conversion — real types throughout (not
- * @ts-nocheck), same posture as every other file in this pilot: the
- * whole point is tsc catching real typos/shape mistakes at build time,
- * not just having the file live in assets/ts/. This is the lesson
- * stepper (steps/quiz/video-progress/annotations) — the largest, most
- * stateful file in the pilot, so non-null assertions (`!`) are used at
- * DOM lookups this code's own control flow already guarantees succeed
- * (e.g. inside a `.bhc-quiz-form` submit handler, `.bhc-step` and its
- * `.bhc-quiz-result` child are always present — the server only ever
- * renders that form inside that structure). BHCData/BHCoreToast are
- * the same untyped external globals every other file in this
- * ecosystem's pilot declares.
+ * Front-end lesson stepper: steps, quizzes, video progress, overlays, chapters.
+ * Non-null assertions (`!`) mark DOM lookups the server-rendered structure guarantees.
  */
 
 interface BHCDataGlobal {
@@ -75,11 +65,7 @@ interface BHCVideoChapter {
     title: string;
 }
 
-// Loosely typed on purpose — Plyr is vendored as a plain global (no
-// @types package installed, no bundler), and this file only ever
-// touches the handful of members below. Same local-ambient-declaration
-// posture the rest of this ecosystem's TS uses for untyped globals
-// (bhEsc, anime, Howl).
+// Plyr is a vendored plain global with no @types; only the members used here are declared.
 interface BHCPlyrInstance {
     media: HTMLVideoElement;
     currentTime: number;
@@ -94,10 +80,8 @@ interface BHCPlyrConstructor {
     new(target: HTMLElement, options?: Record<string, unknown>): BHCPlyrInstance;
 }
 
-// Bunny Stream's iframe speaks the player.js postMessage protocol
-// (assets.mediadelivery.net/playerjs/…). Only the members this file
-// drives are declared. All getters are async (callback), so the adapter
-// below keeps a synchronous cache fed by the 'timeupdate' event.
+// Bunny Stream's iframe speaks player.js postMessage. Getters are async, so the adapter
+// keeps a synchronous cache fed by 'timeupdate'.
 interface BHCPlayerJsInstance {
     on(event: string, handler: (value?: { seconds?: number; duration?: number }) => void): void;
     play(): void;
@@ -109,11 +93,8 @@ interface BHCPlayerJsInstance {
 interface BHCPlayerJsConstructor { new(el: HTMLIFrameElement | string): BHCPlayerJsInstance; }
 
 /**
- * One uniform handle on "the media for this step", whether that's a
- * real <video> or a YouTube/Vimeo provider embed driven through Plyr.
- * Every video feature (watch-progress, overlays, chapters) talks to
- * this instead of to an element, which is what lets all three work
- * identically across sources.
+ * Uniform handle on a step's media (a real <video> or a Plyr provider embed), so
+ * watch-progress, overlays and chapters work the same across sources.
  */
 interface BHCMedia {
     isProvider: boolean;
@@ -127,13 +108,9 @@ interface BHCMedia {
 }
 
 /* ---- lesson step DOM helpers ----------------------------------------
- * Pure and hoisted to module scope so the unit runner can reach them
- * (tests/unit/lesson-step-dom.test.ts loads the compiled courses.js in
- * jsdom and reads window.BHCLessonStepDom). Every one is written to not
- * depend on the `.bhc-step` class surviving: on the live Etch site the
- * theme's hydration blanks class="" off each step wrapper on load, so
- * selection and the rebuilt class both key on the data-step-* attrs
- * render-lesson.php emits alongside. See ETCH-COMPATIBILITY-NOTES.md.
+ * Module-scoped so tests/unit/lesson-step-dom.test.ts can reach them via
+ * window.BHCLessonStepDom. WHY: the live Etch theme blanks class="" off step
+ * wrappers, so these key on data-step-* attrs (ETCH-COMPATIBILITY-NOTES.md).
  * ------------------------------------------------------------------- */
 var BHC_STEP_SELECTOR = '.bhc-step, [data-step-index]';
 
@@ -141,17 +118,13 @@ function bhcStepClassName(type: string, done: boolean): string {
     return 'bhc-step' + (type ? ' bhc-step-' + type : '') + (done ? ' bhc-step-done' : '');
 }
 
-/** Rebuild the wrapper's class from its data-step-* attrs, but only if
- *  the `.bhc-step` class has actually gone missing — a no-op otherwise. */
+/** Rebuilds the wrapper's class from data-step-* attrs if `.bhc-step` went missing. */
 function bhcReassertStepClass(el: HTMLElement): void {
     if (el.classList.contains('bhc-step')) return;
     el.className = bhcStepClassName(el.dataset.stepType || '', !!el.dataset.stepDone);
 }
 
-/** Show exactly the step at `index`, hide the rest. Pure display toggle
- *  — showStep() layers the focus move, entering animation and step
- *  counter on top of this. Returns the index it actually showed, or -1
- *  if no wrapper matched. */
+/** Shows only the step at `index`; returns that index, or -1 if none matched. */
 function bhcSetVisibleStep(root: ParentNode, index: number): number {
     var shown = -1;
     root.querySelectorAll<HTMLElement>(BHC_STEP_SELECTOR).forEach(function (el) {
@@ -162,7 +135,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
     return shown;
 }
 
-// Harmless in the browser (a 4-key object); the unit runner reads it.
+// Exposed for the unit runner.
 (window as unknown as Record<string, unknown>).BHCLessonStepDom = {
     SELECTOR: BHC_STEP_SELECTOR,
     className: bhcStepClassName,
@@ -172,12 +145,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
 
 (function () {
     document.addEventListener('DOMContentLoaded', function () {
-        // Catalog filter bar: works as a plain GET form with zero JS
-        // (class-render.php's render_catalog_filters()) — this just
-        // progressively enhances it so picking a category/topic/sort
-        // submits immediately instead of waiting for the Filter button.
-        // The search box deliberately does NOT auto-submit on keystroke
-        // (that would refetch the whole catalog on every character).
+        // Progressive enhancement of the GET filter form: selects submit on change.
+        // The search box deliberately doesn't (it would refetch on every keystroke).
         var filterForm = document.querySelector('.bhc-catalog-filters') as HTMLFormElement | null;
         if (filterForm) {
             filterForm.querySelectorAll('select').forEach(function (select) {
@@ -186,11 +155,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
         }
     });
 
-    // Course-page review form — lives OUTSIDE the .bhc-lesson-gated
-    // block below (that whole block early-returns if .bhc-lesson isn't
-    // on the page, which it never is on the course page itself, only
-    // on a single lesson's own page) so this actually runs where the
-    // review form is rendered.
+        // Course-page review form; outside the .bhc-lesson block because that early-returns on the course page.
     document.addEventListener('DOMContentLoaded', function () {
         var form = document.querySelector('.bhc-review-form') as HTMLFormElement | null;
         if (!form) return;
@@ -239,24 +204,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
         });
     });
 
-    // Shared by two real trigger points: a fresh page load that lands
-    // directly on the completion screen (server-rendered — see
-    // class-render-lesson.php's bhc-completion block, e.g. revisiting
-    // the course after finishing it elsewhere), AND the live, same-
-    // session moment below where advance() reveals .bhc-lesson-next
-    // right after the last step of the last lesson is marked complete —
-    // by far the more common real path, and the one a first version of
-    // this only fired for on page load, missing the actual live moment
-    // entirely. window-scoped (not a module) to stay reachable from
-    // both listeners without restructuring this whole IIFE.
-    // opts lets a QUIETER moment (the per-lesson completion banner,
-    // added later — see advance() below) reuse this same mechanism at a
-    // smaller scale instead of duplicating it: fewer pieces, thrown a
-    // shorter distance, so it reads as a small flourish rather than
-    // competing with the course-completion burst's own visual weight.
-    // Every default below matches this function's original, unparameterized
-    // behavior exactly, so the course-completion call site (unchanged)
-    // looks pixel-identical to before.
+    // Fires on page load onto a completion screen and on the live last-step moment in advance().
+    // opts scales it down for the per-lesson banner; defaults are the course-completion burst.
     (window as BHCWindow).bhcFireConfetti = function (completion, opts) {
         if (!completion || completion.dataset.bhcConfettiFired) return;
         completion.dataset.bhcConfettiFired = '1';
@@ -295,12 +244,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
         var lessonId = lesson.dataset.lessonId ?? '';
         var stepCount = parseInt(lesson.dataset.stepCount ?? '0', 10);
 
-        // The live (Etch) site's frontend hydration blanks class="bhc-step
-        // …" off each step wrapper on load. bhcReassertStepClass rebuilds
-        // it from the data-step-* attrs; because the strip's timing vs.
-        // this script isn't guaranteed, re-assert for a few seconds via
-        // an observer rather than just once. No-op where the class
-        // already survived. See ETCH-COMPATIBILITY-NOTES.md.
+        // WHY: the live Etch site's hydration blanks step wrapper classes at an unpredictable
+        // moment, so re-assert via an observer for a few seconds (ETCH-COMPATIBILITY-NOTES.md).
         var stepWrappers = lesson.querySelectorAll<HTMLElement>('[data-step-index]');
         stepWrappers.forEach(bhcReassertStepClass);
         try {
@@ -320,19 +265,11 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 var isTarget = parseInt(el.dataset.stepIndex ?? '-1', 10) === index;
                 el.classList.remove('bhc-step-entering');
                 if (isTarget) {
-                    // Force a reflow so re-adding the class retriggers the
-                    // CSS animation even when this same step was shown
-                    // before (e.g. navigating back and forward again).
+                    // Force a reflow so re-adding the class retriggers the animation.
                     void el.offsetWidth;
                     el.classList.add('bhc-step-entering');
-                    // Move focus onto the newly-visible step (tabindex="-1"
-                    // in class-render-lesson.php makes this focusable
-                    // without joining the tab order) — previously focus
-                    // stayed on whatever control was clicked to get here,
-                    // which for a stepper-dot or Back click is OUTSIDE this
-                    // div and could even be a now-hidden element, leaving a
-                    // keyboard/screen-reader user with no orientation cue
-                    // that the content under them just changed.
+                    // Move focus to the new step (tabindex="-1") so keyboard/screen-reader
+                    // users aren't left on a hidden control.
                     el.focus({ preventScroll: true });
                 }
             });
@@ -345,19 +282,12 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             });
         }
 
-        // Marks a dot done and unlocks the next one — called wherever a
-        // step is completed (button click, quiz pass, or the video
-        // watch-threshold auto-complete below), so the stepper always
-        // reflects real progress instead of drifting out of sync with
-        // the .bhc-step-done class it mirrors.
+        // Marks a dot done and unlocks the next; called from every completion path.
         function markStepDone(index: number) {
             var dot = lesson!.querySelector('.bhc-stepper-dot[data-target-index="' + index + '"]');
             if (dot) {
                 dot.classList.add('bhc-stepper-done');
-                // A brief pulse on the dot itself — the one small "that
-                // counted" moment for finishing a step, not just a silent
-                // class swap. Removed after the animation so it can
-                // replay if this step is ever completed again.
+                // Brief pulse, removed afterwards so it can replay.
                 dot.classList.add('bhc-stepper-pulse');
                 setTimeout(function () { dot!.classList.remove('bhc-stepper-pulse'); }, 500);
             }
@@ -365,21 +295,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             if (nextDot) nextDot.disabled = false;
         }
 
-        // Bug found via live walkthrough (2026-07-26): the course-
-        // progress sidebar (class-render-course.php's
-        // render_lesson_sidebar()) is server-rendered once at page load
-        // and this whole lesson flow never touches it again — completing
-        // a step (via mark-complete, video auto-complete, or a quiz
-        // submit) left the sidebar's percentage/bar stuck at the OLD
-        // number until a full reload, most jarringly right when the
-        // final step's own completion screen reveals itself as "Course
-        // complete!" next to a sidebar still claiming 67%. The three AJAX
-        // handlers behind those actions (class-progress.php's
-        // ajax_mark_complete/ajax_update_watch_progress/ajax_submit_quiz)
-        // now all return course_id/course_percent; this is the one place
-        // that response data gets applied, so all three call sites stay
-        // in sync through a single function rather than three near-
-        // duplicate DOM updates.
+        // The sidebar is server-rendered once; every completion AJAX response returns
+        // course_id/course_percent, applied here.
         function updateSidebarProgress(data: BHCQuizSubmitResult | undefined | null) {
             if (!data || !data.course_id || data.course_percent === null || data.course_percent === undefined) return;
             document.querySelectorAll<HTMLElement>('.bhc-course-sidebar .bhc-progress-fill').forEach(function (el) {
@@ -390,16 +307,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             });
         }
 
-        // Depth-of-magic beat: markStepDone()'s own stepper-dot pulse
-        // (500ms) was previously cut short by advance() firing in the
-        // very same tick, swapping the visible step content out from
-        // under it before a student could actually register that a
-        // step just completed — a silent snap to the next thing, not a
-        // felt moment. A short real pause here (skipped entirely under
-        // prefers-reduced-motion, same posture as the confetti/pulse
-        // animations elsewhere in this file) is the whole fix: nothing
-        // new to build, just letting the acknowledgment that already
-        // exists actually be seen before the queue moves on.
+        // A short pause so the stepper-dot pulse is seen before the step changes.
+        // Skipped under prefers-reduced-motion.
         function advanceWithBeat(index: number) {
             var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             if (reduced) { advance(index); return; }
@@ -411,11 +320,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             if (next < stepCount) {
                 showStep(next);
             } else {
-                // That was the last step — reveal the Next Lesson / course-
-                // complete block instead of doing nothing (the pre-existing
-                // behavior: advance() silently no-op'd past the end,
-                // leaving a student stranded on the final step with no
-                // way forward except manually finding the course page).
+                // Last step: reveal the Next Lesson / course-complete block.
                 lesson!.querySelectorAll<HTMLElement>('.bhc-step, [data-step-index]').forEach(function (el) { el.style.display = 'none'; });
                 var nextBlock = lesson!.querySelector('.bhc-lesson-next') as HTMLElement | null;
                 if (nextBlock) {
@@ -423,23 +328,12 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     nextBlock.classList.remove('bhc-step-entering');
                     void nextBlock.offsetWidth;
                     nextBlock.classList.add('bhc-step-entering');
-                    // Same reasoning as showStep()'s own focus move — this
-                    // block replaces the whole step area, so focus needs
-                    // to land somewhere inside it (tabindex="-1" in
-                    // class-render-lesson.php) rather than staying on the
-                    // now-hidden final step's submit/mark-complete button.
+                    // Move focus into the block that replaced the step area.
                     nextBlock.focus({ preventScroll: true });
                     var completion = nextBlock.querySelector('.bhc-completion') as HTMLElement | null;
                     if (completion && (window as BHCWindow).bhcFireConfetti) (window as BHCWindow).bhcFireConfetti!(completion);
-                    // The mid-tier "Lesson complete" banner (no course_id
-                    // match, i.e. a next lesson still follows) gets its own
-                    // smaller beat — a real entrance pop distinct from the
-                    // wrapper's plain fade, plus a scaled-down confetti
-                    // burst reusing bhcFireConfetti's new opts param. Both
-                    // only fire here, the live same-session path — a
-                    // student who reloads and lands back on an already-
-                    // revealed banner (dataset.bhcConfettiFired already set,
-                    // see bhcFireConfetti's own guard) doesn't see it replay.
+                    // Smaller pop + confetti for the "Lesson complete" banner. Live path only;
+                    // bhcFireConfetti's guard stops it replaying.
                     var completeBanner = nextBlock.querySelector('.bhc-lesson-complete-banner') as HTMLElement | null;
                     if (completeBanner) {
                         completeBanner.classList.remove('bhc-banner-pop');
@@ -454,40 +348,21 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
         }
 
         /* ---------------- one player + one adapter per video step ----------------
-         *
-         * Built ONCE up front so the three feature blocks below
-         * (watch-progress, overlays, chapters) all drive the same player
-         * through one interface instead of each reaching for the raw
-         * <video> element.
-         *
-         * That indirection is what lets all three work on a YouTube or
-         * Vimeo step at all. Those render as a Plyr provider embed (a
-         * <div data-plyr-provider>, see class-render-lesson.php), where
-         * there is no <video> element to hold a .currentTime or fire a
-         * 'timeupdate' — Plyr's own instance API supplies both, and
-         * exposes the identical shape for a plain HTML5 file. So:
-         * whenever Plyr is present, everything routes through it; the
-         * raw-element path is only the fallback for a genuine <video>
-         * when Plyr's script failed to load at all.
+         * Watch-progress, overlays and chapters all drive this one adapter. WHY: YouTube/
+         * Vimeo steps are Plyr provider embeds with no <video> element, so Plyr's API is
+         * used when present and the raw <video> only as a fallback.
          */
         var mediaAdapters: { el: HTMLElement; media: BHCMedia }[] = [];
 
         lesson.querySelectorAll<HTMLElement>('.bhc-step-video').forEach(function (el) {
-          // One malformed step (or a player library that loaded but
-          // threw on construction) must never abort the whole setup
-          // pass — that would take the chapter list, quiz handlers and
-          // everything downstream with it. Isolate each element.
+          // Isolate each element so one failure can't abort the whole setup pass.
           try {
             var isProvider = el.hasAttribute('data-plyr-provider');
             var videoEl = el.tagName === 'VIDEO' ? (el as HTMLVideoElement) : null;
 
             // ---- Bunny Stream (private signed embed) ----
-            // A cross-origin iframe, but player.js gives us the same
-            // control surface Plyr does for YouTube/Vimeo, so chapters,
-            // pausing annotations and watch-threshold all work. Degrades
-            // cleanly: if player.js didn't load or never reports ready,
-            // no adapter is registered and the video still plays (the
-            // chapter list just isn't clickable), same as an opaque embed.
+            // Cross-origin iframe driven by player.js. If player.js is missing, no adapter
+            // is registered and the video still plays.
             if (el.classList.contains('bhc-step-video-bunny')) {
                 var iframe = el.querySelector<HTMLIFrameElement>('iframe.bhc-bunny-embed');
                 var PlayerJs = (window as unknown as { playerjs?: { Player: BHCPlayerJsConstructor } }).playerjs;
@@ -528,28 +403,18 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             if (PlyrCtor) {
                 var plyrAssets = (window as unknown as { BHCPlyrAssets?: { iconUrl?: string; blankVideo?: string } }).BHCPlyrAssets || {};
                 player = new PlyrCtor(el, {
-                    // Deliberately NOT Plyr's full default control set —
-                    // this is a lesson video, not a media app: no
-                    // download button (a resource step is the real
-                    // "here, take this file" affordance), no PIP clutter.
+                    // No download button (a resource step is for files) and no PIP.
                     controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'fullscreen'],
                     settings: ['speed'],
                     speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] },
-                    // Both of Plyr's own shipped defaults point at
-                    // cdn.plyr.io — overridden to this plugin's vendored
-                    // copies so an uploaded/direct-URL lesson never
-                    // reaches a third-party CDN (CLAUDE.md's standing
-                    // self-hosted rule). A YouTube/Vimeo step
-                    // unavoidably contacts its own provider; that is the
-                    // explicit, accepted trade for controlling it.
+                    // WHY: Plyr's defaults point at cdn.plyr.io; vendored copies keep uploaded
+                    // lessons off third-party CDNs.
                     iconUrl: plyrAssets.iconUrl,
                     blankVideo: plyrAssets.blankVideo,
                 });
             }
 
-            // No Plyr AND no real <video> means a provider embed we
-            // cannot drive — skip it rather than register an adapter
-            // whose every method silently no-ops.
+            // A provider embed with no Plyr can't be driven; skip it.
             if (!player && !videoEl) return;
 
             var media: BHCMedia = {
@@ -563,9 +428,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 },
                 play: function () {
                     var r = player ? player.play() : (videoEl ? videoEl.play() : undefined);
-                    // A programmatic play() can legitimately reject
-                    // (autoplay policy) — any seek that preceded it still
-                    // happened, which is the part that matters.
+                    // play() can reject under autoplay policy; the seek still happened.
                     if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch(function () { /* playback just didn't auto-start */ });
                 },
                 pause: function () { if (player) { player.pause(); } else if (videoEl) { videoEl.pause(); } },
@@ -587,14 +450,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             return null;
         }
 
-        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b: real video
-        // progress tracking. Only elements carrying data-watch-threshold
-        // get a listener — class-render-lesson.php only renders that
-        // attribute for a course-creator-configured, genuinely trackable
-        // step (an upload, a direct URL, or a YouTube/Vimeo provider
-        // embed); an opaque third-party iframe never gets it. Throttled
-        // to once per whole-percent change (a raw timeupdate fires many
-        // times a second) to avoid hammering the AJAX endpoint.
+        // Video watch-progress. Only rendered with data-watch-threshold for trackable sources.
+        // Sent once per whole-percent change to avoid hammering the endpoint.
         lesson.querySelectorAll<HTMLElement>('.bhc-step-video[data-watch-threshold]').forEach(function (video) {
             var media = mediaFor(video);
             if (!media) return;
@@ -618,9 +475,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                         if (!res.success || !res.data || !res.data.auto_completed) return;
                         var note = step.querySelector('.bhc-video-progress-note') as HTMLElement | null;
                         if (note) {
-                            // Settle the gate into its "watched" state
-                            // instead of hiding it — the figure stays on
-                            // screen, full bar, no "completes at N%" tail.
+                            // Settle the gate into its "watched" state rather than hiding it.
                             note.classList.add('bhc-watch-gate--done');
                             var fill = note.querySelector('.bhc-watch-gate-fill') as HTMLElement | null;
                             if (fill) fill.style.width = '100%';
@@ -656,22 +511,9 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             });
         });
 
-        // ROADMAP-lms-v3.md Section 1 — interactive video overlays.
-        // An annotation pauses/resumes the SAME video step, never
-        // redirects anywhere, so playback position and step navigation
-        // are unaffected by any of this — purely a playback-UI behavior
-        // layered on top of the existing video step.
-        //
-        // 2026-08-26 (OPEN.md item 21, built on item 22's sub_index):
-        // 'question' annotations now DO persist server-side — the
-        // instant client-side right/wrong reveal below is unchanged
-        // (a network round-trip has no business gating that feedback),
-        // but the answer is also sent to bhc_mark_annotation so it
-        // shows up in this student's real progress record instead of
-        // evaporating on refresh. Fire-and-forget, deliberately not the
-        // full retry-with-backoff bhc_mark_complete uses below: failing
-        // to persist a self-check doesn't block the student from
-        // continuing the video, unlike a step failing to mark complete.
+        // Interactive video overlays: pause/resume this video only, never navigate.
+        // 'question' answers persist via bhc_mark_annotation, fire-and-forget (unlike
+        // bhc_mark_complete's retries), since failing to save a self-check shouldn't block playback.
         lesson.querySelectorAll<HTMLElement>('.bhc-step-video[data-annotations]').forEach(function (video) {
             var media = mediaFor(video);
             if (!media) return;
@@ -690,7 +532,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             var shown: Record<number, boolean> = {};
             var overlay: HTMLElement | null = null;
 
-            function escText(s: unknown) { // reuse the same escaping convention as the rest of this file's inline HTML building
+            function escText(s: unknown) {
                 var d = document.createElement('div');
                 d.textContent = s == null ? '' : String(s);
                 return d.innerHTML;
@@ -702,12 +544,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 media!.play();
             }
 
-            // TRL-style lower-third: slides in, auto-dismisses on its
-            // own after a few seconds, and — the whole point of this
-            // one, unlike note/hotspot/question — never pauses playback.
-            // Kept entirely separate from the `overlay` variable/dismiss()
-            // above so a banner showing doesn't block (or get blocked by)
-            // a pausing annotation elsewhere in the same video.
+            // Lower-third banner: auto-dismisses and never pauses playback. Kept separate
+            // from `overlay` so it can't block, or be blocked by, a pausing annotation.
             function showBanner(a: BHCVideoAnnotation, index: number) {
                 shown[index] = true;
                 var banner = document.createElement('div');
@@ -756,7 +594,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                                         annotation_index: String(index),
                                         chosen_index: String(chosen),
                                     }),
-                                }).catch(function () { /* self-check, non-blocking — see this block's own comment */ });
+                                }).catch(function () { /* self-check, non-blocking */ });
                             }
                             var continueBtn = document.createElement('button');
                             continueBtn.type = 'button';
@@ -789,9 +627,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     }
                 }
             });
-            // A student rewinding past an already-shown annotation
-            // shouldn't be trapped by it again — same "resume, don't
-            // relitigate" posture a real interactive-video player takes.
+            // Rewinding past a shown annotation re-arms it.
             media!.on('seeked', function () {
                 for (var i = 0; i < annotations.length; i++) {
                     if (media!.currentTime() < annotations[i]!.time) shown[i] = false;
@@ -799,21 +635,9 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             });
         });
 
-        // Real YouTube-style chapter markers ON the seek bar itself, plus
-        // a clickable chapter list beneath the video.
-        //
-        // Why a custom control bar at all: native `<video controls>` is
-        // drawn by the browser engine, not the page — no CSS or JS can
-        // reach inside it to paint markers on its scrubber. Supplying
-        // the bar ourselves (via Plyr) is the only way, and is exactly
-        // what every player with visible chapter markers does. The
-        // player itself is created once in the shared adapter pass
-        // above; this block only draws chrome onto it.
-        //
-        // Degrades honestly: with no Plyr at all, a real <video> keeps
-        // its native controls and the chapter LIST below still renders
-        // and still seeks — only the on-scrubber markers are lost, being
-        // the one piece that cannot exist without a custom bar.
+        // Chapter markers on the seek bar plus a clickable chapter list.
+        // WHY: native <video controls> can't be painted on, so markers need Plyr's bar.
+        // Without Plyr the list still renders and seeks; only the markers are lost.
         lesson.querySelectorAll<HTMLElement>('.bhc-step-video').forEach(function (video) {
             var media = mediaFor(video);
             if (!media) return;
@@ -845,13 +669,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             function seekTo(seconds: number, tappedItem?: HTMLElement) {
                 media!.seek(seconds);
                 media!.play();
-                // On iOS a tap on THIS button (outside the cross-origin
-                // Bunny/provider iframe) is not a user-activation the
-                // iframe will accept for play() — the seek lands but the
-                // paused player keeps showing its poster, so the tap
-                // feels dead. Acknowledge it ourselves: mark the target
-                // chapter active now (there may be no 'timeupdate' to do
-                // it), pulse it, and bring the video into view.
+                // WHY: on iOS a tap outside the cross-origin iframe isn't a user activation for
+                // its play(), so the tap can feel dead. Mark the chapter active and pulse it ourselves.
                 if (tappedItem) {
                     items.forEach(function (it) { it.classList.toggle('active', it === tappedItem); });
                     tappedItem.classList.remove('bhc-chapter-jumped');
@@ -880,10 +699,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 markers = [];
 
                 chapters.forEach(function (chapter, i) {
-                    // A chapter authored past the real runtime (a shorter
-                    // file swapped in later) has nowhere on the bar to
-                    // sit — skip rather than pin a misleading marker at
-                    // 100%.
+                    // Skip chapters past the real runtime rather than pinning them at 100%.
                     if (chapter.time > duration) return;
                     var marker = document.createElement('button');
                     marker.type = 'button';
@@ -892,10 +708,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     marker.title = (chapter.title || 'Chapter ' + (i + 1)) + ' — ' + formatTime(chapter.time);
                     marker.setAttribute('aria-label', 'Jump to chapter: ' + (chapter.title || 'Chapter ' + (i + 1)));
                     marker.addEventListener('click', function (e) {
-                        // Plyr's progress bar is itself a seek control —
-                        // without this the click both hits the marker AND
-                        // scrubs to wherever the pointer landed, which is
-                        // a few pixels off from the chapter's real start.
+                        // The progress bar is itself a seek control; stop the click scrubbing too.
                         e.preventDefault();
                         e.stopPropagation();
                         seekTo(chapter.time);
@@ -939,10 +752,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 markers.forEach(function (m, i) { m.classList.toggle('active', i === activeIndex); });
             }
 
-            // Plyr rebuilds its own controls on a source change, and its
-            // progress bar doesn't exist until 'ready' — hooking both
-            // that and loadedmetadata covers "markers survive whenever
-            // the bar or the duration is (re)established".
+            // Plyr's progress bar exists only after 'ready' and is rebuilt on source change.
             if (player) player.on('ready', buildMarkers);
             if (media.duration() > 0) buildMarkers();
             media.on('loadedmetadata', buildMarkers);
@@ -954,10 +764,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
         lesson.addEventListener('click', function (e) {
             var target = e.target as HTMLElement;
             if (target.classList.contains('bhc-step-back')) {
-                // Pure navigation — no server call, no completion state
-                // touched. The target step's markup is already in the
-                // DOM (rendered up front, just hidden), same as every
-                // other step.
+                // Pure navigation; every step's markup is already in the DOM.
                 var targetIndex = parseInt(target.dataset.targetIndex ?? '0', 10);
                 lesson!.querySelectorAll<HTMLElement>('.bhc-step, [data-step-index]').forEach(function (el) { el.style.display = 'none'; });
                 var nextBlock = lesson!.querySelector('.bhc-lesson-next') as HTMLElement | null;
@@ -976,15 +783,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 step_index: String(index),
             });
 
-            // Retry-with-backoff, matching the reference pattern this
-            // ecosystem's own reports flow set (the-self-hosted-self's
-            // class-reports.php) — retry-audit pass, AJ's own standing
-            // ask. Marking a step complete is idempotent (the server
-            // side is an upsert on lesson_id+step_index, not an insert-
-            // only log), so a real network blip retrying this is safe
-            // in a way it would NOT be for, say, quiz submission —
-            // this call previously had no .catch() at all, so a
-            // dropped connection silently failed with zero feedback.
+            // Retry with backoff: safe because marking complete is an idempotent upsert
+            // (unlike quiz submission).
             var btn = target as HTMLButtonElement;
             btn.disabled = true;
             var originalLabel = btn.textContent;
@@ -993,27 +793,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 fetch(BHCData.ajaxUrl, { method: 'POST', body: body })
                     .then(function (r) { return r.json() as Promise<-1 | '-1' | 0 | '0' | BHCAjaxResponse<BHCQuizSubmitResult>>; })
                     .then(function (res) {
-                        // check_ajax_referer()'s default failure mode is
-                        // wp_die(-1) — a bare "-1", not the {success:false,
-                        // data:{...}} shape every real handler response
-                        // has. That collapsed into the same generic
-                        // "Something went wrong." as any other failure,
-                        // when the real, actionable cause is a stale
-                        // session/nonce (e.g. this tab sat open past a
-                        // login timeout).
-                        //
-                        // A logged-OUT visitor hits a different bare
-                        // response: admin-ajax.php itself replies "0"
-                        // (not "-1") for an action with no
-                        // wp_ajax_nopriv_* handler registered — real gap
-                        // found while auditing why a logged-out click
-                        // here just showed "Something went wrong."
-                        // instead of a clear "log in" prompt. This is
-                        // now defense-in-depth (the lesson itself
-                        // requires login to view at all — see
-                        // OUS_Visibility/BHC_Gate — so a logged-out
-                        // visitor shouldn't normally reach this button),
-                        // covering a session that expires mid-lesson.
+                        // Bare -1 (check_ajax_referer failure / stale nonce) or 0 (no nopriv
+                        // handler, i.e. logged out) means the session is the problem, not the request.
                         if (res === -1 || res === '-1' || res === 0 || res === '0') {
                             btn.disabled = false;
                             btn.textContent = originalLabel;
@@ -1025,16 +806,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                             btn.disabled = false;
                             btn.textContent = originalLabel;
                             var errMsg = (res.data && res.data.message) ? res.data.message : 'Something went wrong.';
-                            // BHCoreToast (the-self-hosted-self core, loaded globally —
-                            // see class-toast.php) is called directly here,
-                            // not via the PHP-side OUS_Toast::queue() hand-off,
-                            // because this is an AJAX flow with no redirect to
-                            // hand a message across. typeof-guarded so this
-                            // still degrades to the pre-existing alert() if
-                            // the-self-hosted-self's toast script hasn't loaded for any
-                            // reason (older core version, script blocked, etc.)
-                            // — same "harmless no-op" posture as every other
-                            // optional integration point in this ecosystem.
+                            // BHCoreToast is called directly (AJAX, no redirect for OUS_Toast);
+                            // falls back to alert() if core's toast script isn't loaded.
                             if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show(errMsg, 'error'); } else { alert(errMsg); }
                             return;
                         }
@@ -1069,14 +842,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             showStep(targetIndex);
         });
 
-        // Builds the same per-question breakdown markup/classes
-        // BHC_Render::render_quiz_review() renders server-side for a
-        // revisited passed quiz — kept in sync deliberately so the
-        // immediate post-submit view and the later review view look
-        // identical, not two different quiz UIs. This is the (B)
-        // end-of-submission breakdown (QUIZ-AND-CATALOG-DESIGN-PLAN.md
-        // Part 1.5), never revealed per-question before the whole quiz
-        // is submitted.
+        // Mirrors BHC_Render::render_quiz_review()'s markup so the post-submit and later
+        // review views match. Only shown after the whole quiz is submitted.
         function renderQuestionBreakdown(questions: BHCQuizQuestionResult[] | undefined) {
             if (!questions || !questions.length) return '';
             var html = '';
@@ -1105,12 +872,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             return d.innerHTML;
         }
 
-        // Selected-answer highlight was CSS-only (:has(input:checked)),
-        // which only reached universal browser support in late 2022/2023
-        // (older Firefox in particular) — on anything without :has()
-        // support, clicking a quiz choice showed zero visible feedback.
-        // This JS-added class is a belt-and-suspenders fallback; the
-        // :has() CSS rule stays as the primary/instant-paint path.
+        // Fallback for browsers without :has(); the :has() CSS rule stays the primary path.
         lesson.addEventListener('change', function (e) {
             var target = e.target as HTMLElement;
             if (!target.matches('.bhc-quiz-choice input[type=radio]')) return;
@@ -1122,10 +884,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             target.closest('.bhc-quiz-choice')!.classList.add('bhc-selected');
         });
 
-        // Checklist step — client-side only, nothing persisted (see
-        // class-render-lesson.php's own comment on why: it's a self-check
-        // for the student's own benefit, never required to advance). Just
-        // a visual "done" state on the item itself.
+        // Checklist step: client-side visual state only, nothing persisted.
         lesson.addEventListener('change', function (e) {
             var target = e.target as HTMLInputElement;
             if (!target.matches('.bhc-checklist-check')) return;
@@ -1141,24 +900,11 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             var step = form.closest('.bhc-step, [data-step-index]') as HTMLElement;
             var index = parseInt(step.dataset.stepIndex ?? '-1', 10);
 
-            // Retry-audit pass, AJ's own standing ask: quiz submission
-            // is explicitly NOT safe to blind-retry — the server side
-            // burns a real attempt (max_attempts) per call, so a retry
-            // (or, before this fix, a double-click / accidental double
-            // submit on a slow connection) could cost a student an
-            // attempt for a request that actually succeeded. The fix
-            // here is the opposite of retry: disable the button up
-            // front so a second submit physically can't fire while the
-            // first is in flight, and only re-enable on a real failure
-            // (never on success, since a successful submit already
-            // shows results/locks the form below).
+            // WHY: never blind-retry quiz submission; each call burns a real attempt.
+            // Disable up front to block double submits; re-enable only on failure.
             var quizSubmitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement | null;
             var quizSubmitLabel = quizSubmitBtn ? quizSubmitBtn.textContent : '';
-            // A label change, not just disabled=true — a disabled state
-            // alone isn't reliably announced by every screen reader, so
-            // this was a silent "did my click even register?" moment for
-            // AT users on a slow connection, same category of gap fixed
-            // elsewhere in this ecosystem's other submit buttons.
+            // Change the label too; disabled alone isn't reliably announced by screen readers.
             if (quizSubmitBtn) { quizSubmitBtn.disabled = true; quizSubmitBtn.textContent = 'Submitting…'; }
 
             var body = new URLSearchParams({ action: 'bhc_submit_quiz', nonce: BHCData.nonce, lesson_id: lessonId, step_index: String(index) });
@@ -1171,11 +917,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 .then(function (r) { return r.json() as Promise<-1 | '-1' | 0 | '0' | BHCAjaxResponse<BHCQuizSubmitResult & { message?: string; max_attempts?: number }>>; })
                 .then(function (res) {
                     var resultBox = form.querySelector('.bhc-quiz-result') as HTMLElement;
-                    // Same bare 0/-1 cases as bhc_mark_complete above — a
-                    // logged-out or session-expired submit here previously
-                    // fell straight into the generic "Something went
-                    // wrong." branch below with no indication login was
-                    // the actual problem.
+                    // Same bare 0/-1 session cases as bhc_mark_complete above.
                     if (res === -1 || res === '-1' || res === 0 || res === '0') {
                         if (quizSubmitBtn) { quizSubmitBtn.disabled = false; quizSubmitBtn.textContent = quizSubmitLabel; }
                         resultBox.style.display = '';
@@ -1185,10 +927,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     }
                     if (!res.success) {
                         if (quizSubmitBtn) { quizSubmitBtn.disabled = false; quizSubmitBtn.textContent = quizSubmitLabel; }
-                        // Attempts-exhausted (403) comes back as an error with
-                        // attempts_used/max_attempts rather than a generic
-                        // failure — show it inline and lock the form instead
-                        // of just alert()-ing a dead end.
+                        // Attempts exhausted (403): show inline and lock the form.
                         var data = res.data || ({} as BHCQuizSubmitResult & { message?: string });
                         resultBox.style.display = '';
                         resultBox.className = 'bhc-quiz-result bhc-fail';
@@ -1205,39 +944,17 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     if (result.max_attempts) {
                         attemptsNote = result.passed ? '' : ((result.attempts_remaining ?? 0) > 0 ? ' (' + result.attempts_remaining + ' attempt' + (result.attempts_remaining === 1 ? '' : 's') + ' remaining)' : ' (no attempts remaining)');
                     }
-                    // result.correct is deliberately null on an already-
-                    // passed replay (class-progress.php's ajax_submit_quiz()
-                    // doesn't recompute a count it already knows the
-                    // answer to) — the literal string "null" rendering
-                    // inline was a real, live bug, not hypothetical: any
-                    // replayed/duplicate submit against an already-passed
-                    // quiz hit this. Re-derived from score/total rather
-                    // than assumed to equal total — a pass doesn't mean
-                    // every question was right, just that score cleared
-                    // the passing threshold (BHC_Steps::score_quiz()'s own
-                    // score = round(correct/total*100), inverted here).
+                    // result.correct is null on an already-passed replay; re-derive from
+                    // score/total (inverse of BHC_Steps::score_quiz()).
                     var correctCount = (result.correct === null || result.correct === undefined)
                         ? Math.round((result.score / 100) * result.total)
                         : result.correct;
 
-                    // Checkpoint framing, not a form-validation message —
-                    // depth-of-magic pass: quizzes should read as a real
-                    // moment in the course's own story, not a bare score
-                    // line. When retries are genuinely exhausted, name
-                    // the SPECIFIC missed questions (real data already
-                    // in result.questions — chosen_index vs. correct_index)
-                    // instead of a flat "no attempts remaining" dead end,
-                    // so a student out of retries at least knows exactly
-                    // what to go back and re-read.
+                    // When retries are exhausted, name the specific missed questions.
                     var attemptsExhausted = !result.passed && result.max_attempts && result.attempts_remaining === 0;
                     if (result.passed) {
-                        // Same escalated banner markup as the static
-                        // revisit path (BHC_Render_Lesson::render_quiz_review())
-                        // — a student sees the identical moment whether
-                        // this is a fresh pass or an old one. correctCount/
-                        // result.total/result.score are all server-computed
-                        // numbers, never user input, so building this as
-                        // HTML (not textContent) carries no injection risk.
+                        // Mirrors BHC_Render_Lesson::render_quiz_review(). All values are
+                        // server-computed numbers, so building HTML here is safe.
                         resultBox.innerHTML = '<div class="bhc-quiz-pass-icon">&#10003;</div>'
                             + '<div class="bhc-datum bhc-quiz-pass-figure"><span class="bhc-datum-value">' + result.score + '%</span><span class="bhc-datum-label">quiz passed</span></div>'
                             + '<p class="bhc-quiz-pass-sub">' + correctCount + '/' + result.total + ' correct. Nice work.</p>';
@@ -1253,10 +970,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                         resultBox.textContent = correctCount + '/' + result.total + ' correct — not quite there yet.' + attemptsNote + ' Take another look and give it another shot.';
                     }
 
-                    // The real per-question breakdown, once — every choice
-                    // marked correct/incorrect. Lock the inputs so the
-                    // marked-up choices read as a review, not an editable
-                    // form still sitting under the breakdown.
+                    // Per-question breakdown; lock the inputs so it reads as a review.
                     if (result.questions && result.questions.length) {
                         form.querySelectorAll<HTMLElement>('.bhc-quiz-question').forEach(function (fs) { fs.style.display = 'none'; });
                         var breakdown = document.createElement('div');
@@ -1266,17 +980,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     }
                     form.querySelectorAll<HTMLInputElement>('input').forEach(function (el) { el.disabled = true; });
 
-                    // Real bug, caught live (AJ: "if you fail a quiz, it
-                    // breaks"): a fail WITH attempts remaining fell
-                    // through every branch below with no code path left
-                    // to re-enable the submit button or the (just
-                    // force-disabled, two lines up) inputs — quizSubmitBtn
-                    // stayed stuck reading "Submitting…" forever, and the
-                    // "give it another shot" message right above it had
-                    // no actual way to act on it. Only the pass case
-                    // (swaps in "Continue") and the exhausted case
-                    // (explicitly re-disables everything, already
-                    // correct) ever touched the button again.
+                    // Restores the form for a retry after a failed attempt.
                     function resetQuizForm() {
                         var review = form.querySelector('.bhc-quiz-review');
                         if (review) review.remove();
@@ -1297,13 +1001,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     markStepDone(index);
                     updateSidebarProgress(result);
                     if (result.passed) {
-                        // Do NOT auto-advance here — the whole point of
-                        // the breakdown above is for the student to
-                        // actually see it. The old behavior (immediate
-                        // advance() on pass) would hide it again before
-                        // anyone could read it. A real "Continue" click
-                        // is required instead, same as every other step
-                        // type's "Mark complete & continue" button.
+                        // No auto-advance on pass, so the breakdown can be read; require "Continue".
                         var submitBtn = form.querySelector('.bhc-submit-quiz') as HTMLElement | null;
                         if (submitBtn) submitBtn.style.display = 'none';
                         var continueBtn = document.createElement('button');
@@ -1315,15 +1013,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     } else if (result.max_attempts && result.attempts_remaining === 0) {
                         form.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button[type="submit"]').forEach(function (el) { el.disabled = true; });
                     } else {
-                        // Failed, but a retry is genuinely available
-                        // (attempts_remaining > 0, or max_attempts is 0/
-                        // unlimited) — this is the exact case that used
-                        // to leave the form permanently stuck. A real
-                        // "Try again" button, same pattern as the pass
-                        // case's "Continue" button just above, replaces
-                        // the now-inert original submit button and
-                        // actually does what the result message already
-                        // promises.
+                        // Failed with a retry available: replace submit with "Try again".
                         if (quizSubmitBtn) quizSubmitBtn.style.display = 'none';
                         var tryAgainBtn = document.createElement('button');
                         tryAgainBtn.type = 'button';
@@ -1334,14 +1024,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     }
                 })
                 .catch(function () {
-                    // Deliberately NO retry here (unlike mark-complete/
-                    // subtask-save/judge-score above) — quiz submission
-                    // burns a real attempt server-side per call, so a
-                    // blind retry after a request that actually
-                    // succeeded (e.g. the response just failed to come
-                    // back) could cost a student an attempt for nothing.
-                    // Re-enabling the button lets them submit again
-                    // deliberately, once, rather than the code guessing.
+                    // Deliberately no retry: quiz submission burns an attempt per call.
+                    // Re-enable so the student can resubmit deliberately.
                     if (quizSubmitBtn) { quizSubmitBtn.disabled = false; quizSubmitBtn.textContent = quizSubmitLabel; }
                     var resultBox = form.querySelector('.bhc-quiz-result') as HTMLElement | null;
                     if (resultBox) {

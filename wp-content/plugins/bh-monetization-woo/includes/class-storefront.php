@@ -2,48 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The storefront/merchandising layer (ROADMAP-platform-evolution.md
- * Section 5) — product collections, category/collection landing pages,
- * and browse/search/filter controls, built as real BH_Studio pages
- * (not a reskin of WooCommerce's stock shop/archive templates). Same
- * "own the interface, don't reimplement WooCommerce's hard parts"
- * posture as the rest of this plugin: WooCommerce still owns the
- * actual product data, cart, and checkout — this class only owns how
- * products get BROWSED and DISCOVERED, aiming for
- * Amazon/Apple/Shopify-quality collections/categories/listing/browse-filter.
- *
- * Two new pieces on top of what already exists:
- *
- *   1. `bhm_collection` — a plain WordPress taxonomy on WooCommerce's
- *      own `product` post type. Deliberately a taxonomy, not a new CPT/
- *      table — curated merchandising collections ("Tour Exclusives",
- *      "New This Month") are conceptually identical to WooCommerce's
- *      own product categories (many-to-many product grouping with a
- *      term archive), so reusing WordPress's existing, well-understood
- *      taxonomy machinery costs nothing and interoperates for free with
- *      anything already taxonomy-aware.
- *   2. `bhm/product-grid` and `bhm/product-filter` — two new BH_Content
- *      block types (dynamic: rendered server-side from live WooCommerce
- *      data on every request, not baked into the stored block tree),
- *      registered with BH_Studio the same way BH_Studio's own core
- *      block types are. An artist builds a collection/category landing
- *      page BY DRAGGING THESE ONTO THE CANVAS alongside bh/heading,
- *      bh/text, bh/image, etc. — real page-building, not a fixed
- *      template with configuration options.
- */
-/**
- * Scope note: bhm/product-grid and bhm/product-filter are BH_Content
- * block types (rendered via BH_Content::render(), independent of
- * WordPress's own block-render pipeline) — correct and sufficient for
- * every current use (collection landing pages, any bhm_collection-
- * context document). If either is ever placed inside a document stored
- * against context_type='post' AND that post is later rendered through
- * WordPress's normal the_content()/render_block() path instead of
- * BH_Content::render() directly, it would need a matching real
- * register_block_type() call with a server-side render_callback — not
- * added here, since no current consumer renders collection/storefront
- * documents that way. Flagging the boundary rather than silently
- * building for a case nothing exercises yet.
+ * Storefront layer: the bhm_collection taxonomy, collection landing pages, and
+ * dynamic product grid/filter blocks. WooCommerce still owns product data, cart and checkout.
  */
 class BHM_Storefront {
     const TAXONOMY = 'bhm_collection';
@@ -58,65 +18,17 @@ class BHM_Storefront {
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue_studio_blocks']);
         add_action('wp_enqueue_scripts', [self::class, 'enqueue_frontend_assets']);
 
-        // Real Gutenberg registration, ROADMAP-platform-evolution.md
-        // Section 5's payoff: an artist authoring a product's own
-        // long-description content (WooCommerce products already
-        // support the ordinary post editor) can now drop these blocks
-        // in directly, not just inside BH_Studio's separate canvas — the
-        // exact boundary this file's own docblock previously flagged as
-        // "not added here, since no current consumer renders storefront
-        // documents that way." register_block_type()'s render_callback
-        // reuses the SAME PHP renderers BH_Content already calls; only
-        // the registration mechanism differs (WordPress core's own
-        // do_blocks()/render_block() pipeline vs. BH_Content::render()).
+        // Real Gutenberg registration so these blocks work in ordinary post_content too.
         add_action('init', [self::class, 'register_core_blocks']);
         add_action('enqueue_block_editor_assets', [self::class, 'enqueue_editor_blocks']);
-        // Real gap: WooCommerce core
-        // unconditionally hardcodes the block editor OFF for products
-        // (WC_Post_Types::gutenberg_can_edit_post_type() always returns
-        // false for post_type 'product', priority 10) — so a product's
-        // own long-description content couldn't ever actually be
-        // composed with bh/*/bhm/* blocks no matter what got registered
-        // above; it was still stuck on the classic TinyMCE editor.
-        // Overriding back to true at a later priority is the "wrap
-        // WooCommerce, don't fight it" version of turning this on,
-        // matching how this ecosystem already treats every other
-        // WooCommerce screen as something to enhance rather than route
-        // around.
+        // WHY: WooCommerce forces the block editor off for products at priority 10.
         add_filter('use_block_editor_for_post_type', [self::class, 'enable_block_editor_for_products'], 20, 2);
-        // Zero-authoring default: every real single-product page gets a
-        // related-items section for free. Priority 20 so it runs after
-        // WooCommerce's own tabs (Description, etc. — priority 10) have
-        // already rendered, so an explicitly-placed bhm/related-products
-        // block inside the description has already set the
-        // "don't double-render" flag by the time this checks it.
-        //
-        // Real bug, caught live: WooCommerce core hooks its OWN default
-        // related-products output (woocommerce_output_related_products)
-        // to this exact same action at this exact same priority — since
-        // both land on the same hook+priority, WordPress runs them in
-        // registration order and BOTH rendered, showing the same
-        // recommended product twice on every single-product page in two
-        // different visual treatments (this plugin's styled "You may
-        // also like" grid, then WooCommerce's own plain list right below
-        // it). Removing the core callback so this plugin's version is
-        // the only one shown — same content, one considered
-        // presentation instead of a redundant duplicate.
+        // WHY: priority 20 runs after the description tab, so an explicit related-products block
+        // has already set its no-double-render flag. WooCommerce's own related output is removed
+        // from the same hook+priority, otherwise both render.
         remove_action('woocommerce_after_single_product_summary', 'woocommerce_output_related_products', 20);
         add_action('woocommerce_after_single_product_summary', ['BHM_Recommendations', 'auto_render_related'], 20);
-        // The remove_action above only covers a CLASSIC theme's
-        // template-hook based related-products output — live-checked on
-        // this (block theme) install and the actual duplicate was
-        // coming from a completely different source: the current
-        // active theme's single-product block TEMPLATE itself ships a
-        // woocommerce/product-collection block hardcoded to the
-        // "related" collection (data-collection=
-        // "woocommerce/product-collection/related", confirmed via the
-        // rendered block's own attributes) — an entirely separate
-        // rendering path the classic remove_action can't reach.
-        // Suppressing it at render time so whichever theme/template this
-        // runs under, only this plugin's own styled related-products
-        // section shows, not a duplicate.
+        // Block themes render related products from the template's product-collection block instead.
         add_filter('render_block', [self::class, 'suppress_core_related_products_block'], 10, 2);
 
         if (class_exists('BH_Studio')) {
@@ -131,21 +43,8 @@ class BHM_Storefront {
         return $post_type === 'product' ? true : $can_edit;
     }
 
-    // Real WordPress block registration (distinct from BH_Content's own
-    // registration above, which only ever renders through
-    // BH_Content::render() — a product's post_content goes through
-    // core's own the_content()/do_blocks() instead). Dynamic blocks
-    // (client save() returns null), so post_content only ever stores
-    // the block comment + attributes, never baked HTML — same "live
-    // WooCommerce data on every request" posture as the BH_Content
-    // registration.
-    // Audit fix (2026-07-25): the three attribute schemas below were
-    // hand-duplicated between here (WP-core 'boolean'/'integer' type
-    // names) and register_content_block_types() below (BH_Content's own
-    // 'bool'/'int' shorthand) — same field names/defaults, just spelled
-    // per-system. BLOCK_SCHEMAS is the one place a field/default now
-    // lives; both registration methods derive their own type-name
-    // format from it via core_attributes()/content_attributes().
+    // Single source for block attributes; WP core and BH_Content registrations both derive from it.
+    // Dynamic blocks: post_content stores only attributes, never baked HTML.
     const BLOCK_SCHEMAS = [
         'bhm/product-grid' => [
             'collection'  => ['type' => 'string', 'default' => ''],
@@ -166,9 +65,7 @@ class BHM_Storefront {
         ],
     ];
 
-    // BH_Content's own shorthand type names ('int'/'bool') -> WP core
-    // block.json type names ('integer'/'boolean'); anything else
-    // (currently just 'string') already matches both systems as-is.
+    // BH_Content shorthand types ('int'/'bool') -> WP core names ('integer'/'boolean').
     /**
      * @param array<string, array<string, mixed>> $schema
      * @return array<string, array<string, mixed>>
@@ -203,24 +100,8 @@ class BHM_Storefront {
         }
     }
 
-    // Unlike maybe_enqueue_studio_blocks() (gated to the bh-studio admin
-    // page only), this fires on EVERY real block editor screen — a
-    // product edit screen, a page, anywhere — so these blocks show up
-    // in the ordinary inserter wherever an artist is actually composing
-    // real post_content. The client registration file itself already
-    // guards on wp.blocks/wp.element/etc. existing, so enqueuing it
-    // broadly is safe.
-    // Audit fix (2026-07-25): this used to register the SAME file
-    // (storefront-studio-blocks.js) under two different handles —
-    // 'bhm-storefront-studio-blocks-core' here and
-    // 'bhm-storefront-studio-blocks' in maybe_enqueue_studio_blocks()
-    // below — with two different dependency lists, for no reason other
-    // than the two call sites having different gating conditions. One
-    // shared handle now (self::STUDIO_BLOCKS_HANDLE); if the 'bh-studio'
-    // script happens to already be registered when this fires (broad
-    // "every block editor screen" call site, not just the Studio canvas
-    // one), it's included as a dependency too — harmless either way,
-    // since Studio's own JS already no-ops without its canvas markup.
+    // One handle shared by both enqueue paths. enqueue_editor_blocks() runs on every block
+    // editor screen; the script itself guards on wp.blocks etc. existing.
     const STUDIO_BLOCKS_HANDLE = 'bhm-storefront-studio-blocks';
 
     public static function enqueue_editor_blocks(): void {
@@ -247,40 +128,12 @@ class BHM_Storefront {
         ]);
     }
 
-    // Bump whenever add_rewrite()/register_taxonomy() below change what
-    // they register — same versioned-flush convention BHI_Portal's own
-    // add_rewrite() uses (see class-portal.php), keyed off REWRITE_VERSION
-    // rather than a single boolean so a FUTURE rule change also self-heals,
-    // not just this one.
-    // Bumped to 2 — see BHI_Portal::REWRITE_VERSION's own comment
-    // (class-portal.php) for the full story: a real install's persistent
-    // object cache was serving a stale copy of the rewrite_rules option
-    // back even after a correct flush_rewrite_rules() call, confirmed via
-    // that class's own Debug Tools diagnostic. Same explicit cache-evict
-    // fix applied here.
+    // Bump whenever add_rewrite()/register_taxonomy() change what they register.
     const REWRITE_VERSION = '2';
     const VERIFY_THROTTLE_SECONDS = 60;
 
-    // Upgraded to BHI_Portal's self-verifying shape (class-portal.php) —
-    // the version-gated "flush once, mark option done, never re-check"
-    // pattern this replaced is the EXACT bug class a live install
-    // already hit on Portal's own rewrite rule: update_option() marking
-    // itself successful while a persistent object cache kept serving the
-    // stale rewrite_rules value forever after, with no way to tell from
-    // the outside. This had the identical shape and was flagged as a
-    // near-identical unfixed instance during a broader logging/error-
-    // handling audit, not from a live report on THIS specific rule — so
-    // treat it as preventative, not confirmed-broken.
-    // Audit fix (2026-07-25): this self-heal algorithm (persistence
-    // check/throttle/flush/log) is now shared via BHY_RewriteHealer
-    // (the-self-hosted-self/includes/class-rewrite-healer.php) instead of a
-    // hand-synced copy of BHI_Portal's own version — that extraction
-    // also fixed a real latent bug this copy had fallen behind on: the
-    // old force_flush_and_verify() below called wp_cache_flush()
-    // unconditionally on every attempt, the exact pattern Portal's own
-    // history already identified as risky (see BHY_RewriteHealer's own
-    // docblock for the full story). This is now escalation-only, same
-    // as Portal.
+    // WHY: BHY_RewriteHealer verifies the rule actually persisted; a persistent object
+    // cache can serve stale rewrite_rules after a successful flush.
     public static function add_rewrite(): void {
         add_rewrite_rule('^' . self::REWRITE_SLUG . '/([^/]+)/?$', 'index.php?bhm_collection_slug=$matches[1]', 'top');
 
@@ -300,15 +153,7 @@ class BHM_Storefront {
 
     /* ---------------- collection landing page ---------------- */
 
-    // The landing page itself: an optional BH_Content-authored hero/
-    // intro region (context_type='bhm_collection', context_id=term_id —
-    // empty/unauthored by default, same "graceful default" every other
-    // BH_Content consumer in this ecosystem follows) above an
-    // auto-generated product grid for every product in that collection.
-    // An artist who wants a fully custom layout instead just builds one
-    // in BH_Studio using bhm/product-grid directly with this collection
-    // pre-selected — this route is the zero-effort default, not the
-    // only way to show a collection.
+    // Optional BH_Content hero (context bhm_collection/term_id) above an auto-generated product grid.
     public static function maybe_render_collection(): void {
         $slug = get_query_var('bhm_collection_slug');
         if (!$slug) return;
@@ -322,23 +167,8 @@ class BHM_Storefront {
         exit;
     }
 
-    // Real bug, caught live: plain get_header()/get_footer() only covers
-    // a CLASSIC theme, which ships real header.php/footer.php files —
-    // a block theme (Twenty Twenty-Five and every core theme since 5.9,
-    // and any future theme built for this ecosystem) ships none, so
-    // those calls silently fell through to WordPress core's own
-    // decades-old bare theme-compat stub with no nav, no real chrome,
-    // nothing this site actually looks like. Same failure mode
-    // bh-courses' own templates/archive-bh_course.php already hit and
-    // fixed (see that file's docblock) — block_header_area()/
-    // block_footer_area() are WordPress's own documented way to print
-    // whatever the active block theme's real header/footer template
-    // parts are, so this renders correctly regardless of which theme
-    // (classic or block, this ecosystem's own or a third-party one) is
-    // active. This is the concrete fix for a real architectural rule:
-    // plugin-owned pages must be theme-independent — never assume a
-    // specific theme's structure, never break silently when the active
-    // theme changes.
+    // WHY: block themes ship no header.php/footer.php, so get_header() would fall back to
+    // core's bare theme-compat stub; block_header_area() prints the real template part.
     private static function print_header(): void {
         if (function_exists('wp_is_block_theme') && wp_is_block_theme() && function_exists('block_header_area')) {
             ?><!DOCTYPE html>
@@ -386,9 +216,6 @@ class BHM_Storefront {
             if ($hero_tree) echo BH_Content::render($hero_tree);
         }
 
-        // PHPStan caught a stray second argument — render_product_grid_block()
-        // only ever took one ($attrs); the '' was leftover cruft (harmless
-        // at runtime, PHP silently ignores an extra arg, but not correct).
         echo self::render_product_grid_block(['collection' => $term->slug, 'columns' => 4, 'limit' => 24, 'showFilters' => true]);
         echo '</div>';
         self::print_footer();
@@ -406,21 +233,8 @@ class BHM_Storefront {
     }
 
     /**
-     * A dynamic block's real renderer — queries live WooCommerce data on
-     * every request rather than baking a product list into the stored
-     * block tree, the same reason Gutenberg core's own "Latest Posts"
-     * block works this way.
-     *
-     * Audit fix (2026-07-25): the previous version of this comment
-     * claimed "$attrs here always has every schema key filled... so no
-     * isset()/empty() guarding is needed" — that's only true for the
-     * one caller that goes through BH_Content::validate() (the block-
-     * render path). This method is ALSO called directly with hand-built
-     * arrays from maybe_render_collection() and (for the filter block)
-     * render_related_products_block(), neither of which validates first
-     * — the defensive max(1,min(...))/!empty() guards below are real and
-     * load-bearing for those two callers, not leftover caution to be
-     * removed on a future cleanup pass.
+     * Dynamic renderer: queries live WooCommerce data on every request.
+     * WHY: also called with unvalidated hand-built $attrs, so the clamps/!empty() guards are load-bearing.
      */
     /** @param array<string, mixed> $attrs */
     public static function render_product_grid_block($attrs): string {
@@ -522,12 +336,7 @@ class BHM_Storefront {
 
         $products = wc_get_products($wc_args);
 
-        // Price filtering isn't a native wc_get_products() arg (it varies
-        // sale/regular/variable pricing in ways a single meta_query can't
-        // cleanly express) — filtered here instead, on the already-
-        // narrowed result set, which is fine at the catalog sizes this
-        // ecosystem targets (a solo artist's merch store, not a
-        // thousand-SKU marketplace).
+        // Price isn't a native wc_get_products() arg; filtered in PHP, fine at solo-artist catalog sizes.
         if (isset($args['min_price']) || isset($args['max_price'])) {
             $min = isset($args['min_price']) ? (float) $args['min_price'] : null;
             $max = isset($args['max_price']) ? (float) $args['max_price'] : null;
@@ -580,10 +389,7 @@ class BHM_Storefront {
         ]);
     }
 
-    // Only when BH_Studio's own canvas is the page being loaded — same
-    // hook-name-substring check class-studio.php itself uses for its
-    // own asset gating, kept consistent rather than inventing a second
-    // convention.
+    // Only on BH_Studio's canvas page (same hook-substring check class-studio.php uses).
     public static function maybe_enqueue_studio_blocks(string $hook): void {
         if (strpos($hook, 'bh-studio') === false) return;
         if (!wp_script_is('bh-studio', 'enqueued') && !wp_script_is('bh-studio', 'registered')) return; // BH_Studio itself isn't active/loaded
@@ -591,9 +397,7 @@ class BHM_Storefront {
             wp_enqueue_script(self::STUDIO_BLOCKS_HANDLE);
             return;
         }
-        // Not yet registered by enqueue_editor_blocks() on this request
-        // (shouldn't normally happen on a real block-editor screen, but
-        // guards the ordering assumption rather than fataling if it did).
+        // Fallback if enqueue_editor_blocks() hasn't registered it on this request.
         wp_enqueue_script(
             self::STUDIO_BLOCKS_HANDLE,
             BHM_URL . 'assets/js/storefront-studio-blocks.js',
@@ -614,13 +418,7 @@ class BHM_Storefront {
         return $types;
     }
 
-    // See the add_filter('render_block', ...) call above for why this
-    // exists — only ever matches the one specific WooCommerce core
-    // block/collection combination (identified the same way the browser
-    // itself reports it: block name + the 'related' collection id),
-    // never any other product-collection block a site owner might
-    // deliberately place elsewhere (a "featured products" or manually
-    // curated collection block is left completely alone).
+    // Drops only WooCommerce's "related" product-collection block; other collection blocks are untouched.
     /** @param array<string, mixed> $block */
     public static function suppress_core_related_products_block(string $block_content, $block): string {
         if (($block['blockName'] ?? '') !== 'woocommerce/product-collection') return $block_content;

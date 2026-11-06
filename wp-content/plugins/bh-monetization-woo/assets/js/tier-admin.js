@@ -1,8 +1,5 @@
 /**
- * Supporter Tiers admin metabox — cover image picker only. Everything
- * else on this screen (price, benefits, benefits list) is plain form
- * fields with no JS needed. Same wp.media() single-image-select shape
- * bh-courses/assets/js/admin.js already uses for step images.
+ * Tier edit screen: cover image picker (wp.media) and the live no-benefits warning.
  */
 jQuery(function ($) {
     var $preview = $('#bhm-tier-cover-preview');
@@ -34,10 +31,7 @@ jQuery(function ($) {
         $choose.text('Choose image');
     });
 
-    // Live "no benefit checked" warning — class-tiers.php's own
-    // render_metabox() already computes this once on page load; this
-    // just keeps it in sync as an admin actually checks/unchecks boxes,
-    // rather than only being accurate until the first click.
+    // Keeps the server-rendered "no benefit checked" warning in sync.
     var $priceInput = $('input[name="bhm_price"]');
     var $warning = $('#bhm-no-benefits-warning');
     function refreshBenefitWarning() {

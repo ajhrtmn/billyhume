@@ -2,15 +2,8 @@
 use PHPUnit\Framework\TestCase;
 
 /**
- * BHC_Steps::save() is the actual security boundary for lesson content
- * — it's what stands between a raw admin-form POST and what gets
- * stored (and later echoed back out to every student) as a lesson's
- * body. These tests focus on the SHAPE of the sanitization (does an
- * invalid/incomplete step get dropped rather than stored broken? does
- * an out-of-range index get clamped rather than crashing something
- * downstream?) rather than WordPress's exact escaping output, which
- * belongs in a real WP-integration suite — see tests/bootstrap.php's
- * docblock for why.
+ * BHC_Steps::save() is the security boundary for lesson content. These test the shape of
+ * sanitization (dropping/clamping), not WordPress's exact escaping (see tests/bootstrap.php).
  */
 final class StepsSanitizationTest extends TestCase
 {
@@ -42,21 +35,14 @@ final class StepsSanitizationTest extends TestCase
 
     public function testImageStepFiltersOutZeroAndNegativeAttachmentIds()
     {
-        // array_filter() on ints drops FALSY values — 0 is falsy, so an
-        // attachment_id of 0 (a crafted or malformed entry) must not
-        // survive as a "real" attachment reference downstream, where
-        // wp_get_attachment_image(0, ...) would just silently render
-        // nothing useful.
+        // An attachment_id of 0 (or non-numeric) must not survive.
         $result = BHC_Steps::save(1, [['type' => 'image', 'attachment_ids' => [5, 0, '7', 'not-a-number'], 'caption' => '']]);
         $this->assertSame([5, 7], array_values($result[0]['attachment_ids']));
     }
 
     public function testVideoUrlSourceWithEmptyUrlIsDropped()
     {
-        // A URL-source video step with no actual URL renders nothing —
-        // storing it at all would just be silent dead weight in the
-        // lesson's step array that class-render.php has to defensively
-        // handle for no reason.
+        // A URL-source video with no URL is dropped.
         $result = BHC_Steps::save(1, [['type' => 'video', 'source' => 'url', 'video_url' => '']]);
         $this->assertSame([], $result);
     }
@@ -90,10 +76,7 @@ final class StepsSanitizationTest extends TestCase
 
     public function testVideoChaptersAreSortedByTimeRegardlessOfAuthoringOrder()
     {
-        // courses.js walks this list assuming ascending time (it uses
-        // "the next chapter's start" to compute the current chapter's
-        // segment width) — an admin adding chapters out of order must
-        // not ship a list that breaks that assumption.
+        // Chapters must be stored in ascending time order.
         $result = BHC_Steps::save(1, [['type' => 'video', 'attachment_id' => 42, 'chapters' => [
             ['time' => 90, 'title' => 'Common Mistakes'],
             ['time' => 0, 'title' => 'Intro'],
@@ -104,9 +87,7 @@ final class StepsSanitizationTest extends TestCase
 
     public function testVideoChapterWithNoTitleIsDropped()
     {
-        // A bare timestamp with nothing to call it has nothing useful to
-        // show in the strip or the list — same "don't store dead weight"
-        // posture the empty-URL/no-attachment video tests above take.
+        // Untitled chapters are dropped.
         $result = BHC_Steps::save(1, [['type' => 'video', 'attachment_id' => 42, 'chapters' => [
             ['time' => 10, 'title' => ''],
             ['time' => 20, 'title' => '   '],
@@ -132,21 +113,14 @@ final class StepsSanitizationTest extends TestCase
 
     public function testVideoWithNoChaptersAttributeDefaultsToEmptyArray()
     {
-        // The common case — most video steps have no chapters at all —
-        // must not become a missing array key class-render-lesson.php's
-        // `(array) ($step['chapters'] ?? [])` would otherwise have to
-        // guard against on every read.
+        // No chapters still stores an empty array, not a missing key.
         $result = BHC_Steps::save(1, [['type' => 'video', 'attachment_id' => 42]]);
         $this->assertSame([], $result[0]['chapters']);
     }
 
     public function testCloudflareStreamVideoDoesNotStoreChapters()
     {
-        // Chapters (like annotations and watch_threshold) only apply to
-        // a real, same-origin-seekable <video> tag — a Cloudflare Stream
-        // iframe embed can't be seeked by this plugin's own JS at all,
-        // so the 'chapters' key is never even part of that branch's
-        // stored shape in the first place.
+        // A Cloudflare Stream step never stores chapters.
         $result = BHC_Steps::save(1, [['type' => 'video', 'source' => 'cloudflare_stream', 'stream_uid' => str_repeat('a', 32), 'chapters' => [
             ['time' => 0, 'title' => 'Intro'],
         ]]]);
@@ -155,10 +129,7 @@ final class StepsSanitizationTest extends TestCase
 
     public function testUrlSourceVideoKeepsChapters()
     {
-        // A YouTube/Vimeo URL now renders as a real Plyr provider embed
-        // (BHC_Render_Lesson::to_plyr_provider()) with genuine seek
-        // control, so chapters are stored and used for that source too —
-        // not just an uploaded file.
+        // YouTube/Vimeo URLs are Plyr-controllable, so chapters are kept.
         $result = BHC_Steps::save(1, [['type' => 'video', 'source' => 'url', 'video_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'chapters' => [
             ['time' => 60, 'title' => 'Bridge'],
             ['time' => 0, 'title' => 'Cold open'],
@@ -169,11 +140,7 @@ final class StepsSanitizationTest extends TestCase
 
     public function testQuizQuestionWithNoValidChoicesIsDropped()
     {
-        // All-blank choices (e.g. an admin added a question row then
-        // never filled in any answer options) leaves nothing a student
-        // could actually select — this question must not survive into
-        // the stored quiz at all, rather than shipping a broken,
-        // unanswerable question.
+        // A question with all-blank choices is dropped.
         $result = BHC_Steps::save(1, [['type' => 'quiz', 'questions' => [
             ['question' => 'Broken?', 'choices' => ['', '  '], 'correct_index' => 0],
         ]]]);
@@ -190,12 +157,7 @@ final class StepsSanitizationTest extends TestCase
         $this->assertSame('Good one', $result[0]['questions'][0]['question']);
     }
 
-    // A crafted or stale correct_index pointing past the actual choice
-    // list (e.g. a choice got removed in the editor but correct_index
-    // wasn't updated) must clamp into range rather than leaving an
-    // index that would make score_quiz()'s comparison always false —
-    // silently making the question unanswerable-correctly is worse than
-    // clamping to a sane value an author can then visibly fix.
+    // An out-of-range correct_index clamps into range rather than becoming unanswerable.
     public function testQuizCorrectIndexOutOfRangeClampsToLastChoice()
     {
         $result = BHC_Steps::save(1, [['type' => 'quiz', 'questions' => [
@@ -235,11 +197,7 @@ final class StepsSanitizationTest extends TestCase
         $this->assertSame(0, $result[0]['max_attempts'], 'A negative max_attempts must clamp to 0 (unlimited), not silently mean "zero attempts allowed," which would lock every student out of a quiz step entirely.');
     }
 
-    // Audit fix (2026-07-25): the four LMS depth-of-magic step types
-    // (callout/checklist/chord-chart/audio-compare) each have their own
-    // "drop dead step" branch in BHC_Steps::save() but had zero test
-    // coverage of it — same pattern as the quiz/video tests above, one
-    // per type's actual empty/invalid condition.
+    // ---- each newer step type's "drop dead step" branch ----
 
     public function testEmptyCalloutIsDropped()
     {
@@ -288,10 +246,7 @@ final class StepsSanitizationTest extends TestCase
 
     public function testMultiStepLessonPreservesAuthoredOrder()
     {
-        // Order is the entire point of a "multistep" lesson — text,
-        // then an image, then a quiz, in that specific sequence — so
-        // save() must not reorder, dedupe by type, or otherwise
-        // reshuffle steps relative to how they were authored.
+        // save() must preserve authored step order.
         $result = BHC_Steps::save(1, [
             ['type' => 'text', 'content' => 'first'],
             ['type' => 'image', 'attachment_ids' => [1]],

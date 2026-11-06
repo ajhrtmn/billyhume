@@ -2,19 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a — WYSIWYG
- * shortcode-to-block conversion, continuing the same wp.serverSideRender
- * pattern already shipped for bh-monetization-woo, bh-contest, and
- * bh-streaming. Two blocks: 'bhc/catalog' ([bh_courses], no attributes
- * — always the full catalog grid) and 'bhc/course' ([bh_course], an
- * `id` attribute + an Inspector picker, same shape as bh-monetization-
- * woo's bhm/buy block). Old shortcodes untouched.
- *
- * Unlike bh-contest's/bh-streaming's blocks (a static mount div hydrated
- * by client-side JS), BOTH of these render REAL, complete server-side
- * HTML — the catalog grid and a course's full detail page are both
- * fully formed on the PHP side already, so ServerSideRender here shows
- * the actual final content, not just a container shell.
+ * 'bhc/catalog' ([bh_courses]) and 'bhc/course' ([bh_course] with an `id` picker) blocks,
+ * rendered fully server-side via ServerSideRender. Shortcodes still work.
  */
 class BHC_Blocks {
     public static function init(): void {
@@ -23,7 +12,7 @@ class BHC_Blocks {
     }
 
     public static function register_blocks(): void {
-        if (!function_exists('register_block_type')) return; // WP too old — harmless no-op, same posture every optional integration in this ecosystem uses
+        if (!function_exists('register_block_type')) return; // WP too old
 
         wp_register_script(
             'bhc-blocks',
@@ -67,10 +56,7 @@ class BHC_Blocks {
         ]);
     }
 
-    // Populates the bhc/course block's Inspector picker — every
-    // published course, regardless of gating (an editor choosing which
-    // course to embed needs to see all of them, not just ones they
-    // personally have access to).
+    // Every published course for the bhc/course picker, regardless of gating.
     /** @return \WP_REST_Response */
     public static function rest_courses_picker(\WP_REST_Request $req) {
         $q = new WP_Query([

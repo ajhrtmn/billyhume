@@ -45,13 +45,8 @@
             tag.textContent = (rules || []).map(ruleToCssText).join('\n');
         });
     });
-    // Custom CSS (BHY_Customizer::register()'s WP_Customize_Code_Editor_
-    // Control) — not a --bh-* variable, so kept out of the generic
-    // schema loop above; just swaps one <style> tag's whole content on
-    // every change, live, same as WP core's own Additional CSS control
-    // does in its own default preview handling (which we don't get for
-    // free here since this setting lives under our own option, not
-    // theme_mods/custom_css post content).
+    // Raw Custom CSS: swaps one <style> tag's content on every change (core's
+    // Additional CSS preview does not apply to our own option).
     wpApi.customize('bhy_style_settings[custom_css]', function (value) {
         value.bind(function (css) {
             let tag = document.getElementById('bhy-custom-css-preview');
@@ -65,12 +60,8 @@
     });
     const selectors = window.bhyCustomizerSelectors || [];
     {
-        // Real bug caught live: `wp.customize.preview` is not necessarily
-        // populated yet at THIS script's load time (it's set up async by
-        // 'customize-preview' during its own init sequence) even though
-        // this script depends on that handle — gating the whole listener
-        // block on its truthiness here silently skipped attaching any
-        // listeners at all. Read it lazily, inside each handler, instead.
+        // WHY: wp.customize.preview is set up async, so it is read lazily inside
+        // each handler rather than gating listener setup on it.
         const customizeApi = wpApi.customize;
         function getPreview() {
             return customizeApi.preview;
@@ -88,11 +79,8 @@
             }
             return out;
         }
-        // A short, real, usable CSS selector for an arbitrary element —
-        // id if it has one, else its own tag+classes, prefixed with its
-        // parent's tag+classes for a little extra specificity (enough to
-        // paste into Custom CSS and actually work, not meant to be a
-        // unique/robust selector generator).
+        // A short, usable selector (id, else tag+classes with parent prefix);
+        // not a robust unique-selector generator.
         function shortSelector(el) {
             if (el.id)
                 return '#' + el.id;
@@ -112,10 +100,7 @@
             if (existing)
                 existing.remove();
         }
-        // Hover highlight — the discoverability affordance: an element
-        // that's actually clickable (matches a registered component)
-        // gets a visible outline on hover, so "click things to edit
-        // them" doesn't have to be discovered by trial and error.
+        // Outline clickable components on hover for discoverability.
         let highlighted = null;
         document.addEventListener('mouseover', function (e) {
             const target = e.target;
@@ -143,17 +128,8 @@
         }, true);
         document.addEventListener('click', function (e) {
             const target = e.target;
-            // Real bug caught live: this is a CAPTURE-phase listener on
-            // `document`, so it runs BEFORE a menu item's own bubble-
-            // phase click listener ever gets a chance to fire — an
-            // unconditional closeMenu() here was wiping the context menu
-            // (including "Copy CSS selector") out of the DOM before its
-            // own click handler could run, even though that handler
-            // called stopPropagation(). Skip entirely when the click
-            // landed inside the open menu; the dedicated "click outside
-            // closes it" listener further down (a bubble-phase listener,
-            // which correctly runs AFTER the menu item's own handler)
-            // already owns closing it from anywhere else.
+            // WHY: this capture-phase listener runs before menu items' own click
+            // handlers, so it must ignore clicks inside the open menu.
             const menu = document.getElementById('bhy-select-menu');
             if (menu && target && menu.contains(target))
                 return;
@@ -163,10 +139,7 @@
             const matches = matchesFor(target);
             if (!matches.length)
                 return;
-            // Deepest/most-specific ancestor wins on a plain click —
-            // the same "closest real component" instinct a click-to-
-            // select tool should have, without needing a menu for the
-            // common single-component case.
+            // Deepest matching ancestor wins on a plain click.
             const preview = getPreview();
             if (preview)
                 preview.send('bhy-jump-to-section', matches[0].group);
@@ -208,18 +181,9 @@
                 menu.appendChild(divider);
             }
             const selector = computeSelector(target);
-            // Real bug caught live: WP's own Customizer preview iframe
-            // has no clipboard-write permission delegated to it, so
-            // navigator.clipboard.writeText() rejects with a silent
-            // NotAllowedError in every browser tested — not something
-            // fixable from this plugin's JS (we don't control that
-            // iframe's `allow` attribute). document.execCommand('copy')
-            // is deprecated but still works here since it's synchronous
-            // and tied directly to the click's own user gesture, not
-            // subject to the async Clipboard API's permission policy.
-            // Falls back further to a plain selectable text field if
-            // even that's blocked, so there's always a way to get the
-            // selector out by hand.
+            // WHY: the Customizer preview iframe lacks clipboard-write permission,
+            // so navigator.clipboard fails; use synchronous execCommand('copy'),
+            // then a selectable text field as the last resort.
             const copyItem = addItem('Copy CSS selector (' + selector + ')', function () {
                 let copied = false;
                 const scratch = document.createElement('textarea');
@@ -239,8 +203,7 @@
                     setTimeout(closeMenu, 700);
                     return;
                 }
-                // Last resort: a selectable input right in the menu —
-                // guaranteed to work regardless of clipboard permissions.
+                // Last resort: a selectable input in the menu.
                 copyItem.textContent = 'Select and copy:';
                 const field = document.createElement('input');
                 field.type = 'text';
@@ -252,20 +215,8 @@
                 field.focus();
                 field.select();
             });
-            // "Add custom rule for this element" (AJ, 2026-09-19: keep a
-            // way to do custom selectors alongside the visual controls;
-            // "Can it stay all on the customizer side instead of jumping
-            // to the backend. Its weird" — stays in-Customizer now,
-            // rather than the earlier version of this which opened the
-            // Design Suite admin page in a new tab): sends the selector
-            // straight to BHY_Customize_Css_Rules_Control's own setting
-            // (customizer-css-rules-control.ts's previewer.bind handler),
-            // which appends a new rule and focuses the Custom CSS
-            // section — the new rule just appears there, already open.
-            // The selector field there is a plain editable text input,
-            // not read-only — this is a starting point, not a locked
-            // value, since the auto-computed selector is a heuristic
-            // (tag+2 classes+parent) that sometimes needs hand-refinement.
+            // Sends the selector to the Custom CSS rules control, which appends an
+            // editable new rule and focuses that section.
             addItem('Add custom rule for this element…', function () {
                 const preview = getPreview();
                 if (preview)

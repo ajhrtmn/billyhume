@@ -2,22 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The public-facing half of BHI_Profiles: a themed, presentation-only
- * "this is who I am" page (avatar/banner/bio/badges/links) plus the
- * logged-in-user's own editing form for it. Deliberately NOT a social
- * feature — no follow/followers, no activity feed, no notifications.
- * Just a real page a URL can point to, per the user's explicit call
- * that "social networky" here means identity/presentation only.
+ * Public half of BHI_Profiles: a presentation-only profile page (no social
+ * graph) plus the logged-in user's edit form.
  *
- * [bh_profile]           — viewer-facing page. On a page whose URL
- *                           carries ?bh_user=<slug-or-id>, renders that
- *                           person's public profile (404-style notice if
- *                           private/missing). With no query var, renders
- *                           the CURRENT user's own edit form instead —
- *                           one shortcode covers both roles.
- * [bh_profile_link user_id="123"] — small helper other plugins'
- *                           templates can use to link to someone's page
- *                           without hand-building the URL scheme.
+ * [bh_profile]                    with ?bh_user=<slug-or-id>, that person's public
+ *                                 profile; without it, the current user's edit form.
+ * [bh_profile_link user_id="123"] link to someone's profile page.
  */
 class BHI_PublicProfile {
     public static function init(): void {
@@ -28,21 +18,14 @@ class BHI_PublicProfile {
         add_action('admin_post_bhi_delete_profile_data', [__CLASS__, 'handle_delete']);
         add_filter('bhi_report_target_label', [__CLASS__, 'report_target_label'], 10, 3);
 
-        // Profile edit form also lives as a portal panel (class-portal.php);
-        // the PUBLIC profile page/shortcode above stays as-is, since it's a
-        // separate, intentionally-shareable surface.
+        // The edit form is also a portal panel; the public page stays separate.
         add_filter('bhi_portal_panels', [__CLASS__, 'register_portal_panel']);
     }
 
     /**
-     * Whether the SHAREABLE public profile page is a live feature.
-     * Off for now (AJ's call — "hide it from being a thing"). This only
-     * gates the outward-facing page, its URL slug, the link-in-bio
-     * buttons and [bh_profile_link]; the logged-in editor for
-     * avatar / banner / bio / platform handles stays, because those
-     * feed the account portal, comments and get_avatar() regardless.
-     * Stored data is untouched — flip `bhi_public_profiles` to true to
-     * bring the public page back exactly as it was.
+     * Whether the shareable public profile page is live (off for now). Gates
+     * only the public page, slug, links and [bh_profile_link]; the editor stays.
+     * Stored data is untouched; set `bhi_public_profiles` true to restore.
      */
     public static function public_enabled(): bool {
         return (bool) apply_filters('bhi_public_profiles', false);
@@ -63,9 +46,7 @@ class BHI_PublicProfile {
         return $panels;
     }
 
-    // Thin wrapper around the private render_edit_form() — same form and
-    // handle_save()/handle_delete() handlers, just echoed into the portal
-    // shell's <main> instead of a standalone shortcode-rendered page.
+    // The same edit form and handlers, echoed into the portal shell.
     public static function render_portal_panel(): void {
         echo self::render_edit_form(get_current_user_id());
     }
@@ -79,12 +60,7 @@ class BHI_PublicProfile {
 
     public static function maybe_enqueue(): void {
         global $post;
-        // The portal's Profile panel renders this same edit form via
-        // render_portal_panel(). The portal now renders inside the theme
-        // via the /account/ page + [bhi_account_portal] shortcode, so
-        // has_shortcode($post->post_content, 'bh_profile') still isn't
-        // true there — BHI_Portal::is_portal_context() covers every panel
-        // load, so this shared CSS reaches all of them, not just Profile.
+        // has_shortcode() is false inside the portal, so detect it directly.
         $on_portal = class_exists('BHI_Portal') && BHI_Portal::is_portal_context();
         if (!$on_portal && (!$post || !has_shortcode($post->post_content, 'bh_profile'))) return;
         wp_enqueue_style('bhi-public-profile', OUS_URL . 'assets/css/public-profile.css', [], OUS_VER);
@@ -92,10 +68,7 @@ class BHI_PublicProfile {
         if ($fonts) wp_enqueue_style('bhi-fonts', $fonts, [], null);
         echo '<style id="bhi-style-tokens">' . BHY_Style::inline_css() . '</style>';
 
-        // Link-in-bio row add/remove — small enough (and specific enough
-        // to this one form) not to warrant its own asset file; same
-        // inline-script pattern class-user-bar.php uses for its own
-        // one-off body-class script.
+        // Small inline script for link-in-bio row add/remove.
         wp_register_script('bhi-public-profile', false, [], OUS_VER, true);
         wp_enqueue_script('bhi-public-profile');
         wp_add_inline_script('bhi-public-profile', '
@@ -116,19 +89,8 @@ class BHI_PublicProfile {
         ');
     }
 
-    // Bug found during the Tier 2 front-end audit (2026-08-26): this
-    // pointed straight at home_url('/') regardless of whether the home
-    // page actually renders [bh_profile] anywhere — on a fresh install
-    // with no static front page (or one that doesn't host this
-    // shortcode), "View public profile page" was a genuinely dead
-    // link, landing on the ordinary blog index with an unused
-    // ?bh_user= query string. bh-contest/bh-courses/bh-monetization-woo
-    // each grew their own private version of "find or create the page
-    // that hosts my shortcode" before OUS_Pages consolidated it
-    // (class-pages.php's own docblock) — this class just never got
-    // the same treatment. Same fix: ensure() adopts a hand-authored
-    // page if one already exists, or creates a real "Profile" page
-    // hosting [bh_profile], rather than assuming one does.
+    // Uses OUS_Pages::ensure() to find or create the page hosting [bh_profile],
+    // rather than assuming the home page hosts it.
     public static function profile_url(int $user_id): string {
         $data = BHI_Profiles::get($user_id);
         $key = $data['profile_slug'] ?: $user_id;
@@ -159,18 +121,14 @@ class BHI_PublicProfile {
             return self::render_edit_form(get_current_user_id());
         }
 
-        // Public profile PAGE is currently disabled — any ?bh_user=
-        // lookup (slug or id) resolves to the same "not available"
-        // notice, regardless of a stored profile_public flag.
+        // Public page disabled: every ?bh_user= lookup gets the same notice.
         if (!self::public_enabled()) {
             return '<p class="bhi-profile-notice">' . esc_html__('Public profiles aren\'t available right now.', 'the-self-hosted-self') . '</p>';
         }
 
         $user_id = ctype_digit($key) ? (int) $key : 0;
         if ($user_id) {
-            // A numeric key only resolves if that user's profile is
-            // actually public — visiting ?bh_user=<id> is not a back
-            // door around the profile_public flag.
+            // A numeric id resolves only if the profile is public; no back door.
             $data = BHI_Profiles::get($user_id);
             if (!$data['profile_public']) $user_id = 0;
         } else {
@@ -196,12 +154,7 @@ class BHI_PublicProfile {
         $banner = $data['banner_id'] ? wp_get_attachment_image_url((int) $data['banner_id'], 'large') : '';
         if (!$avatar) $avatar = get_avatar_url($user_id, ['size' => 200]);
 
-        // Data is already resolved above, so this just hands it off to
-        // BH_SEO — no separate lookup needed.
-        // Person, not MusicGroup — an individual account's profile, not
-        // necessarily a band; a future artist-specific profile type
-        // could reasonably use MusicGroup instead once that distinction
-        // exists in the data model.
+        // Person, not MusicGroup: an individual account, not necessarily a band.
         if (class_exists('BH_SEO')) {
             BH_SEO::set_page_data([
                 'title' => $user->display_name . ' — ' . get_bloginfo('name'),
@@ -404,9 +357,8 @@ class BHI_PublicProfile {
             $links[] = ['label' => $label, 'url' => $link_urls[$i] ?? ''];
         }
 
-        // Public page is disabled — never accept its fields from a POST,
-        // even a hand-crafted one, and don't disturb whatever slug/links
-        // were saved before it was turned off.
+        // Public page disabled: never accept its fields from a POST and leave
+        // previously saved slug/links untouched.
         $public_on = self::public_enabled();
 
         $data = [
@@ -451,20 +403,9 @@ class BHI_PublicProfile {
         exit;
     }
 
-    // Reuses core's own media-upload machinery (media_handle_upload)
-    // rather than hand-rolling file validation — the same trust boundary
-    // bh-streaming's local-import endpoint uses. Restricted to images
-    // only (a profile avatar/banner isn't a place to accept arbitrary
-    // uploads) and attributed to the uploading user.
-    //
-    // media_handle_upload() performs no capability check of its own, and
-    // BHI_Auth::register() creates read-only `bh_member` accounts (see
-    // OUS_Roles::MEMBER_ROLE), which don't have upload_files. The feature
-    // is meant to work for exactly that member-level user, so a hard
-    // current_user_can('upload_files') block would just break it. Instead,
-    // grant upload_files for the duration of this one call only (never
-    // persisted, never touches the user's real role/caps) on top of the
-    // existing image-mimetype/size/author-attribution validation.
+    // Images only, via core's media_handle_upload(), attributed to the user.
+    // WHY: bh_member accounts lack upload_files, so it is granted for this one
+    // call only (never persisted), on top of the mimetype/size checks.
     /** @return int|\WP_Error */
     private static function handle_image_upload(string $field, int $user_id) {
         require_once ABSPATH . 'wp-admin/includes/image.php';

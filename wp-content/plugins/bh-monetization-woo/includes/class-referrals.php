@@ -2,27 +2,15 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Ecosystem depth-pass Tier 2 — referral/affiliate tracking. Piggybacks
- * on WooCommerce's already-working coupon support (confirmed elsewhere
- * in this plugin — promo codes work via native WC coupons already)
- * rather than inventing a second discount mechanism: a referrer's code
- * IS a real percent-off WC_Coupon, auto-created the first time they view
- * their own referral section, so sharing it gives the person they send
- * an actual, immediate discount. The new part this class adds on top is
- * attribution (a code tied to a specific person, not just a generic
- * coupon anyone could have made) and a revenue rollup: when an order
- * using that code completes, the referrer gets a wallet credit and a
- * permanent redemption row.
+ * Referrals: each referrer's code is a real percent-off WC_Coupon; a completed order using it
+ * credits the referrer's wallet and records a redemption row.
  */
 class BHM_Referrals {
     const DISCOUNT_PERCENT = 10;  // what the customer saves by using the code
     const COMMISSION_PERCENT = 10; // what the referrer earns, of the order's actual (post-discount) total
 
     public static function init(): void {
-        // Priority 20 — after BHM_Entitlements' own woocommerce_order_status_completed
-        // handler (default priority 10, class-entitlements.php:15) has
-        // already run, so a referral credit is never the FIRST thing to
-        // touch a freshly-completed order.
+        // Priority 20: after entitlements (priority 10) are granted.
         add_action('woocommerce_order_status_completed', [self::class, 'on_order_completed'], 20);
     }
 
@@ -33,10 +21,7 @@ class BHM_Referrals {
         ));
     }
 
-    // Lazy-provisioned: no row/coupon exists until a referrer actually
-    // looks at their own referral section for the first time — nothing
-    // to clean up for the overwhelming majority of accounts that never
-    // do.
+    // Created lazily, the first time a referrer views their referral section.
     public static function get_or_create_code(int $user_id): string {
         $existing = self::code_for_user($user_id);
         if ($existing) return $existing;
@@ -78,18 +63,7 @@ class BHM_Referrals {
         return (int) round(((float) $order_total_dollars) * 100 * (self::COMMISSION_PERCENT / 100));
     }
 
-    // Live-robustness audit fix (2026-08-26): this whole method used to
-    // run with no try/catch at all, unlike BHM_Downloads/BHM_Entitlements
-    // on the exact same hook — see class-downloads.php's own docblock
-    // for the real incident this class of bug already caused once
-    // (WC_Order::status_transition() wraps its ENTIRE
-    // woocommerce_order_status_completed dispatch in ONE try/catch, not
-    // one per callback, so an uncaught exception here would silently
-    // abort every callback registered after this one too — invisible to
-    // both the customer and any admin). This runs at priority 20,
-    // deliberately after BHM_Entitlements' own callback, so a failure
-    // here can't block entitlement-granting — but it could still take
-    // down whatever ELSE is hooked at priority >= 20 by another plugin.
+    // WHY: try/catch because WooCommerce wraps all callbacks of a hook in one try/catch.
     public static function on_order_completed(int $order_id): void {
         try {
             self::do_on_order_completed($order_id);
@@ -118,29 +92,16 @@ class BHM_Referrals {
             ));
             if ($owner) { $referrer_user_id = (int) $owner; $matched_code = $candidate; break; }
         }
-        if (!$referrer_user_id) return; // no coupon on this order was a referral code
+        if (!$referrer_user_id) return;
 
         $customer_user_id = (int) $order->get_customer_id();
-        // Self-referral guard — a referrer using their own code shouldn't
-        // be able to pay themselves a commission on their own purchase.
+        // No commission on your own purchase.
         if ($customer_user_id && $customer_user_id === $referrer_user_id) return;
 
         $commission_cents = self::calculate_commission_cents($order->get_total());
 
-        // The INSERT is the atomic claim, not a prior SELECT — the
-        // UNIQUE KEY on wc_order_id means a second call for the same
-        // order (this hook firing twice, or a race) fails here and never
-        // reaches the wallet credit below, same idempotency pattern as
-        // bhcore_notifications.email_sent elsewhere in this ecosystem.
-        // suppress_errors() around just this one call: a duplicate-key
-        // failure here is a fully anticipated, handled outcome (see
-        // $inserted === false below), not a real error — without this,
-        // $wpdb prints a scary "WordPress database error" notice for
-        // something that's actually working exactly as designed,
-        // whether that's WooCommerce genuinely re-firing the
-        // order-completed hook twice in production or this class's own
-        // test suite deliberately re-triggering it to prove the guard
-        // works.
+        // WHY: the INSERT is the atomic claim (UNIQUE wc_order_id), so a repeat call never credits twice.
+        // Errors suppressed because the duplicate-key failure is the expected outcome.
         $suppress_state = $wpdb->suppress_errors(true);
         $inserted = $wpdb->insert(BHM_Tables::referrals(), [
             'code' => $matched_code,
@@ -177,11 +138,7 @@ class BHM_Referrals {
         ];
     }
 
-    // Called from BHM_PortalPanel::render() (class-portal-panel.php) —
-    // same class_exists()-gated cross-plugin call shape bh-courses'
-    // portal panel uses for its own achievements section, rather than
-    // this class registering an entirely separate panel for what's
-    // really one more section of the same "money" panel.
+    // A section of the portal's money panel (BHM_PortalPanel::render()).
     public static function render_section(int $user_id): void {
         if (!BH_Commerce::available()) return;
         $code = self::get_or_create_code($user_id);

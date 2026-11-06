@@ -2,32 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_SetupWizard — a guided, step-by-step first-run flow for a fresh
- * ecosystem install.
- *
- * Deliberately NOT a rebuild of anything that already works: the real
- * install/activate mechanics (`OUS_Installer`, `OUS_ActivationManager`,
- * `OUS_Registry`) and the existing "Install & Activate Everything"
- * button on the main dashboard (`OUS_Dashboard`) are reused as-is —
- * this class only adds the missing piece, a friendly SEQUENCE a
- * brand-new admin is walked through (welcome → activate the ecosystem
- * → brand basics → get paid → done), rather than landing cold on a
- * wall of a dozen plugin cards with no order to follow.
- *
- * Distinct in scope from `ROADMAP-guided-setup-wizards.md`'s own
- * proposed `OUS_Wizard` framework, which is about per-feature external-
- * service credential setup (CDN, payment gateways) and has zero code
- * written — this is a single, concrete, whole-ecosystem first-run flow,
- * built directly rather than through a not-yet-existing generic
- * framework, matching this codebase's own "one real example before
- * generalizing" convention (BH_Content, OUS_Search, OUS_Revisions were
- * all built this same way).
- *
- * Steps are computed from REAL current state, not a stored "you are on
- * step N" flag — a step whose precondition is already satisfied is
- * skipped automatically (e.g. landing straight on Step 3 if every
- * peer plugin is already active), so this stays useful to re-visit
- * later, not just a one-time gate.
+ * OUS_SetupWizard: guided first-run sequence (welcome, activate ecosystem,
+ * brand basics, get paid, done) reusing the existing install/activate
+ * mechanics. Steps are computed from real current state, so satisfied steps
+ * are skipped and the wizard stays useful to revisit.
  */
 class OUS_SetupWizard {
     public static function init(): void {
@@ -37,9 +15,7 @@ class OUS_SetupWizard {
     }
 
     public static function add_menu(): void {
-        // A real submenu item (not just a dashboard link) so it's
-        // findable again later — revisiting brand basics should work,
-        // not just a first-run gate that vanishes.
+        // A real submenu item so it can be revisited later.
         add_submenu_page('ous', 'Guided Setup', 'Guided Setup', 'manage_options', 'ous-setup-wizard', [self::class, 'render']);
     }
 
@@ -52,10 +28,7 @@ class OUS_SetupWizard {
         return true;
     }
 
-    // Real signal, not a guess: the wordmark still reads the literal
-    // "Your"/"Brand" defaults (BHY_Style::DEFAULTS) only if nobody has
-    // ever saved anything different — the same test a human would use
-    // ("does this still say the placeholder text").
+    // True while the wordmark still reads the "Your"/"Brand" defaults.
     private static function brand_still_default(): bool {
         $s = class_exists('BHY_Style') ? BHY_Style::get() : [];
         return ($s['brand_part1'] ?? '') === BHY_Style::DEFAULTS['brand_part1']
@@ -144,15 +117,7 @@ class OUS_SetupWizard {
         wp_nonce_field('ous_wizard_save_brand');
         echo '<input type="hidden" name="action" value="ous_wizard_save_brand">';
 
-        // Real jargon gap on the very first screen a brand-new operator
-        // sees: "wordmark" is a genuine graphic-design term (a logo made
-        // of styled text rather than a symbol) that this ecosystem's own
-        // target user — an independent musician, not a designer — has no
-        // reason to already know. The two-input split (why not one field?)
-        // is also unexplained: it's what lets the site name render in two
-        // colors/weights (e.g. "Billy" + "Hume") everywhere the brand
-        // name appears, matching the front-end header's own two-tone
-        // treatment — worth saying, not assuming.
+        // Explain "wordmark" and why it has two parts (two-tone rendering).
         $wordmark_tip = class_exists('BHY_UI') ? BHY_UI::tip('Your site name as styled text, no logo file needed. Split into two parts so they can render in different colors/weights everywhere your brand name shows up — leave the second part blank for one plain name.') : '';
         echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">Wordmark' . $wordmark_tip . '</label>';
         echo '<span style="display:flex;gap:8px;max-width:400px;">';
@@ -208,10 +173,6 @@ class OUS_SetupWizard {
         echo '<li><a href="' . esc_url(home_url('/account/')) . '" target="_blank">Your account portal</a> — what a fan/supporter sees.</li>';
         echo '<li><a href="' . esc_url(admin_url('admin.php?page=bh-design')) . '">Design Suite</a> — full color/typography/scale control.</li>';
         if (class_exists('BHM_Tiers') && post_type_exists('bhm_tier')) {
-            // Same BH_Commerce::get_available_payment_gateways() wrapper
-            // bh-monetization-woo's own "Get Paid" card now uses — this
-            // file had independently duplicated the exact same unwrapped
-            // WC_Payment_Gateways call.
             $gateways = class_exists('BH_Commerce') ? BH_Commerce::get_available_payment_gateways() : [];
             echo '<li><a href="' . esc_url(admin_url('edit.php?post_type=bhm_tier')) . '">Supporter Tiers</a>'
                . ($gateways ? ' — payments are configured and ready.' : ' — <strong>no payment method is active yet</strong>, set one up in <a href="' . esc_url(admin_url('admin.php?page=wc-settings&tab=checkout')) . '">WooCommerce → Payments</a> before selling anything.')
@@ -224,11 +185,8 @@ class OUS_SetupWizard {
 
     /* ---------------- handlers ---------------- */
 
-    // Same underlying per-plugin activation loop
-    // OUS_Dashboard::handle_activate_all() already uses — duplicated
-    // rather than reused directly since the two need to redirect to
-    // genuinely different places (back to this wizard vs. the plain
-    // dashboard), and the loop itself is only a few lines.
+    // Same activation loop as OUS_Dashboard::handle_activate_all(), duplicated
+    // because it redirects back to this wizard instead.
     public static function handle_activate_all(): void {
         if (!current_user_can('activate_plugins') || !current_user_can('install_plugins')
             || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ous_wizard_activate_all')) {
@@ -253,11 +211,8 @@ class OUS_SetupWizard {
             wp_die('Not allowed.');
         }
 
-        // Merge onto the EXISTING full settings array (not a bare
-        // partial write) — this is the exact same BHY_Style::OPTION
-        // Design Suite itself reads/writes, and a partial save here
-        // must not blow away color/typography/scale fields this
-        // wizard's own smaller form never shows.
+        // WHY: merge onto the full settings array; a partial write would wipe the
+        // Design Suite fields this smaller form never shows.
         $s = class_exists('BHY_Style') ? BHY_Style::get() : BHY_Style::DEFAULTS;
         $s['brand_part1'] = sanitize_text_field($_POST['brand_part1'] ?? BHY_Style::DEFAULTS['brand_part1']);
         $s['brand_part2'] = sanitize_text_field($_POST['brand_part2'] ?? BHY_Style::DEFAULTS['brand_part2']);

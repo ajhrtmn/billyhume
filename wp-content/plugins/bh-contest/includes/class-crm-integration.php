@@ -2,14 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Optionally enriches the BH CRM plugin's person view with this
- * plugin's own activity data — entirely one-directional and entirely
- * optional. If BH CRM isn't installed, these add_filter() calls just
- * sit unused; nothing in this plugin needs BH CRM to exist, and BH CRM
- * never needs this plugin to exist either. This replaces what used to
- * be a whole separate Participants admin page — same underlying data,
- * now surfaced through the CRM's shared person view instead of a
- * second, contest-specific one.
+ * Adds contest activity to BH CRM's person view. Optional both ways: the filters
+ * simply go unused when BH CRM is absent.
  */
 class BH_CRMIntegration {
     public static function init(): void {
@@ -95,13 +89,7 @@ class BH_CRMIntegration {
     }
 }
 
-// First real bh-contest contributor to the shared Metrics dashboard
-// (the-self-hosted-self's OUS_Metrics) — same "build in tandem, not as a later
-// bolt-on" instruction as bh-courses' own version of this same
-// registration (class-crm-integration.php). Both event types
-// (bh/vote, bh/submission_created) already flow — see class-api.php's
-// own emit() call sites — so this is pure aggregation, no new
-// tracking instrumentation needed.
+// Metrics dashboard cards, aggregated from the bh/vote and bh/submission_created events.
 add_filter('bhcore_metrics_widgets', function ($widgets) {
     if (!class_exists('OUS_Metrics')) return $widgets;
 

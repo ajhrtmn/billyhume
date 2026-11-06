@@ -2,20 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Front-end bid form + status display for BHM_Auctions (class-
- * auctions.php) — the other half of the "next pass" that class's own
- * docblock flagged as not yet built (see class-auction-admin.php for
- * the product-edit authoring half).
- *
- * An auction product is never purchasable via the normal Add to Cart
- * form (woocommerce_is_purchasable filter below) — bidding replaces
- * checkout entirely for these; WooCommerce still owns the product's
- * title/images/description/category the same as any other product.
- *
- * Plain admin-post.php form submission, not AJAX/REST — this is one
- * infrequent user action per bid, not the kind of live-updating
- * surface (bh-contest's vote counter, a chat) that justifies a JS
- * round-trip in this codebase's own established convention.
+ * Front-end bid form and status for auction products. Auction products are not purchasable
+ * through the cart; bids are plain admin-post form submissions.
  */
 class BHM_AuctionFrontend {
     public static function init(): void {

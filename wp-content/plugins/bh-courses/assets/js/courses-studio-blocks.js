@@ -1,45 +1,11 @@
 "use strict";
 /**
- * Registers bhc/text, bhc/image, bhc/video, bhc/quiz, and
- * bhc/quiz-question — real wp.blocks.registerBlockType() blocks (real
- * attributes schema, real edit()/save()), same no-build-step,
- * wp.element.createElement-only convention every admin/editor script in
- * this ecosystem uses.
+ * Client half of the lesson step blocks (bhc/text, bhc/image, bhc/video, bhc/quiz,
+ * bhc/quiz-question, ...); BHC_ContentBridge::register_block_types() registers the
+ * server-side schema/renderers. Loaded on the bh_lesson block editor.
  *
- * Loaded on the REAL bh_lesson block-editor screen (see
- * BHC_ContentBridge::maybe_enqueue_lesson_blocks()) — a lesson's steps
- * are authored directly there now, same screen as any page, not a
- * separate BH_Studio canvas. Nothing in this file needed to change for
- * that migration; these were already ordinary Gutenberg blocks, only
- * ever enqueued in the wrong place. This is the client half of a pair
- * — BHC_ContentBridge::register_block_types() already registers the
- * server-side schema/renderer for every type here (used when
- * BH_Content reads the tree back out of post_content); this file is
- * what actually makes them appear in the editor's inserter and gives
- * them an editing UI. See LMS-AUTHORING-DESIGN-PLAN.md Section 5 for
- * the original "what was missing and why" writeup.
- *
- * bhc/quiz is a CONTAINER block (InnerBlocks, allowedBlocks restricted
- * to bhc/quiz-question) rather than storing questions as an attribute
- * array — see class-content-bridge.php's own docblock on bhc/quiz for
- * why (Design Plan Section 3.2: real child blocks are what makes a
- * future table-view toggle possible over the same tree the canvas
- * edits, and what makes "reorder 40 questions" an ordinary array
- * reorder). bhc/quiz-question is never inserted anywhere except inside
- * a bhc/quiz — enforced by parent: ['bhc/quiz'] below, so it can't
- * accidentally end up as a stray top-level lesson step (which
- * BHC_ContentBridge::tree_to_steps() would just skip anyway, but
- * restricting it in the inserter is the honest place to prevent that
- * confusion in the first place).
- *
- * TypeScript pilot conversion. `wp` is typed loosely as `any` here
- * rather than with real interfaces for every wp.components/blockEditor
- * call this file makes — that surface is huge and this file's own
- * risk (per the deferred-conversion note it used to carry) is in the
- * runtime block-editor behavior, not in typos tsc would catch on a
- * fully-typed `wp`. Mechanical, near-verbatim port of the original JS;
- * `any` throughout keeps behavior identical rather than risking a
- * subtly wrong hand-authored type for an API this large.
+ * bhc/quiz is an InnerBlocks container of bhc/quiz-question children (parent-restricted).
+ * `wp` is typed as `any` deliberately: the surface is huge and the risk is runtime behavior.
  */
 (function (wp) {
     'use strict';
@@ -47,22 +13,12 @@
         return;
     var el = wp.element.createElement;
     var __ = wp.i18n ? wp.i18n.__ : function (s) { return s; };
-    // A minimal, self-authored "×" SVG — deliberately NOT wp.icons
-    // (that package isn't loaded/exposed as a global in every WP
-    // install; confirmed missing entirely here, which crashed the
-    // "Remove choice" button below with nothing on screen but "This
-    // block has encountered an error") and NOT the Dashicon string
-    // 'no-alt' either (that one silently rendered a 0x0-sized, invisible
-    // icon inside the post editor's iframed canvas — the 'dashicons'
-    // stylesheet doesn't reach that iframe). A plain inline SVG has no
-    // external dependency to fail either way.
+    // WHY: inline SVG, not wp.icons (not loaded on every install) or a Dashicon
+    // (the dashicons stylesheet doesn't reach the iframed editor canvas).
     function closeIcon() {
         return el(wp.primitives.SVG, { viewBox: '0 0 24 24', width: 20, height: 20, xmlns: 'http://www.w3.org/2000/svg' }, el(wp.primitives.Path, { d: 'M13.06 12l6.47-6.47-1.06-1.06L12 10.94 5.53 4.47 4.47 5.53 10.94 12l-6.47 6.47 1.06 1.06L12 13.06l6.47 6.47 1.06-1.06L13.06 12z' }));
     }
-    // The video block's "Choose from Bunny library" browser. Talks to
-    // BHC_Bunny's REST routes (class-bunny.php) — the Bunny API key stays
-    // server-side. Renders in a wp.components.Modal; a click hands the
-    // GUID back to the block.
+    // Bunny Stream library browser; talks to BHC_Bunny's REST routes so the API key stays server-side.
     function BunnyLibraryModal(props) {
         var itemsState = wp.element.useState([]);
         var items = itemsState[0], setItems = itemsState[1];
@@ -100,18 +56,8 @@
                 : el('div', { style: { width: '100%', aspectRatio: '16 / 9', background: '#111' } }), el('div', { style: { padding: '6px 8px' } }, el('div', { style: { fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, decodeEntities(v.title || '') || v.guid), el('div', { className: 'description', style: { fontSize: '11px' } }, ready ? (Math.floor((v.length || 0) / 60) + ':' + ('0' + Math.floor((v.length || 0) % 60)).slice(-2)) : __('processing…'))));
         })));
     }
-    // Replaces InnerBlocks.ButtonBlockAppender (an icon-only "+" square)
-    // for bhc/quiz. That default appender rendered right next to
-    // bhc/quiz-question's own "Add choice" button (a completely
-    // different action, scoped to one question's answer list, not the
-    // whole quiz) — two small "+"-ish controls sitting side by side with
-    // nothing to tell them apart. A real text label removes the
-    // ambiguity regardless of exact spacing/position. Uses
-    // useBlockEditContext() to get the CURRENT block's clientId (the
-    // quiz container itself, since this component only ever renders
-    // inside its InnerBlocks area) and inserts a real new child block
-    // at the end — the same action the default appender performed,
-    // just with a clear label instead of a bare icon.
+    // A labelled "Add another question" appender, so it isn't confused with a
+    // question's own "Add choice" button.
     function AddQuestionAppender() {
         var clientId = wp.blockEditor.useBlockEditContext().clientId;
         var insertBlock = wp.data.useDispatch('core/block-editor').insertBlock;
@@ -123,44 +69,19 @@
             },
         }, __('Add another question'));
     }
-    // Deliberately minimal. A lesson step is a CONTENT primitive an
-    // author fills in, not a layout box they tune — so no raw-HTML
-    // escape hatch, no absolute positioning, and no spacing / color /
-    // extra-CSS-class controls (those panels were the top "the step
-    // inspector is cluttered noise" complaint). The generic "Advanced
-    // Styles" panel is separately excluded for every bhc/* block in
-    // the-self-hosted-self's block-style-panel.ts.
+    // Deliberately minimal: a step is a content primitive, not a layout box.
+    // The "Advanced Styles" panel is excluded for bhc/* in block-style-panel.ts.
     var SUPPORTS = { html: false, position: false, customClassName: false };
     /* ==================================================================
-     * Shared authoring shell for every lesson step block.
-     *
-     * Before this, each of the nine step blocks rendered as a bare stack
-     * of form fields — visually identical to each other, so a lesson of
-     * eight steps read as one undifferentiated column of inputs with no
-     * way to tell a Quiz from a Callout at a glance. Each also repeated
-     * its own `paddingTop: 32px` toolbar-collision hack inline, and the
-     * media-backed ones surfaced a raw database row id ("File selected
-     * (#268)") as if that meant something to a course author.
-     *
-     * These helpers give all nine one consistent frame: a labelled
-     * header with the step's own type/icon, an optional at-a-glance
-     * summary chip, real human file names instead of ids, and a shared
-     * empty state. Styling lives in class-content-bridge.php's
-     * `styles` array (the only channel that reaches the editor's
-     * IFRAMED canvas — see that file's own note on why a plain
-     * wp_enqueue_style can't).
+     * Shared authoring shell for every lesson step block. Styling lives in
+     * class-content-bridge.php's `styles` array, the only channel that
+     * reaches the editor's iframed canvas.
      * ================================================================== */
     /** The step's own frame: type header + body. */
     function stepShell(icon, label, meta, blockProps, children) {
         return el('div', blockProps, el('div', { className: 'bhc-studio-head' }, el(wp.components.Icon, { icon: icon, size: 16 }), el('span', { className: 'bhc-studio-head-label' }, label), meta ? el('span', { className: 'bhc-studio-head-meta' }, meta) : null), el('div', { className: 'bhc-studio-body' }, children));
     }
-    /**
-     * Resolves an attachment id to something a human recognises (its
-     * title, and a size/duration where the REST payload carries one).
-     * Returns null while in flight or if the attachment is gone — every
-     * caller renders a plain fallback rather than a spinner, since this
-     * is decoration on top of an id that already works.
-     */
+    /** Resolves an attachment id to its REST media object; null while loading or if gone. */
     function useAttachment(id) {
         var state = wp.element.useState(null);
         var media = state[0], setMedia = state[1];
@@ -179,9 +100,7 @@
         }, [id]);
         return media;
     }
-    /** REST `title.rendered` is HTML-encoded ("01 &#8211; Intro"); the
-     *  block editor renders strings as text, so entities show literally.
-     *  Decode once, here, where every media label passes through. */
+    /** Decodes HTML entities in REST `title.rendered`; the editor renders strings as text. */
     function decodeEntities(s) {
         if (!s || s.indexOf('&') === -1)
             return s;
@@ -189,26 +108,18 @@
         t.innerHTML = s;
         return t.value;
     }
-    /** "Worksheet.pdf" beats "File selected (#268)". */
+    /** Human file name for an attachment, falling back to its id. */
     function mediaName(media, fallbackId) {
         if (media && (media.title || media.slug)) {
             return decodeEntities((media.title && media.title.rendered) || media.slug || ('#' + fallbackId));
         }
         return fallbackId ? __('Attachment #') + fallbackId : '';
     }
-    /**
-     * The shared "nothing chosen yet" state — an inviting target with a
-     * real explanation, rather than a lone unlabelled button. Mirrors
-     * how core's own image/video blocks open.
-     */
+    /** Shared "nothing chosen yet" placeholder. */
     function pickerPlaceholder(icon, title, help, button) {
         return el('div', { className: 'bhc-studio-placeholder' }, el(wp.components.Icon, { icon: icon, size: 24 }), el('p', { className: 'bhc-studio-placeholder-title' }, title), help ? el('p', { className: 'bhc-studio-placeholder-help' }, help) : null, button);
     }
-    /**
-     * One real thumbnail for an attachment id. Its own component (not a
-     * loop inside the caller) because it calls useAttachment — a hook,
-     * which React forbids running in a loop.
-     */
+    /** Thumbnail for one attachment id; a component because useAttachment is a hook. */
     function AttachmentThumb(props) {
         var media = useAttachment(props.id);
         var src = media && media.media_details && media.media_details.sizes && media.media_details.sizes.thumbnail
@@ -224,23 +135,8 @@
         });
     }
     /**
-     * A short rich-text caption/description field — bold/italic/link/
-     * strikethrough via RichText's own default toolbar, same formatting
-     * surface bhc/text's and bhc/callout's own RichText fields already
-     * give a lesson author, in place of a plain wp.components.TextControl
-     * that silently stripped any markup on save (BHC_Steps::save() used
-     * sanitize_text_field() before this). RichText has no built-in
-     * label, so this pairs it with the same block-editor label markup
-     * TextControl renders, to keep an identical look for what's still a
-     * single labeled field from the author's point of view. Full block-
-     * level content (a real bulleted list, a blockquote) isn't
-     * authorable from a single embedded RichText the way the course
-     * description's own real Paragraph/List/Quote blocks allow — that's
-     * a Gutenberg RichText-vs-InnerBlocks constraint, not a missing
-     * feature here — but the render side (class-render-lesson.php) still
-     * renders whatever comes through wp_kses_post() with the lesson
-     * body's own .bhc-step-text list/quote styling, so a pasted list
-     * still looks right even though the toolbar itself won't build one.
+     * A labelled RichText caption field (bold/italic/link), styled like TextControl.
+     * Inline formatting only; block-level content can't be built from one RichText.
      */
     function CaptionField(props) {
         return el('div', { className: 'bhc-caption-field components-base-control' }, el('label', { className: 'components-base-control__label' }, props.label), el(wp.blockEditor.RichText, {
@@ -251,7 +147,7 @@
             onChange: props.onChange,
         }));
     }
-    /** A chosen file, shown as a real row rather than a bare id. */
+    /** A chosen file shown as a row. */
     function chosenFile(icon, name, note, changeButton) {
         return el('div', { className: 'bhc-studio-chosen' }, el(wp.components.Icon, { icon: icon, size: 18 }), el('span', { className: 'bhc-studio-chosen-name' }, name), note ? el('span', { className: 'bhc-studio-chosen-note' }, note) : null, changeButton);
     }
@@ -260,24 +156,13 @@
         title: __('Lesson: Text'),
         icon: 'text',
         category: 'lms',
-        // Plain (non-HTML-sourced) attribute, matching bhc/image's
-        // caption / bhc/video's caption / bhc/quiz-question's question —
-        // deliberately NOT `source: 'html', selector: 'div'` (extract
-        // from the block's own rendered markup at parse time). That's a
-        // client-side (editor) concept only — parse_blocks() (PHP,
-        // BH_Content::get('post', ...)'s own read path) never runs
-        // attribute sourcing, so `content` came back empty every time a
-        // lesson was read back for _bhc_steps sync, confirmed live via
-        // direct DB inspection this pass. RichText works identically
-        // bound to a plain attribute; only the storage shape changes.
+        // WHY: a plain attribute, not `source: 'html'`. PHP's parse_blocks() never runs
+        // attribute sourcing, so a sourced attribute reads back empty for _bhc_steps sync.
         attributes: { content: { type: 'string', default: '' } },
         supports: Object.assign({}, SUPPORTS),
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
             var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-text bhc-studio-step' });
-            // RichText is nested inside the shell's body rather than
-            // being the block root — the shell only frames it, so
-            // Gutenberg's own rich-text editing surface is unchanged.
             return stepShell('text', __('Text'), null, blockProps, [
                 el(wp.blockEditor.RichText, {
                     key: 'rt',
@@ -305,11 +190,6 @@
         supports: { html: false, customClassName: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            // The old paddingTop:32px inline hack (Gutenberg docks its
-            // floating toolbar inside a block's own top edge when there's
-            // no room above) is gone — the shared shell's header band
-            // and margin-top now give the toolbar something intentional
-            // to sit against, for every step type at once.
             var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-image bhc-studio-step' });
             var ids = attrs.attachment_ids || [];
             var picker = el(wp.blockEditor.MediaUploadCheck, { key: 'pick' }, el(wp.blockEditor.MediaUpload, {
@@ -323,10 +203,6 @@
             }));
             return stepShell('format-image', __('Image'), ids.length ? ids.length + (ids.length === 1 ? __(' image') : __(' images')) : null, blockProps, [
                 ids.length
-                    // Real thumbnails of the actual chosen images —
-                    // previously this showed "#268" chips, a database id
-                    // presented to a course author as if it identified
-                    // anything to them.
                     ? el('div', { key: 'thumbs', className: 'bhc-studio-image-thumbs' }, ids.map(function (id) { return el(AttachmentThumb, { key: id, id: id }); }))
                     : pickerPlaceholder('format-image', __('No image chosen yet'), __('Pick one or more images to show at this point in the lesson.'), picker),
                 ids.length ? el('div', { key: 'change', style: { marginBottom: '12px' } }, picker) : null,
@@ -338,7 +214,7 @@
                 }),
             ]);
         },
-        save: function () { return null; }, // dynamic — server renderer is BHC_ContentBridge's bhc/image callback
+        save: function () { return null; }, // dynamic; rendered server-side by BHC_ContentBridge
     });
     wp.blocks.registerBlockType('bhc/callout', {
         apiVersion: 3,
@@ -388,73 +264,33 @@
             source: { type: 'string', default: 'upload' },
             attachment_id: { type: 'number', default: 0 },
             video_url: { type: 'string', default: '' },
-            // OSS-integration master plan Phase 6 follow-up — a
-            // Cloudflare Stream video UID, pasted in after the admin
-            // uploads to Stream themselves (see class-steps.php's own
-            // comment: no in-plugin upload-to-Stream flow yet).
+            // Cloudflare Stream video UID, pasted in manually.
             stream_uid: { type: 'string', default: '' },
-            // Private (signed) delivery — BHY_MediaToken. The step stores
-            // only the id/key; library + secrets are site-wide config.
+            // Private (signed) delivery via BHY_MediaToken; secrets are site-wide config.
             bunny_guid: { type: 'string', default: '' },
             r2_key: { type: 'string', default: '' },
             caption: { type: 'string', default: '' },
-            // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b — 0
-            // means "any playback marks it complete" (the pre-existing
-            // Mark-complete-button behavior, unchanged), matching
-            // bhc/quiz's own max_attempts "0 = unlimited" convention.
+            // 0 means any playback marks it complete.
             watch_threshold: { type: 'number', default: 0 },
-            // Client-side-only convenience flag (BHC_VideoSettings'
-            // own docblock) — set when a picked file exceeds the
-            // configured direct-upload limit, purely to render the
-            // inline warning below; never read server-side (the
-            // authoritative check re-derives file size fresh from the
-            // real attachment on every save instead of trusting this).
+            // Editor-only warning flag; the server re-derives file size on save.
             over_limit_mb: { type: 'number', default: 0 },
-            // ROADMAP-lms-v3.md Section 1 — [{ time, type, payload }].
+            // [{ time, type, payload }]
             annotations: { type: 'array', default: [] },
-            // YouTube-style chapters — [{ time, title }]. Rendered as a
-            // segmented strip + a clickable list below the video (see
-            // class-render-lesson.php/courses.ts); native <video controls>
-            // gives no way to draw markers ON the browser's own seek bar
-            // itself, so this is a companion strip directly beneath it
-            // rather than a literal overlay on the native scrubber — the
-            // deliberate, scoped answer to "like YouTube" without
-            // replacing native controls (fullscreen/accessibility/mobile
-            // behavior all stay exactly what they already are).
+            // [{ time, title }]. Rendered as a strip below the video, since native
+            // <video controls> can't draw markers on its own seek bar.
             chapters: { type: 'array', default: [] },
         },
         supports: { html: false, customClassName: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            // The old paddingTop:32px toolbar-collision hack is gone —
-            // the shared shell's header band gives the floating toolbar
-            // something intentional to dock against instead (see
-            // bhc-studio-step's own comment in class-content-bridge.php).
             var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-video bhc-studio-step' });
-            // Source picker lives in the Inspector sidebar, not inline in
-            // canvas — caught live (real authoring friction, confirmed
-            // only reachable via the wp.data API during testing, not the
-            // UI itself): as the first rendered element in the block, it
-            // sat exactly where Gutenberg's own floating block toolbar
-            // renders, making the control nearly unclickable. The
-            // Inspector panel is a completely separate region with no
-            // toolbar overlap, the same place core blocks already put
-            // this kind of block-level setting.
-            // First step toward a real visual placement tool (a full
-            // drag-based timeline is the natural next iteration once this
-            // is proven — flagged, not built here): a live preview of the
-            // actual selected video right in the block, so an author can
-            // scrub/play to the moment they want and grab that exact
-            // timestamp with one click instead of typing seconds blind.
+            // Source picker lives in the Inspector, since inline it sat under the floating toolbar.
+            // The preview lets an author scrub and grab a timestamp with one click.
             var previewUrlState = wp.element.useState('');
             var previewUrl = previewUrlState[0], setPreviewUrl = previewUrlState[1];
             var previewRef = wp.element.useRef(null);
-            // The preview's live playhead, mirrored into state purely so
-            // the "+ Add chapter at 0:42" button can SHOW the timestamp
-            // it's about to capture. A ref alone can't do this — scrubbing
-            // the video changes no React state, so the label would render
-            // once and then quietly lie. Also drives the past-the-end
-            // warning, which needs a real duration to compare against.
+            // Playhead mirrored into state so "Add chapter at 0:42" labels stay current
+            // and the past-the-end warning has a duration to compare against.
             var previewTimeState = wp.element.useState(0);
             var previewTime = previewTimeState[0], setPreviewTime = previewTimeState[1];
             var previewDurationState = wp.element.useState(0);
@@ -562,9 +398,7 @@
                 })
                     .catch(function (e) { setBunnyUpload({ pct: 0, label: '', error: String((e && e.message) || __('Upload failed.')) }); });
             }
-            // True whenever there's a scrubable preview whose playhead the
-            // "at 0:42" affordances can read — an uploaded file, or a
-            // Bunny video with its signed preview resolved.
+            // True when there's a preview whose playhead the "Now" buttons can read.
             var hasScrubPreview = !!previewUrl || (attrs.source === 'bunny_stream' && !!bunnyEmbedUrl);
             var chapters = attrs.chapters || [];
             function updateChapter(i, patch) {
@@ -572,51 +406,27 @@
                 next[i] = Object.assign({}, next[i], patch);
                 setAttrs({ chapters: next });
             }
-            // mm:ss, the way a timestamp is actually read — the stored
-            // shape stays plain seconds (portability rule), this is
-            // display only. Mirrors formatTime() in courses.ts so the
-            // editor and the student see the identical string.
+            // Display-only mm:ss (stored as seconds); mirrors formatTime() in courses.ts.
             function fmtTime(total) {
                 var s = Math.max(0, Math.floor(total || 0));
                 return Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60);
             }
-            // Chapters are stored in authoring order but always PLAY in
-            // time order (BHC_Steps::sanitize_chapters() sorts on save).
-            // Showing the real playback position here — rather than
-            // silently reordering the rows under the author's cursor
-            // mid-edit — keeps "what I'm editing" stable while still
-            // making the true order obvious.
+            // Chapters play in time order (sanitize_chapters() sorts on save); show that
+            // position without reordering rows mid-edit.
             var playbackOrder = chapters
                 .map(function (c, i) { return { i: i, time: c.time || 0 }; })
                 .sort(function (a, b) { return a.time - b.time; })
                 .map(function (r) { return r.i; });
-            // Streamlined to two rows (three only when a warning applies)
-            // instead of the original four-row stack. The old version
-            // showed the timestamp TWICE — a read-only badge up top AND
-            // a separate, fully-labelled "Start (seconds)" field further
-            // down — which reads as two different facts about the
-            // chapter until you look closely and realise they're the
-            // same number. Now there's exactly one time field, it's the
-            // editable one, and it sits where the old read-only badge
-            // used to be.
             var chapterRows = chapters.map(function (c, i) {
                 var isPastEnd = previewDuration > 0 && (c.time || 0) > previewDuration;
                 var untitled = !(c.title || '').trim();
                 return el('div', { key: i, className: 'bhc-studio-chapter-row' + (isPastEnd || untitled ? ' has-warning' : '') }, el('div', { className: 'bhc-studio-chapter-row-top' }, 
-                // Playback position, not array position — the
-                // number an author actually reasons about.
+                // Playback position, not array position.
                 el('span', { className: 'bhc-studio-order-badge' }, String(playbackOrder.indexOf(i) + 1)), el(wp.components.TextControl, {
                     type: 'number', label: __('Start time, in seconds'), hideLabelFromVision: true,
                     className: 'bhc-studio-time-input', value: c.time || 0,
                     onChange: function (v) { updateChapter(i, { time: Math.max(0, parseInt(v, 10) || 0) }); },
-                }), el('span', { className: 'bhc-studio-time-unit' }, __('sec')), 
-                // Icon + a real word, not an icon alone — a bare
-                // icon here would need a hover to find out what
-                // it does; "Now" says it outright: this sets the
-                // time to wherever the preview is playing right
-                // now. The tooltip (via `label`) still spells out
-                // the full behavior for anyone who pauses on it.
-                hasScrubPreview ? el(wp.components.Button, {
+                }), el('span', { className: 'bhc-studio-time-unit' }, __('sec')), hasScrubPreview ? el(wp.components.Button, {
                     variant: 'tertiary', size: 'small', icon: 'controls-forward',
                     label: __('Set this chapter\'s time to the preview\'s current position'), showTooltip: true,
                     className: 'bhc-studio-grab-time',
@@ -631,10 +441,7 @@
                     placeholder: __('Chapter title, e.g. “Setting the compressor”'),
                     onChange: function (v) { updateChapter(i, { title: v }); },
                 }), 
-                // Real, specific warnings rather than letting either
-                // case fail silently on the front end (an untitled
-                // chapter is dropped on save by sanitize_chapters();
-                // one past the end renders no marker at all).
+                // Untitled chapters are dropped on save; past-the-end ones render no marker.
                 untitled ? el('p', { className: 'bhc-studio-row-warning' }, __('Needs a title — untitled chapters are discarded when you save.')) : null, isPastEnd ? el('p', { className: 'bhc-studio-row-warning' }, __('Starts after this video ends (') + fmtTime(previewDuration) + __(') — it won\'t appear on the seek bar.')) : null);
             });
             var annotations = attrs.annotations || [];
@@ -646,12 +453,7 @@
             function updatePayload(i, patch) {
                 updateAnnotation(i, { payload: Object.assign({}, annotations[i].payload, patch) });
             }
-            // Pop-up-Video-style overlay moments — pauses playback at a
-            // timestamp, shows a note/hotspot/self-check question, resumes
-            // on dismiss. See class-steps.php's own comment on why this
-            // needed zero progress-model change (ROADMAP-lms-v3.md
-            // Section 1): an annotation only ever pauses/resumes THIS
-            // video step, never redirects anywhere.
+            // Overlay moments that pause this video at a timestamp and resume on dismiss.
             var annotationRows = annotations.map(function (a, i) {
                 var typeFields;
                 if (a.type === 'question') {
@@ -669,11 +471,6 @@
                 else {
                     typeFields = el(wp.components.TextControl, { label: __('Text'), value: a.payload.text || '', onChange: function (v) { updatePayload(i, { text: v }); } });
                 }
-                // Same streamlining as the chapter rows: time, the
-                // "grab from preview" action, type, and remove all share
-                // one compact top row instead of four stacked fields
-                // before any real content (the note/question text) even
-                // appears.
                 return el('div', { key: i, className: 'bhc-studio-annotation-row' }, el('div', { className: 'bhc-studio-chapter-row-top' }, el(wp.components.TextControl, {
                     type: 'number', label: __('Time, in seconds'), hideLabelFromVision: true,
                     className: 'bhc-studio-time-input', value: a.time || 0,
@@ -698,28 +495,13 @@
                     onClick: function () { setAttrs({ annotations: annotations.filter(function (_, idx) { return idx !== i; }) }); },
                 }, __('Remove'))), typeFields);
             });
-            // Source is a genuine block-level SETTING (like core's own
-            // image block putting "alt text"/link destination in the
-            // sidebar) — it stays in the Inspector. Chapters and
-            // overlays are real STEP CONTENT an author builds up over
-            // several passes, the same category as the caption or the
-            // chapter/checklist text everywhere else in this file — so,
-            // per AJ's live call ("can they not be part of lesson
-            // building"), they're authored directly in the canvas below,
-            // not hidden behind a settings-sidebar panel a course author
-            // has no reason to think to open.
-            // Source is the first, defining choice for a video step
-            // (uploaded file vs URL vs a private provider) — it belongs
-            // inline at the top of the step, not tucked in the block
-            // settings sidebar where authors kept missing it. Rendered
-            // as the first child of stepShell() below.
+            // Source is the defining choice for a video step, so it sits inline at the top.
+            // Chapters and overlays are step content, authored in the canvas.
             var sourcePicker = el('div', { key: 'src', className: 'bhc-studio-source' }, el(wp.components.SelectControl, {
                 label: __('Video source'),
                 value: attrs.source,
-                // Cloudflare Stream only appears when Tier B is
-                // enabled (window.bhcMediaTierB); Bunny / R2 only
-                // once configured in Media & CDN Setup
-                // (window.bhcMediaSigned).
+                // Optional sources appear only when enabled/configured
+                // (window.bhcMediaTierB, window.bhcMediaSigned).
                 options: [{ label: __('Uploaded file'), value: 'upload' }, { label: __('URL (oEmbed)'), value: 'url' }]
                     .concat((window.bhcMediaTierB && window.bhcMediaTierB.enabled) ? [{ label: __('Cloudflare Stream'), value: 'cloudflare_stream' }] : [])
                     .concat((window.bhcMediaSigned && window.bhcMediaSigned.bunny) ? [{ label: __('Bunny Stream (private)'), value: 'bunny_stream' }] : [])
@@ -757,18 +539,12 @@
                 : el('div', { className: 'bhc-studio-empty' }, previewUrl
                     ? __('No chapters yet. Scrub the preview above to a moment, then add a chapter — it picks up that timestamp automatically.')
                     : __('No chapters yet. Add one at the moments that matter — type a time if there\'s no preview to scrub yet.')), 
-            // The magical bit: adding a chapter captures wherever the
-            // preview is sitting RIGHT NOW, so the normal workflow is
-            // "scrub, add, type a title" instead of "add, read the
-            // time off the player, retype it as a number." Falls
-            // back to 0 with no preview loaded.
+            // Adding a chapter captures the preview's current playhead (0 with no preview).
             el(wp.components.Button, {
                 variant: 'primary',
                 onClick: function () {
                     var at = Math.floor(previewTime);
-                    // Never silently stack two chapters on the same
-                    // second — the second one would be an
-                    // unreachable duplicate marker.
+                    // Avoid two chapters on the same second (an unreachable duplicate marker).
                     var taken = chapters.some(function (c) { return (c.time || 0) === at; });
                     setAttrs({ chapters: chapters.concat([{ time: taken ? at + 1 : at, title: '' }]) });
                 },
@@ -777,13 +553,8 @@
                 variant: 'secondary',
                 onClick: function () { setAttrs({ annotations: annotations.concat([{ time: Math.floor(previewTime), type: 'note', payload: { text: '' } }]) }); },
             }, hasScrubPreview ? __("+ Add overlay at ") + fmtTime(previewTime) : __("+ Add overlay")));
-            // useAttachment() is a hook (useState + useEffect inside) —
-            // it MUST be called unconditionally every render. Calling it
-            // only for source==='upload' changed the hook count when the
-            // author switched Source to Bunny/URL, tripping React error
-            // #300 ("rendered fewer hooks than expected") and blanking
-            // the block with "encountered an error". Pass 0 when it's
-            // not an upload; the hook no-ops on a falsy id.
+            // WHY: useAttachment() is a hook and must run unconditionally; a conditional call
+            // trips React error #300 when Source changes. Pass 0 when not an upload.
             var videoAttachment = useAttachment(attrs.source === 'upload' ? attrs.attachment_id : 0);
             var sourceLabel = attrs.source === 'url' ? __('URL')
                 : attrs.source === 'cloudflare_stream' ? __('Cloudflare Stream')
@@ -827,10 +598,7 @@
                         n.click(); } }, __('Upload new video')), bunnyFileInput) : null, bunnyUpload ? el('div', { className: 'bhc-studio-bunny-upload' }, bunnyUpload.error
                     ? el(wp.components.Notice, { status: 'error', isDismissible: false }, bunnyUpload.error)
                     : el('div', {}, el('progress', { value: bunnyUpload.pct, max: 100, style: { width: '100%' } }), el('p', { className: 'description' }, bunnyUpload.label || (bunnyUpload.pct + '%')))) : null, bunnyModalOpen ? el(BunnyLibraryModal, { cfg: bunnyCfg, onPick: bunnyPick, onClose: function () { setBunnyModalOpen(false); } }) : null, 
-                // Signed preview — the same iframe the front end shows,
-                // driven by player.js so "+ Add chapter at 0:42" picks
-                // up the real playhead instead of asking for a typed
-                // number.
+                // Signed preview iframe, driven by player.js so "Now" reads the real playhead.
                 (attrs.bunny_guid && bunnyEmbedUrl) ? el('div', { key: 'prev', className: 'bhc-studio-preview bhc-studio-preview-bunny', style: { aspectRatio: '16 / 9', marginTop: '8px' } }, el('iframe', { ref: bunnyPlayerRef, src: bunnyEmbedUrl, style: { width: '100%', height: '100%', border: '0' }, allow: 'autoplay; encrypted-media; picture-in-picture', allowFullScreen: true })) : null);
             }
             else if (attrs.source === 'signed_r2') {
@@ -845,20 +613,8 @@
                 var uploadButton = el(wp.blockEditor.MediaUploadCheck, { key: 'pick' }, el(wp.blockEditor.MediaUpload, {
                     allowedTypes: ['video'],
                     value: attrs.attachment_id,
-                    // Immediate, cheap feedback before an author even
-                    // finishes — BHC_VideoSettings::check_tree() still
-                    // re-checks the real file server-side on save
-                    // (authoritative; this is a convenience only, a
-                    // REST/programmatic save never runs this JS at
-                    // all). window.BHCMaxVideoMB is localized
-                    // per-request (0 = no limit, the default — never
-                    // blocks anything here). Deliberately no
-                    // window.confirm()/alert() — a blocking native
-                    // dialog here is a known hazard in this
-                    // ecosystem's own automated QA tooling (and a
-                    // worse UX generally); the file is always
-                    // accepted, with a plain inline warning shown
-                    // instead via over_limit_mb state.
+                    // Convenience warning only; BHC_VideoSettings::check_tree() is authoritative
+                    // on save. WHY: no window.confirm()/alert(), which blocks automated QA tooling.
                     onSelect: function (media) {
                         var maxMB = window.BHCMaxVideoMB || 0;
                         var sizeBytes = media.filesizeInBytes || (media.filesize ? media.filesize * 1024 : 0);
@@ -870,25 +626,12 @@
                     },
                 }));
                 var overLimitWarning = (attrs.over_limit_mb && window.BHCMaxVideoMB && attrs.over_limit_mb > window.BHCMaxVideoMB)
-                    // Recomputed against the CURRENT live limit on every
-                    // render, not just trusted from the stored attribute
-                    // — attrs.over_limit_mb was only ever correct at the
-                    // moment the file was selected, so if the site's
-                    // limit is later raised, lowered, or was 0 (no limit)
-                    // all along, a stale stored value would otherwise
-                    // keep showing a wrong warning.
+                    // Re-checked against the current limit each render, since the stored value can go stale.
                     ? el('p', { key: 'warn', className: 'bhc-video-size-warning', style: { color: '#b32d2e' } }, __('This file is about ') + attrs.over_limit_mb + __('MB, over this site\'s ') + window.BHCMaxVideoMB + __('MB direct-upload limit. Consider switching Source to "URL (oEmbed)" instead.'))
                     : null;
                 picker = attrs.attachment_id
-                    // A real thumbnail + file name, in place of the old
-                    // bare "Change video" button with no indication of
-                    // WHICH video was already chosen.
                     ? el('div', { key: 'chosen' }, 
-                    // This IS the scrub source for chapters/overlays
-                    // below (ref + time/duration wiring) — one real
-                    // preview player doing double duty as "does this
-                    // look right" AND "grab me this timestamp",
-                    // rather than a second, redundant player.
+                    // This preview is also the scrub source for chapters/overlays.
                     previewUrl ? el('video', {
                         key: 'prev', ref: previewRef, className: 'bhc-studio-preview', src: previewUrl, controls: true, preload: 'metadata',
                         onTimeUpdate: function (e) { setPreviewTime(e.target.currentTime); },
@@ -902,9 +645,6 @@
                 picker,
                 chaptersSection,
                 overlaysSection,
-                // Caption + completion rule grouped as one quiet
-                // "options for this step" panel, rather than loose
-                // controls trailing off after the media.
                 el('div', { key: 'settings', className: 'bhc-studio-settings' }, el(CaptionField, {
                     key: 'cap', label: __('Caption'), value: attrs.caption,
                     placeholder: __('Optional — shown beneath the video'),
@@ -926,12 +666,7 @@
         },
         save: function () { return null; }, // dynamic
     });
-    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4c — a
-    // downloadable file (worksheet, PDF, reference doc) attached to a
-    // step. allowedTypes deliberately omitted from MediaUpload below
-    // (unlike bhc/image's ['image']/bhc/video's ['video']) — a resource
-    // is meant to accept any file type a course creator might want to
-    // hand a student, not a narrowed media category.
+    // A downloadable file attached to a step; any file type is allowed.
     wp.blocks.registerBlockType('bhc/resource', {
         apiVersion: 3,
         title: __('Lesson: Resource'),
@@ -950,10 +685,7 @@
             var picker = el(wp.blockEditor.MediaUploadCheck, { key: 'pick' }, el(wp.blockEditor.MediaUpload, {
                 value: attrs.attachment_id,
                 onSelect: function (m) {
-                    // Default the label to the file's own name on
-                    // first pick — a course creator can still
-                    // override it, but "Worksheet.pdf" beats an
-                    // empty label if they never touch this field.
+                    // Default the label to the file's own name on first pick.
                     setAttrs({ attachment_id: m.id, label: attrs.label || m.title || m.filename || '' });
                 },
                 render: function (obj) {
@@ -968,17 +700,9 @@
                 el(CaptionField, { key: 'desc', label: __('Description'), value: attrs.description, placeholder: __('Optional'), onChange: function (v) { setAttrs({ description: v }); } }),
             ]);
         },
-        save: function () { return null; }, // dynamic — server renderer is BHC_ContentBridge's bhc/resource callback
+        save: function () { return null; }, // dynamic; rendered server-side by BHC_ContentBridge
     });
-    // Depth-of-magic Phase 2c — checklist/chord-chart/audio-compare,
-    // scoped directly from AJ's own answer on what's actually missing
-    // for THIS content (music production/songwriting courses), not a
-    // generic "add more block types" guess. All three are dynamic
-    // (save() returns null, same as bhc/resource above) — the server
-    // renderer is BHC_ContentBridge's own callback for each; the editor
-    // canvas shows the real edit() UI directly rather than a live
-    // preview of rendered output, same posture every other dynamic
-    // block here already takes.
+    // Checklist, chord-chart and audio-compare are dynamic blocks rendered by BHC_ContentBridge.
     wp.blocks.registerBlockType('bhc/checklist', {
         apiVersion: 3,
         title: __('Lesson: Checklist'),
@@ -1096,20 +820,14 @@
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
             var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-quiz bhc-studio-step' });
-            // Real child blocks, not a repeater — this is the whole
-            // point of Section 3.2's promotion. allowedBlocks keeps
-            // quiz-question scoped to living only inside a quiz. The
-            // inner-blocks area IS the shell's body — passed as its own
-            // className so stepShell's own header/body divs still frame
-            // it consistently with every other step type.
+            // Questions are real child blocks; the inner-blocks area doubles as the shell's body.
             var innerBlocksProps = wp.blockEditor.useInnerBlocksProps({ className: 'bhc-studio-body' }, { allowedBlocks: ['bhc/quiz-question'], templateLock: false, renderAppender: AddQuestionAppender });
             var meta = __('Pass ') + attrs.passing_score + '%' + (attrs.max_attempts ? ', ' + attrs.max_attempts + __(' attempts') : '');
             return el(wp.element.Fragment, {}, el(wp.blockEditor.InspectorControls, {}, el(wp.components.PanelBody, { title: __('Quiz settings') }, el(wp.components.RangeControl, { label: __('Passing score (%)'), value: attrs.passing_score, onChange: function (v) { setAttrs({ passing_score: v }); }, min: 0, max: 100 }), el(wp.components.RangeControl, { label: __('Max attempts (0 = unlimited)'), value: attrs.max_attempts, onChange: function (v) { setAttrs({ max_attempts: v }); }, min: 0, max: 20 }), el(wp.components.ToggleControl, { label: __('Shuffle question order'), checked: attrs.shuffle_questions, onChange: function (v) { setAttrs({ shuffle_questions: v }); } }), el(wp.components.ToggleControl, { label: __('Shuffle answer order'), checked: attrs.shuffle_choices, onChange: function (v) { setAttrs({ shuffle_choices: v }); } }))), el('div', blockProps, el('div', { className: 'bhc-studio-head' }, el(wp.components.Icon, { icon: 'forms', size: 16 }), el('span', { className: 'bhc-studio-head-label' }, __('Quiz')), el('span', { className: 'bhc-studio-head-meta' }, meta)), el('div', innerBlocksProps)));
         },
         save: function () {
-            // NOT dynamic at the container level — innerBlocks (the
-            // actual questions) need to serialize as real child blocks
-            // in the tree so BH_Content::validate()/render() see them.
+            // WHY: not dynamic at the container level; innerBlocks must serialize as real
+            // child blocks so BH_Content::validate()/render() see them.
             var blockProps = wp.blockEditor.useBlockProps.save();
             var innerBlocksProps = wp.blockEditor.useInnerBlocksProps.save(blockProps);
             return el('div', innerBlocksProps);
@@ -1130,13 +848,7 @@
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
             var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-quiz-question' });
-            // This block's own index among its quiz siblings — InnerBlocks
-            // renders each question as an equal sibling with no number of
-            // its own, so a quiz of 10 questions read as an undifferentiated
-            // stack of "Question" text fields with nothing to tell them
-            // apart while scrolling. useBlockEditContext() + getBlockOrder()
-            // recovers the real position instead of any per-block stored
-            // index (which would drift the moment questions are reordered).
+            // Position among sibling questions, derived live so it never drifts on reorder.
             var qClientId = wp.blockEditor.useBlockEditContext().clientId;
             var qParentId = wp.data.select('core/block-editor').getBlockRootClientId(qClientId);
             var qIndex = wp.data.select('core/block-editor').getBlockOrder(qParentId).indexOf(qClientId);
@@ -1158,42 +870,18 @@
                     options: [{ label: '', value: 'correct' }],
                     onChange: function () { setAttrs({ correct_index: i }); },
                 }), el(wp.components.TextControl, { value: c, placeholder: __('Choice text'), onChange: function (v) { setChoice(i, v); } }), 
-                // Real bug, caught live: icon: 'no-alt' renders via
-                // wp.components.Dashicon, a font-icon that depends on
-                // the 'dashicons' stylesheet actually reaching this
-                // element — confirmed NOT to inside the post editor's
-                // iframed canvas (computed icon size came back 0x0,
-                // font-family fell through to the theme's own body
-                // font instead of "dashicons"). closeIcon() (top of
-                // file) is a hand-authored inline SVG — no external
-                // stylesheet or package (wp.icons isn't loaded/exposed
-                // as a global in this install either, confirmed via
-                // console) for either rendering path to fail on.
+                // WHY: closeIcon() is inline SVG; icon: 'no-alt' renders 0x0 in the iframed canvas.
                 choices.length > 2 ? el(wp.components.Button, { icon: closeIcon(), label: __('Remove choice'), onClick: function () { removeChoice(i); } }) : null);
             });
             return el('div', blockProps, el('div', { className: 'bhc-studio-question-badge' }, __('Question ') + (qIndex > -1 ? qIndex + 1 : '?')), el(wp.components.TextControl, { label: __('Question'), value: attrs.question, placeholder: __('What do you ask the student?'), onChange: function (v) { setAttrs({ question: v }); } }), el('p', { className: 'description' }, __('Select the radio next to the correct choice.')), choiceRows, 
-            // className carries its own margin-bottom (see
-            // add_studio_block_editor_styles() in class-content-
-            // bridge.php) — without it, this button sat directly
-            // against Gutenberg's own "Add quiz question" block-
-            // appender (a totally different action: a new question,
-            // not a new choice), the two reading as one confusing
-            // cluster of "add" buttons.
+            // Its own margin keeps it apart from the "Add another question" appender.
             el(wp.components.Button, { variant: 'secondary', className: 'bhc-studio-add-choice', onClick: addChoice }, __('Add choice')));
         },
         save: function () { return null; }, // dynamic
     });
     // ---- Lesson settings sidebar panel ----
-    // Belongs-to-course, module/section and drip availability used to be
-    // two 'normal' metaboxes Gutenberg buries in the collapsed "Meta
-    // Boxes" seam below the steps canvas — disjoint from authoring.
-    // They're a native editor sidebar panel now: steps in the canvas,
-    // settings in the sidebar, one cohesive screen. Backed by the REST
-    // meta BHC_Admin::register_lesson_meta() registers; the
-    // course<->lesson inverse order is reconciled server-side
-    // (rest_after_insert_bh_lesson). Wrapped in a guarded IIFE so a WP
-    // build without wp.plugins / wp.editor / wp.coreData just no-ops
-    // (same defensive posture as the rest of this file).
+    // Backed by the REST meta from BHC_Admin::register_lesson_meta(); course<->lesson order
+    // is reconciled server-side. No-ops without wp.plugins / wp.editor / wp.coreData.
     (function registerLessonPanel() {
         var plugins = wp.plugins;
         var editorNs = wp.editor || wp.editPost;
@@ -1261,12 +949,8 @@
         plugins.registerPlugin('bhc-lesson-panel', { render: LessonPanel });
     })();
     // ---- Always-visible "Add a step" dock ----
-    // Gutenberg's own end-of-list appender is unreliable — on mobile it
-    // often doesn't render at all ("where's the add button?" from the
-    // field). This is a self-owned button portalled to <body> and
-    // pinned to the bottom of the editor, so there is ALWAYS one
-    // obvious way to add the next step. It opens the (curated) inserter
-    // positioned after the last block.
+    // WHY: Gutenberg's end-of-list appender often doesn't render on mobile, so this
+    // portalled button always opens the inserter after the last block.
     (function registerAddStepDock() {
         var plugins = wp.plugins;
         var createPortal = wp.element.createPortal;
@@ -1294,10 +978,8 @@
             if (info.postType !== 'bh_lesson' || info.inserterOpen)
                 return null;
             function openInserter() {
-                // The inserter toggle lives on core/editor in current WP
-                // and core/edit-post in older builds — NOT
-                // core/block-editor. Try each; pass the positioned-open
-                // object where supported, fall back to a plain boolean.
+                // The toggle is on core/editor (current WP) or core/edit-post (older), not
+                // core/block-editor. Try the positioned-open object, then a plain boolean.
                 var stores = ['core/editor', 'core/edit-post'];
                 for (var i = 0; i < stores.length; i++) {
                     var d = wp.data.dispatch(stores[i]);

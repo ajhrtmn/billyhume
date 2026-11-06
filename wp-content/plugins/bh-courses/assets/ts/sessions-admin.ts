@@ -1,15 +1,6 @@
 /**
- * Renders the Sessions admin screen's month-view calendar from the
- * events JSON already server-rendered into #bhc-sessions-calendar's own
- * data-events attribute — a one-time read-only render, no live server
- * round-trip needed here, so plain vanilla JS (not Datastar) is the
- * right tool per CLAUDE.md's "wp.element/Datastar/plain JS, pick based
- * on what the screen actually needs" convention.
- *
- * TypeScript pilot conversion. FullCalendar (vendored assets/js/vendor/
- * fullcalendar.global.js) is a loosely-typed external global — not
- * worth a real @types/... package for this ecosystem's "catch typos in
- * our own code" goal.
+ * Renders the Sessions admin month-view calendar from #bhc-sessions-calendar's data-events
+ * JSON. One-time read-only render, so plain JS. FullCalendar is an untyped vendored global.
  */
 
 interface FullCalendarInstance {

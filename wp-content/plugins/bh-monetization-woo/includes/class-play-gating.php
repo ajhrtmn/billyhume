@@ -2,11 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Split out of class-products.php (DRY/SOLID audit Phase 3) — the
- * bh-streaming gating hooks (bhs_track_access_allowed/lock_notice/
- * play_allowed/play_denied_message) and the pay-per-play money-moving
- * logic they drive. Reads config BHM_MonetizationUI persisted; grants
- * come from BHM_Gate/BHM_Wallet, never from this class directly.
+ * bh-streaming gating filters (access, lock notice, play allowed/denied) and pay-per-play debiting.
  */
 class BHM_PlayGating {
     public static function init(): void {
@@ -30,15 +26,8 @@ class BHM_PlayGating {
         return BHM_Gate::render_paywall_notice($required_tier);
     }
 
-    // The actual money-moving half of pay-per-play: called at the
-    // moment bh-streaming's /tracks/{id}/play endpoint is hit (see
-    // class-api.php's record_play()), NOT at catalog-listing time —
-    // debiting on every /tracks fetch would charge a listener just for
-    // loading the page. Records a bhm_play_log row EVERY time a play is
-    // allowed, whether or not money changed hands, so there's one
-    // authoritative, server-authored history to build reporting or a
-    // future payout engine on top of — never bh-streaming's own
-    // unauthenticated, gameable _bhs_play_count.
+    // Runs on the /tracks/{id}/play request, never at listing time (that would charge for page loads).
+    // Every allowed play is logged to bhm_play_log, paid or not.
     public static function track_play_allowed(bool $allowed, int $track_id, int $user_id): bool {
         if (!$allowed) return false;
         if (BHM_MonetizationUI::is_non_catalog_track($track_id)) return true; // never charged — see is_non_catalog_track()
@@ -46,24 +35,18 @@ class BHM_PlayGating {
         $required_tier = (int) get_post_meta($track_id, '_bhm_required_tier', true);
         $ppp_cents = (int) get_post_meta($track_id, '_bhm_pay_per_play_cents', true);
 
-        // Already covered by a tier/subscription/purchase entitlement —
-        // free to play, no debit, but still logged.
+        // Covered by an entitlement: free, but logged.
         if (BHM_Gate::user_has_tier_access($user_id, $required_tier, $track_id)) {
             self::log_play($user_id, $track_id, false, 0);
             return true;
         }
 
-        // No pay-per-play price set and no tier required at all — open
-        // streaming, same as bh-streaming's own pre-monetization default.
         if (!$ppp_cents) {
             self::log_play($user_id, $track_id, false, 0);
             return true;
         }
 
-        // A real pay-per-play price applies and no standing entitlement
-        // covers it — an anonymous (not-logged-in) listener has no
-        // wallet to debit at all, so they're declined outright rather
-        // than silently letting the play through.
+        // Anonymous listeners have no wallet: declined.
         if (!$user_id) return false;
 
         $debited = BHM_Wallet::debit($user_id, $ppp_cents, $track_id);
@@ -74,13 +57,7 @@ class BHM_PlayGating {
         return $debited;
     }
 
-    // A real pattern (someone genuinely queueing up a bunch of short
-    // tracks) looks different from either a compromised account being
-    // rapidly drained or a stolen-payment-method wallet-topup being
-    // tested against your store before trying somewhere bigger — both
-    // of which show up as an abnormal burst of paid plays in a short
-    // window. This flags the same way the refund pattern does: a
-    // signal for a human, never an automatic account action.
+    // A burst of paid plays can mean a drained account or a tested stolen card; flagged for a human only.
     const VELOCITY_WINDOW_SECONDS = 60;
     const VELOCITY_THRESHOLD = 8;
 
@@ -93,9 +70,7 @@ class BHM_PlayGating {
         ));
         if ($recent_paid_plays < self::VELOCITY_THRESHOLD) return;
 
-        // Rate-limit the flag itself, not just the underlying activity —
-        // otherwise every single play past the threshold re-fires the
-        // action for as long as the burst continues.
+        // Rate-limit the flag so it doesn't re-fire on every play of a burst.
         $flag_key = '_bhm_velocity_flagged_at';
         $last_flagged = (int) get_user_meta($user_id, $flag_key, true);
         if (time() - $last_flagged < self::VELOCITY_WINDOW_SECONDS) return;

@@ -2,12 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * This plugin's contribution to BHI_Portal (the-self-hosted-self's `bhi_portal_panels`
- * filter — see class-portal.php over there) — access and edit contest
- * submissions from a fan's own account portal. Lists every bh_submission post
- * authored by the current user (across every contest, not just the
- * active one), with its status and live vote count, and a real edit link
- * for anything still in a submittable state.
+ * "Contest Submissions" account-portal panel (bhi_portal_panels): the user's
+ * submissions across all contests, with status, votes, and edit/replace forms.
  */
 class BH_PortalPanel {
     public static function init(): void {
@@ -15,10 +11,7 @@ class BH_PortalPanel {
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
     }
 
-    // Same "portal is a custom virtual page, not a real $post" gate
-    // pattern the-self-hosted-self's class-public-profile.php fixed this same
-    // session (Bug #2 in that pass) — only load the replace-file JS on
-    // the portal itself.
+    // The portal is a virtual page (no real $post), so gate on its query var.
     public static function maybe_enqueue(): void {
         if (!class_exists('BHI_Portal') || !get_query_var(BHI_Portal::QUERY_VAR)) return;
         wp_enqueue_script('bh-contest-portal-submissions', BH_URL . 'assets/js/portal-submissions.js', [], BH_VER, true);
@@ -66,16 +59,7 @@ class BH_PortalPanel {
             echo '<div class="bhi-portal-empty">'
                . '<span class="dashicons dashicons-microphone"></span>'
                . '<p>You haven\'t submitted anything to a contest yet.</p>';
-            // Real bug, found live: this was a hardcoded home_url('/contests/')
-            // guess — a page slug that has never existed on this install (the
-            // real contest listing lives wherever [bh_archive] was placed,
-            // /archive/ here, but that's the site author's own choice of
-            // slug/title, not something safe to hardcode). Every other "back
-            // to the archive" link in this plugin already resolves it via
-            // OUS_Pages (see class-auth.php's own identical guard/call) —
-            // this one just never got the same fix. Omitted entirely (same
-            // as those other call sites) rather than link to a 404 when core
-            // is absent or no archive page exists yet.
+            // Resolve the archive page via OUS_Pages, never a hardcoded slug; omit if none.
             if (method_exists('OUS_Pages', 'url')) {
                 $archive_url = OUS_Pages::url('bh_archive', 'bh_archive_page_id');
                 if ($archive_url) {
@@ -86,9 +70,6 @@ class BH_PortalPanel {
             return;
         }
 
-        // Card grid, matching bh-courses' portal panel — was a plain
-        // <table>, the one panel besides Membership & Wallet that hadn't
-        // gotten the same visual treatment as My Courses.
         echo '<div class="bhi-portal-course-list bhi-portal-submission-list">';
         foreach ($submissions as $sub) {
             $contest_id = (int) get_post_meta($sub->ID, '_bh_contest_id', true);
@@ -97,10 +78,7 @@ class BH_PortalPanel {
             $window_open = $contest_id && class_exists('BH_Helpers') && BH_Helpers::is_submission_open($contest_id);
             $pending_id = (int) get_post_meta($sub->ID, '_bh_pending_audio_id', true);
 
-            // A 'draft' here specifically means "reserved, audio not
-            // attached yet" (contest's own "Allow submitting without
-            // audio yet" setting) — not a generic WP draft, so it gets
-            // its own label rather than the raw ucfirst('draft').
+            // 'draft' here means "reserved, audio not attached yet".
             $needs_audio = $sub->post_status === 'draft' && !get_post_meta($sub->ID, '_bh_audio_id', true);
             $status_class = 'bhi-submission-status-' . sanitize_html_class($sub->post_status);
             $status_label = ucfirst($sub->post_status);
@@ -111,23 +89,13 @@ class BH_PortalPanel {
             echo '<div class="bhi-submission-card-head"><h3>' . esc_html($sub->post_title ?: '(untitled)') . '</h3>';
             echo '<span class="bhi-submission-status ' . esc_attr($status_class) . '">' . esc_html($status_label) . '</span></div>';
             echo '<p class="bhi-overview-dim">' . esc_html($contest ? $contest->post_title : '(unknown contest)') . '</p>';
-            // Vote count as a designed figure (.bhi-datum, same vocabulary
-            // as the Overview panels) rather than a plain sentence.
             echo '<div class="bhi-datum bhi-submission-votes">'
                 . '<span class="bhi-datum-value">' . (int) $votes . '</span>'
                 . '<span class="bhi-datum-label">vote' . ($votes === 1 ? '' : 's')
                 . ($pending_id ? ' &middot; replacement pending review' : '') . '</span></div>';
 
-            // Real bug, found live: get_permalink($sub->ID) always returns
-            // a plausible-looking URL string, but bh_submission is
-            // registered 'public' => false (class-post-types.php) with no
-            // front-end single-view template of its own, so this always
-            // 404'd — confirmed live via a direct ?p= request. A
-            // submission isn't its own page in this plugin; it's an entry
-            // within its contest's real front-end page (the one
-            // _bh_page_id points at, the same page every other "view this
-            // contest" link in the plugin already resolves through — see
-            // BH_AdminMenus::page_links_html()). Links there instead.
+            // WHY: bh_submission isn't public (its permalink 404s), so link the
+            // contest's _bh_page_id page.
             if ($sub->post_status === 'publish' && $contest_id) {
                 $contest_page_id = (int) get_post_meta($contest_id, '_bh_page_id', true);
                 $contest_page_status = $contest_page_id ? get_post_status($contest_page_id) : false;
@@ -145,13 +113,8 @@ class BH_PortalPanel {
                    . '</div>';
             }
 
-            // Self-service "wrong file uploaded" fix — available any
-            // time the contest's submission window is still open,
-            // admin or contestant. Deliberately
-            // NOT gated on post_status (works for pending, published,
-            // AND rejected — resubmitting a new file after a rejection
-            // puts it back in front of an admin, see BH_API::
-            // replace_audio()).
+            // Edit/replace while submissions are open, at any status (a new file
+            // sends a rejected entry back to review).
             if ($window_open) {
                 $artist_name = (string) get_post_meta($sub->ID, '_bh_artist_name', true);
                 echo '<div class="bhi-submission-forms">';

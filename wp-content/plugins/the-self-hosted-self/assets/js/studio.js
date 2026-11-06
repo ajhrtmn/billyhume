@@ -1,26 +1,8 @@
 "use strict";
 /**
- * BH_Studio's canvas — no build step at runtime, on purpose (see
- * class-studio.php's own docblock for the reasoning). Written as plain
- * wp.element.createElement calls against the same @wordpress/* packages
- * the block editor/Site Editor already ship inside WordPress core,
- * enqueued as ordinary script handles — nothing here is bundled or
- * fetched from anywhere outside this plugin.
- *
- * Version-sensitivity note, left in place on purpose (not verified
- * against a live install this session — no PHP/MySQL/WordPress
- * execution capability available, see HANDOFF-PROMPT-v25.md Step 0):
- * a couple of block-editor exports used below (ListView in particular)
- * moved/were marked experimental across different WordPress core
- * versions. Every such usage below is feature-detected (typeof/in
- * checks) with a visible fallback rather than assumed present, so a
- * version mismatch degrades a panel instead of breaking the whole page
- * — confirm against the actual target WordPress version and tighten
- * once verified.
- *
- * TypeScript pilot, compiled with plain `tsc` to assets/js/studio.js.
- * wp.* types come from the shared wp-globals.d.ts; bhStudioConfig and
- * BHCoreToast below are this file's own, since neither is a wp.* API.
+ * BH_Studio's canvas: plain wp.element.createElement against the
+ * @wordpress/* packages core already ships. Block-editor exports that moved
+ * across WordPress versions (ListView) are feature-detected with a fallback.
  */
 (function (wp) {
     'use strict';
@@ -38,18 +20,10 @@
     var useEffect = element.useEffect;
     var __ = wp.i18n ? wp.i18n.__ : function (s) { return s; };
     /* ---------------- block type registration ----------------
-     * Mirrors class-studio.php's block_types() + BH_Content schemas
-     * exactly — one source of truth in intent, two registrations in
-     * practice (server for BH_Content's renderer/validator, client for
-     * this editor UI), same pattern Gutenberg core blocks themselves
-     * use (PHP render_callback + JS edit/save).
-     *
-     * supports.position is deliberately omitted (defaults to
-     * unavailable) on every block below — this is the concrete
-     * enforcement of "expressive control, but never absolute-positioned
-     * div soup" AJ asked for: real spacing/color/typography controls are
-     * available, free-form positioning is not offered as an option at
-     * all, not just discouraged by convention.
+     * Mirrors class-studio.php's block_types(): server registers for
+     * BH_Content's renderer/validator, client for the editor UI.
+     * WHY: supports.position is omitted on every block so free-form absolute
+     * positioning is never offered.
      */
     var COMMON_SUPPORTS = {
         html: false,
@@ -201,12 +175,8 @@
         },
     });
     /* ---------------- BH_Content tree <-> wp.blocks conversion ----------------
-     * BH_Content's tree shape (type/attrs/children) and wp.blocks' own
-     * block object shape (name/attributes/innerBlocks) are structurally
-     * identical by design (see class-content.php's own docblock on this)
-     * — this conversion is a straight rename, not a real transform,
-     * which is the entire point of building BH_Studio on top of
-     * Gutenberg's block model rather than a second, incompatible one.
+     * The shapes are structurally identical (type/attrs/children vs
+     * name/attributes/innerBlocks), so this is a straight rename.
      */
     function treeToBlocks(tree) {
         return (tree || []).map(function (node) {
@@ -228,9 +198,7 @@
         var saving = savingState[0], setSaving = savingState[1];
         var savedState = useState(null);
         var lastSaved = savedState[0], setLastSaved = savedState[1];
-        // wp_localize_script always provides this before studio.js runs
-        // (class-studio.php) — asserted non-null rather than re-checked,
-        // matching the original JS's own assumption.
+        // wp_localize_script always provides this before studio.js runs.
         var bhStudioConfig = window.bhStudioConfig;
         var endpoint = bhStudioConfig.restUrl + encodeURIComponent(bhStudioConfig.contextType) + '/' + encodeURIComponent(String(bhStudioConfig.contextId));
         useEffect(function () {
@@ -253,9 +221,7 @@
                 setLastSaved(new Date());
             }).catch(function (err) {
                 setSaving(false);
-                // Previously this was console-only — the button just
-                // reverted to "Save" with nothing telling the actual
-                // user their edits weren't persisted.
+                // Surface the failure to the user, not just the console.
                 var errObj = err;
                 var msg = (errObj && errObj.message) || 'Could not save — check your connection and try again.';
                 var toastApi = window.BHCoreToast;
@@ -270,9 +236,7 @@
         if (loading) {
             return el(components.Spinner);
         }
-        // ListView (the layers/nested-tree panel) — export name/shape has
-        // moved across WordPress versions; feature-detected rather than
-        // assumed, per this file's own version-sensitivity note at top.
+        // ListView's export name varies across WordPress versions; feature-detected.
         var ListViewComponent = blockEditor.ListView || blockEditor.__experimentalListView || null;
         return el(blockEditor.BlockEditorProvider, {
             value: blockList,
@@ -280,10 +244,7 @@
             onChange: function (updated) { setBlocks(updated); },
             settings: {
                 hasFixedToolbar: true,
-                // Explicitly no custom-position/absolute-drag capability
-                // surfaced to the canvas — the same enforcement point as
-                // each block's own supports.position:false above, applied
-                // ecosystem-wide for anything mounted on this canvas.
+                // No custom-position/absolute-drag on this canvas.
                 enableCustomUnits: false,
             },
         }, el('div', { className: 'bh-studio-toolbar' }, el(components.Button, { variant: 'primary', isBusy: saving, disabled: saving, onClick: handleSave }, saving ? __('Saving…') : __('Save')), lastSaved ? el('span', { className: 'bh-studio-saved-at' }, __('Saved') + ' ' + lastSaved.toLocaleTimeString()) : null, el(blockEditor.Inserter, { position: 'bottom right' })), el('div', { className: 'bh-studio-body' }, el('div', { className: 'bh-studio-layers' }, el('h3', {}, __('Layers')), ListViewComponent

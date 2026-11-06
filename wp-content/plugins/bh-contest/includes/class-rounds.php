@@ -2,30 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b — multi-round/
- * elimination format, built AFTER judge scoring (2a) per that doc's own
- * sequencing note, since a round transition can cut the field either by
- * public vote or by judge score depending on the contest's own format.
- *
- * A contest with no `_bh_rounds` configured behaves exactly as it
- * always has — every method here falls back to BH_Helpers'
- * pre-existing single-window logic in that case, so nothing already
- * running changes shape. Only once an admin actually defines 2+ rounds
- * does any of this engage.
- *
- * `_bh_rounds`: an ordered list of round definitions, each with its own
- * submission window (optional — most rounds after the first have none,
- * since round 2+'s "entrants" are the survivors of round 1, not new
- * submissions) and voting window, plus a cut_count (how many survive
- * into the next round). `_bh_active_round`: which round index is
- * currently being run. A submission's own `_bh_round_reached` (post
- * meta) is the highest round index it has survived INTO — starts at 0
- * (every submission is eligible for round 0 the moment it's approved),
- * bumped by advance_round() below for whoever the cut keeps.
- *
- * Votes/judge scores each carry their own `round` (class-activator.php
- * 1.7) so each round's tally is genuinely independent — a submission
- * that got 40 votes in round 1 doesn't carry those into round 2's count.
+ * Multi-round elimination. Without 2+ `_bh_rounds`, everything falls back to
+ * BH_Helpers' single-window logic. `_bh_active_round` is the current round index;
+ * a submission's `_bh_round_reached` is the highest round it survived into.
+ * Votes and judge scores carry their own `round`, so each round tallies independently.
  */
 class BH_Rounds {
     /** @return array<int, array<string, mixed>> */
@@ -57,16 +37,8 @@ class BH_Rounds {
         return $raw;
     }
 
-    // Same open/upcoming/closed/unscheduled shape as
-    // BH_Helpers::submission_status()/contest_status() — a round with
-    // blank dates (the common case for round 2+, which has no NEW
-    // submission window) reads as 'unscheduled', same "always open"
-    // treatment BH_Helpers::is_submission_open() already gives an
-    // unscheduled single-round contest, so a round with no sub window
-    // simply never blocks submissions on its own (BH_Gate-equivalent
-    // callers should treat an active round with round_index > 0 and no
-    // sub window as CLOSED to new entrants in practice — see
-    // is_new_submission_allowed() below, which is the real gate).
+    // open/upcoming/closed/unscheduled, like BH_Helpers::contest_status().
+    // is_new_submission_allowed() is the real submission gate.
     private static function window_status(string $start, string $end): string {
         $start = self::normalize_dt($start);
         $end = self::normalize_dt($end);
@@ -77,13 +49,8 @@ class BH_Rounds {
         return 'open';
     }
 
-    // The real gate for "can a NEW track be submitted right now." Round
-    // 0 with no configured sub window falls back to the contest's
-    // original _bh_sub_start/_bh_sub_end (unchanged behavior for a
-    // single-round contest, or a multi-round contest that never touched
-    // round 0's window). Round 1+ with no configured sub window is
-    // CLOSED to new entrants by design — round N+'s "entrants" are the
-    // survivors of round N-1, not open enrollment.
+    // Can a new track be submitted now? With no round sub window, round 0 uses the
+    // contest window and later rounds are closed (their entrants are survivors).
     public static function is_new_submission_allowed(int $cid): bool {
         if (!self::is_multi_round($cid)) return BH_Helpers::is_submission_open($cid);
 
@@ -113,21 +80,13 @@ class BH_Rounds {
         return max(0, (int) get_post_meta($sid, '_bh_round_reached', true));
     }
 
-    // Eligible to be voted/scored/counted in the CURRENT active round —
-    // survived at least that far. A submission never regresses; it
-    // simply stops advancing once cut.
+    // Eligible in the active round if it survived at least that far.
     public static function is_eligible(int $sid, int $cid): bool {
         return self::round_reached($sid) >= self::active_round_index($cid);
     }
 
-    // Admin-triggered: closes out the active round by tallying its
-    // votes/judge scores (whichever the contest's own format uses —
-    // BH_Helpers::contest_format()), keeps the top cut_count entries,
-    // bumps their _bh_round_reached to the NEXT round index, and moves
-    // the contest's active round forward. Everyone not kept simply stays
-    // at their current _bh_round_reached — eliminated, not deleted, so
-    // their round-N results/history remain intact for the record.
-    // Returns ['advanced' => [...ids], 'eliminated' => [...ids], 'next_round' => int] or a WP_Error.
+    // Tallies the active round, advances the top cut_count, and moves the contest on.
+    // Eliminated entries keep their history. Returns advanced/eliminated/next_round.
     /** @return array<string, mixed>|\WP_Error */
     public static function advance_round(int $cid) {
         $rounds = self::rounds($cid);
@@ -141,16 +100,7 @@ class BH_Rounds {
         $cats = BH_Helpers::categories($cid);
         if (!$cats) $cats = [['slug' => '', 'name' => '']];
 
-        // Ranked across every category combined (highest single-category
-        // rank position wins ties) would need real tie-breaking logic
-        // this MVP doesn't need to invent — most elimination contests
-        // run a single implicit category, and a multi-category contest
-        // advancing per-category would need its own UI decision (does
-        // "advance" mean the union of every category's top N, or per-
-        // category cuts kept separate?). Scoped here to the simplest,
-        // most common real shape: total tally across all categories
-        // combined, same "Overall" ranking BH_Reveal::overall_results()
-        // already computes for the public-vote case.
+        // The cut ranks by total tally across all categories (no per-category cuts).
         $totals = [];
         foreach ($cats as $c) {
             $results = $format === 'judges'
@@ -182,12 +132,8 @@ class BH_Rounds {
             ], 'BH Contest Rounds');
         }
 
-        // Hookable so a peer plugin (bh-live's OBS automation bridge is
-        // the first real consumer) can react to a round transition —
-        // this isn't a BH_Event (those are async via OUS_Jobs, too
-        // slow for a scene-switch trigger someone's watching live) —
-        // a plain synchronous action fired the moment the round
-        // actually advances.
+        // WHY: a synchronous action, not a BH_Event (async), so live consumers
+        // like an OBS scene switch react immediately.
         do_action('bh_contest_round_advanced', $cid, $idx + 1);
 
         return ['advanced' => $survivors, 'eliminated' => array_values($eliminated), 'next_round' => $idx + 1];

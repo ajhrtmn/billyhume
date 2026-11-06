@@ -1,15 +1,8 @@
-/* Front-end navigation affordances owned by the core plugin.
+/* Front-end navigation affordances owned by the core plugin, starting with
+ * the menu's Log In / Go to Portal call to action.
  *
- * The menu's one call to action: Log In / Go to Portal.
- *
- * Lives in the plugin, not the theme, for two reasons. OUS_MenuSync is the
- * single source of truth for this link (a theme-side copy was written once
- * and removed as a duplicate-link bug), so its styling belongs beside it.
- * And this install's host deploys wp-content/plugins but not
- * wp-content/themes, so theme CSS is not a reliable delivery path.
- *
- * Everything resolves through var(--bh-*, <fallback>) so it themes correctly
- * on a site using our tokens and still looks deliberate on one that is not. */
+ * WHY in the plugin: OUS_MenuSync owns this link, and the host deploys
+ * wp-content/plugins but not themes. Everything uses var(--bh-*, <fallback>). */
 .oust-nav-list .ous-menu-account-cta,
 .wp-block-navigation .ous-menu-account-cta,
 li.ous-menu-account-cta {
@@ -29,9 +22,8 @@ li.ous-menu-account-cta {
     padding: 10px 20px;
     border-radius: 999px;
     background: var(--bh-accent, #c0563a);
-    /* Not --bh-text: that is the page foreground, which on a dark theme is
-       light and would vanish on a light accent. This needs the colour that
-       belongs ON the accent. */
+    /* Not --bh-text (page foreground, may vanish on a light accent); this
+       needs the color that belongs ON the accent. */
     color: var(--bh-accent-contrast, #fff);
     font-weight: 600;
     text-decoration: none;
@@ -61,16 +53,10 @@ li.ous-menu-account-cta {
     }
 }
 
-/* Back-to-catalog / back-to-archive links.
- *
- * Shared because bh-courses and bh-contest render the same affordance for
- * the same reason -- a single item was a dead end -- and two copies of one
- * pattern is how they drift. Each plugin keeps its own specific class for
- * targeting; this supplies the treatment.
- *
- * Measured before this rule: 97x20 and 83x16. These are standalone
- * navigation links, not links inline in a sentence, so the WCAG 2.5.8
- * inline-text exemption does not apply to them and they need a real target. */
+/* Back-to-catalog / back-to-archive links, shared by bh-courses and bh-contest
+ * (each keeps its own class for targeting).
+ * WHY a real target size: standalone nav links are not covered by WCAG 2.5.8's
+ * inline-text exemption. */
 .ous-back-link,
 .ous-back-link > a {
     display: inline-flex;
@@ -82,13 +68,9 @@ li.ous-menu-account-cta {
     font-size: 14px;
     text-decoration: none;
 }
-/* This link is the first thing a listing-child page (a course, a
- * contest) renders into <main>, so under builder themes that float the
- * site header (position:absolute — Etch), it landed under the header,
- * overlapping the nav/hamburger. One shared token, --bh-header-clearance
- * (bh-courses/-contest read the same one), default 72px to match the
- * theme's own first-section padding; set it to 0 for a static-header
- * theme. */
+/* First thing in <main> on listing-child pages, so it clears a floating
+ * (position:absolute) header via --bh-header-clearance (default 72px; set 0
+ * for a static-header theme). */
 .ous-back-link {
     margin-top: var(--bh-header-clearance, 72px);
     margin-bottom: 10px;
@@ -107,13 +89,8 @@ li.ous-menu-account-cta {
     border-radius: 4px;
 }
 
-/* Sign-in gate — OUS_Visibility::render_login_notice(), shown by
- * bh-courses (lesson + course), bh-contest, and anywhere else that
- * gates content behind login. It rendered as bare browser-default text
- * + a stray .button link; give it a real, centred card that reads as a
- * deliberate "members only" moment, not a broken page. Tokens with
- * literal fallbacks so it still looks right on a site that hasn't
- * loaded the brand token block. */
+/* Sign-in gate card for OUS_Visibility::render_login_notice(). Tokens have
+ * literal fallbacks for sites without the brand token block. */
 .ous-login-required {
     box-sizing: border-box;
     max-width: 460px;
@@ -188,11 +165,7 @@ body.bh-standalone > footer,
 body.bh-standalone > footer.footer {
     display: none !important;
 }
-/* No floating theme header to clear anymore, but every ecosystem
-   surface still wants breathing room below the eco-nav — this token
-   already drives that top spacing on the catalog, the lesson layout
-   and the portal shell, so a small value here keeps them all
-   consistent instead of flush against the eco-nav's border. */
+/* Small top spacing below the eco-nav, shared by every ecosystem surface. */
 body.bh-standalone {
     --bh-header-clearance: 24px;
     background: var(--bh-bg, #170807);
@@ -206,9 +179,7 @@ body.bh-standalone main#main {
     border-bottom: 1px solid var(--bh-border, #3D1B14);
     background: color-mix(in srgb, var(--bh-bg, #170807) 82%, #000);
 }
-/* The WP admin bar is position:fixed over the top of the page; the
-   eco-nav is the first thing in the body flow, so it needs to start
-   below it while an admin is viewing. */
+/* Start below the fixed WP admin bar while an admin is viewing. */
 body.admin-bar.bh-standalone .bh-eco-nav { margin-top: 32px; }
 @media screen and (max-width: 782px) {
     body.admin-bar.bh-standalone .bh-eco-nav { margin-top: 46px; }
@@ -261,10 +232,8 @@ body.admin-bar.bh-standalone .bh-eco-nav { margin-top: 32px; }
     background: color-mix(in srgb, var(--bh-accent, #C1503A) 12%, transparent);
 }
 .bh-eco-nav-link.is-active {
-    /* Accent-tinted TEXT on an accent-tint background measured 3.23:1
-       elsewhere (tools/check-accent-on-tint.js). "Active" reads from
-       the accent-tint fill + an accent hairline instead; the label
-       keeps the full surface foreground so it stays legible. */
+    /* Accent text on an accent tint fails contrast, so "active" uses the tint
+       fill and an accent hairline; the label keeps the surface foreground. */
     color: var(--bh-text, #EDDFCB);
     background: var(--bh-accent-muted-bg, color-mix(in srgb, var(--bh-accent, #C1503A) 16%, transparent));
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bh-accent, #C1503A) 45%, transparent);

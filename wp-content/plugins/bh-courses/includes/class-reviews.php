@@ -2,26 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Course reviews/ratings — explicitly deferred in an earlier pass (see
- * class-render-course.php's own "no data model exists yet" comment,
- * now resolved). A real table (bhc_reviews, see class-activator.php),
- * not a CPT — same "queryable-across-users, not per-user postmeta"
- * reasoning bhc_progress/bhc_enrollments/bhc_completions already
- * established, and a review is small fixed-shape data with no need
- * for its own editor/list-table chrome.
- *
- * Two product decisions this was built to:
- * - Eligibility is ENROLLMENT, not completion — anyone enrolled can
- *   review, but every review visibly says whether that student had
- *   actually finished the course at the time they wrote it (a
- *   completed_at_review snapshot, not a live-recomputed flag — see
- *   class-activator.php's schema comment for why it's a snapshot).
- * - Every review is held for admin approval before it's ever publicly
- *   visible — same "moderation queue" posture WordPress core comments
- *   already default to, not a bespoke concept.
+ * Course reviews/ratings in the bhc_reviews table. Eligibility is enrollment, not
+ * completion; each review carries a completed_at_review snapshot. Every review is held
+ * for admin approval before it's public.
  */
 class BHC_Reviews {
-    const CAP = 'bhcore_manage_students'; // same course-content-moderation capability BHC_ProgressAdmin already uses
+    const CAP = 'bhcore_manage_students'; // same capability as BHC_ProgressAdmin
 
     private static function required_cap(): string {
         return class_exists('OUS_Roles') ? self::CAP : 'edit_posts';
@@ -39,11 +25,7 @@ class BHC_Reviews {
 
     /* ---------------- submission ---------------- */
 
-    // Rejects anyone not enrolled at all — enrollment (not completion)
-    // is the eligibility bar. An edited resubmit
-    // (same user+course, the UNIQUE KEY's ON DUPLICATE KEY branch)
-    // always resets status back to 'pending' — an edited review is
-    // re-moderated, never grandfathered in on its original approval.
+    // Enrollment required. An edited resubmit resets status to 'pending' for re-moderation.
     /** @return true|\WP_Error */
     public static function submit_review(int $user_id, int $course_id, int $rating, string $body) {
         if (!$user_id || !$course_id) return new WP_Error('bhc_review_invalid', 'Missing user or course.');
@@ -67,7 +49,7 @@ class BHC_Reviews {
     }
 
     public static function ajax_submit_review(): void {
-        check_ajax_referer('bhc_progress', 'nonce'); // same generic front-end nonce every other bh-courses AJAX action already uses
+        check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();
         if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
 
@@ -93,9 +75,7 @@ class BHC_Reviews {
         return ['average' => $count ? round((float) $row->avg_rating, 1) : null, 'count' => $count];
     }
 
-    // Bulk sibling of average_rating(), same shape as BHC_Progress::
-    // enrollment_counts() — used for the catalog's "Highest rated" sort
-    // so that sort doesn't run one query per course card.
+    // Bulk sibling of average_rating(), for the catalog's "Highest rated" sort.
     /** @return array<int, array{average: float, count: int}> */
     public static function average_ratings(): array {
         global $wpdb;
@@ -119,10 +99,7 @@ class BHC_Reviews {
         ), ARRAY_A);
     }
 
-    // A student's own review regardless of status — the course page
-    // shows this instead of the blank submission form once it exists,
-    // so a student can see their pending/rejected/approved state and
-    // edit rather than only ever being able to submit once blind.
+    // A student's own review in any status, so they can see its state and edit it.
     /** @return array<string, mixed>|null */
     public static function user_review(int $user_id, int $course_id): ?array {
         if (!$user_id) return null;
@@ -179,9 +156,7 @@ class BHC_Reviews {
             self::render_review_table($pending, true);
         }
 
-        // Recently-moderated, for reference/undo-by-eye — approved and
-        // rejected together, most recent first, capped so this page
-        // never grows unbounded.
+        // Recently moderated, most recent first, capped.
         global $wpdb;
         $recent = $wpdb->get_results(
             "SELECT * FROM " . self::table() . " WHERE status IN ('approved','rejected') ORDER BY updated_at DESC LIMIT 50",

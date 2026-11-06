@@ -2,48 +2,13 @@
 if (!defined('ABSPATH') ) exit;
 
 /**
- * OUS_Search — unified site-wide search, scoped in
- * ROADMAP-search-and-revisions.md Section 1. WordPress core's own `?s=`
- * search only ever covered bh_course/bh_lesson (the one CPT registered
- * `'public' => true`) — contests, tracks/releases, tiers, CRM people,
- * and registry artists were all either `'public' => false` by design or
- * (bh-crm, bh-registry) not a post type at all, so no single query
- * could ever find them. This is a genuine dispatch layer, not a CPT
- * visibility flag flip: each plugin registers its own lookup, this
- * class only merges the results.
- *
- * Same "one shared service, zero central registration needed by
- * consumers" shape as bhy_style_surfaces/bhi_portal_panels/
- * ous_debug_tools — this class never needs to know bh-crm or
- * bh-registry exist. A provider is just a callable:
+ * OUS_Search: site-wide search dispatch. Each plugin registers a provider via
+ * `ous_search_providers`; this class merges results. A provider is a callable:
  * function(string $query, int $limit): array<{type,title,excerpt,url,icon}>
+ * LIKE-based matching, not a relevance index.
  *
- * v1 scope, per the roadmap doc's own sequencing: LIKE-based matching,
- * not a real relevance-ranked index — the honest, correct-for-catalog-
- * size choice here, same reasoning BHS_Recommendations/
- * BHM_Recommendations already used for content-based scoring instead of
- * a real ML/index-backed system.
- *
- * Providers wired: bh-courses, bh-contest (published contests only,
- * linking to the contest's real page — never bh_submission, which
- * holds real people's contact info/audio files), bh-registry (only
- * 'active'/verified artists, the same gate its own public REST search
- * already enforces).
- *
- * Deliberately NOT wired, by design, not by omission — this REST route
- * is `permission_callback => __return_true` (fully public, unauthenticated),
- * so anything registered here is exposed to anonymous visitors:
- * - **bh-crm**: real, private person records (contact info, notes,
- *   tags) about real people — search shouldn't take people where they
- *   aren't allowed to go. A future admin-only CRM search (inside
- *   wp-admin, capability-gated) would be a legitimate, SEPARATE feature
- *   — it must never share this public dispatch layer.
- * - **bh-streaming**: no privacy issue, just no real destination yet —
- *   tracks/releases have no canonical per-item URL at all (confirmed in
- *   ROADMAP-discoverability.md), only ever reachable through the
- *   client-rendered player SPA. Wiring this properly needs either a
- *   query-param deep link the player can read on load, or a real
- *   single-track page — a real follow-up, not done here.
+ * WHY: the REST route is public and unauthenticated, so only public content
+ * may be registered. Never bh-crm person records or bh_submission entries.
  */
 class OUS_Search {
     public static function init(): void {
@@ -51,11 +16,7 @@ class OUS_Search {
         add_shortcode('ous_search', [self::class, 'render_shortcode']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
 
-        // The one real provider wired at v1 (bh-courses — already
-        // `'public' => true`, the cheapest to prove the mechanism
-        // against). Guarded the same class_exists()-optional-dependency
-        // way every other cross-plugin registration in this ecosystem
-        // already is.
+        // bh-courses provider (class_exists()-guarded inside).
         add_filter('ous_search_providers', [self::class, 'maybe_register_courses_provider']);
     }
 
@@ -70,9 +31,7 @@ class OUS_Search {
         return $providers;
     }
 
-    // A plain WP_Query 's' search, since bh_course is already a real
-    // public, indexed post type — no bespoke LIKE query needed for this
-    // one provider specifically.
+    // bh_course is a public post type, so plain WP_Query 's' works.
     /** @return array<int, array<string, mixed>> */
     public static function search_courses(string $query, int $limit): array {
         $posts = get_posts([
@@ -93,11 +52,8 @@ class OUS_Search {
     }
 
     /**
-     * Calls every registered provider, merges, caps total results.
-     * A single misbehaving provider (throws, times out on a slow query)
-     * must not take down every OTHER provider's results — same
-     * per-item try/catch posture BHM_Products::on_order_completed()
-     * already uses for exactly this reason.
+     * Calls every provider and merges results. Each provider is wrapped in
+     * try/catch so one failure cannot drop the others.
      */
     /** @return array<int, array<string, mixed>> */
     public static function run(string $query, int $limit_per_type = 5): array {

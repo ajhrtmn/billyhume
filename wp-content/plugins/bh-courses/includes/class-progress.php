@@ -2,25 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Reads/writes bhc_progress (see class-activator.php). A plain content
- * step (text/image) completes on an explicit "mark complete" click from
- * the front end; a quiz step only completes via a submitted attempt,
- * and only counts as "passed" if the score clears the step's own
- * passing_score. Also owns enrollment recording (bhc_enrollments — see
- * class-gate.php's drip-scheduling use of it) and course-completion
- * detection (bhc_completions + the bhc_course_completed action).
+ * Reads/writes bhc_progress. A content step completes on an explicit "mark complete";
+ * a quiz step only via a submitted attempt that clears its passing_score. Also owns
+ * enrollment (bhc_enrollments) and course completion (bhc_completions + bhc_course_completed).
  */
 class BHC_Progress {
     public static function init(): void {
-        // Nothing to hook here beyond the two AJAX actions registered
-        // in the main bootstrap file — kept as an init() entry point
-        // anyway for consistency with every other class in this
-        // ecosystem.
-
-        // BH_Event registration (the-self-hosted-self's event-tracking layer) —
-        // see enroll_if_needed()/mark_step_complete()/
-        // maybe_fire_course_completed() below for the actual emit()
-        // calls. Per EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 6.
         if (class_exists('BH_Event')) {
             BH_Event::register_event_type('bhc/enroll', ['course_id' => 'int']);
             BH_Event::register_event_type('bhc/step_completed', ['lesson_id' => 'int', 'step_index' => 'int', 'score' => 'int|null', 'passed' => 'bool|null']);
@@ -33,14 +20,8 @@ class BHC_Progress {
     }
 
     /**
-     * $sub_index: OPEN.md item 22, resolved 2026-08-26 — an in-video
-     * annotation gets its OWN completion record, not just the step it
-     * lives in. Defaults to 0 (the step's own row) throughout this class,
-     * so every existing call site keeps working unchanged — this is
-     * purely additive. 0 is also what a plain, non-annotation step
-     * always writes, so completed_steps() below can keep reading step-
-     * level completion from sub_index = 0 without needing to know
-     * anything about annotations.
+     * $sub_index 0 is the step's own row; an in-video annotation gets its own row at
+     * sub_index = annotation index + 1.
      */
     /** @return array<string, mixed>|null */
     public static function step_status(int $user_id, int $lesson_id, int $step_index, int $sub_index = 0): ?array {
@@ -54,25 +35,13 @@ class BHC_Progress {
 
     public static function is_step_complete(int $user_id, int $lesson_id, int $step_index, int $sub_index = 0): bool {
         $row = self::step_status($user_id, $lesson_id, $step_index, $sub_index);
-        // A quiz step only counts as "complete" (i.e. the walker can
-        // advance past it) once passed — a failed attempt still writes
-        // a row (so attempts/score are tracked), but shouldn't read as
-        // done. A non-quiz row has passed = NULL, which the ?? true
-        // treats as "nothing to pass, so complete on write" — unchanged
-        // behavior from before max_attempts existed.
+        // Failed quiz attempts still write a row but aren't complete.
+        // passed = NULL (non-quiz) means complete once a row exists.
         if (!$row) return false;
         return $row['passed'] === null ? true : (bool) $row['passed'];
     }
 
-    // Highest step index a user has actually cleared in this lesson,
-    // i.e. how far they can navigate to (next-uncompleted-step gating
-    // lives in class-render.php, not here — this is just the data).
-    // Only counts steps that are genuinely done per is_step_complete()'s
-    // rule above (a failed, attempts-exhausted quiz never counts).
-    // sub_index = 0 only, deliberately — this reports the STEP's own
-    // completion, same shape every caller already expects; an
-    // annotation's own completion is a different question, answered by
-    // completed_annotations() below.
+    // Step indexes the user has cleared in this lesson (sub_index 0 only).
     /** @return array<int, int> */
     public static function completed_steps(int $user_id, int $lesson_id): array {
         global $wpdb;
@@ -88,13 +57,7 @@ class BHC_Progress {
         return $done;
     }
 
-    // Every annotation sub_index within one step a user has completed —
-    // the per-annotation counterpart to completed_steps() above. An
-    // interactive-video step can have several annotations (sub_index
-    // 1, 2, 3...); this is how a caller finds out which ones are done
-    // without knowing the total count up front. sub_index = 0 (the step
-    // row itself) is deliberately excluded — that is the step's own
-    // completion, not an annotation's.
+    // Annotation sub_indexes completed within one step (excludes the step row itself).
     /** @return array<int, int> */
     public static function completed_annotations(int $user_id, int $lesson_id, int $step_index): array {
         global $wpdb;
@@ -115,26 +78,11 @@ class BHC_Progress {
         return $row ? (int) $row['attempts'] : 0;
     }
 
-    // $answers_json: pre-encoded JSON string (or null), the per-question
-    // snapshot from BHC_Steps::score_quiz()'s 'questions' detail — see
-    // ajax_submit_quiz() below for where it's assembled. Same conditional-
-    // NULL-placeholder technique the score/passed QA fix already
-    // established (see the comment below): a plain text/image step, or a
-    // quiz row written before this column existed, gets a real SQL NULL,
-    // never a stringified 'null'/empty string.
+    // $answers_json: pre-encoded per-question snapshot from BHC_Steps::score_quiz(), or null.
     public static function mark_step_complete(int $user_id, int $lesson_id, int $step_index, ?int $score = null, ?bool $passed = null, ?string $answers_json = null, int $sub_index = 0): void {
         global $wpdb;
-        // QA fix: $wpdb->prepare() has no NULL passthrough for scalar
-        // placeholders — a PHP null bound through %s/%d is cast to ''/0
-        // before the query runs, so the old version here was writing
-        // score = 0 / passed = 0 for every plain text/image step instead
-        // of a real SQL NULL. is_step_complete()/completed_steps() both
-        // explicitly test `$row['passed'] === null` to detect "non-quiz
-        // step, complete once a row exists at all" — with passed coming
-        // back as "0" instead of NULL, that check always failed, so
-        // every non-quiz step permanently read as incomplete. Building
-        // the column list/placeholders conditionally keeps a real SQL
-        // NULL for the non-quiz case while still using %d for real values.
+        // WHY: $wpdb->prepare() casts a PHP null to ''/0, so NULL is inlined into the SQL.
+        // Non-quiz steps must store passed = NULL or is_step_complete() reads them as incomplete.
         $score_sql   = $score === null ? 'NULL' : '%d';
         $passed_sql  = $passed === null ? 'NULL' : '%d';
         $answers_sql = $answers_json === null ? 'NULL' : '%s';
@@ -150,26 +98,13 @@ class BHC_Progress {
             $values
         ));
         if ($result === false && class_exists('OUS_DebugLog')) {
-            // First OUS_DebugLog call anywhere in bh-courses — previously
-            // a failed write here meant the AJAX handler still reported
-            // "step complete" to the student (see class-progress.php's
-            // ajax_submit_quiz()/ajax_mark_complete(), which don't
-            // separately check this method's success), so progress could
-            // silently not persist with zero trace anywhere.
+            // The AJAX handlers don't check this write, so log it at least.
             OUS_DebugLog::log('error', 'mark_step_complete() DB write failed — student will still be told the step completed.', [
                 'user_id' => $user_id, 'lesson_id' => $lesson_id, 'step_index' => $step_index, 'sub_index' => $sub_index, 'db_error' => $wpdb->last_error,
             ], 'BH Courses Progress');
         }
 
-        // BH_Event: additive alongside the existing bhc_progress write
-        // above — every completed-step write (not attempt) gets a real
-        // per-event record. Append-only (no dedup_key): a step being
-        // re-marked complete on a resubmit/refresh is tolerated the same
-        // way this table's own ON DUPLICATE KEY UPDATE already is.
-        // sub_index carried into the payload so a listener can tell an
-        // annotation completion from the step's own — it was never a
-        // real field before this (always implicitly 0), so this is
-        // additive to BH_Event's own registered shape, not a break.
+        // Append-only (no dedup_key), like the table's own ON DUPLICATE KEY UPDATE.
         if (($passed === null || $passed) && class_exists('BH_Event')) {
             BH_Event::emit('bhc/step_completed', [
                 'user_id' => $user_id,
@@ -182,11 +117,7 @@ class BHC_Progress {
             BHC_Achievements::maybe_award_quiz_aced($user_id, $score);
         }
 
-        // Course-completion detection is deliberately only ever checked
-        // for the STEP's own row (sub_index 0) — an annotation
-        // completing is not a step completing, and firing
-        // bhc_course_completed off an annotation write would let a
-        // course register as "done" before its own steps actually are.
+        // Only the step's own row (sub_index 0) can complete a course, never an annotation.
         if ($sub_index === 0 && ($passed === null || $passed)) {
             self::maybe_fire_course_completed($user_id, BHC_PostTypes::course_for_lesson($lesson_id));
         }
@@ -197,40 +128,15 @@ class BHC_Progress {
         return $row && $row['watched_percent'] !== null ? (int) $row['watched_percent'] : 0;
     }
 
-    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b: called on a
-    // throttled cadence from the front end's <video> timeupdate listener
-    // (courses.js), NOT once per step like mark_step_complete() — this is
-    // a lightweight progress ping, not a completion event. Auto-completes
-    // the step itself (via mark_step_complete(), same path the manual
-    // "Mark complete" button already uses) once $percent clears the
-    // step's own watch_threshold, so a video step with a threshold set
-    // never needs a separate button click to advance — same "no bespoke
-    // second completion mechanic" posture the resource step's docblock
-    // already established for non-blocking steps.
+    // Throttled progress ping from the front-end video listener. Auto-completes the step
+    // via mark_step_complete() once $percent clears the step's watch_threshold.
     public static function update_watch_progress(int $user_id, int $lesson_id, int $step_index, int $percent): bool {
         global $wpdb;
         $percent = max(0, min(100, (int) $percent));
 
-        // INSERT ... ON DUPLICATE KEY, with the UPDATE clause taking
-        // GREATEST() of the old and new value — a student who rewinds to
-        // re-watch an earlier section sends a lower percent on the next
-        // tick than what's already stored, and that must never regress
-        // recorded progress. attempts is left untouched here (unlike
-        // mark_step_complete()'s own ON DUPLICATE KEY clause) since a
-        // progress ping isn't a completion attempt.
-        //
-        // passed = 0 (not NULL) on the INSERT branch only, and left alone
-        // entirely by the UPDATE clause — a real bug caught by running
-        // this live: is_step_complete()'s rule reads a non-quiz row with
-        // passed IS NULL as already complete (correct for a plain text/
-        // image row, which is ONLY ever created by an explicit Mark-
-        // complete click), so a threshold-gated video step read as
-        // "done" after the very first progress ping, before the
-        // threshold was ever reached. Since passed starts at 0 here and
-        // the UPDATE clause never touches it again, the row stays
-        // correctly "not complete" through every ping — mark_step_complete()
-        // below is what flips it to the real NULL-means-complete state,
-        // and only once, once threshold is actually crossed.
+        // GREATEST() so rewinding never regresses recorded progress; attempts untouched.
+        // WHY: passed = 0 on insert and never updated here. A NULL would make
+        // is_step_complete() treat the video as done after the first ping.
         $wpdb->query($wpdb->prepare(
             "INSERT INTO " . self::table() . " (user_id, lesson_id, step_index, watched_percent, passed, attempts)
              VALUES (%d, %d, %d, %d, 0, 0)
@@ -247,12 +153,8 @@ class BHC_Progress {
         return false;
     }
 
-    // The stored per-question snapshot for a quiz step, decoded — null if
-    // this isn't a (scored, answers-bearing) quiz row, or predates the
-    // answers column. Used by class-render.php to render a static review
-    // of a passed quiz instead of re-deriving anything from the current
-    // (possibly since-edited) _bhc_steps content — see the answers
-    // column's own comment in class-activator.php for why that matters.
+    // Decoded per-question snapshot for a quiz step, or null. Used to render a review of a
+    // passed quiz without re-deriving from possibly edited step content.
     /** @return array<string, mixed>|null */
     public static function stored_answers(int $user_id, int $lesson_id, int $step_index, int $sub_index = 0): ?array {
         $row = self::step_status($user_id, $lesson_id, $step_index, $sub_index);
@@ -261,8 +163,7 @@ class BHC_Progress {
         return is_array($decoded) ? $decoded : null;
     }
 
-    // Percent of a whole COURSE a user has completed — steps across
-    // every lesson in the course's own order, not just one lesson.
+    // Percent of a whole course completed, across every lesson's steps.
     public static function course_percent(int $user_id, int $course_id): int {
         if (!$user_id) return 0;
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
@@ -278,17 +179,8 @@ class BHC_Progress {
         return $total ? (int) round(($done / $total) * 100) : 0;
     }
 
-    // Average of this student's current best/latest quiz score across
-    // every quiz step in the course they've actually attempted — a
-    // real-time "quiz mastery" signal, not a stored attempt history
-    // (bhc_progress.score only keeps the latest attempt per step, same
-    // limitation as the rest of this file). Only quiz steps ever get a
-    // non-null score written (mark_step_complete()'s own NULL-vs-real
-    // branching above), so filtering on score IS NOT NULL is sufficient
-    // to isolate them without a second lookup against each step's type.
-    // Returns null (not 0) when no quiz has been attempted yet —
-    // callers must treat that as "nothing to show" (never a bare "0%"
-    // before a student has actually taken a quiz).
+    // Average latest quiz score across attempted quiz steps (only quizzes write a score).
+    // Returns null, not 0, when no quiz has been attempted.
     public static function course_quiz_average(int $user_id, int $course_id): ?int {
         if (!$user_id) return null;
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
@@ -304,11 +196,7 @@ class BHC_Progress {
         return (int) round(array_sum($scores) / count($scores));
     }
 
-    // Every distinct user_id with a progress row on ANY lesson belonging
-    // to this course — moved here from class-progress-admin.php (which
-    // had its own private copy) so class-nudges.php's stalled-student
-    // check and the admin Student Progress page read off one shared
-    // implementation instead of two that could drift apart.
+    // Every user with a progress row on any lesson in this course.
     /** @return array<int, int> */
     public static function students_for_course(int $course_id): array {
         global $wpdb;
@@ -332,15 +220,8 @@ class BHC_Progress {
         ));
     }
 
-    // Batched replacement for what class-progress-admin.php's Student
-    // Progress page previously did with completed_steps()/course_percent()
-    // called once per (student, lesson) pair — on a 20-lesson course with
-    // 200 active students that was up to ~4,000 individual queries per
-    // page load. One query here, everything else below is plain PHP
-    // aggregation over rows already in memory. Every consumer OTHER than
-    // that admin page (course/lesson rendering, gating) still calls the
-    // single-user methods above — those are already O(1) per page view
-    // and don't need batching.
+    // One-query batch for the admin Student Progress page, which otherwise ran
+    // per-student/per-lesson queries.
     /** @return array<string, mixed> */
     public static function course_progress_matrix(int $course_id): array {
         global $wpdb;
@@ -383,8 +264,7 @@ class BHC_Progress {
         return ['user_ids' => $user_ids, 'completed' => $completed, 'last_activity' => $last_activity, 'quiz_scores' => $quiz_scores];
     }
 
-    // Batched sibling of is_course_completed() — one query for every
-    // student on the page instead of one COUNT(*) per student.
+    // Batched sibling of is_course_completed().
     /**
      * @param array<int, int> $user_ids
      * @return array<int, int>
@@ -400,14 +280,8 @@ class BHC_Progress {
         return array_flip(array_map('intval', $rows));
     }
 
-    // The lesson-level sibling of class-render.php's own step-level
-    // "first not-yet-completed" logic (render_lesson_steps()'s
-    // $start_index calc) — same idea, one level up, for the course-page
-    // "Continue" CTA. Skips lessons that aren't published, aren't open
-    // yet (drip-locked), or have no steps at all (nothing to resume
-    // into). Returns null if every open lesson is fully done — the
-    // caller (class-render.php) treats that as "show a Review/Complete
-    // state instead."
+    // First lesson the user can resume (published, drip-open, has steps, not done),
+    // or null when every open lesson is done.
     public static function first_incomplete_lesson(int $user_id, int $course_id): ?int {
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
         foreach ($lesson_ids as $lesson_id) {
@@ -423,15 +297,8 @@ class BHC_Progress {
 
     /* ---------------- enrollment (drip scheduling's clock-start) ---------------- */
 
-    // Called once access is confirmed (class-render.php, on viewing the
-    // course or a lesson in it) — cheap no-op on every repeat visit
-    // thanks to INSERT IGNORE, so callers don't need their own "have I
-    // already enrolled this person" check. Returns true only on the
-    // real, first-ever enrollment for this user/course — callers use
-    // this (rather than a separate static flag, which could leak state
-    // across an unrelated call earlier in the same request) to show a
-    // one-time orientation moment instead of dropping straight into
-    // lesson content.
+    // Cheap no-op on repeat visits (INSERT IGNORE). Returns true only on the first-ever
+    // enrollment, so callers can show a one-time orientation.
     public static function enroll_if_needed(int $user_id, int $course_id): bool {
         if (!$user_id || !$course_id) return false;
         global $wpdb;
@@ -439,9 +306,7 @@ class BHC_Progress {
             "INSERT IGNORE INTO " . BHC_Tables::enrollments() . " (user_id, course_id) VALUES (%d, %d)",
             $user_id, $course_id
         ));
-        // Deduplicated by design — dedup_key means a repeat visit's
-        // repeat call to this cheap-no-op method never records a second
-        // 'bhc/enroll' event for the same user+course.
+        // dedup_key: a repeat call never records a second event.
         if ($wpdb->rows_affected === 1) {
             if (class_exists('BH_Event')) {
                 BH_Event::emit('bhc/enroll', [
@@ -450,12 +315,7 @@ class BHC_Progress {
                     'dedup_key' => "bhc/enroll:$user_id:$course_id",
                 ]);
             }
-            // Real WP action, same "first real consumer of
-            // OUS_Notifications" shape as bhc_course_completed
-            // (class-crm-integration.php) — a student previously got no
-            // confirmation at all that enrolling "took," only silent
-            // access. Only fires on the actual INSERT (rows_affected===1),
-            // never on the cheap repeat-visit no-op above.
+            // Only on the actual INSERT; drives the enrollment confirmation notification.
             do_action('bhc_enrolled', $user_id, $course_id);
             return true;
         }
@@ -463,10 +323,8 @@ class BHC_Progress {
     }
 
     /**
-     * Enrolled-but-not-yet-completed courses. The "in progress" rule is
-     * this plugin's own, and lives here so cross-plugin callers (the
-     * core's Portal overview) don't reimplement the enrollment/completion
-     * join against a schema they don't own.
+     * Count of enrolled-but-not-completed courses. Lives here so cross-plugin callers
+     * don't reimplement the join against this plugin's schema.
      */
     public static function in_progress_count(int $user_id): int {
         global $wpdb;
@@ -503,11 +361,8 @@ class BHC_Progress {
         ));
     }
 
-    // Every user actually enrolled in a course — distinct from
-    // students_for_course() above, which only returns users with a
-    // bhc_progress ROW (i.e. who've already touched a step). A student
-    // waiting on a drip-locked lesson may be enrolled with zero progress
-    // rows yet, so class-drip-nudges.php needs this list, not that one.
+    // Every enrolled user. Unlike students_for_course(), includes users with no progress
+    // rows yet (needed by class-drip-nudges.php).
     /** @return array<int, int> */
     public static function enrolled_user_ids(int $course_id): array {
         global $wpdb;
@@ -517,13 +372,7 @@ class BHC_Progress {
         )));
     }
 
-    // The catalog's "popular" sort signal (QUIZ-AND-CATALOG-DESIGN-PLAN.md
-    // Part 2.3) — a real, deduped, non-gameable enrollment count read
-    // straight off bhc_enrollments' own UNIQUE KEY (user_id, course_id),
-    // never a denormalized counter column that could drift out of sync.
-    // Returns course_id => count for every course with at least one
-    // enrollment; a course with zero simply isn't in the returned array
-    // (callers treat a missing key as 0).
+    // Catalog "popular" sort: course_id => enrollment count; missing key means 0.
     /** @return array<int, int> */
     public static function enrollment_counts(): array {
         global $wpdb;
@@ -538,13 +387,8 @@ class BHC_Progress {
 
     /* ---------------- completion (bhc_course_completed) ---------------- */
 
-    // Fires 'bhc_course_completed' ($user_id, $course_id) the first
-    // time — and only the first time — a student clears 100% of a
-    // course. Dedup is enforced by bhc_completions' own UNIQUE KEY (an
-    // atomic INSERT that either succeeds once or silently no-ops on
-    // every later call), not by an application-level "have I fired this
-    // already" check, so a race between two nearly-simultaneous last
-    // steps can't double-fire it either.
+    // Fires 'bhc_course_completed' once per user/course. Dedup is the atomic INSERT IGNORE
+    // on bhc_completions' UNIQUE KEY, so racing last steps can't double-fire.
     private static function maybe_fire_course_completed(int $user_id, int $course_id): void {
         if (!$user_id || !$course_id) return;
         if (self::course_percent($user_id, $course_id) < 100) return;
@@ -556,10 +400,7 @@ class BHC_Progress {
         ));
         if ((int) $wpdb->rows_affected === 1) {
             do_action('bhc_course_completed', $user_id, $course_id);
-            // Same once-only guarantee as the do_action() above (both
-            // gated on the same INSERT IGNORE affecting exactly one
-            // row) — dedup_key is a second, independent enforcement at
-            // the bhcore_events table level.
+            // dedup_key enforces the same once-only rule at the event-table level.
             if (class_exists('BH_Event')) {
                 BH_Event::emit('bhc/course_completed', [
                     'user_id' => $user_id,
@@ -570,29 +411,9 @@ class BHC_Progress {
         }
     }
 
-    // Bug found via live walkthrough (2026-07-26): a bhc_completions
-    // row is written once, permanently, at the moment a student
-    // finishes every lesson that exists AT THAT TIME. If a course
-    // creator adds a new lesson afterward, that row never gets
-    // invalidated — every caller of this method (certificate download,
-    // share-card generation, the completion-screen banner, the "verified
-    // completion" review badge, the My Courses "Completed" badge) kept
-    // treating the student as fully done with content they'd never
-    // actually seen, while course_percent() correctly recalculated a
-    // lower number against the CURRENT lesson count. That contradiction
-    // was directly visible: a course page showing both "67% complete"
-    // and "Course complete — with distinction!" with a live certificate-
-    // download link, side by side.
-    //
-    // Requiring course_percent() === 100 here too (rather than just the
-    // historical row) closes the gap for every one of those 7 call
-    // sites at once, without needing to hook every place a course's
-    // lesson set could change (added, removed, reordered-with-new-
-    // content) to invalidate the row directly. The row itself is left
-    // alone — course_completed_at() (the completion screen's "time
-    // invested" stat) still reads the student's real original
-    // completion timestamp, which stays historically accurate even
-    // though "is this course completed RIGHT NOW" no longer is.
+    // WHY: requires course_percent() === 100 as well as the completion row, since lessons
+    // added after completion would otherwise leave the student "complete" with unseen content.
+    // The row is kept so course_completed_at() stays historically accurate.
     public static function is_course_completed(int $user_id, int $course_id): bool {
         global $wpdb;
         $has_completion_row = (bool) $wpdb->get_var($wpdb->prepare(
@@ -612,13 +433,7 @@ class BHC_Progress {
         ));
     }
 
-    // Count of distinct quiz steps actually PASSED in this course — the
-    // completion screen's "quizzes passed" stat. Same lesson-scoping
-    // query shape as course_quiz_average() above; deliberately a
-    // separate method rather than folding into that one, since a
-    // pass-count and a score-average answer two different questions
-    // (a student could pass every quiz at exactly the passing_score and
-    // still have a modest average, or vice versa on a generous curve).
+    // Distinct quiz steps passed in this course; separate from the average on purpose.
     public static function quizzes_passed_count(int $user_id, int $course_id): int {
         if (!$user_id) return 0;
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
@@ -650,17 +465,7 @@ class BHC_Progress {
 
         self::mark_step_complete($user_id, $lesson_id, $step_index);
 
-        // Bug found via live walkthrough (2026-07-26): the lesson
-        // sidebar's course-progress bar/label are server-rendered once
-        // at page load and never touched again by this AJAX flow, so
-        // completing a lesson's final step left them stuck at the
-        // PREVIOUS percentage until a full page reload — right at the
-        // exact moment the completion screen reveals itself as "Course
-        // complete!", the sidebar next to it kept showing the old,
-        // lower number. Returning the freshly-recalculated percent here
-        // lets courses.js update the sidebar in the same tick as the
-        // completion reveal, instead of two visibly contradictory
-        // states coexisting on screen.
+        // Return the fresh course percent so the front end can update the sidebar.
         $course_id = class_exists('BHC_PostTypes') ? BHC_PostTypes::course_for_lesson($lesson_id) : 0;
         wp_send_json_success([
             'step_index' => $step_index,
@@ -687,10 +492,7 @@ class BHC_Progress {
 
         $auto_completed = self::update_watch_progress($user_id, $lesson_id, $step_index, $percent);
 
-        // Same sidebar-staleness fix as ajax_mark_complete() above —
-        // only worth the extra query on the tick that actually crosses
-        // the auto-complete threshold, not every timeupdate-driven
-        // progress ping.
+        // Course percent only on the tick that auto-completes.
         $course_id = 0;
         $course_percent = null;
         if ($auto_completed && class_exists('BHC_PostTypes')) {
@@ -700,20 +502,8 @@ class BHC_Progress {
         wp_send_json_success(['step_index' => $step_index, 'auto_completed' => $auto_completed, 'course_id' => $course_id, 'course_percent' => $course_percent]);
     }
 
-    // OPEN.md item 21 (interactive-video variants), built on item 22's
-    // sub_index — the "self-check only, never persisted" posture
-    // class-steps.php originally documented for 'question' annotations
-    // is now a real completion record, same infrastructure a quiz STEP
-    // already gets, just at annotation granularity (sub_index =
-    // annotation's own array position + 1 — sub_index 0 stays reserved
-    // for the video step's own row).
-    //
-    // Deliberately re-scores server-side from the annotation's own
-    // stored correct_index rather than trusting a client-submitted
-    // "correct" boolean — the client already computes and shows this
-    // instantly for a responsive UI, but persisting an unverified
-    // client claim would let a student's request simply assert they
-    // got every question right.
+    // Persists a 'question' annotation answer at sub_index = annotation index + 1.
+    // WHY: re-scored server-side from the stored correct_index, never a client "correct" flag.
     public static function ajax_mark_annotation(): void {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();
@@ -766,14 +556,8 @@ class BHC_Progress {
         $attempts_so_far = $existing ? (int) $existing['attempts'] : 0;
 
         if (!$already_passed && $max_attempts > 0 && $attempts_so_far >= $max_attempts) {
-            // Depth-of-magic reframing, same intent as the fresh-submission
-            // exhausted-attempts copy in courses.js: name the specific
-            // missed questions from the LAST stored attempt (already
-            // persisted, no rescoring needed) rather than a flat dead-end
-            // message, for the case where a student reloads/re-attempts
-            // an already-exhausted quiz in a NEW request (the JS-side
-            // reframing only covers the request that just used the final
-            // attempt, not a later resubmit hitting this earlier guard).
+            // Name the missed questions from the last stored attempt, for a later request
+            // against an already-exhausted quiz.
             $snapshot = self::stored_answers($user_id, $lesson_id, $step_index);
             $missed = [];
             if (is_array($snapshot['questions'] ?? null)) {
@@ -792,21 +576,9 @@ class BHC_Progress {
             ], 403);
         }
 
-        // QA fix: a step that's already passed must never be rescored —
-        // the old code only used $already_passed to skip the attempts-
-        // exhausted check above, then fell through to score_quiz() and
-        // mark_step_complete() regardless, which could overwrite a
-        // passing result with a failing one on a resubmit/replayed POST
-        // (the front end disables the resubmit UI, but that's not a
-        // server-side guarantee). Once passed, stay passed.
+        // WHY: a passed quiz is never rescored, so a replayed POST can't overwrite a pass
+        // with a fail. Return the stored snapshot instead.
         if ($already_passed) {
-            // Return the stored snapshot (if this row predates the
-            // answers column, stored_answers() is simply null and the
-            // front end falls back to the aggregate-only display it
-            // already had) so a resubmit against an already-passed quiz
-            // — which the disabled UI shouldn't normally trigger, but a
-            // replayed POST could — still gets the same rich response a
-            // fresh pass would, rather than a degraded one.
             $snapshot = self::stored_answers($user_id, $lesson_id, $step_index);
             $course_id = class_exists('BHC_PostTypes') ? BHC_PostTypes::course_for_lesson($lesson_id) : 0;
             wp_send_json_success([
@@ -829,12 +601,8 @@ class BHC_Progress {
 
         $result = BHC_Steps::score_quiz($step, $answers);
 
-        // Snapshot per QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1.3: self-
-        // contained (question text/choices/correct_index, not just the
-        // chosen index), so a later edit to this quiz can never corrupt
-        // what this review shows. score/passed/passing_score duplicated
-        // into the blob too, so a review render is one row read, not a
-        // join against the step's own current (possibly different) config.
+        // Self-contained snapshot (question text, choices, correct_index, score) so later
+        // edits to the quiz can't change what the review shows.
         $answers_json = wp_json_encode([
             'score' => $result['score'],
             'passed' => $result['passed'],

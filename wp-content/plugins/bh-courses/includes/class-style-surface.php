@@ -2,17 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Registers representative previews of this plugin's own front-end UI
- * into the shared Style gallery (`bhy_style_surfaces`) — same extension
- * mechanism bh-streaming and bh-contest already use, so a course's
- * cards, progress bars, lesson steps, and quiz UI all get styled from
- * the same shared design tokens (colors/typography/spacing) as every
- * other plugin, and can be live-previewed without needing real course
- * data or a logged-in student.
- *
- * Two separate surfaces rather than one, since a course-card grid and
- * a mid-lesson quiz step are genuinely different layouts worth
- * previewing/tuning independently.
+ * Registers previews of this plugin's front-end UI in the Style gallery
+ * (`bhy_style_surfaces`): one for the catalog grid, one for the lesson layout.
  */
 class BHC_StyleSurface {
     public static function init(): void {
@@ -36,14 +27,8 @@ class BHC_StyleSurface {
     }
 
     /**
-     * Real card markup, not a thinner stand-in — same classes/structure
-     * BHC_Render_Catalog::render_course_card() builds (thumbnail-or-
-     * placeholder poster, difficulty badge, buy-once badge, instructor
-     * avatar, lesson count, rich-text excerpt, progress), so tuning a
-     * token here actually shows what a visitor sees at /courses/. One
-     * card has a real thumbnail image, one uses the accent-gradient
-     * placeholder, one is locked with a price badge — the three shapes
-     * that grid actually has to handle.
+     * Real catalog card markup (same classes as BHC_Render_Catalog): one with a thumbnail,
+     * one placeholder, one locked with a price badge.
      *
      * @return array{css_url:string, html:string|false}
      */
@@ -89,14 +74,8 @@ class BHC_StyleSurface {
     }
 
     /**
-     * The FULL lesson-taking layout — sidebar + video + caption + a
-     * text step + a quiz step together, not an isolated fragment — so
-     * the "Lesson sidebar width" / "Lesson video max width" / caption
-     * size+font sliders (BHC_VideoSettings' custom_sliders()/
-     * custom_fonts() registrations) actually show their effect here,
-     * matching the real .bhc-lesson-layout shell
-     * (BHC_Render_Course::render_lesson_sidebar()) and per-step video
-     * wrapper (BHC_Render_Lesson::render_step()) class-for-class.
+     * The full lesson layout (sidebar, video, caption, text and quiz steps), class-for-class,
+     * so the lesson sliders/fonts show their effect.
      *
      * @return array{css_url:string, html:string|false}
      */

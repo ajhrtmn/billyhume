@@ -2,31 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_Revisions — in-admin version history for admin-built content that
- * doesn't already get it for free from `wp_posts` (WordPress core's own
- * post-revisions feature already covers real posts/pages). Scoped in
- * ROADMAP-search-and-revisions.md Section 2. In-wp-admin, NOT git-based,
- * NOT developer-facing — the same restore-a-prior-save UX WordPress
- * core already gives a post, generalized to objects that don't use
- * `wp_posts` (or use it inconsistently).
- *
- * Deliberately a DIFFERENT thing from `OUS_Audit` (class-audit.php),
- * not a duplicate: Audit stores a field-level DIFF only ([old, new] per
- * changed key) and is pruned once it crosses a row-count bound — a
- * genuinely different tool ("who changed what," an accountability log),
- * not something that can reconstruct a prior full version on its own.
- * This table stores the FULL object state as JSON, one snapshot per
- * save, and is not pruned by default — a revision history that silently
- * loses old versions defeats its own point.
- *
- * Same "one shared service, zero central registration needed by
- * consumers" shape as OUS_Jobs/OUS_Notifications: a bare static class in
- * core, self-managed schema, a small set of static verb methods any
- * plugin calls directly. Deliberately does NOT know how to write any
- * specific object's own live table — restore() hands the snapshot back
- * via a fired action rather than mutating anything itself, so this
- * class stays genuinely object-agnostic (the same posture BH_Content's
- * renderer registry already takes about what a "block" is).
+ * OUS_Revisions: full-state version history (JSON snapshot per save, not
+ * pruned) for admin-built content outside wp_posts. Unlike OUS_Audit, which
+ * keeps field-level diffs only. Object-agnostic: restore() hands the snapshot
+ * back via an action; the consumer writes it.
  */
 class OUS_Revisions {
     const DB_VERSION = '1.0';
@@ -81,11 +60,8 @@ class OUS_Revisions {
      * ================================================================= */
 
     /**
-     * Stores the WHOLE current state of an object as one snapshot.
-     * $full_state is consumer-defined — whatever "the complete thing"
-     * means for that object (a CRM person's notes/tags array, a tier's
-     * full field set, a lesson's block tree). Auto-increments `version`
-     * per (object_type, object_id). Returns the new version number.
+     * Stores the whole consumer-defined state of an object as one snapshot.
+     * Auto-increments `version` per (object_type, object_id); returns it.
      */
     /** @param array<string, mixed> $full_state */
     public static function snapshot(string $object_type, int $object_id, array $full_state, ?string $label = null, ?int $user_id = null): int {
@@ -117,7 +93,7 @@ class OUS_Revisions {
      * Reading
      * ================================================================= */
 
-    /** Past versions (newest first) for a "Version History" panel — metadata only, not the full stored data (see get_version() for that). */
+    /** Past versions, newest first; metadata only (see get_version()). */
     /** @return array<int, array<string, mixed>> */
     public static function history(string $object_type, int $object_id, int $limit = 20): array {
         global $wpdb;
@@ -129,7 +105,7 @@ class OUS_Revisions {
         return $rows ?: [];
     }
 
-    /** The full stored snapshot for one specific version, decoded back into an array. Null if that version doesn't exist. */
+    /** Full snapshot for one version, or null if it does not exist. */
     /** @return array<string, mixed>|null */
     public static function get_version(string $object_type, int $object_id, int $version): ?array {
         global $wpdb;
@@ -143,12 +119,8 @@ class OUS_Revisions {
     }
 
     /**
-     * Doesn't write anything itself — hands the snapshot data back and
-     * fires an action the CONSUMER listens for, since only the consumer
-     * knows how its own object is actually saved/persisted. Returns the
-     * snapshot array (or null if the version doesn't exist) so a caller
-     * that already knows its own save path can also just call this
-     * directly without needing the action.
+     * Writes nothing: fires an action for the consumer to apply the snapshot,
+     * and returns it (or null) for callers that apply it directly.
      */
     /** @return mixed */
     public static function restore(string $object_type, int $object_id, int $version) {
@@ -159,34 +131,15 @@ class OUS_Revisions {
     }
 
     /* =================================================================
-     * Shared admin UI fragment — a consumer drops this into its own
-     * metabox/panel rather than building its own version-history table
-     * markup from scratch every time.
+     * Shared admin UI fragment
      * ================================================================= */
 
     /**
-     * Renders a real "Version History" list with Restore links.
-     * $restore_action is the admin-post action name the Restore link
-     * points at — the CONSUMER registers that handler and calls
-     * restore()/applies the snapshot however its own save path works;
-     * this fragment only renders the list.
-     *
-     * Uses a plain GET link with a nonce, not a <form>: this fragment
-     * always renders inside a metabox, which is itself already inside
-     * wp-admin's page-wide `<form id="post">` — nested forms aren't
-     * supported by browsers, so a real <form> here would get its fields
-     * merged into the outer one and hijack the page's real "Update"/
-     * "Publish" submission. Same pattern as this ecosystem's "Move to
-     * Trash" link.
-     *
-     * Layout is a real CSS masonry flow (native `columns`, no JS): this
-     * fragment renders in both wide "normal" metaboxes (BHM_Tiers) and
-     * WordPress's narrow "side" column metaboxes (bh-contest's Version
-     * History box, ~280px), where a fixed Version/When/By/Label/Restore
-     * table doesn't fit the narrow case. `columns` auto-collapses to a
-     * single column below `column-width` and packs cards side-by-side
-     * when there's room, with no JS or fixed breakpoints needed for
-     * either metabox context.
+     * Version History list with Restore links to $restore_action (an admin-post
+     * handler the consumer registers).
+     * WHY: GET links with a nonce, not a <form>: it renders inside metaboxes,
+     * already inside <form id="post">, and nested forms hijack the page's submit.
+     * CSS `columns` masonry so it fits both wide and narrow side metaboxes.
      */
     public static function render_history_panel(string $object_type, int $object_id, string $restore_action, string $nonce_action): void {
         $rows = self::history($object_type, $object_id);
@@ -202,25 +155,8 @@ class OUS_Revisions {
                 add_query_arg(['action' => $restore_action, 'object_id' => (int) $object_id, 'version' => (int) $r['version']], admin_url('admin-post.php')),
                 $nonce_action, 'ous_revisions_nonce'
             );
-            // Real bug, found live via the admin skin's contrast sweep:
-            // this was hardcoded hex (border:#dcdcde, background:#fff)
-            // with zero token backing — a sixth hardcoded-styling
-            // mechanism the earlier "assume there's a fifth" sweep
-            // never reached, because it's a genuinely shared service
-            // (OUS_Revisions) rather than any one screen's own markup.
-            // Measured a 1.17 contrast ratio (solid white background,
-            // the bare "Version #N" <div> had no color of its own at
-            // all), functionally invisible against the admin skin's
-            // dark theme. Fixed by reusing the EXISTING .bhy-card class
-            // (class-ui.php) rather than inventing var(--bhy-*)-backed
-            // inline styles — admin-skin.css themes cards by CLASS
-            // NAME with !important (.postbox, .bhy-card, .ous-card...
-            // all share one rule), not by redefining the --bhy-*
-            // custom properties themselves, so a plain var() fallback
-            // here would have stayed light-mode-only regardless of
-            // theme. .bhy-card already provides equivalent background/
-            // border/radius/padding — only the masonry-specific
-            // break-inside rule still needs to be inline.
+            // WHY: .bhy-card, not inline colors: admin-skin.css themes cards by
+            // class name, so inline styles would stay light-mode-only.
             echo '<div class="bhy-card" style="break-inside:avoid;">';
             echo '<div style="font-weight:600;">Version #' . (int) $r['version'] . '</div>';
             echo '<div class="description" style="margin:2px 0;">' . esc_html(mysql2date('M j, Y g:ia', $r['created_at'])) . '</div>';
@@ -232,9 +168,7 @@ class OUS_Revisions {
     }
 
     /* =================================================================
-     * Debug Tools — lets the mechanism itself be tested without a
-     * consumer wired up yet, same convention every other shared service
-     * in this ecosystem follows.
+     * Debug Tools: exercise the mechanism without a consumer.
      * ================================================================= */
 
     /**

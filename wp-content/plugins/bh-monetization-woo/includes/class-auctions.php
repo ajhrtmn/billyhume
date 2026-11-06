@@ -2,55 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Auction listings — ROADMAP-platform-evolution.md Section 5a, the
- * item STATUS.md flagged as "sequenced last." Agreed shape (2026-08-01)
- * before any of this was written, REVISED 2026-08-26 on payment timing
- * (see below):
- *
- *  1. PAYMENT TIMING — REVISED 2026-08-26. The original 2026-08-01 shape
- *     used BHM_Wallet holds (hold()/release_hold()/capture_hold()) at
- *     bid time — authorize on every bid, capture only the winner's hold
- *     at close. Explicit standing instruction from the project owner:
- *     "charge on win is important" — bids no longer place a hold at
- *     all; place_bid() only does a soft available-balance check as a
- *     courtesy (not a commitment), and close_auction() charges the
- *     winner directly via BHM_Wallet::debit() (the same atomic,
- *     TOCTOU-safe primitive bh-streaming's pay-per-play already uses)
- *     at the moment the auction closes. Real, accepted trade-off: a
- *     winner's balance can change between their bid and the close, so
- *     debit() can fail at close time — that auction simply closes
- *     unsold (bid status 'payment_failed') rather than falling back to
- *     the next-highest bidder (a real v2 gap, not attempted here).
- *  2. An auction listing IS a real WooCommerce product with an "auction"
- *     mode layered on via postmeta — NOT a new custom post type. This
- *     reuses the storefront/purchase-ledger machinery that already
- *     exists rather than duplicating it for a new post type, matching
- *     the platform-generalization decision made the same day (favor
- *     reusable machinery over vertical-specific one-offs).
- *  3. Closing precision: bh-contest's own round-closing was checked
- *     first for precedent and turned out to be ALWAYS human-initiated
- *     (BH_Rounds::window_status() only gates the UI live, on every page
- *     load — advancing a round needs an admin's click). That doesn't
- *     work for an auction nobody's going to babysit. This class combines
- *     that same lazy, live status-check pattern (status() below) for
- *     immediate UI correctness regardless of cron lag, with OUS_Jobs
- *     (already vendored Action Scheduler, see class-jobs.php) actually
- *     doing the automated close — not a raw wp_schedule_event.
- *  4. FRAUD GATE — added 2026-08-26. BHM_Fraud has no synchronous
- *     "block this purchase" gate (it's a reactive, post-refund
- *     pattern tracker — see its own docblock), so the real integration
- *     point is its existing per-user flags: a winner already flagged
- *     via `_bhm_refund_flagged` or `_bhm_refund_shared_device_flagged`
- *     skips the automatic charge and goes to a human-reviewed
- *     'awaiting_review' state instead — same "flag for review, never
- *     auto-restrict" posture BHM_Fraud's own docblock establishes.
- *     BHM_AuctionAdmin::handle_resolve_flagged_auction() is where a
- *     human actually approves (charge) or rejects (unsold) it.
- *
- * Product-edit metabox (BHM_AuctionAdmin, class-auction-admin.php) and
- * front-end bid form (BHM_AuctionFrontend, class-auction-frontend.php)
- * shipped 2026-08-26 alongside the payment-timing/fraud-gate revisions
- * above.
+ * Auction listings: a WooCommerce product with auction postmeta, closed by an OUS_Jobs job.
+ * - Charge-on-win: bids hold nothing; close_auction() debits the winner. A failed debit leaves it unsold.
+ * - status() is computed live, so bidding stops at the deadline even if the close job is late.
+ * - A winner carrying a BHM_Fraud refund flag goes to 'awaiting_review' for a human to resolve.
  */
 class BHM_Auctions {
     const META_IS_AUCTION = '_bhm_is_auction';
@@ -74,11 +29,7 @@ class BHM_Auctions {
     }
 
     /**
-     * Turns an existing WooCommerce product into an auction listing —
-     * deliberately not "create a product," since authoring (title,
-     * description, images) is exactly what the normal product-edit
-     * screen already does; this only layers the auction-specific meta
-     * on top and schedules the automated close.
+     * Layers auction meta onto an existing product and schedules the close.
      *
      * @param int    $product_id
      * @param int    $starting_cents Opening bid floor — the first bid must meet or beat this.
@@ -107,27 +58,9 @@ class BHM_Auctions {
     }
 
     /**
-     * Live, computed status — never trust a stored "is this closed"
-     * flag for whether bidding should still be accepted, same lazy-
-     * check reasoning bh-contest's own BH_Rounds::window_status()
-     * already established as this ecosystem's precedent for exactly
-     * this problem (deadline passage should never depend on a cron job
-     * having actually fired yet). Same technique too: a plain STRING
-     * comparison against current_time('mysql') — both sides are
-     * site-local MySQL datetime strings, which sort lexicographically
-     * the same as chronologically, so there's no GMT-offset conversion
-     * to get wrong. schedule_close()'s own delay-seconds math (below)
-     * is the one place this class actually needs a real timestamp, and
-     * converts explicitly for that reason.
-     *
-     * Returns one of: 'not_auction' | 'open' | 'awaiting_close' |
-     * 'awaiting_review' | 'closed'. 'awaiting_close' is the honest
-     * middle state between the deadline passing and OUS_Jobs actually
-     * running close_auction() — bidding is already refused, but the
-     * winner isn't finalized yet. 'awaiting_review' is the same idea
-     * for a winner the fraud gate flagged — close_auction() already
-     * ran, but a human still has to approve or reject before this
-     * finalizes (see the class docblock's fraud-gate note).
+     * Live status: 'not_auction' | 'open' | 'awaiting_close' (deadline passed, job not yet run) |
+     * 'awaiting_review' (fraud-flagged winner) | 'closed'.
+     * Plain string compare is safe: both sides are site-local MySQL datetimes.
      */
     public static function status(int $product_id): string {
         if (!self::is_auction($product_id)) return 'not_auction';
@@ -149,18 +82,7 @@ class BHM_Auctions {
         return (int) get_post_meta($product_id, self::META_CURRENT_BIDDER_ID, true);
     }
 
-    /**
-     * Places a bid — charge-on-win (see class docblock): a bid does NOT
-     * hold funds. This only does a soft available-balance courtesy
-     * check (BHM_Wallet::available_cents()) so a bidder isn't offering
-     * an amount they obviously can't cover right now — the real,
-     * binding check is the atomic BHM_Wallet::debit() call in
-     * close_auction() at the moment they'd actually be charged. A
-     * balance that changes between this bid and the close is the
-     * accepted trade-off documented in the class docblock.
-     *
-     * @return true|WP_Error
-     */
+    // Holds no funds; the balance check is a courtesy, the binding check is debit() at close.
     /**
      * @param mixed $amount_cents
      * @return true|\WP_Error
@@ -174,9 +96,7 @@ class BHM_Auctions {
 
         $current_bid = self::current_bid_cents($product_id);
         $has_prior_bid = (bool) get_post_meta($product_id, self::META_CURRENT_BID_CENTS, true);
-        // No bid yet: the FIRST bid only needs to meet the starting
-        // price, not beat it (there's nothing to beat). Every bid after
-        // that must strictly exceed the current highest.
+        // First bid may equal the starting price; later bids must exceed the current high.
         $minimum = $has_prior_bid ? $current_bid + 1 : $current_bid;
         if ($amount_cents < $minimum) {
             return new WP_Error('bhm_auction_bid_too_low', 'Your bid must be at least ' . number_format($minimum / 100, 2) . '.');
@@ -219,20 +139,7 @@ class BHM_Auctions {
         );
     }
 
-    /**
-     * OUS_Jobs handler, registered in init() above — runs once, at (or
-     * shortly after) the auction's own end time. Idempotent: a second
-     * call against an already-finalized OR already-flagged-for-review
-     * auction is a harmless no-op.
-     *
-     * Charge-on-win (see class docblock): no hold to capture/release
-     * here anymore — a would-be winner not flagged for fraud review is
-     * charged directly via BHM_Wallet::debit(), the same atomic,
-     * TOCTOU-safe primitive pay-per-play already uses. A flagged winner
-     * skips the automatic charge entirely and this auction sits in
-     * 'awaiting_review' until BHM_AuctionAdmin::handle_resolve_flagged_auction()
-     * resolves it by hand.
-     */
+    /** OUS_Jobs handler at end time. Idempotent: no-op once finalized or flagged for review. */
     /** @param array<string, mixed> $args */
     public static function close_auction($args): void {
         $product_id = (int) ($args['product_id'] ?? 0);
@@ -246,8 +153,6 @@ class BHM_Auctions {
         $meets_reserve = $winner_id && $winning_bid > 0 && $winning_bid >= $reserve;
 
         if (!$meets_reserve) {
-            // No bids, or reserve not met — nothing was ever held, so
-            // there's nothing to release; the auction just doesn't sell.
             if ($winner_id && $winning_bid > 0) self::mark_bid_status($product_id, $winner_id, $winning_bid, 'reserve_not_met');
             self::finalize($product_id, 0, false);
             return;
@@ -274,14 +179,14 @@ class BHM_Auctions {
             || (bool) get_user_meta($user_id, '_bhm_refund_shared_device_flagged', true);
     }
 
-    /** Actually charges the winner and finalizes — shared by close_auction() and the admin's manual "approve" resolution. */
+    /** Shared by close_auction() and the admin "approve" resolution. */
     private static function charge_and_finalize(int $product_id, int $winner_id, int $winning_bid): void {
         $charged = class_exists('BHM_Wallet') && BHM_Wallet::debit($winner_id, $winning_bid, $product_id, 'auction_win');
         self::mark_bid_status($product_id, $winner_id, $winning_bid, $charged ? 'won' : 'payment_failed');
         self::finalize($product_id, $charged ? $winner_id : 0, $charged);
     }
 
-    /** Admin resolution for an 'awaiting_review' auction — approve charges the winner, reject leaves it unsold. Both clear the review flag and finalize. */
+    /** Resolve an 'awaiting_review' auction: approve charges the winner, reject leaves it unsold. */
     public static function resolve_flagged_auction(int $product_id, bool $approve): void {
         if (!get_post_meta($product_id, self::META_NEEDS_REVIEW, true)) return;
         delete_post_meta($product_id, self::META_NEEDS_REVIEW);

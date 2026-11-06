@@ -2,35 +2,15 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BHC_Sessions — Phase 5 of the OSS-integration master plan:
- * availability + booking, the "smallest real version" of scheduling per
- * ROADMAP-lms-instructor-student-depth.md §1. Deliberately NOT a full
- * calendar app or a recurrence engine — an instructor publishes a
- * handful of open slots, a student books one. FullCalendar (vendored,
- * assets/js/vendor/fullcalendar.global.js, v7.0.2, MIT, real bytes from
- * its official GitHub release — its Standard/free tier only, no
- * resource/timeline views, which need a paid Premium license) renders
- * these as a real month-view calendar in class-sessions-admin.php/
- * class-sessions-portal.php, but the underlying data model here has no
- * dependency on it at all.
- *
- * Single-instructor scoped for v1 (AJ's call, this session):
- * instructor_id defaults to whoever holds bhcore_manage_students rather
- * than exposing an instructor-picker — see instructor_id() below.
- *
- * A slot's booking uses the exact same atomic-conditional-UPDATE claim
- * idiom as BHF_Queue::claim() (bh-feedback/includes/class-queue.php) —
- * a plain wpdb table here, so no post-cache invalidation concern that
- * class had to work around, just the same "the WHERE clause on the
- * expected prior state IS the concurrency guard" shape.
+ * Instructor availability + booking: an instructor publishes open slots, a student books
+ * one. FullCalendar (vendored) renders them, but the data model doesn't depend on it.
+ * Single-instructor for now (see default_instructor_id()). Booking is an atomic conditional
+ * UPDATE: the WHERE on the expected prior state is the concurrency guard.
  */
 class BHC_Sessions {
     const STATUSES = ['open' => 'Open', 'booked' => 'Booked', 'completed' => 'Completed', 'cancelled' => 'Cancelled'];
 
-    // Self-cancellation cutoff — a student can't free their own slot
-    // within this many hours of the start time (AJ's call: yes to
-    // self-cancel, but with a cutoff). Filterable so this doesn't need
-    // a code change to tune later.
+    // Students can't self-cancel within this many hours of the start. Filterable.
     public static function cancel_cutoff_hours(): int {
         return (int) apply_filters('bhc_session_cancel_cutoff_hours', 24);
     }
@@ -45,10 +25,7 @@ class BHC_Sessions {
         if (self::create_or_update_schema()) update_option('bhc_sessions_db_version', self::DB_VERSION);
     }
 
-    // A plain register_activation_hook() alone misses a file-replace
-    // deploy of an already-active plugin, since that never fires WP's
-    // real activation hook — same reasoning BHCRM_Links/BHCRM_Segments'
-    // own maybe_upgrade() already documents.
+    // Runs on load, since a file-replace deploy never fires the activation hook.
     public static function maybe_upgrade(): void {
         if (version_compare(get_option('bhc_sessions_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) update_option('bhc_sessions_db_version', self::DB_VERSION);
@@ -78,7 +55,7 @@ class BHC_Sessions {
         return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', self::table())) === self::table();
     }
 
-    /** Single-instructor v1: the first account holding bhcore_manage_students. Not exposed as a setting yet — see this class's own docblock. */
+    /** Single-instructor: the first account holding bhcore_manage_students. */
     public static function default_instructor_id(): int {
         $users = get_users(['role__in' => ['administrator'], 'number' => 1, 'fields' => 'ID']);
         $cap_users = get_users(['capability' => 'bhcore_manage_students', 'number' => 1, 'fields' => 'ID']);
@@ -134,11 +111,7 @@ class BHC_Sessions {
     }
 
     /**
-     * The one-row conditional UPDATE — status flips open -> booked only
-     * if it's STILL open right this moment, same shape as
-     * BHF_Queue::claim(). $wpdb->rows_affected === 1 is the only source
-     * of truth for "did I actually get it," never a separate read-then-
-     * write.
+     * Flips open -> booked only if still open; rows_affected === 1 is the only source of truth.
      */
     /** @return bool */
     public static function claim(int $slot_id, int $student_id) {
@@ -172,11 +145,8 @@ class BHC_Sessions {
     }
 
     /**
-     * Student self-cancel — only the booking student can free their own
-     * slot (guarded in the same atomic statement, not check-then-act),
-     * and only outside the configured cutoff window. Staff cancellation
-     * (BHC_SessionsAdmin) is a separate, unrestricted path — a manager
-     * can always cancel/reopen a slot regardless of the cutoff.
+     * Student self-cancel: only the booking student, in the same atomic statement, and only
+     * outside the cutoff. Staff cancellation (BHC_SessionsAdmin) is unrestricted.
      */
     /** @return bool|\WP_Error */
     public static function self_cancel(int $slot_id, int $student_id) {
@@ -211,8 +181,9 @@ class BHC_Sessions {
         return $wpdb->update(self::table(), ['status' => $status], ['id' => (int) $slot_id]) !== false;
     }
 
-    /** Feed for a FullCalendar month view — plain events array, {id, title, start} shape FullCalendar's own events source expects. */
     /**
+     * Feed for a FullCalendar month view: {id, title, start} events.
+     *
      * @param array<int, array<string, mixed>> $rows
      * @return array<int, array<string, mixed>>
      */

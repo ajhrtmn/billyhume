@@ -2,41 +2,17 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BH_Storybook_Panel — a Design Suite section for the ecosystem's real
- * Storybook integration (.storybook/, @storybook/addon-a11y, fixtures
- * generated from the actual BHY_UI:: renderers — see .storybook/README.md).
+ * BH_Storybook_Panel: Design Suite section for the Storybook build and a11y
+ * audit (.storybook/). Output goes to wp-content/uploads/storybook-static/.
  *
- * WHY here and not Debug Tools: Design Suite (BHY_Gallery::render()) is
- * already the "Storybook-patterned live preview gallery" this ecosystem's
- * own description names — the real Storybook belongs beside its own
- * hand-built analog, not filed under general dev/ops tooling.
- *
- * WHY shell_exec is safe here and nowhere else in this ecosystem: this is
- * the ONE feature in the whole codebase that intentionally runs a build
- * command from a web request, and it is deliberately locked to
- * non-production environments via the exact same OUS_Debug::is_locked()
- * check every other "does real work" Debug Tools section already uses —
- * never runs on a live site, regardless of who is logged in or what they
- * POST. Wrapping this in an entirely separate, narrowly-scoped class
- * (rather than adding a shell_exec call inside an existing section) keeps
- * the one command-execution surface in this codebase easy to find, read,
- * and audit in one place.
- *
- * Build output is written to wp-content/uploads/storybook-static/ (real
- * uploads dir, already web-accessible, never synced by deploy-ftp.yml —
- * so a local build never leaks into a git-tracked path) and shown here in
- * an iframe. On a genuinely locked (production-looking) environment, the
- * run buttons don't render at all; only the most recent build (if one
- * exists at that path) is still viewable, since VIEWING a static file is
- * not "doing work" the production lock exists to prevent.
+ * WHY: this is the codebase's one shell_exec surface, isolated here for audit
+ * and locked by OUS_Debug::is_locked(); on a locked site only viewing an
+ * existing build remains.
  */
 class BH_Storybook_Panel {
     const OPTION_LOG = 'bh_storybook_last_log';
 
-    // The repo the GitHub Actions trigger dispatches against — same
-    // default this ecosystem's own GitHub-Updates checker already uses
-    // (class-github-updates.php), filterable the same way for anyone
-    // running a fork.
+    // Workflow the GitHub Actions trigger dispatches.
     const WORKFLOW_FILE = 'storybook-audit.yml';
 
     public static function init(): void {
@@ -48,12 +24,7 @@ class BH_Storybook_Panel {
         return apply_filters('ous_github_updates_default_repo', 'ajhrtmn/billyhume');
     }
 
-    // Which ref (branch) the dispatched workflow run checks out. 'master'
-    // specifically: deploy-ftp.yml only ever ships from `stable`, but the
-    // workflow file and the code it audits both need to exist on whatever
-    // ref this targets, and master is where dev's work lands once pushed
-    // -- not a guess, matches this exact session's own "get it to master"
-    // instruction.
+    // Ref the dispatched run checks out; the workflow and audited code live on master.
     private static function default_ref(): string {
         return apply_filters('bh_storybook_gha_ref', 'master');
     }
@@ -68,36 +39,13 @@ class BH_Storybook_Panel {
         return trailingslashit($upload['baseurl']) . 'storybook-static';
     }
 
-    // ABSPATH is this install's site root, and the Storybook config lives
-    // one level below that same root (.storybook/, package.json) since
-    // deployment here is a plain FTP sync of wp-content/plugins, not a
-    // packaged WordPress-only tree — confirmed directly (package.json
-    // sits beside wp-config.php), not assumed.
+    // .storybook/ and package.json sit at the site root beside wp-config.php.
     private static function site_root(): string {
         return rtrim(ABSPATH, '/\\');
     }
 
-    // PHP-FPM (what actually runs this, not the interactive terminal a
-    // developer tests commands in) spawns with a PATH stripped down to
-    // almost nothing -- confirmed live by dumping $PATH from inside an
-    // actual web request on this install: Local by Flywheel sets it to
-    // one single ghostscript bin directory (for PDF thumbnails), nothing
-    // else. Every earlier attempt failed because of that one fact wearing
-    // different masks: plain `npm` -- not found (no node bin dir on
-    // PATH). Bare `bash -lc` -- "bash: command not found", because
-    // *finding bash itself* also needs PATH, and this one doesn't even
-    // have /bin on it. HOME, checked directly, was already set correctly
-    // the whole time -- never the actual problem.
-    //
-    // The fix is the one piece that doesn't depend on PATH at all:
-    // invoke bash by its own absolute, universal path (/bin/bash exists
-    // on essentially every Unix/macOS install, unlike a developer's own
-    // nvm version string). Once bash itself is running, `-l` makes it
-    // source ~/.bash_profile, which is where nvm adds its bin directory
-    // to PATH for everything the command actually needs (npm, npx).
-    // Verified directly: /bin/bash -lc "which npm" resolves correctly
-    // from inside a real web request; plain `bash -lc` from the same
-    // request could not find bash at all to even try.
+    // WHY: PHP-FPM's PATH lacks node and even /bin, so bash is invoked by absolute
+    // path and `-l` sources ~/.bash_profile, where nvm puts npm/npx on PATH.
     private static function in_login_shell(string $cmd): string {
         return '/bin/bash -lc ' . escapeshellarg($cmd);
     }
@@ -152,12 +100,7 @@ class BH_Storybook_Panel {
         echo '</div>';
     }
 
-    // The button above only ever works on a machine with Node installed
-    // -- never on live. This is the other half: the SAME build + audit,
-    // run by GitHub Actions instead of this server, triggered by a plain
-    // authenticated REST call. Shown regardless of is_locked(), since
-    // this is specifically the path meant to work FROM production, where
-    // the shell_exec buttons above are deliberately dead.
+    // Same build + audit via GitHub Actions, meant to work from production.
     private static function render_gha_section(): void {
         $token_set = defined('OUS_GITHUB_ACTIONS_TOKEN') && OUS_GITHUB_ACTIONS_TOKEN !== '';
         $repo = self::repo();
@@ -194,13 +137,7 @@ class BH_Storybook_Panel {
         $action = sanitize_key($_POST['bh_storybook_action'] ?? '');
         $root = self::site_root();
 
-        // A build/audit run can genuinely take longer than PHP's default
-        // max_execution_time (30s) — six widths, two themes, a real
-        // Chromium launch. This IS the request; there is no background
-        // job to hand it off to without duplicating a whole queue system
-        // for a local-only dev button. set_time_limit(0) is safe here
-        // specifically because is_locked() above already guarantees this
-        // never runs against real traffic.
+        // Runs past max_execution_time; safe because is_locked() keeps it off live.
         set_time_limit(0);
 
         if ($action === 'build') {
@@ -226,14 +163,8 @@ class BH_Storybook_Panel {
         self::redirect('Unknown action.');
     }
 
-    // POSTs to GitHub's workflow_dispatch endpoint
-    // (docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event).
-    // Deliberately NOT gated on is_locked() -- this is the one action in
-    // this whole class meant to run from production, since it does no
-    // local work at all; the token itself (fine-grained, Actions-write-
-    // only) is the actual access control, same as every other write
-    // action in this ecosystem that goes through a real capability
-    // check rather than an environment guess.
+    // POSTs to GitHub's workflow_dispatch endpoint. Not gated on is_locked():
+    // it does no local work, and the fine-grained token is the access control.
     public static function handle_gha_trigger(): void {
         check_admin_referer('bh_storybook_gha_trigger');
         if (!current_user_can('manage_options')) wp_die('Insufficient permissions.', 403);
@@ -257,23 +188,14 @@ class BH_Storybook_Panel {
             self::redirect('GitHub Actions trigger failed: ' . $response->get_error_message());
         }
         $code = wp_remote_retrieve_response_code($response);
-        // 204 No Content is GitHub's documented success response for this
-        // endpoint — there is no run ID to show yet, only a 202-style
-        // acknowledgement that dispatch was accepted.
+        // 204 No Content is GitHub's success response; no run ID is returned.
         if ($code === 204) {
             self::redirect('Triggered — check the Actions tab in a few seconds for the run.');
         }
         self::redirect('GitHub responded with HTTP ' . $code . ' — ' . wp_remote_retrieve_body($response));
     }
 
-    // `never`, not `void` -- found by a full PHPStan level-6 run (this
-    // file had only ever been php -l'd and PHPUnit-exercised before,
-    // never actually run through the project's own static analysis
-    // suite): without it, PHPStan doesn't know this always exit()s, so
-    // every early-return guard above that calls it and expects execution
-    // to stop (the OUS_GITHUB_ACTIONS_TOKEN definedness check in
-    // handle_gha_trigger()) reads as falling through instead, and the
-    // constant use two lines later gets flagged as possibly undefined.
+    // `never` tells PHPStan this always exits, so guards that call it stop execution.
     private static function redirect(string $msg): never {
         if (class_exists('OUS_Toast')) OUS_Toast::queue($msg, 'info');
         wp_safe_redirect(add_query_arg(['page' => 'bh-design', 'bh_storybook_msg' => rawurlencode($msg)], admin_url('admin.php')));

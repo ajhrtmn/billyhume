@@ -22,10 +22,7 @@ class BHC_Bunny {
 
     public static function init(): void {
         add_action('rest_api_init', [self::class, 'register_routes']);
-        // After a lesson saves (content-bridge has written _bhc_steps by
-        // priority 20), push each Bunny step's chapters up to Bunny so
-        // they render on Bunny's OWN player scrub bar — the one custom
-        // feature the cross-origin iframe can't paint itself.
+        // After _bhc_steps is written (priority 20), push chapters to Bunny's own player.
         add_action('save_post_bh_lesson', [self::class, 'sync_lesson_chapters'], 30, 1);
         add_action('rest_after_insert_bh_lesson', function ($post) { self::sync_lesson_chapters($post->ID); }, 30);
     }
@@ -43,25 +40,13 @@ class BHC_Bunny {
         }
     }
 
-    /** Bump when the request shape below changes, so the first save on a
-     *  new plugin version always re-pushes once even if the chapter set
-     *  itself is byte-identical to what a previous (possibly broken)
-     *  version already "synced". */
+    /** Bump when the request shape changes, to force one re-push after an upgrade. */
     const CHAPTER_SYNC_SCHEMA = 2;
 
     /**
-     * Replace a Bunny video's chapter list with ours via the Update
-     * Video endpoint (POST /library/{id}/videos/{guid}, `chapters`
-     * array — verified against Bunny's OpenAPI: there is no `/chapters`
-     * sub-route, and ChapterModel is {title (required, minLen 1), start,
-     * end} in whole seconds). Ours is [{time, title}]: end = the next
-     * chapter's start, last runs to the video's own length.
-     *
-     * Deduped by a stored hash so an unchanged set costs no API call —
-     * EXCEPT the hash isn't stored while the video's length is still
-     * unknown (0), because the last chapter's `end` is a guess until
-     * Bunny finishes encoding; leaving the hash unstored lets the next
-     * lesson save correct it.
+     * Replaces a Bunny video's chapters via the Update Video endpoint (`chapters`: {title,
+     * start, end} in seconds; there is no /chapters sub-route). end = next chapter's start.
+     * Deduped by a stored hash, except while the video length is unknown (0).
      *
      * @param array<int, array{time:int, title:string}> $chapters
      * @return true|\WP_Error|null null = Bunny API not configured
@@ -85,8 +70,7 @@ class BHC_Bunny {
             $start = max(0, (int) ($c['time'] ?? 0));
             $end   = ($i + 1 < $n) ? max(0, (int) ($chapters[$i + 1]['time'] ?? 0)) : ($len > $start ? $len : $start + 1);
             if ($end <= $start) $end = $start + 1;
-            // Bunny rejects the whole request if any chapter title is
-            // empty (min length 1), so never send a blank one.
+            // Bunny rejects the whole request on an empty title.
             $title = trim((string) ($c['title'] ?? ''));
             if ($title === '') $title = 'Chapter ' . ($i + 1);
             $payload[] = ['title' => $title, 'start' => $start, 'end' => $end];
@@ -192,11 +176,7 @@ class BHC_Bunny {
     }
 
     /**
-     * Force a chapter push for one video, straight from the editor —
-     * so an author can confirm Bunny's own scrub bar picked them up
-     * without waiting on a full lesson save. Accepts the block's live
-     * chapter list ([{time,title}]) so it works before the lesson is
-     * even saved. Bypasses the dedupe hash on purpose.
+     * Forces a chapter push from the editor using the block's live chapters; bypasses the dedupe hash.
      * @return \WP_REST_Response|\WP_Error
      */
     public static function rest_sync_chapters(\WP_REST_Request $req) {

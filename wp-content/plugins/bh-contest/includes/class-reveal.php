@@ -2,25 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Results Reveal — a controller/display pair for revealing contest
- * results live on stream, Olympics-medal-ceremony style: each category
- * counts up from 3rd place to the winner, one reveal at a time, then a
- * final "Overall" reveal across the whole contest.
- *
- * Two separate surfaces, deliberately:
- *  - The CONTROLLER (private, wp-admin, capability-gated) is what the
- *    admin actually clicks Next/Prev on.
- *  - The DISPLAY (public shortcode, [bh_results_reveal]) is what OBS
- *    captures. It polls its own state from the server every couple of
- *    seconds rather than sharing a browser/tab with the controller, so
- *    it works when the controller is running on a completely different
- *    machine from whatever machine is doing the OBS capture.
- *
- * There is no separate "test mode" — the whole system operates on
- * whatever contest is selected, real or seeded via Debug Tools. Create
- * a test contest, seed fake submissions and votes, close its voting
- * window, and the exact same controller/display pipeline that will run
- * the real reveal can be rehearsed against it end to end.
+ * Live results reveal: each category counts up from 3rd place to the winner,
+ * then an Overall reveal. An admin controller drives a public display
+ * ([bh_results_reveal]) that polls the server, so they can run on different machines.
  */
 class BH_Reveal {
     public static function init(): void {
@@ -46,10 +30,7 @@ class BH_Reveal {
 
     /* ---------- sequence + rendering ---------- */
 
-    // Ordered list of "steps" for a contest's reveal. Rebuilt fresh on
-    // every request from live data rather than cached/stored — a reveal
-    // in progress should never show stale vote counts, and contests are
-    // small enough that recomputing this is cheap.
+    // Ordered reveal steps, rebuilt from live data on every request (never cached).
     /** @return array<int, array<string, mixed>> */
     public static function build_sequence(int $cid): array {
         $steps = [['type' => 'intro', 'title' => get_the_title($cid)]];
@@ -57,23 +38,10 @@ class BH_Reveal {
         $cats = BH_Helpers::categories($cid);
         if (!$cats) $cats = [['slug' => '', 'name' => 'Results']];
 
-        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a: 'judges'
-        // swaps the public tally for the rubric average everywhere below
-        // — every existing step type/rendering is untouched, only which
-        // ranked-results function feeds it changes. 'hybrid' runs BOTH
-        // passes back to back (Judges' Pick fully revealed, then
-        // People's Choice), as two clearly-labeled leaderboards rather
-        // than a blended score — the roadmap doc's own direct decision,
-        // not a shortcut. A 'public' contest (every contest that
-        // predates this feature) takes exactly the single pass it always
-        // has, byte-for-byte the same sequence as before this existed.
+        // 'judges' feeds the rubric average into the same steps; 'hybrid' runs two
+        // labeled passes, never a blended score.
         $format = BH_Helpers::contest_format($cid);
-        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: a multi-
-        // round contest reveals the ACTIVE round's own tally, not votes/
-        // scores combined across every round (each round's votes are
-        // independent rows — class-activator.php 1.7) — null for a
-        // single-round contest, meaning "every vote regardless of round"
-        // exactly as before this feature existed.
+        // Multi-round contests reveal only the active round's tally; null = all votes.
         $round = class_exists('BH_Rounds') && BH_Rounds::is_multi_round($cid) ? BH_Rounds::active_round_index($cid) : null;
 
         $passes = [];
@@ -94,16 +62,8 @@ class BH_Reveal {
             }
         }
 
-        // Overall (cross-category) only ever makes sense for the public-
-        // vote tally on a SINGLE-round contest — a judged contest's
-        // "overall" is already exactly what the single (or, in hybrid,
-        // judges-pass) category loop above just revealed, and a multi-
-        // round contest's "overall" would combine eliminated rounds'
-        // votes with the survivors' current round in a way that doesn't
-        // mean anything coherent (see round scoping above) — the active
-        // round's own category reveal above IS the meaningful ranking
-        // for a multi-round contest, this section is additive to it, not
-        // required by it.
+        // Overall is public-vote and single-round only; across rounds it would mix
+        // eliminated entries' votes with the survivors'.
         if (($format === 'public' || $format === 'hybrid') && $round === null) {
             $overall = self::overall_results($cid);
             if ($overall) {
@@ -119,10 +79,7 @@ class BH_Reveal {
         return $steps;
     }
 
-    // Total votes per submission across every category in the contest —
-    // the "Overall" ranking, separate from any single category's. Public
-    // so BH_Discord's results-published announcement can reuse this
-    // exact ranking instead of re-deriving it.
+    // Overall ranking: total votes across all categories. Public for BH_Discord.
     /** @return array<int, array<string, mixed>> */
     public static function overall_results(int $cid): array {
         global $wpdb;
@@ -148,11 +105,8 @@ class BH_Reveal {
         return $out;
     }
 
-    // Resolves a step index into everything the display needs to render
-    // it — for a *_reveal step, that means the medal entries actually
-    // visible so far (built bottom-up: 3rd place appears first, then
-    // 2nd joins it, then 1st) plus which one just appeared, so the
-    // front end can single it out with its own reveal animation.
+    // Display data for one step; *_reveal steps include the medal entries shown
+    // so far (3rd first) and which rank just appeared.
     /** @return array<string, mixed> */
     public static function render_step(int $cid, int $index): array {
         $seq = self::build_sequence($cid);
@@ -163,12 +117,7 @@ class BH_Reveal {
         if ($step['type'] === 'intro') {
             $data['title'] = $step['title'];
         } elseif ($step['type'] === 'pass_intro') {
-            // Hybrid-format-only step (see build_sequence()) — the
-            // "Judges' Pick" / "People's Choice" section divider between
-            // the two leaderboards. reveal.js needs its own case for
-            // this type; a display that predates hybrid contests never
-            // sees this step type at all (build_sequence() only emits it
-            // for format === 'hybrid').
+            // Hybrid-only divider between the two leaderboards.
             $data['title'] = $step['title'];
         } elseif ($step['type'] === 'category_intro') {
             $data['category'] = $step['category'];
@@ -176,9 +125,7 @@ class BH_Reveal {
             $data['source'] = $step['source'] ?? 'public';
         } elseif ($step['type'] === 'category_reveal') {
             $source = $step['source'] ?? 'public';
-            // Same round-scoping as build_sequence() — must match, since
-            // this re-fetches results for whichever step index the
-            // sequence built against.
+            // Must match build_sequence()'s round scoping.
             $round = class_exists('BH_Rounds') && BH_Rounds::is_multi_round($cid) ? BH_Rounds::active_round_index($cid) : null;
             $results = $source === 'judges' ? BH_Judging::judge_results($cid, $step['slug'], $round) : BH_API::category_results($cid, $step['slug'], $round);
             $data['category'] = $step['category'];
@@ -194,25 +141,15 @@ class BH_Reveal {
         return $data;
     }
 
-    // How many distinct medal reveal steps a category/overall ranking
-    // actually needs — NOT how many entries qualify, since a tie means
-    // fewer distinct steps than entries (two people tied for 2nd is
-    // still only one reveal step, just with two names in it).
+    // Distinct medal ranks (ties share one reveal step), not the entry count.
     /** @param array<int, array<string, mixed>> $results */
     private static function medal_tier_count($results): int {
         $ranks = array_unique(array_column(array_filter($results, fn($r) => $r['rank'] <= 3), 'rank'));
         return count($ranks);
     }
 
-    // Given a ranked results list and how many medal TIERS have been
-    // revealed so far, returns [entries actually shown, the rank tier
-    // that was just revealed]. Tiers reveal worst-to-best (3rd-place
-    // tier first, building to the winner), and a tier can contain more
-    // than one entry if they're tied — both get shown together, both
-    // get the "just revealed" treatment, since medalIcon() and the
-    // "isNew"/"isWinner" checks in reveal.js already key off the rank
-    // VALUE rather than array position, so multiple entries sharing a
-    // rank are handled correctly with no front-end changes needed.
+    // Returns [entries shown, rank just revealed] after $reveal_count medal tiers,
+    // worst tier first. Tied entries share a tier; reveal.js keys off rank value.
     /**
      * @param array<int, array<string, mixed>> $results
      * @return array{0: array<int, array<string, mixed>>, 1: int}
@@ -242,13 +179,8 @@ class BH_Reveal {
         $seq = self::build_sequence($cid);
         $stored_index = max(0, min((int) get_post_meta($cid, '_bh_reveal_step', true), count($seq) - 1));
 
-        // ?index= is a read-only peek at a SPECIFIC step (any step at or
-        // before the real stored position — see the bounds check below),
-        // used by the display's catch-up logic to walk through steps the
-        // admin already advanced past between polls, one at a time,
-        // rather than jumping straight to the current step and silently
-        // skipping whatever suspense was in between. It never changes
-        // server state — only advance() (admin-only) can do that.
+        // ?index= is a read-only peek at a step at or before the stored one, so the
+        // display can catch up step by step instead of skipping ahead.
         $peek = $req->get_param('index');
         $render_index = $stored_index;
         if ($peek !== null) {
@@ -278,10 +210,7 @@ class BH_Reveal {
 
         $index = max(0, min($index, count($seq) - 1));
 
-        // Safety net: don't let the reveal progress past the intro while
-        // voting is still open, so a mis-click can't leak live standings
-        // before a contest has actually finished. This deliberately does
-        // NOT check submissions — only voting status matters here.
+        // WHY: never pass the intro while voting is open, so a mis-click can't leak standings.
         if ($index > 0 && BH_Helpers::is_voting_open($cid)) {
             return new WP_Error('voting_open', 'Voting is still open for this contest — close voting before revealing results.', ['status' => 403]);
         }
@@ -292,11 +221,7 @@ class BH_Reveal {
         return new WP_REST_Response($data, 200);
     }
 
-    // Prefers a contest whose voting has actually closed — the natural
-    // moment to be running a reveal — over just "whatever's newest."
-    // Public so BH_Console can default to the same contest, rather than
-    // the identity table and the reveal controls picking different ones
-    // when neither has an explicit ?contest_id= yet.
+    // Newest closed contest, else the active one. Public so BH_Console picks the same one.
     public static function default_contest(): int {
         foreach (BH_Helpers::all_contests() as $c) {
             if (BH_Helpers::contest_status($c->ID) === 'closed') return $c->ID;
@@ -306,14 +231,7 @@ class BH_Reveal {
 
     /* ---------- admin controls widget (embedded in Live Console) ---------- */
 
-    // Renders just the reveal controls (preview + Next/Prev/Reset) for a
-    // contest the caller has already resolved — no page chrome, no
-    // contest picker, no empty-state handling, since BH_Console::render()
-    // already owns all of that and calls this inline. Previously this
-    // was its own full admin page ("Reveal Control"); merged into Live
-    // Console so the participant identity/vote info and the controls for
-    // actually running the reveal live on the same screen instead of
-    // requiring two separate tabs while running the show.
+    // Reveal preview + Next/Prev/Reset, rendered inline by BH_Console::render().
     public static function render_controls_widget(int $cid): void {
         if (BH_Helpers::is_voting_open($cid)) {
             echo '<div class="notice notice-warning" style="margin:0 0 12px;"><p>Voting is still open — the reveal is locked to the intro slide until you close voting.</p></div>';
@@ -406,11 +324,7 @@ class BH_Reveal {
     /** @param mixed $atts */
     public static function render_display_shortcode($atts): string {
         $atts = shortcode_atts(['contest' => ''], $atts, 'bh_results_reveal');
-        // Same resolution the REST endpoint falls back to (see
-        // default_contest() above) — needed here too, not just there,
-        // so the embedded theme block below actually matches whichever
-        // contest ends up being displayed, including the common case
-        // where no explicit contest attribute was given at all.
+        // Same fallback as the REST endpoint, so the inline theme matches the shown contest.
         $cid = $atts['contest'] !== '' ? BH_Helpers::resolve_contest($atts['contest']) : self::default_contest();
 
         ob_start();

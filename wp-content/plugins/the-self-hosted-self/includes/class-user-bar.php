@@ -2,27 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The front-end user bar VISION.md names directly: wp-admin's own
- * toolbar is admin-oriented, often hidden entirely for an ordinary
- * subscriber/customer account (see BHI_Portal's own admin-bar
- * exclusion), and easy for the actual target user of most of these
- * plugins — a fan, a student, a supporter — to never see at all. This
- * is the one place in the whole ecosystem that's ALWAYS visible to an
- * ordinary logged-in user regardless of which plugin they're using
- * right now, meant to read as a genuinely designed piece of THIS
- * site's own UI (the same --bh-* brand tokens the portal/course pages
- * already use) — deliberately NOT a copy of WordPress's own dark
- * admin-toolbar look, and deliberately docked at the BOTTOM of the
- * viewport rather than the top, so it never reads as "the WP toolbar,
- * but on the front end."
- *
- * Quick links are contributed by any plugin via the `bhi_user_bar_links`
- * filter — same zero-central-registration shape as `bhi_portal_panels`/
- * `bhcore_metrics_widgets`. Each entry: ['label' => string, 'url' =>
- * string, 'meta' => optional string live micro-state]. A plugin should
- * only ever contribute a link when it has something ACTUALLY LIVE to
- * say (obvious-or-gone) — never a placeholder link to "browse courses"
- * for someone not enrolled in anything.
+ * Front-end user bar for logged-in users, docked at the bottom and styled with
+ * --bh-* tokens (deliberately not a copy of the WP toolbar). Plugins add links
+ * via `bhi_user_bar_links`: ['label' => string, 'url' => string, 'meta' =>
+ * optional live micro-state]. Only contribute a link with something live to say.
  */
 class OUS_UserBar {
     public static function init(): void {
@@ -31,9 +14,7 @@ class OUS_UserBar {
         add_filter('bhi_user_bar_links', [self::class, 'register_own_links']);
     }
 
-    // This plugin's own contribution — always-present Account/Log out,
-    // the one pair of links that makes sense regardless of which peer
-    // plugins are active.
+    // Always-present Account / Log out links.
     /**
      * @param array<int, array<string, mixed>> $links
      * @return array<int, array<string, mixed>>
@@ -78,12 +59,8 @@ class OUS_UserBar {
 
         wp_enqueue_style('bhi-user-bar', OUS_URL . 'assets/css/user-bar.css', [], OUS_VER);
 
-        // A visible bar needs the page to leave room for it, or it
-        // covers whatever's at the bottom of the viewport (a footer, a
-        // sticky CTA) — added via a plain inline <script> in the footer
-        // rather than a server-side body class, since some themes build
-        // <body> markup in ways a filter can't reliably reach on every
-        // install.
+        // Reserve page space for the bar via an inline footer script; some themes'
+        // <body> markup is not reachable by a body-class filter.
         add_action('wp_footer', function () {
             echo '<script>document.body.classList.add("bhi-has-user-bar");</script>';
         }, 1);

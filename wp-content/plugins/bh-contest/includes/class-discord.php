@@ -2,50 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Discord webhook notifications — the one integration in this batch that
- * doesn't need any external app registration, API key, or OAuth flow.
- * A Discord "incoming webhook" is just a URL a server admin generates
- * from inside their own Discord server's channel settings and pastes in
- * here; posting to it is a single unauthenticated HTTP request. No
- * credentials for this plugin to store or protect beyond that one URL.
- *
- * Deliberately per-contest (see the Discord Webhook URL field in the
- * Contest Rules & Results metabox) rather than site-wide, since
- * different contests may want to announce to different channels/servers
- * — and leaving it blank disables notifications for that contest
- * entirely, with zero behavior change from before this existed.
- *
- * Everything posts as a rich embed rather than plain text — Discord
- * renders these with a colored sidebar, structured fields, and an
- * optional link, which reads far better in a busy channel than a plain
- * message. All embed construction funnels through send() below, so
- * every trigger gets that treatment for free.
- *
- * Automatic triggers: a submission being approved — not submitted; this
- * webhook is public, so announcing before anyone's reviewed it would
- * mean the whole channel sees every submission including rejected ones
- * (BH_AdminModeration::maybe_notify_approval() in class-admin-moderation.php,
- * hooked to the actual pending→publish transition so re-saving an
- * already-approved submission doesn't re-announce it) — and voting being
- * explicitly started via the "Start now" quick action (BH_AdminMenus::
- * quick_schedule() in class-admin-menus.php — note this does NOT fire if a pre-scheduled start
- * date just silently arrives with no admin action, since that would
- * need a cron-style check this plugin doesn't have).
- *
- * Deliberately NOT automatic: the results announcement. Publishing
- * results (the "Publish Results to Public" checkbox) only makes them
- * visible on the site — announcing them is a separate, explicit action
- * ("Send Winner Notifications" in the same metabox, see
- * BH_AdminReports::send_winner_notifications() in class-admin-reports.php), so an admin can publish,
- * sanity-check the numbers, and announce whenever they're actually
- * ready rather than the moment they check a box.
- *
- * Manual trigger: admins can also send an arbitrary message on demand
- * (see the "Announce to Discord" box in the Contest Rules & Results
- * metabox) — useful for anything that doesn't map to a fixed lifecycle
- * moment, like "going live for the reveal in 5 minutes," which is an
- * inherently human-timed event rather than something the site itself
- * would ever know to announce automatically.
+ * Per-contest Discord webhook notifications, posted as rich embeds via send().
+ * Automatic: submission approved, and voting started via "Start now" (not when a
+ * scheduled start just arrives). Results and ad-hoc announcements are manual.
  */
 class BH_Discord {
     const COLOR_SUBMISSION = 0x5865F2; // Discord blurple — neutral, informational
@@ -75,34 +34,15 @@ class BH_Discord {
         return new WP_REST_Response(['success' => (bool) $sent, 'sent' => (bool) $sent], 200);
     }
 
-    // Core embed sender — every trigger below funnels through this.
-    // Fire-and-forget: a webhook failing (bad URL, Discord outage, rate
-    // limit) should never block or fail the actual action that triggered
-    // it — submitting a track still succeeds even if the notification
-    // doesn't go through. wp_remote_post() with a short timeout and no
-    // error propagation is the right shape for that.
-    //
-    // Returns true/false for whether a request was actually attempted
-    // (not whether Discord accepted it, since 'blocking' => false means
-    // this plugin deliberately never waits to find out) — used by the
-    // manual announce endpoint above to tell an admin "no webhook is
-    // configured for this contest" versus "sent."
-    //
-    // $fields is Discord's embed field format: [['name' => ..., 'value'
-    // => ..., 'inline' => true|false], ...] — up to 25 per embed.
+    // Fire-and-forget (non-blocking), so a webhook failure never fails the triggering
+    // action. Returns whether a request was attempted, not whether Discord accepted it.
+    // $fields: [['name' => ..., 'value' => ..., 'inline' => bool], ...], max 25.
     /** @param array<int, array<string, mixed>> $fields */
     public static function send(int $contest_id, string $title, string $description = '', array $fields = [], int $color = self::COLOR_ANNOUNCE, string $url = ''): bool {
         $webhook = trim((string) get_post_meta($contest_id, '_bh_discord_webhook', true));
         if ($webhook === '') return false; // no webhook configured — not an error, most contests don't have one
         if (!wp_http_validate_url($webhook)) {
-            // A CONFIGURED-but-invalid webhook (a typo, a stale/rotated
-            // Discord URL) is a real misconfiguration that previously
-            // looked identical to "no webhook configured" from the
-            // outside — every submission/vote-open notification for this
-            // contest silently never fires, with nothing telling the
-            // organizer why. Throttled per-contest since this would
-            // otherwise re-fire on every single submission to a
-            // misconfigured contest.
+            // Log a configured-but-invalid webhook, throttled per contest.
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log_throttled('warning', 'bh_discord_bad_webhook_' . $contest_id, 3600,
                     'Discord webhook is configured for this contest but failed URL validation — notifications are silently not being sent.', ['contest_id' => $contest_id], 'BH Contest Discord'
@@ -127,11 +67,7 @@ class BH_Discord {
 
     /* ---------- the three automatic triggers ---------- */
 
-    // $is_file_update distinguishes a first-time approval from a
-    // reviewed file-swap on an already-announced entry — same public
-    // announcement either way (the channel
-    // should know the audio behind an entry it already saw changed),
-    // just different wording so it doesn't read as a duplicate entry.
+    // $is_file_update rewords the post for an approved swap on an announced entry.
     public static function notify_submission(int $contest_id, string $title, string $artist, string $audio_url = '', bool $is_file_update = false): void {
         self::send(
             $contest_id,
@@ -154,11 +90,7 @@ class BH_Discord {
         );
     }
 
-    // One embed for the whole announcement rather than one message per
-    // category — keeps it to a single webhook request (avoiding any
-    // rate-limit concern from firing several messages back to back) and
-    // reads as one cohesive results post rather than a flood of separate
-    // ones.
+    // One embed for all categories: a single request, no rate-limit risk.
     public static function notify_results(int $contest_id): void {
         $fields = [];
 
@@ -182,18 +114,11 @@ class BH_Discord {
         );
     }
 
-    // Top 3 of a ranked results array, medal-emoji style — shared by both
-    // the per-category and overall sections of notify_results().
+    // Top 3 lines with medals, indexed by rank (ties share a medal, like the email path).
     /** @param array<int, array<string, mixed>> $results */
     private static function medal_lines($results): string {
         $medals = ['🥇', '🥈', '🥉'];
         $lines = [];
-        // Audit fix (2026-07-25): was indexed by array POSITION, not
-        // $r['rank'] — the winner-notification email path (class-admin-
-        // reports.php's email_winners()) already correctly indexes by
-        // rank, so a tie (two entries both rank=1) would show mismatched
-        // medals between the two notification paths. Rank-indexed now,
-        // matching the email path exactly.
         foreach (array_slice($results, 0, 3) as $r) {
             $rank = (int) ($r['rank'] ?? 0);
             $lines[] = ($medals[$rank - 1] ?? '#' . $rank) . ' **' . $r['title'] . '** — ' . $r['artist'] . ' (' . $r['votes'] . ' votes)';

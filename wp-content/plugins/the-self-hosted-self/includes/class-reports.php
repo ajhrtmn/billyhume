@@ -2,23 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * A shared reports/moderation queue any plugin's content can plug a
- * "Report" link into — abuse on a public profile, a registry link
- * someone claims isn't rightfully there, a track someone disputes
- * ownership of. This deliberately does NOT try to auto-action anything
- * (no auto-hide, no auto-ban) — it collects a real, timestamped report
- * into one admin-reviewable queue and lets a human decide, same
- * reasoning as bh-monetization-woo's refund-pattern flag: a false
- * positive here (wrongly hiding someone's real content) is worse than
- * a report sitting in a queue for a few hours.
- *
- * Any plugin wires in with one line, no dependency on this class beyond
- * a function call that's a no-op if the-self-hosted-self isn't active:
+ * Shared reports/moderation queue. Never auto-actions anything: reports are
+ * collected for a human to review. Plugins embed:
  *
  *     echo BHI_Reports::report_button_html('registry_link', $link_id);
  *
- * ...and, if it wants to add its OWN "what does this report mean, what
- * should an admin do about it" context to the admin queue list:
+ * and may label their targets in the admin queue:
  *
  *     add_filter('bhi_report_target_label', function ($label, $type, $id) {
  *         if ($type !== 'registry_link') return $label;
@@ -34,14 +23,7 @@ class BHI_Reports {
         'other'      => 'Something else',
     ];
 
-    // Reused, not reinvented, for "report a technical difficulty."
-    // Every other category here reports a specific piece of CONTENT
-    // (target_type + target_id both required); a bug report has no
-    // content to point at, so this is the one category allowed a zero
-    // target_id (see rest_submit()'s relaxed check below) rather than
-    // standing up a second, parallel queue/admin screen for what is
-    // functionally the same "collect it, let a human triage it"
-    // workflow this class already provides.
+    // Bug reports reuse this queue; the only category allowed target_id = 0.
     const TECHNICAL_TARGET_TYPE = 'technical';
     const RATE_LIMIT = 5;   // max reports per user per hour — a real moderation signal, not a way to bury someone in noise
     const RATE_WINDOW = HOUR_IN_SECONDS;
@@ -49,13 +31,7 @@ class BHI_Reports {
     public static function init(): void {
         add_action('admin_post_bhi_submit_report', [self::class, 'handle_submit']);
         add_action('admin_menu', [self::class, 'add_admin_page']);
-        // Ecosystem-wide "report a technical difficulty" widget.
-        // Front-end only (a logged-in admin already has this plugin's
-        // own Debug Tools/error logs; a confused site VISITOR hitting
-        // something broken is who this is for), and logged-in only,
-        // matching report_button_html()'s own "log in to report"
-        // posture rather than accepting anonymous reports this queue
-        // has no way to follow up on.
+        // "Report a technical difficulty" widget: front end, logged-in only.
         add_action('wp_footer', [self::class, 'render_technical_report_widget']);
     }
 
@@ -311,12 +287,8 @@ class BHI_Reports {
         <?php
     }
 
-    // A REST twin of handle_submit() for any plugin whose front end is
-    // JS-rendered rather than a server-rendered page (bh-registry's
-    // browse grid is entirely built client-side from API data, so
-    // there's no server-rendered card to embed the admin-post <form>
-    // into). Same rate limit, same validation, same table — just a
-    // different transport for the same action.
+    // REST twin of handle_submit() for JS-rendered front ends; same rate limit,
+    // validation and table.
     public static function register_routes(): void {
         register_rest_route('bhi/v1', '/reports', [
             'methods' => 'POST', 'callback' => [self::class, 'rest_submit'], 'permission_callback' => 'is_user_logged_in',
@@ -327,9 +299,7 @@ class BHI_Reports {
     public static function rest_submit(\WP_REST_Request $req) {
         $target_type = sanitize_key((string) $req->get_param('target_type'));
         $target_id = (int) $req->get_param('target_id');
-        // A technical-difficulty report has no piece of content to
-        // point at — target_id = 0 is only valid for that one category,
-        // never silently accepted for a content report missing its ID.
+        // target_id = 0 is valid only for technical reports.
         if (!$target_type || (!$target_id && $target_type !== self::TECHNICAL_TARGET_TYPE)) {
             return new WP_Error('invalid', 'Missing target.', ['status' => 400]);
         }
@@ -435,14 +405,8 @@ class BHI_Reports {
         global $wpdb;
         $status_filter = sanitize_key($_GET['status'] ?? 'open');
 
-        // Report-volume prioritization: a target with several
-        // INDEPENDENT reporters is a stronger signal than the same
-        // number of reports from one person repeating themselves (the
-        // per-user rate limit above already caps that anyway, but this
-        // is explicit about counting distinct reporters, not raw report
-        // rows). Sorted to the top of the OPEN queue specifically —
-        // resolved/dismissed views stay newest-first since there's no
-        // "urgency" left to signal there.
+        // Open queue sorts by distinct reporters (stronger signal than repeat
+        // reports from one person); resolved/dismissed stay newest-first.
         $reports = $wpdb->get_results($wpdb->prepare(
             "SELECT r.*,
                     (SELECT COUNT(DISTINCT r2.reporter_user_id) FROM " . OUS_Tables::reports() . " r2

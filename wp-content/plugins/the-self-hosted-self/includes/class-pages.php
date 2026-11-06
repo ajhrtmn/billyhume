@@ -1,17 +1,7 @@
 <?php
 /**
- * Resolves the page that hosts a given shortcode or block.
- *
- * WHY shared: three different shapes of this had already grown up
- * independently -- bh-contest stores a bh_archive_page_id option at
- * activation AND separately runs a get_posts() search for the literal
- * shortcode, bh-monetization-woo remembers its pages on save_post, and
- * bh-courses had no way to find its own catalog at all. Each is a partial
- * answer: an option only exists if activation created the page, a save_post
- * hook only learns about a page when someone re-saves it, and neither knows
- * about a page an author made by hand.
- *
- * This tries the recorded answer first, then looks, then remembers.
+ * Resolves the page that hosts a given shortcode or block: tries the recorded
+ * option first, then searches (including hand-made pages), then remembers.
  *
  * @package Own_Ur_Shit
  */
@@ -86,29 +76,11 @@ final class OUS_Pages {
     }
 
     /**
-     * Guarantees a page exists hosting $shortcode, creating it if not.
-     *
-     * WHY here: bh-contest and bh-streaming each grew their own private
-     * maybe_create_singleton_page(), and bh-courses never got one at all --
-     * so contests auto-created an Archive and streaming a Streaming page,
-     * while the course catalog only existed if somebody happened to build it
-     * by hand. A catalog that a plugin renders should not depend on the site
-     * owner knowing to create a page for it.
-     *
-     * Two things this does that those copies do not:
-     *
-     * 1. It verifies the recorded page still EXISTS and is published. Those
-     *    return early on the option alone, so trashing the page leaves the
-     *    option pointing at nothing and the page is never recreated.
-     * 2. It looks for an existing page already hosting the shortcode before
-     *    creating one, so an install where somebody made the page by hand
-     *    gets adopted rather than ending up with two.
-     *
-     * $blocks matters more than it looks. A page built in Gutenberg stores
-     * block markup, not a shortcode, so a shortcode-only lookup does not
-     * find it -- which is exactly how the first version of this created a
-     * duplicate "Courses" page next to the perfectly good block-authored one
-     * that already existed. Adoption has to look for both.
+     * Guarantees a page exists hosting $shortcode, creating it if not. Verifies
+     * the recorded page still exists and is published, and adopts an existing
+     * hand-made page before creating one.
+     * WHY $blocks: Gutenberg pages store block markup, not the shortcode, so a
+     * shortcode-only lookup creates duplicates.
      *
      * @param array<string> $blocks block names that render the same thing
      * @return int page id, or 0 if creation failed

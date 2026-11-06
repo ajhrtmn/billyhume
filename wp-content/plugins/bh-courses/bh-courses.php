@@ -16,23 +16,9 @@ define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
 
 /**
- * A genuine PEER to bh-contest, bh-streaming, and bh-crm — depends only
- * on the-self-hosted-self (shared identity, for enrollment/progress; shared
- * style tokens, for rendering). Deliberately does NOT depend on
- * bh-streaming or bh-monetization-woo:
- *
- * - bh-monetization-woo is optional, checked via class_exists() at
- *   init time (never at file-parse time — see every other plugin in
- *   this ecosystem for why), exactly the relationship bh-streaming
- *   already has with it. If it's active, a course can be tier-gated
- *   via the exact same generic paywall (`_bhm_required_tier` +
- *   `BHM_Gate::user_has_tier_access()`) class-gate.php's own docblock
- *   said this plugin would eventually use. If it isn't active, courses
- *   are simply open — no gate, same graceful degradation bh-streaming
- *   shows without it.
- * - No relationship to bh-streaming at all. A lesson step can EMBED
- *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
- *   bh-streaming's own catalog tables directly.
+ * A peer plugin depending only on the-self-hosted-self. bh-monetization-woo is optional
+ * (class_exists() at init) and enables tier-gating; without it courses are open.
+ * No relationship to bh-streaming.
  */
 foreach (['tables', 'post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'bunny', 'reviews', 'privacy', 'sessions', 'sessions-admin', 'sessions-portal'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
@@ -55,17 +41,13 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHC_PostTypes', 'register']);
     add_action('init', ['BHC_Render', 'init']);
 
-    // Opt the course surfaces into the ecosystem's standalone chrome
-    // (theme nav/footer hidden, ecosystem's own slim bar shown) — see
-    // OUS_MenuSync. A catalog page, or any single course / lesson.
+    // Opt course surfaces into the ecosystem's standalone chrome (OUS_MenuSync).
     add_filter('bh_standalone_surface', function ($is) {
         if ($is) return true;
         $catalog = (int) get_option('bhc_catalog_page_id', 0);
         return ($catalog && is_page($catalog)) || is_singular(['bh_course', 'bh_lesson']);
     });
-    // QA fix, caught live via WP_DEBUG_LOG: same fix as bh-contest's
-    // BH_Blocks/bh-streaming's BHS_Blocks — hooked normally at 'init'
-    // instead of called directly at plugins_loaded time.
+    // Hooked at 'init' rather than called at plugins_loaded.
     add_action('init',          ['BHC_Blocks', 'init']);
     add_action('init',          ['BHC_Bunny', 'init']);
     add_action('init', ['BHC_Progress', 'init']);
@@ -73,14 +55,8 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHC_Privacy', 'init']);
     add_action('init', ['BHC_Debug', 'init']);
     add_action('init', ['BHC_StyleSurface', 'init']);
-    // Design Suite "Plugin adjustments" tokens for the lesson screen —
-    // sidebar width, video window width, and caption text size/font are
-    // all things Billy asked to be able to change himself. Registered
-    // via BHY_Style's own extension points (custom_sliders()/
-    // custom_fonts()) rather than a new bh-courses-only settings UI, so
-    // they land in the one place every other per-plugin token lives and
-    // persist through the one bhy_style_settings option. Consumed in
-    // assets/css/courses.css as var(--bh-custom-<key>[, fallback]).
+    // Design Suite tokens for the lesson screen, via BHY_Style's extension points.
+    // Consumed in courses.css as var(--bh-custom-<key>[, fallback]).
     if (class_exists('BHY_Style')) {
         add_filter('bhy_style_custom_sliders', function ($sliders) {
             $sliders['course_sidebar_width'] = ['label' => 'Lesson sidebar width', 'min' => 200, 'max' => 380, 'step' => 10, 'unit' => 'px', 'default' => 240];
@@ -92,24 +68,8 @@ add_action('plugins_loaded', function () {
             $fonts['course_caption'] = ['label' => 'Lesson caption font', 'default' => 'Inter', 'fallback' => 'sans-serif'];
             return $fonts;
         });
-        // Phase 2 of the Design Suite grouped-component work (see core's
-        // component_tokens() docblock, which uses this exact group as its
-        // worked example). Real bug caught tracing Phase 3's live
-        // Customizer preview against the ACTUAL /courses/ page (not just
-        // this plugin's own isolated Design Suite preview, which only
-        // loads courses.css): .bhc-course-card's markup also carries
-        // core's shared .ous-catalog-card class (catalog.css — the
-        // deliberate courses/contests card-shape unification), enqueued
-        // AFTER courses.css, so at equal specificity its own
-        // border-radius/padding silently won on the real page every
-        // time, no matter what this group's now-removed radius/padding/
-        // gap tokens were set to — they only ever appeared to work in
-        // the isolated preview surface, which never loaded catalog.css.
-        // Fixed by dropping those three (the REAL, working controls for
-        // this card's shape are core's existing global "Corner radius"/
-        // "Spacing" scale sliders, which .ous-catalog-card already
-        // consumes) and keeping only the two properties catalog.css
-        // never touches: the title's own font-size/font-family.
+        // WHY: only title font tokens here. Card radius/padding come from core's global
+        // sliders, since catalog.css's .ous-catalog-card loads later and wins.
         add_filter('bhy_style_component_tokens', function ($components) {
             $components['course_card'] = [
                 'label' => 'Course card',
@@ -117,20 +77,11 @@ add_action('plugins_loaded', function () {
                 'tokens' => [
                     'title_font_size'   => ['label' => 'Title text size', 'type' => 'size', 'min' => 13, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 17],
                     'title_font'        => ['label' => 'Title font', 'type' => 'font', 'default' => 'Inter', 'fallback' => 'sans-serif'],
-                    // AJ, 2026-09-19: a control to hide the instructor
-                    // byline on catalog cards. First real use of the
-                    // 'toggle' token type (class-style.php) — checked =
-                    // hidden, matching the "Show author byline" phrasing
-                    // in that type's own docblock example.
+                    // Toggle: checked = hidden.
                     'hide_author'       => ['label' => 'Hide instructor byline', 'type' => 'toggle', 'on' => 'none', 'off' => 'flex', 'default' => false],
                 ],
             ];
-            // Third/fourth groups: the lesson sidebar shell (distinct
-            // from the existing flat "Lesson sidebar width" slider,
-            // which only controls the column's flex-basis) and the
-            // progress bar shared by the catalog card footer and the
-            // lesson layout's larger variant. Same byte-identical-
-            // default guarantee as course_card above.
+            // Lesson sidebar shell and the shared progress bar.
             $components['course_sidebar'] = [
                 'label' => 'Lesson sidebar',
                 'selector' => '.bhc-course-sidebar',
@@ -148,10 +99,7 @@ add_action('plugins_loaded', function () {
                     'radius' => ['label' => 'Bar corner radius', 'type' => 'size', 'min' => 0, 'max' => 999, 'step' => 1, 'unit' => 'px', 'default' => 999],
                 ],
             ];
-            // The single-course page's own "Taught by" instructor row
-            // (.bhc-course-instructor-row) — a distinct element from the
-            // catalog card's byline above, not affected by the same
-            // control.
+            // The single-course page's "Taught by" row (separate from the card byline).
             $components['course_page'] = [
                 'label' => 'Course page',
                 'selector' => '.bhc-course-instructor-row',
@@ -161,23 +109,13 @@ add_action('plugins_loaded', function () {
             ];
             return $components;
         });
-        // Most of the tokens registered above only ever show up on the
-        // course catalog, so that's a far more useful default "Open Live
-        // Editor" (BHY_Customizer) destination than the site home — first
-        // registrant of bhy_customizer_default_preview_url wins if a
-        // later plugin doesn't override again.
+        // Default "Open Live Editor" destination: the course catalog.
         add_filter('bhy_customizer_default_preview_url', function ($url) {
             $catalog = (int) get_option('bhc_catalog_page_id', 0);
             return $catalog ? get_permalink($catalog) : $url;
         });
     }
-    // DESIGN-SUITE-UNIFICATION-PLAN.md — the "1" in AJ's "Do 3, then 2,
-    // then 1" ordering (3 = data-binding v1, 2 = Gutenberg block, both
-    // already shipped in the-self-hosted-self 3.4.46/3.4.47). First real
-    // BH_Element surface this plugin has ever registered — see class-
-    // lesson-surface.php's own docblock for the full reasoning. Same
-    // "harmless no-op otherwise" guard every other optional integration
-    // in this bootstrap uses.
+    // BH_Element surface for lessons (see class-lesson-surface.php).
     if (class_exists('BH_Element')) {
         add_filter('bh_element_surfaces', ['BHC_LessonSurface', 'register_element_surface']);
     }
@@ -203,27 +141,14 @@ add_action('plugins_loaded', function () {
             BH_Event::register_event_type('bhc/session_booked', ['starts_at' => 'string', 'instructor_id' => 'int']);
         }
     }, 20);
-    // Priority PHP_INT_MAX: append the step-walker markup AFTER every
-    // other the_content filter has run — a builder theme (Etch on the
-    // live site) that re-parses the_content output through its own DOM
-    // representation was stripping class="bhc-step …" off the outer step
-    // wrappers (data-* survived), which broke courses.js's step
-    // show/hide and left the container invisible. Running last means the
-    // builder's pass never sees this markup to normalise it.
+    // WHY: PHP_INT_MAX so the step-walker markup is appended after the theme's (Etch's)
+    // own the_content pass, which otherwise strips the step wrappers' classes.
     add_filter('the_content', function ($content) {
         if (get_post_type() === 'bh_lesson' && is_singular('bh_lesson') && in_the_loop() && is_main_query()) {
             return $content . BHC_Render::render_lesson_steps(get_the_ID());
         }
-        // Real gap: a course's own permalink (bh_course singular) never
-        // rendered anything but the theme's generic title/excerpt — no
-        // lesson list, no progress bar, no enroll CTA. render_course()
-        // already builds all of that (used by the [bh_course] shortcode
-        // and the Gutenberg block), it just was never wired to the CPT's
-        // own single view the way bh_lesson is above. A static reentrancy
-        // guard is required here: render_course_header() itself calls
-        // apply_filters('the_content', ...) on the post's raw content to
-        // render the description, which would otherwise re-enter this
-        // same callback and recurse.
+        // Course permalink renders the full course view. WHY: static reentrancy guard,
+        // since render_course_header() applies the_content to the description.
         static $rendering_course = false;
         if (!$rendering_course && get_post_type() === 'bh_course' && is_singular('bh_course') && in_the_loop() && is_main_query()) {
             $rendering_course = true;
@@ -234,31 +159,15 @@ add_action('plugins_loaded', function () {
         return $content;
     }, PHP_INT_MAX);
 
-    // Real bug, production-readiness sweep 2026-08-16: BH_SEO's tags
-    // are echoed at wp_head (priority 1), which fires before the_content()
-    // ever runs — the `the_content` filter above (and render_course()
-    // itself) called BH_SEO::set_page_data() far too late to matter for
-    // a course's own single-view page, confirmed live (zero meta/OG
-    // tags on a real course detail page). template_redirect fires
-    // before headers, so this actually wins the race.
+    // WHY: BH_SEO echoes at wp_head, before the_content, so set course SEO here.
     add_action('template_redirect', function () {
         if (is_singular('bh_course') && class_exists('BHC_Render_Course')) {
             BHC_Render_Course::set_seo_data(get_queried_object_id());
         }
     });
 
-    // A lesson/course view must never be full-page cached. Two reasons,
-    // both hit live: (1) it's per-student — progress state, the enroll
-    // gate, "Log in to view this lesson" vs the real content; a cache
-    // that serves one student's page to another (or the logged-out
-    // shell to someone who just logged in) is broken. (2) a video step
-    // embeds a SIGNED media URL (BHY_MediaToken::sign_bunny / sign_r2)
-    // that expires in ~4h — an 8h host page-cache then serves an
-    // expired token to every later visitor, which Bunny answers with a
-    // 403 inside the player. DONOTCACHEPAGE covers Rocket / W3TC / WP
-    // Super Cache / LiteSpeed / the Bluehost/Endurance cache; the
-    // Cache-Control header stops shared proxies and the browser too.
-    // Same pattern as BHI_Portal::never_cache_portal().
+    // Never page-cache lesson/course views: they're per-student, and video steps embed
+    // signed URLs that expire (~4h) before a typical page cache does.
     add_action('template_redirect', function () {
         if (!is_singular(['bh_lesson', 'bh_course'])) return;
         if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true);
@@ -267,11 +176,8 @@ add_action('plugins_loaded', function () {
     });
 
     add_action('add_meta_boxes', ['BHC_Admin', 'add_meta_boxes']);
-    // Courses edit on the classic screen (see class-post-types.php's
-    // note on bh_course): post_content is only the catalog description,
-    // and the block canvas was an empty dark void offering core
-    // Video/Image/Embed blocks that make no sense for a course — worst
-    // of all on mobile. The Course Details metabox is the real builder.
+    // Courses use the classic editor: post_content is only the description, and the
+    // Course Details metabox is the real builder.
     add_filter('use_block_editor_for_post_type', function ($use, $post_type) {
         return $post_type === 'bh_course' ? false : $use;
     }, 10, 2);
@@ -294,10 +200,6 @@ add_action('plugins_loaded', function () {
     add_action('before_delete_post', ['BHC_Admin', 'maybe_resync_menu_for_post']);
     add_action('save_post_bh_lesson', ['BHC_Admin', 'save_lesson']);
     add_action('admin_enqueue_scripts', ['BHC_Admin', 'enqueue_admin_assets']);
-    // DRY/SOLID audit Phase 4: migrated to the shared OUS_ListTable
-    // helper (the-self-hosted-self/includes/class-list-table.php) — same column
-    // set/position/render logic as the previous hand-rolled columns()/
-    // custom_column() pairs.
     OUS_ListTable::register('bh_course', ['bhc_lessons' => 'Lessons', 'bhc_gate' => 'Access'], ['BHC_Admin', 'course_column_content']);
     OUS_ListTable::register('bh_lesson', ['bhc_course' => 'Course'], ['BHC_Admin', 'lesson_column_content']);
     add_filter('post_row_actions', ['BHC_Admin', 'lesson_row_actions'], 10, 2);
@@ -316,9 +218,7 @@ add_action('plugins_loaded', function () {
     add_action('wp_ajax_bhc_submit_review', ['BHC_Reviews', 'ajax_submit_review']);
 });
 
-// Self-registration into the Self-Hosted Self dashboard — zero changes
-// needed to the core, same filter contract documented in the core's
-// own class-registry.php.
+// Self-registration into the Self-Hosted Self dashboard (class-registry.php contract).
 add_filter('ous_registered_plugins', function ($plugins) {
     $plugins['bh-courses'] = [
         'label' => 'BH Courses',
@@ -328,10 +228,7 @@ add_filter('ous_registered_plugins', function ($plugins) {
         'description' => 'Courses built from ordered, multistep lessons (text, images, quizzes) with progress tracking and optional supporter-tier gating.',
         'dashboard_link' => 'edit.php?post_type=bh_course',
         'bundled_zip' => 'bh-courses.zip',
-        // No 'admin_menus' entry — Courses/Lessons are CPT list-tables
-        // (like bh-contest's Contests, bh-streaming's Tracks), which the
-        // ecosystem's own convention keeps as their own top-level menu
-        // rather than relocating (see class-registry.php's docblock).
+        // No 'admin_menus': Courses/Lessons keep their own CPT top-level menus.
     ];
     return $plugins;
 });

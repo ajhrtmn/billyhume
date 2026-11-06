@@ -1,22 +1,9 @@
 <?php
 /**
- * Deliberately NOT a WordPress install — see the-self-hosted-self/tests/bootstrap.php
- * for the full reasoning. The short version: `if (!defined('ABSPATH')) exit;`
- * sits at the top of every class file in this ecosystem, so ABSPATH must
- * be defined before any `require` of a class file, or the require
- * silently kills the whole test process.
- *
- * BHC_Steps::save() touches three real WordPress sanitization functions
- * (wp_kses_post, sanitize_text_field, esc_url_raw) even on its pure-logic
- * path — these stubs are intentionally NOT full reimplementations of
- * WordPress's actual behavior (that would be testing our stub, not our
- * code), just close enough approximations that the SANITIZATION-SHAPE
- * assertions in StepsSanitizationTest (does a step with no valid choices
- * get dropped, does an out-of-range correct_index get clamped, etc.)
- * are still meaningful. Anything that depends on WordPress's REAL
- * escaping specifics belongs in a proper WP-integration test suite
- * (e.g. using the official wp-phpunit scaffolding against a real DB),
- * not here.
+ * Deliberately not a WordPress install. ABSPATH must be defined before any class file is
+ * required (each starts with `if (!defined('ABSPATH')) exit;`).
+ * The WP function stubs are approximations, just enough for the sanitization-shape tests;
+ * real escaping behavior belongs in a WP integration suite.
  */
 define('ABSPATH', __DIR__ . '/');
 
@@ -27,10 +14,7 @@ if (!function_exists('sanitize_text_field')) {
 }
 if (!function_exists('wp_kses_post')) {
     function wp_kses_post($str) {
-        // Real wp_kses_post() allows a broad, specific safe-HTML
-        // allowlist; this stub only strips <script>/<style> so tests can
-        // assert "dangerous tags don't survive" without needing WP's
-        // real (large) default allowlist tables loaded.
+        // Stub only strips <script>/<style>, enough to assert dangerous tags don't survive.
         return preg_replace('#<(script|style)[^>]*>.*?</\1>#is', '', (string) $str);
     }
 }
@@ -41,30 +25,19 @@ if (!function_exists('esc_url_raw')) {
         return filter_var($url, FILTER_VALIDATE_URL) ? $url : '';
     }
 }
-// Audit fix (2026-07-25): missing stub — BHC_Steps::save()'s chord-chart
-// branch calls sanitize_textarea_field() (deliberately not
-// sanitize_text_field(), since a chord chart's alignment/newlines ARE
-// the content), which would otherwise fatal as an undefined function
-// the moment a chord-chart test actually exercised that branch.
+// Used by BHC_Steps::save()'s chord-chart branch.
 if (!function_exists('sanitize_textarea_field')) {
     function sanitize_textarea_field($str) {
         return trim(preg_replace('/[\r\t ]+/', ' ', strip_tags((string) $str)));
     }
 }
-// Audit fix (2026-07-25): missing stub — BHC_Steps::save()'s callout
-// branch calls wp_strip_all_tags() to check for real (non-whitespace)
-// content, undefined here until now — same fatal-on-first-real-test gap
-// as sanitize_textarea_field() above, both only surfacing once the new
-// step types actually got test coverage.
+// Used by BHC_Steps::save()'s callout branch.
 if (!function_exists('wp_strip_all_tags')) {
     function wp_strip_all_tags($str) {
         return trim(strip_tags((string) $str));
     }
 }
-// BHC_Steps::get()/get_step()/count() call get_post_meta(); nothing in
-// this suite exercises those (they're pure passthrough over WP's own
-// postmeta API, not logic worth testing independent of a real DB), but
-// the class file needs the symbol to exist to parse/autoload cleanly.
+// BHC_Steps::get()/get_step()/count() reference get_post_meta(); not exercised here.
 if (!function_exists('get_post_meta')) {
     function get_post_meta($post_id, $key, $single = false) { return []; }
 }

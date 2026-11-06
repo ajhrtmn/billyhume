@@ -1,10 +1,5 @@
 /**
- * [ous_search] shortcode's live-as-you-type search box (class-search.php).
- * TypeScript pilot for this ecosystem's TS migration — compiled with plain
- * `tsc` (no bundler) to assets/js/search.js, which is what class-search.php
- * actually enqueues via wp_enqueue_script(). Run `npm run build:the-self-hosted-self`
- * after editing this file; the compiled output is committed, since the live
- * FTP-deployed site runs no build step at all.
+ * Live-as-you-type search box for the [ous_search] shortcode (class-search.php).
  */
 
 interface OusSearchConfig {
@@ -40,9 +35,7 @@ interface OusSearchWindow extends Window {
             var debounceTimer: ReturnType<typeof setTimeout> | null = null;
             var currentRequest: AbortController | null = null;
 
-            // Every field below comes from the REST response — escaped
-            // before insertion so a track/course/contest title an artist
-            // typed can never be interpreted as markup.
+            // Escape every REST field before insertion; titles are user-typed.
             function esc(s: unknown): string {
                 var d = document.createElement('div');
                 d.textContent = String(s == null ? '' : s);

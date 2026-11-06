@@ -2,49 +2,29 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Split out of class-admin.php (DRY/SOLID audit Phase 3b) — submission
- * moderation: the approval-announcement hook, file-swap approve/discard,
- * reject-with-reason, and the AJAX round-advance action. No metabox
- * rendering, list-table columns, or CSV/results reporting here.
+ * Submission moderation: approval announcements, audio-swap approve/discard,
+ * reject-with-reason (single and bulk), and the AJAX round advance.
  */
 class BH_AdminModeration {
     public static function init(): void {
         add_action('transition_post_status', [self::class, 'maybe_notify_approval'], 10, 3);
 
-        // Submission review actions — file-replace workflow (a pending
-        // swap needs its own explicit approve/discard, since the swap
-        // doesn't go through a post_status transition the way a
-        // first-time approval does) plus a real reject path with a
-        // reason.
+        // An audio swap has no status transition, so it gets explicit approve/discard.
         add_action('admin_post_bh_approve_swap', [self::class, 'handle_approve_swap']);
         add_action('admin_post_bh_discard_swap', [self::class, 'handle_discard_swap']);
         add_action('admin_post_bh_reject_submission', [self::class, 'handle_reject_submission']);
 
         add_action('wp_ajax_bh_advance_round', [self::class, 'ajax_advance_round']);
 
-        // Bulk moderation on the Submissions list — previously the only
-        // way to approve/reject was one submission at a time from inside
-        // its own edit screen. Approve is native WP (publish); Reject
-        // reuses the exact same vote-refund + email + audit-log path as
-        // the single-submission reject form, just with a fixed 'other'
-        // reason code (bulk has no per-row note field to collect a
-        // specific one from — same fallback the single form already
-        // uses for an unrecognized reason_code).
+        // Bulk Approve publishes; bulk Reject uses reject_submission() with reason 'other'.
         add_filter('bulk_actions-edit-bh_submission', [self::class, 'add_bulk_actions']);
         add_filter('handle_bulk_actions-edit-bh_submission', [self::class, 'handle_bulk_actions'], 10, 3);
         add_action('admin_notices', [self::class, 'bulk_action_notice']);
 
-        // Quick per-row Approve — the single-click equivalent of opening
-        // the submission and clicking Update after setting status to
-        // Published, for the common case where there's nothing to
-        // actually review in the edit screen itself.
         add_filter('post_row_actions', [self::class, 'add_quick_approve_row_action'], 10, 2);
         add_action('admin_post_bh_quick_approve', [self::class, 'handle_quick_approve']);
 
-        // 'rejected' has no built-in "— Rejected" title-state text the
-        // way core 'pending'/'draft' get automatically — without this a
-        // rejected submission just reads as a bare title with no status
-        // at all in the list.
+        // Custom 'rejected' status gets no list-table state label from core.
         add_filter('display_post_states', [self::class, 'add_rejected_post_state'], 10, 2);
     }
 
@@ -133,24 +113,12 @@ class BH_AdminModeration {
         return $states;
     }
 
-    // Fires the public "new entry approved" Discord notification at the
-    // moment an admin actually approves a submission (changes its status
-    // to Published), not when it was first submitted — this webhook is
-    // public-facing, so announcing something before anyone's reviewed it
-    // would mean the whole channel sees every submission, including any
-    // that get rejected. Guarded to the actual off-to-on transition so
-    // re-saving an already-published submission (editing its title,
-    // fixing a typo, etc.) doesn't re-announce it every time.
+    // Public Discord announcement on first approval only, never on submit or re-save.
     public static function maybe_notify_approval(string $new_status, string $old_status, \WP_Post $post): void {
         if ($post->post_type !== 'bh_submission') return;
         if ($new_status !== 'publish' || $old_status === 'publish') return;
 
-        // A contestant may have swapped their file before this
-        // submission was ever reviewed (still 'pending' at the time) —
-        // that swap sits in _bh_pending_audio_id same as it would on an
-        // already-published submission. Promote it here so a
-        // first-time approval always announces whatever's actually the
-        // reviewed, current file, not a stale first upload.
+        // A swap made before first review is promoted, so the current file goes live.
         self::promote_pending_audio($post->ID);
 
         $cid = (int) get_post_meta($post->ID, '_bh_contest_id', true);
@@ -180,16 +148,7 @@ class BH_AdminModeration {
         $post = get_post($pid);
         if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
 
-        // QA fix: this fired the Discord "entry file
-        // updated" announcement unconditionally, even for a submission
-        // that was never actually approved (still 'pending') —
-        // "Approve replacement" and the real first-time Publish
-        // approval are two independent actions, and a still-pending
-        // submission has nothing to publicly re-announce yet (its
-        // first REAL approval, whenever that happens, already
-        // announces fresh via maybe_notify_approval(), which now also
-        // calls promote_pending_audio() itself). Only announce here
-        // when this submission was already publicly live.
+        // Announce only if already published; first approval announces separately.
         $was_published = $post->post_status === 'publish';
 
         self::promote_pending_audio($pid);
@@ -225,14 +184,7 @@ class BH_AdminModeration {
         exit;
     }
 
-    /**
-     * Real reject path — real reasoning behind a rejection. Sets the
-     * 'rejected' post_status (registered in
-     * class-post-types.php), stores the prefab reason + freeform note,
-     * and emails the contestant with both — closing the gap where a
-     * rejected submission previously just sat at 'pending' forever
-     * with no notification either way.
-     */
+    /** Single-submission reject form handler. */
     public static function handle_reject_submission(): void {
         $pid = (int) ($_POST['submission_id'] ?? 0);
         if (!check_admin_referer('bh_reject_submission_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
@@ -249,34 +201,16 @@ class BH_AdminModeration {
     }
 
     /**
-     * The actual reject work, shared by the single-submission form above
-     * and the Submissions-list bulk "Reject" action — real reasoning
-     * behind a rejection either way. Sets the 'rejected' post_status
-     * (registered in class-post-types.php), stores the prefab reason +
-     * freeform note, and emails the contestant with both — closing the
-     * gap where a rejected submission previously just sat at 'pending'
-     * forever with no notification either way.
+     * Rejects a submission: refunds its votes, sets 'rejected', stores the
+     * reason + note, and emails the contestant. Shared by single and bulk reject.
      */
     public static function reject_submission(int $pid, string $reason_code, string $note): void {
         $post = get_post($pid);
         if (!$post || $post->post_type !== 'bh_submission') return;
         if (!isset(BH_Admin::REJECTION_REASONS[$reason_code])) $reason_code = 'other';
 
-        // Real bug this closes: this Reject action is available for a
-        // submission at ANY pre-rejected status, including 'publish' —
-        // an admin can reject an entry that already collected real
-        // votes. Without this, every voter who'd already voted for it
-        // was permanently unable to free that vote slot: class-api.php's
-        // vote() toggle-off used to be gated behind the SAME "belongs to
-        // this contest + still published" check the toggle-ON path
-        // needs, so once this submission left 'publish' status, the
-        // voter's own request to un-vote it hit that same gate and
-        // failed — a trapped, permanently-consumed vote with no UI path
-        // to notice why (the track also vanishes from the public
-        // /tracks list the instant it's rejected). Deleting the rows
-        // here, at the moment of rejection, refunds every affected
-        // voter automatically rather than relying on each of them to
-        // separately discover and retry a now-fixed toggle-off request.
+        // WHY: delete its votes so every voter gets the slot back; a rejected
+        // track vanishes from /tracks, so voters couldn't free it themselves.
         global $wpdb;
         $wpdb->delete(BH_Helpers::table(), ['submission_id' => $pid], ['%d']);
 
@@ -305,17 +239,13 @@ class BH_AdminModeration {
         if (class_exists('BH_Event')) {
             BH_Event::emit('bh/submission_rejected', ['user_id' => (int) $post->post_author, 'subject_type' => 'bh_submission', 'subject_id' => $pid, 'payload' => ['contest_id' => $cid, 'reason_code' => $reason_code]]);
         }
-        // Accountability log — a real moderation action (BH_Event above is the contestant's own activity feed, this is the admin-accountability side of the same action).
+        // Admin audit trail (BH_Event above is the contestant's activity feed).
         if (class_exists('OUS_Audit')) {
             OUS_Audit::log('submission_rejected', 'bh_submission', $pid, ['reason_code' => $reason_code, 'contest_id' => $cid]);
         }
     }
 
-    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b — the admin
-    // action that actually closes out a round: capability-gated
-    // (edit_post on the contest) and per-contest nonce'd, since this is
-    // a real, one-way state change (eliminated entries don't come back
-    // from this screen).
+    // Closes the active round. One-way, so capability- and per-contest-nonce-gated.
     public static function ajax_advance_round(): void {
         $cid = (int) ($_POST['contest_id'] ?? 0);
         if (!$cid || !current_user_can('edit_post', $cid)) {

@@ -1,18 +1,6 @@
 /**
- * bhc-blocks.js — editor-side registration for 'bhc/catalog' and
- * 'bhc/course' (class-blocks.php). Plain ES5-safe JS against WP core's
- * own globals, no build step, same convention as this ecosystem's other
- * WYSIWYG block conversions (bh-monetization-woo's bhm-blocks.js,
- * bh-contest's bh-contest-blocks.js, bh-streaming's bhs-blocks.js).
- *
- * wp.serverSideRender shows the REAL final rendered HTML here (both
- * blocks are fully server-rendered, unlike bh-contest's/bh-streaming's
- * JS-hydrated mount divs) — this is the actual catalog grid / course
- * page a real visitor sees, live in the editor canvas.
- *
- * TypeScript pilot conversion — same local-ambient-types pattern
- * bh-contest-blocks.ts already established for this exact
- * registerBlockType/serverSideRender IIFE shape.
+ * Editor registration for 'bhc/catalog' and 'bhc/course' (class-blocks.php). Both are fully
+ * server-rendered, so wp.serverSideRender shows the real final HTML.
  */
 
 type BHCElementType = unknown;
@@ -92,8 +80,7 @@ interface BHCBlocksWindow extends Window {
         icon: 'welcome-learn-more',
         category: 'widgets',
 
-        // No attributes — always the full catalog, same as the
-        // shortcode itself takes no atts.
+        // No attributes: always the full catalog.
         edit: function () {
             return el(ServerSideRender, { block: 'bhc/catalog' });
         },

@@ -2,26 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a — the WYSIWYG
- * shortcode-to-block conversion, continuing into bh-contest after
- * bh-monetization-woo's three easy-tier conversions (bhm/buy, bhm/
- * tip-jar, bhm/tiers). Same wp.serverSideRender mechanism, same "old
- * shortcode stays registered and untouched" posture — these blocks are
- * a new, additive authoring path, not a breaking replacement.
- *
- * A real, worth-stating distinction from the monetization blocks: this
- * plugin's shortcodes only ever render a static container div — the
- * actual interactive behavior (voting, playback, the reveal sequence,
- * the archive grid) is entirely owned by player.js/reveal.js/archive.js
- * hydrating that div client-side, on the REAL front-end page load. A
- * block's render_callback() returns the exact same container HTML the
- * shortcode always did, so nothing about that hydration changes — but
- * bh-contest.php's own asset-enqueue gate only ever checked
- * has_shortcode() against post_content, which a block-authored page has
- * none of. Fixed alongside these three blocks (see bh-contest.php's own
- * comment on that gate) — without it, a block-authored page would
- * render an inert, permanently-loading container with none of its JS
- * ever enqueued.
+ * Server-side-rendered blocks wrapping the existing shortcodes (which stay registered).
+ * Each renders the same container div, hydrated by the front-end JS; the asset
+ * enqueue in bh-contest.php therefore checks has_block() as well as has_shortcode().
  */
 class BH_Blocks {
     public static function init(): void {
@@ -95,10 +78,7 @@ class BH_Blocks {
         ]);
     }
 
-    // Populates the bh/contest-player and bh/results-reveal blocks'
-    // Inspector picker — reuses BH_Helpers::all_contests() (every
-    // published contest, newest first), the exact same source the
-    // Console/Debug Tools contest pickers already use.
+    // Contest list for the blocks' Inspector picker (BH_Helpers::all_contests()).
     /** @return \WP_REST_Response */
     public static function rest_contests_picker(\WP_REST_Request $req) {
         $out = [];

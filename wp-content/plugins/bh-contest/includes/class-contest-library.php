@@ -2,18 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The Contest Library — a standalone page ([bh_contest_library] /
- * bh/contest-library), separate from the Archive.
- *
- * Where the Archive is the flat "every track ever submitted" catalog,
- * this page answers a different question: "what contests are happening,
- * and where is each one in its life?" Every published contest becomes a
- * card carrying real lifecycle state — a phase pill, a
- * submissions -> voting -> results stage track, and a countdown to the
- * next deadline — grouped Open now / Starting soon / Wrapped and sorted
- * by urgency within each group. Server-rendered; no JS, no REST round
- * trip. Renders through the active theme (a real Page + the_content),
- * the same posture as the account portal and the courses catalog.
+ * [bh_contest_library]: one server-rendered card per published contest with its
+ * lifecycle stage and next deadline, grouped Open now / Starting soon / Wrapped.
+ * Distinct from the Archive, which lists every submitted entry.
  */
 class BH_Contest_Library {
 
@@ -45,14 +36,8 @@ class BH_Contest_Library {
         return $t ?: 0;
     }
 
-    // The real front-end URL for a contest. The bh_contest CPT is
-    // 'public' => false — get_permalink() on it is not a usable link.
-    // The actual player lives on a separate WP Page whose id is in
-    // _bh_page_id (auto-created by BH_AdminMenus). BH_ShareCards::
-    // contest_page_url() already resolves exactly this (published page
-    // -> its permalink, else home). '' when there's no real page yet,
-    // so the card can render un-linked rather than pointing at the
-    // homepage.
+    // WHY: bh_contest isn't public, so link its _bh_page_id page instead.
+    // '' when there's no published page, so the card renders unlinked.
     private static function contest_url(int $cid): string {
         if (class_exists('BH_ShareCards') && method_exists('BH_ShareCards', 'contest_page_url')) {
             $url = BH_ShareCards::contest_page_url($cid);
@@ -62,13 +47,8 @@ class BH_Contest_Library {
         return ($pid && get_post_status($pid) === 'publish') ? (string) get_permalink($pid) : '';
     }
 
-    // Compresses a contest's whole lifecycle into one model every part
-    // of the card renders from — stage (0 submissions, 1 voting, 2
-    // results; -1 not started, 3 fully done), a visual tone, the next
-    // real deadline, and whether it's inside the "ending soon" window —
-    // so the pill, the stage track, the countdown and the grouping
-    // can't drift apart. Dates: _bh_sub_start/_bh_sub_end (submissions),
-    // _bh_start/_bh_end (voting), _bh_results_published (results).
+    // One lifecycle model the whole card renders from, so its parts can't disagree.
+    // stage: -1 not started, 0 submissions, 1 voting, 2 results, 3 done.
     /** @return array{group:string,stage:int,tone:string,label:string,deadline:int,deadline_label:string,ending_soon:bool} */
     public static function contest_lifecycle(int $cid): array {
         $mk = fn($group, $stage, $tone, $label, $deadline = 0, $dl_label = '', $soon = false) => [
@@ -135,19 +115,13 @@ class BH_Contest_Library {
         return (string) $n;
     }
 
-    // A waveform-over-gradient placeholder for a contest with no cover
-    // image — same Streamline-Moderne motif the courses catalog uses so
-    // a coverless contest still gets a real hero, not a flat block.
+    // Placeholder hero for a contest with no cover image.
     private static function cover_placeholder_style(): string {
         $wave = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 90'%3E%3Cg fill='%23fff' fill-opacity='0.32'%3E%3Crect x='16' y='40' width='7' height='18' rx='3.5'/%3E%3Crect x='30' y='28' width='7' height='42' rx='3.5'/%3E%3Crect x='44' y='14' width='7' height='70' rx='3.5'/%3E%3Crect x='58' y='34' width='7' height='30' rx='3.5'/%3E%3Crect x='72' y='22' width='7' height='54' rx='3.5'/%3E%3Crect x='86' y='42' width='7' height='14' rx='3.5'/%3E%3Crect x='100' y='10' width='7' height='78' rx='3.5'/%3E%3Crect x='114' y='30' width='7' height='38' rx='3.5'/%3E%3Crect x='128' y='20' width='7' height='58' rx='3.5'/%3E%3Crect x='142' y='38' width='7' height='22' rx='3.5'/%3E%3Crect x='156' y='16' width='7' height='66' rx='3.5'/%3E%3Crect x='170' y='36' width='7' height='26' rx='3.5'/%3E%3Crect x='184' y='24' width='7' height='50' rx='3.5'/%3E%3Crect x='198' y='40' width='7' height='18' rx='3.5'/%3E%3Crect x='212' y='12' width='7' height='74' rx='3.5'/%3E%3Crect x='226' y='32' width='7' height='34' rx='3.5'/%3E%3Crect x='240' y='26' width='7' height='46' rx='3.5'/%3E%3Crect x='254' y='40' width='7' height='18' rx='3.5'/%3E%3Crect x='268' y='30' width='7' height='38' rx='3.5'/%3E%3C/g%3E%3C/svg%3E";
         return "background-image:url(\"$wave\"),linear-gradient(135deg,color-mix(in srgb,var(--tone) 40%,var(--bh-surface-2)) 0%,color-mix(in srgb,var(--tone) 12%,var(--bh-surface-2)) 100%);background-size:70% auto,cover;background-position:center,center;background-repeat:no-repeat,no-repeat;";
     }
 
-    // The contextual stat strip for a card — a small set of the most
-    // interesting numbers for where the contest currently is. Voting: how
-    // much the crowd is engaging. Submissions: how full the field is.
-    // Wrapped: the winner + the final tally. Each is [icon-dashicon,
-    // text]. class_exists guards so a partial install degrades quietly.
+    // Phase-appropriate stats as [dashicon, text] pairs.
     /** @return array<int, array{0:string,1:string}> */
     private static function card_stats(int $cid, array $life): array {
         if (!class_exists('BH_Helpers')) return [];
@@ -182,9 +156,7 @@ class BH_Contest_Library {
         return $out;
     }
 
-    // Small structural badges that say what KIND of contest this is —
-    // judged, multi-round, multi-category. Cheap meta reads, and each
-    // one is a genuine "this contest is different from that one" signal.
+    // Badges for judged, multi-round, and multi-category contests.
     /** @return string[] */
     private static function contest_badges(int $cid): array {
         $b = [];
@@ -202,9 +174,7 @@ class BH_Contest_Library {
         return $b;
     }
 
-    // The one distinctive, phase-specific block under the stats — the
-    // thing that makes an Open-for-voting card feel different from a
-    // Wrapped one at a glance, not just differently labelled.
+    // Phase-specific block under the stats (podium, momentum bar, etc.).
     private static function card_feature(int $cid, array $life): string {
         $cats = class_exists('BH_Helpers') ? BH_Helpers::categories($cid) : [];
         $chips = '';

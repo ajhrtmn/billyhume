@@ -1,15 +1,8 @@
 <?php
 /**
- * BHY_View — the ecosystem's template layer, wrapping Timber/Twig.
- *
- * Peers reach templates through here rather than touching Timber directly,
- * for the usual reason: the core is the only thing every plugin may depend
- * on, and this keeps the engine swappable behind one seam.
- *
- * Degrades rather than fatals. Timber ships in this plugin's vendor/, built
- * by the deploy workflow — but if that directory is missing (a partial
- * upload, a clone without the build), is_available() returns false and
- * callers fall back to their existing PHP rendering instead of white-screening.
+ * BHY_View: the ecosystem's template layer, wrapping Timber/Twig behind one
+ * seam. Degrades rather than fatals: if vendor/ is missing, is_available()
+ * is false and callers fall back to PHP rendering.
  *
  * @package Own_Ur_Shit
  */
@@ -39,33 +32,16 @@ final class BHY_View {
          */
         self::$namespaces = apply_filters('bhy_view_namespaces', self::$namespaces);
 
-        // Filters registered before init(): Timber builds its Twig environment
-        // during that call, so a filter added afterwards can miss it. Ordering
-        // here is cheap insurance, not a fix for an observed bug.
+        // Registered before Timber builds its Twig environment.
         add_filter('timber/locations', [self::class, 'register_locations']);
         add_filter('timber/twig/environment/options', [self::class, 'twig_options']);
         Timber\Timber::init();
     }
 
     /**
-     * Turn Twig auto-escaping ON explicitly.
-     *
-     * Timber ships `'autoescape' => false` in its own Twig environment
-     * defaults (vendor/timber/timber/src/Loader.php). Twig 3 appears to
-     * escape anyway in practice — verified live: rendering `{{ label }}`
-     * with `<script>x</script>` through Timber produced escaped output
-     * byte-identical to a directly-constructed Twig environment. So this
-     * filter is belt-and-braces rather than the thing that makes escaping
-     * work today.
-     *
-     * It stays because relying on that is relying on an undocumented
-     * coincidence between two libraries' defaults, on the one behaviour
-     * that matters most: auto-escaping is the main reason this engine was
-     * adopted at all, and it protects output built from public,
-     * unauthenticated input. Stating it explicitly costs one filter.
-     *
-     * Anything that genuinely needs raw markup must say so with Twig's
-     * `|raw` filter, which is greppable in review.
+     * Turn Twig auto-escaping ON explicitly. WHY: Timber's defaults say
+     * 'autoescape' => false; escaping works today by coincidence, and it is the
+     * main reason this engine is used. Raw output must use the greppable `|raw`.
      *
      * @param array<string,mixed> $options
      * @return array<string,mixed>

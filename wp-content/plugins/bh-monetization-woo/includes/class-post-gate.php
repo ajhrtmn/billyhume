@@ -2,19 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Tier-gating for ordinary WordPress Posts and Pages — everything this
- * needs already exists generically in BHM_Gate (get_required_tier()/
- * user_has_tier_access()/render_paywall_notice() are all keyed off any
- * post_id, not a specific CPT); only bh-courses (its own CPT) and
- * bh-streaming tracks/releases (BHM_MonetizationUI) ever actually
- * rendered a tier-select metabox and enforced it. This class is the
- * "plain post/page" implementation of that same pattern: a metabox
- * that persists the same `_bhm_required_tier` meta key every other
- * gated object already uses, plus the one thing those other object
- * types didn't need — an actual `the_content` enforcement hook, since
- * bh-courses/bh-streaming render their own templates and check access
- * themselves, while a plain post/page relies on the theme's normal
- * the_content() call.
+ * Tier gating for plain posts/pages: a metabox writing `_bhm_required_tier`, enforced on the_content.
  */
 class BHM_PostGate {
     const GATED_POST_TYPES = ['post', 'page'];
@@ -22,11 +10,7 @@ class BHM_PostGate {
     public static function init(): void {
         add_action('add_meta_boxes', [self::class, 'add_metabox']);
         add_action('save_post', [self::class, 'save_metabox']);
-        // Priority 20 — after the_content's default filters (wpautop,
-        // shortcode/block rendering all run at the default priority 10
-        // or lower) so a gated post's real rendered content never
-        // reaches the response even transiently; the paywall notice
-        // replaces the fully-rendered HTML, not the raw post_content.
+        // Priority 20: after blocks/shortcodes/wpautop, so the paywall replaces the fully rendered HTML.
         add_filter('the_content', [self::class, 'maybe_gate_content'], 20);
     }
 
@@ -62,11 +46,7 @@ class BHM_PostGate {
         update_post_meta($post_id, '_bhm_required_tier', $required_tier);
     }
 
-    // Only the real single-post/page render in the main loop — never a
-    // widget/block/REST excerpt calling get_the_content() elsewhere,
-    // which would otherwise leak the paywall notice into contexts that
-    // were never meant to enforce it (an admin-side block preview, a
-    // related-posts widget's excerpt, etc.).
+    // Main-loop singular render only; excerpts, widgets and previews are left alone.
     public static function maybe_gate_content(string $content): string {
         if (!self::available()) return $content;
         if (!is_singular(self::GATED_POST_TYPES) || !in_the_loop() || !is_main_query()) return $content;

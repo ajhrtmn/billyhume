@@ -1,19 +1,8 @@
 "use strict";
 /**
- * element-prefab-block.ts — editor-side registration for the
- * 'the-self-hosted-self/element-prefab' block (class-gutenberg-block.php). Plain
- * WP-core-globals JS, no build step at runtime — same "no Node/webpack"
- * constraint the rest of this ecosystem's admin JS follows. Deliberately
- * minimal: a prefab picker in the sidebar Inspector panel, and a
- * plain-text placeholder in the block canvas itself (NOT a live
- * ServerSideRender preview — a real, honestly-scoped simplification:
- * this pass ships selecting + embedding a prefab, not a live in-editor
- * preview of its rendered output, which would need either
- * wp.serverSideRender or a bespoke fetch-based preview; left for a
- * follow-up once this simpler slice is confirmed working end to end).
- *
- * TypeScript pilot, compiled with plain `tsc` to assets/js/element-
- * prefab-block.js. wp.* types come from the shared wp-globals.d.ts.
+ * Editor registration for the 'the-self-hosted-self/element-prefab' block
+ * (class-gutenberg-block.php): a prefab picker in the Inspector and a plain-text
+ * placeholder in the canvas (no live server-side preview).
  */
 (function (blocks, element, blockEditor, components, i18n, apiFetch) {
     'use strict';
@@ -48,10 +37,7 @@
                     setPrefabs(Array.isArray(list) ? list : []);
                     setLoading(false);
                 })
-                    // Not fatal — an admin without bhcore_design_site (or a
-                    // request made before the REST route's own permission
-                    // check passes) just sees an empty picker with a plain-
-                    // language explanation, not a broken block.
+                    // Not fatal: without permission the picker is just empty.
                     .catch(function () { setLoading(false); });
             }, []);
             var options = [{ label: __('— Select a prefab —', 'the-self-hosted-self'), value: 0 }].concat(prefabs.map(function (p) {
@@ -79,9 +65,7 @@
                     : __('Choose a prefab in the block sidebar (Inspector panel) to embed it here.', 'the-self-hosted-self'),
             }));
         },
-        // Server-rendered (render_callback in PHP) — the editor never
-        // saves any markup of its own for this block, only its
-        // attributes, matching WP core's own dynamic-block contract.
+        // Dynamic block: render_callback renders; only attributes are saved.
         save: function () { return null; },
     });
 })(window.wp && window.wp.blocks, window.wp && window.wp.element, window.wp && window.wp.blockEditor, window.wp && window.wp.components, window.wp && window.wp.i18n, window.wp && window.wp.apiFetch);

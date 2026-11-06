@@ -2,27 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Fan-facing surfaces: the supporter-tier picker ([bhm_tiers]), wallet
- * balance/top-up, and a tip jar. Deliberately thin wrappers around
- * WooCommerce's own cart/checkout — a "Join" or "Top Up" button here
- * just links to WooCommerce's real add-to-cart URL and lets its normal
- * checkout flow (and whatever payment gateways the artist has
- * configured) take over from there. Re-skinning checkout/payment forms
- * themselves isn't worth it — that's exactly the surface WooCommerce
- * and its gateways already handle securely (see this plugin's own
- * bootstrap docblock on the "wrap it" principle).
+ * Fan-facing surfaces: tier picker, wallet, tip jar, buy button.
+ * Thin wrappers that link into WooCommerce's own cart/checkout; payment forms are never re-skinned.
  */
 class BHM_Frontend {
-    // Server-side bounds on the tip amount — a free-form "name your own
-    // price" field is exactly the kind of input that needs a floor and
-    // a ceiling: too low isn't worth a transaction, and an unbounded
-    // ceiling turns the tip jar into a way to push arbitrarily large,
-    // oddly-labeled payments through the store, which is worth avoiding
-    // even though catching genuine money laundering is fundamentally the
-    // payment gateway's job (Stripe/PayPal are the regulated, KYC'd
-    // money-services businesses here, not this plugin — see this
-    // class's own docblock and README for why this plugin doesn't
-    // pretend to do AML/fraud detection itself).
+    // WHY: a free-form price field needs a floor and a ceiling; an unbounded
+    // ceiling lets arbitrarily large, oddly-labeled payments through the store.
     const TIP_MIN_CENTS = 100;
     const TIP_MAX_CENTS = 50000;
 
@@ -34,69 +19,30 @@ class BHM_Frontend {
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_action('woocommerce_before_calculate_totals', [self::class, 'apply_tip_price']);
         add_filter('woocommerce_add_cart_item_data', [self::class, 'apply_tip_amount'], 10, 2);
-        // Pay-what-you-want purchases (ROADMAP-ux-polish-and-feature-
-        // parity-2026-07.md 5c) — same two-hook cart-price-override
-        // shape as the tip jar above, just keyed to a purchase product's
-        // own _bhm_purchase_pwyw/_bhm_purchase_price_cents meta instead
-        // of a single hardcoded product. See BHM_Products::save_object()
-        // for where those two meta keys get written.
+        // Pay-what-you-want purchases: same price-override shape as the tip jar,
+        // keyed to _bhm_purchase_pwyw/_bhm_purchase_price_cents (BHM_Products::save_object()).
         add_action('woocommerce_before_calculate_totals', [self::class, 'apply_purchase_price']);
         add_filter('woocommerce_add_cart_item_data', [self::class, 'apply_purchase_amount'], 10, 2);
 
-        // Auto-detect a page carrying the [bhm_tiers] shortcode and
-        // remember it as the tiers page — so BHM_Tiers::tiers_page_url()
-        // (used by every paywall notice's "Become a supporter" link)
-        // works without a separate manual "which page is this" setting
-        // most of the time. The admin screen still lets an artist
-        // override it explicitly if they'd rather.
+        // Remember the page carrying [bhm_tiers] so tiers_page_url() works without a manual setting.
         add_action('save_post_page', [self::class, 'maybe_remember_tiers_page']);
-        // And if no such page exists at all, create one — the same
-        // self-provisioning bh-courses/bh-contest/bh-streaming do for
-        // their own pages (OUS_Pages::ensure). Without this, every
-        // "See supporter tiers" / "Become a supporter" link fell back
-        // to home_url('/') — reported live as "the tiers button goes
-        // nowhere". admin_init, never plugins_loaded (wp_insert_post
-        // reaches for permalinks; $wp_rewrite isn't up yet that early).
+        // WHY: admin_init, never plugins_loaded — wp_insert_post needs $wp_rewrite.
         add_action('admin_init', [self::class, 'ensure_tiers_page']);
-        // Same auto-detect for the gift-claim page — BHM_Gifts::redeem_page_url()
-        // needs a real page to point a claim link at, and requiring a
-        // manual setting before gifting can be tested at all would be a
-        // needless "it just works" violation for something this cheap to
-        // auto-detect.
         add_action('save_post_page', [self::class, 'maybe_remember_gift_redeem_page']);
-        // Logged-in-only — no _nopriv variant, since an anonymous
-        // visitor has no subscription of their own to pause/resume.
+        // Logged-in only: an anonymous visitor has no subscription to manage.
         add_action('admin_post_bhm_manage_subscription', [self::class, 'handle_manage_subscription']);
 
-        // Real gap this closes: the only post-purchase confirmation a
-        // new supporter ever saw was WooCommerce's own generic "Thank
-        // you, your order has been received" page — no acknowledgment of
-        // WHAT they just became (which tier, what it unlocks), the one
-        // moment in the whole flow that should feel like the payoff of
-        // supporting an artist, not an anonymous transaction receipt.
-        // Purely additive (prepended before WooCommerce's own thank-you
-        // markup, via priority 5) — never replaces or re-skins
-        // WooCommerce's own order details.
+        // Priority 5: prepended before WooCommerce's own thank-you markup, never replacing it.
         add_action('woocommerce_thankyou', [self::class, 'render_tier_thankyou_banner'], 5);
     }
 
-    // Looks at every line item on the just-placed order for a product
-    // carrying _bhm_tier_id (the reverse-lookup meta BHM_Products'
-    // sync_tier_wc_product() writes — see that file) and, if found,
-    // shows a real "You're now supporting at X" banner instead of
-    // nothing. A tip/wallet-topup/PWYW-purchase order simply has no such
-    // line item, so this silently renders nothing for those — it's
-    // deliberately tier-specific, not a generic order-confirmation
-    // re-skin.
+    // Tier-specific "You're now supporting at X" banner; renders nothing for non-tier orders.
     public static function render_tier_thankyou_banner(int $order_id): void {
         if (!$order_id || !function_exists('wc_get_order')) return;
         $order = wc_get_order($order_id);
         if (!$order) return;
 
-        // Same instanceof guard as class-downloads.php — get_items()
-        // with no type filter is always WC_Order_Item_Product in
-        // practice, but its base WC_Order_Item type has no
-        // get_product_id() (PHPStan-caught).
+        // Base WC_Order_Item has no get_product_id(), hence the instanceof guard.
         foreach ($order->get_items() as $item) {
             if (!$item instanceof WC_Order_Item_Product) continue;
             $product_id = $item->get_product_id();
@@ -132,16 +78,9 @@ class BHM_Frontend {
         }
     }
 
-    /**
-     * Guarantee a real page behind BHM_Tiers::tiers_page_url(). Adopts a
-     * hand-made [bhm_tiers] / bhm/tiers page if one exists, otherwise
-     * creates "Supporter Tiers". Cheap early-return once bhm_tiers_page_id
-     * points at a live page — see OUS_Pages::ensure().
-     */
+    /** Guarantee a real page behind BHM_Tiers::tiers_page_url(), adopting an existing one if present. */
     public static function ensure_tiers_page(): void {
-        // method_exists, not class_exists: a peer plugin can deploy ahead
-        // of core, and then the class is present while the method isn't
-        // (this exact shape took the site down once for bh-courses).
+        // WHY: method_exists, not class_exists — this plugin can deploy ahead of a core that lacks the method.
         if (!method_exists('OUS_Pages', 'ensure')) return;
         OUS_Pages::ensure('bhm_tiers', 'bhm_tiers_page_id', __('Supporter Tiers', 'bh-monetization-woo'), ['bhm/tiers']);
     }
@@ -154,11 +93,7 @@ class BHM_Frontend {
     }
 
     public static function maybe_enqueue(): void {
-        // The WooCommerce order-received (thank-you) page never carries
-        // any bhm_* shortcode of its own — render_tier_thankyou_banner()
-        // still needs .bhm-thankyou-banner styling there, so this asset
-        // load is widened to that endpoint specifically rather than only
-        // pages that literally embed one of this plugin's shortcodes.
+        // The thank-you page has no bhm_* shortcode but still shows the tier banner.
         $is_thankyou = function_exists('is_order_received_page') && is_order_received_page();
         if (!$is_thankyou) {
             if (!is_singular()) return;
@@ -168,15 +103,7 @@ class BHM_Frontend {
                 || has_shortcode($post->post_content, 'bhm_wallet')
                 || has_shortcode($post->post_content, 'bhm_tip_jar')
                 || has_shortcode($post->post_content, 'bhm_buy');
-            // A tier-gated post carries no bhm_* shortcode of its own, but
-            // BHM_Gate::paywall_html() still renders .bhm-paywall into it —
-            // so without this the paywall was the one component of this
-            // plugin that could render completely unstyled. It only looked
-            // fine because bh-streaming kept its own private copy of the
-            // .bhm-paywall/.bhm-btn rules for markup it never renders; that
-            // copy had already drifted (no var() fallbacks, no color, no
-            // .bhm-btn-secondary). Owning the styles wherever the component
-            // renders is the fix; the duplicate is then free to go.
+            // A tier-gated post has no shortcode but still renders .bhm-paywall.
             $is_gated = class_exists('BHM_Gate') && BHM_Gate::get_required_tier($post->ID) > 0;
             if (!$has_shortcode && !$is_gated) return;
         }
@@ -187,13 +114,7 @@ class BHM_Frontend {
 
     /* ---------- tier picker ---------- */
 
-    /**
-     * The tiers page a fan lands on before any tier exists. Was a single
-     * bare "<p>No supporter tiers are set up yet.</p>" — a dead end on a
-     * page the portal's own "See supporter tiers" button points at.
-     * Now a real, framed empty state (matches the .bhm-tier-card
-     * vocabulary), with a first-run shortcut for the site owner.
-     */
+    /** Empty state for the tiers page, with a first-run shortcut for the site owner. */
     private static function render_tiers_empty(bool $commerce_ready): string {
         $star = '<svg class="bhm-tiers-empty-icon" viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.79l-5.2 2.73.99-5.8-4.21-4.1 5.82-.85z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -203,7 +124,6 @@ class BHM_Frontend {
             : '<p class="bhm-tiers-empty-lead">Supporter tiers aren\'t available yet.</p>'
               . '<p class="bhm-tiers-empty-note">The store connection still needs to be finished before tiers can go live.</p>';
 
-        // Site owner sees the way to fix it, right here.
         $admin = '';
         if (current_user_can('edit_posts')) {
             $admin = '<p class="bhm-tiers-empty-admin"><a href="' . esc_url(admin_url('post-new.php?post_type=bhm_tier')) . '">&rarr; Add your first tier</a>'
@@ -222,11 +142,7 @@ class BHM_Frontend {
         }
 
         $user_id = get_current_user_id();
-        // Pre-pass, not computed inside the render loop below — a fan
-        // already on some tier needs a different call-to-action on every
-        // OTHER card ("Switch to this tier" instead of "Join monthly"),
-        // which means knowing whether they have any active tier at all
-        // before we know which specific card we're rendering.
+        // Pre-pass: every other card's CTA depends on whether the fan has any tier at all.
         $user_has_any_tier = false;
         if ($user_id) {
             foreach ($tiers as $t) {
@@ -243,42 +159,22 @@ class BHM_Frontend {
                 if ($img_url) echo '<img class="bhm-tier-cover" src="' . esc_url($img_url) . '" alt="">';
             }
             echo '<h3>' . esc_html($t['name']) . '</h3>';
-            // Real gap this closes: without WooCommerce Subscriptions
-            // active, a tier silently degrades to "one-time purchase =
-            // 30 days access" (BHM_Gate's own documented fallback) — but
-            // the tier CARD itself looked identical either way, so a fan
-            // had no way to know whether "Join monthly" meant a real
-            // recurring subscription or a single 30-day purchase they'd
-            // need to remember to repeat manually.
+            // Without WC Subscriptions a tier is a one-time 30-day purchase; say which.
             $has_subscriptions = class_exists('BH_Commerce') && BH_Commerce::has_subscriptions();
             echo '<span class="bhm-billing-badge">' . ($has_subscriptions ? 'Recurring — billed monthly' : 'One-time — 30 days access') . '</span>';
             echo '<div class="bhm-tier-price">$' . esc_html(BHM_Money::display($t['price_cents'])) . '/mo</div>';
             if (!empty($t['annual_price_cents'])) {
-                // Real gap this closes: the annual price was a raw lump
-                // sum ("or $96.00/yr") with no monthly-equivalent
-                // breakdown or savings math — a fan had to do that
-                // division/comparison themselves to know whether annual
-                // was actually a discount, or by how much. Savings only
-                // shown when it's genuinely a discount (annual < 12x
-                // monthly) — never a misleading "0% savings" or negative
-                // number if an admin priced annual equal to or above the
-                // monthly-times-12 cost.
+                // Savings shown only when annual is genuinely cheaper than 12x monthly.
                 $annual_monthly_equivalent = $t['annual_price_cents'] / 12;
                 $savings_percent = BHM_Gate::annual_savings_percent($t['price_cents'], $t['annual_price_cents']);
                 echo '<div class="bhm-tier-price-annual">or $' . esc_html(BHM_Money::display($t['annual_price_cents'])) . '/yr ($' . esc_html(BHM_Money::display($annual_monthly_equivalent)) . '/mo equivalent)';
                 if ($savings_percent > 0) echo ' <span class="bhm-tier-savings">— save ' . (int) $savings_percent . '%</span>';
                 echo '</div>';
             }
-            // Real conversion-facing surface for the trial value stored
-            // via BHM_Tiers — a trial nobody can see before checking out
-            // isn't a conversion lever, it's just hidden product config.
             if (!empty($t['trial_days']) && class_exists('BH_Commerce') && BH_Commerce::has_subscriptions()) {
                 echo '<div class="bhm-tier-trial">' . (int) $t['trial_days'] . '-day free trial</div>';
             }
             if ($t['benefits']) echo '<p class="bhm-tier-benefits">' . esc_html($t['benefits']) . '</p>';
-            // Structured benefits list — a real <ul>, separate from the
-            // free-text paragraph above (see BHM_Tiers::render_metabox()
-            // for why these are two distinct fields rather than one).
             if (!empty($t['benefits_list'])) {
                 echo '<ul class="bhm-tier-benefits-list">';
                 foreach ($t['benefits_list'] as $item) {
@@ -290,16 +186,7 @@ class BHM_Frontend {
                 echo '<span class="bh-badge bhm-badge">Your current tier</span>';
                 echo self::render_subscription_controls($user_id, $t['id']);
             } elseif ($t['wc_product_id']) {
-                // Real gap this closes: a fan already supporting at
-                // another tier saw the exact same "Join monthly" label
-                // on every other card, with no acknowledgment they
-                // already have an active tier or any sense of what
-                // clicking through would actually do to their existing
-                // subscription. The actual reconciliation still happens
-                // server-side (BHM_Gate::handle_tier_downgrade() /
-                // WooCommerce Subscriptions' own switcher when present)
-                // — this is just honest, tier-aware labeling of the
-                // exact same add-to-cart link, not a new checkout path.
+                // Label only; tier switching is reconciled server-side (BHM_Gate::handle_tier_downgrade()).
                 $join_label = $user_has_any_tier ? 'Switch to this tier' : 'Join monthly';
                 $annual_label = $user_has_any_tier ? 'Switch (annual)' : 'Join annually';
                 echo '<a class="bhm-btn" href="' . esc_url(self::add_to_cart_url($t['wc_product_id'])) . '">' . esc_html($join_label) . '</a>';
@@ -307,21 +194,9 @@ class BHM_Frontend {
                     echo ' <a class="bhm-btn bhm-btn-secondary" href="' . esc_url(self::add_to_cart_url($t['wc_product_id_annual'])) . '">' . esc_html($annual_label) . '</a>';
                 }
 
-                // Gifting — "buy this tier on someone else's behalf"
-                // (ROADMAP-platform-evolution.md Section 4). Was a bare
-                // <details><summary>Gift this</summary> — a native
-                // disclosure triangle with no visual weight next to the
-                // real buttons above it, easy to miss entirely. Still a
-                // <details> (progressive disclosure, zero JS required to
-                // reveal the form), just styled to read as a real
-                // secondary action instead of an easy-to-miss caret.
+                // Gift this tier: a <details> so no JS is needed to reveal the form.
                 echo '<details class="bhm-tier-gift"><summary class="bhm-btn bhm-btn-secondary">&#127873; Gift this tier</summary>';
-                // A GET form submission discards whatever query string is
-                // already on its own `action` attribute — the base cart
-                // URL is the right target here, not add_to_cart_url()
-                // (which appends ?add-to-cart=N that would just get
-                // silently dropped), with add-to-cart supplied as an
-                // ordinary hidden field instead.
+                // WHY: a GET form drops its action's query string, so add-to-cart goes in a hidden field.
                 echo '<form method="get" action="' . esc_url(wc_get_cart_url()) . '">';
                 echo '<input type="hidden" name="add-to-cart" value="' . (int) $t['wc_product_id'] . '">';
                 echo '<input type="hidden" name="bhm_gift" value="1">';
@@ -337,30 +212,9 @@ class BHM_Frontend {
 
     /* ---------- subscription pause/resume ---------- */
 
-    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a (the feature
-    // half — the entitlement-revocation bug fix, 0.4.6, already closed
-    // the correctness half). A branded button here, not a link out to
-    // WooCommerce Subscriptions' own native My Account screen — same
-    // "thin wrapper, the fan never needs to touch WooCommerce's own UI
-    // directly" posture this whole class already takes for checkout/
-    // the tip jar, not a new principle invented for this one feature.
-    //
-    // Only renders for a REAL recurring subscription (a row in
-    // bhm_entitlements with a real wc_subscription_id) — the one-time-
-    // purchase-as-30-days-access fallback model (BHM_Gate's own
-    // documented pattern for when WC Subscriptions isn't installed)
-    // has nothing to pause; there's no recurring billing to interrupt,
-    // just an expiry date already running.
+    // Pause/resume only for a real recurring subscription; one-time 30-day access has nothing to pause.
     private static function render_subscription_controls(int $user_id, int $tier_id): string {
-        // Routed through BH_Commerce (standing architecture rule:
-        // nothing outside the core should be hard-wired to an
-        // external dependency in a way that can't be mocked/replaced) —
-        // was a bare class_exists('WC_Subscriptions') + wcs_get_subscription()
-        // pair, meaning this whole feature was completely untestable
-        // without the real paid extension installed. A mock commerce
-        // provider can now make this reachable for local testing by
-        // hooking bh_commerce_has_subscriptions/bh_commerce_get_subscription,
-        // with zero change to real production behavior.
+        // Via BH_Commerce so a mock provider can stand in for WC Subscriptions in tests.
         if (!class_exists('BH_Commerce') || !BH_Commerce::has_subscriptions()) return '';
         $sub_id = self::active_subscription_id($user_id, $tier_id);
         if (!$sub_id) return '';
@@ -379,17 +233,13 @@ class BHM_Frontend {
                 $out .= '<button type="submit" name="bhm_sub_action" value="resume" class="bhm-btn">Resume subscription</button>';
             }
         } elseif ($subscription->can_be_updated_to('on-hold')) {
-            // Audit fix (2026-07-25): a real billing/access-affecting
-            // action that previously fired with zero click-time
-            // confirmation — less friction than this plugin's own
-            // internal Debug Tools destructive-action confirm gets.
             $out .= '<button type="submit" name="bhm_sub_action" value="pause" class="bhm-btn bhm-btn-secondary" onclick="return confirm(\'Pause your subscription? You\\\'ll lose supporter access until you resume it.\');">Pause subscription</button>';
         }
         $out .= '</form>';
         return $out;
     }
 
-    /** The most recent real (has a wc_subscription_id) tier entitlement row for this user+tier — a fallback one-time-purchase entitlement (wc_subscription_id NULL) never matches, by design (see this section's own docblock). */
+    /** Latest wc_subscription_id for this user+tier; one-time entitlements (NULL id) never match. */
     private static function active_subscription_id(int $user_id, int $tier_id): int {
         global $wpdb;
         $t = BHM_Tables::entitlements();
@@ -399,14 +249,7 @@ class BHM_Frontend {
         )) ?: 0;
     }
 
-    /**
-     * admin-post handler for the pause/resume form above — logged-in-
-     * only (no _nopriv variant registered; an anonymous visitor has no
-     * subscription to manage), verifies BOTH the nonce AND that the
-     * subscription actually belongs to the requesting user before
-     * touching anything — a crafted subscription_id from a different
-     * account must never be actionable here.
-     */
+    /** Pause/resume handler: checks the nonce AND that the subscription belongs to the current user. */
     public static function handle_manage_subscription(): void {
         $sub_id = (int) ($_POST['subscription_id'] ?? 0);
         $action = sanitize_key($_POST['bhm_sub_action'] ?? '');
@@ -420,9 +263,7 @@ class BHM_Frontend {
         }
 
         $subscription = BH_Commerce::get_subscription($sub_id);
-        // get_user_id() is the subscription's OWN customer — the real
-        // ownership check. Never trust that the sub_id/user_id pairing
-        // implied by the form alone is honest.
+        // WHY: ownership comes from the subscription itself, never from the form.
         if (!$subscription || (int) $subscription->get_user_id() !== $user_id) {
             wp_die('That subscription doesn\'t belong to you.', 403);
         }
@@ -442,10 +283,7 @@ class BHM_Frontend {
 
     /* ---------- tip jar ---------- */
 
-    // A tip is just a variable-price WooCommerce product the fan sets
-    // their own amount on at checkout (WooCommerce core supports
-    // "Name Your Price"-style variable pricing via a simple custom
-    // field on a virtual product) — no separate payment machinery here.
+    // A tip is a hidden virtual product whose price is overridden per cart item.
     /** @param mixed $atts */
     public static function render_tip_jar($atts): string {
         if (!BH_Commerce::available()) return '';
@@ -476,16 +314,11 @@ class BHM_Frontend {
         return ob_get_clean();
     }
 
-    // Migrated onto BH_Commerce::upsert_product() — second migration
-    // pass, same treatment BHM_Products::sync_tier_wc_product() got
-    // first (see class-commerce.php's own docblock for the full
-    // history). Never a subscription — a tip is always a one-time
-    // product, upsert_product()'s subscription arg simply isn't passed.
     private static function ensure_tip_product(): int {
         if (class_exists('BH_Commerce')) {
             $product_id = BH_Commerce::upsert_product(0, [
                 'name' => 'Tip',
-                'price_cents' => self::TIP_MIN_CENTS, // real per-order amount is overridden by apply_tip_price() below — this is just the catalog fallback
+                'price_cents' => self::TIP_MIN_CENTS, // catalog fallback; apply_tip_price() sets the real amount
                 'virtual' => true,
                 'catalog_visibility' => 'hidden',
             ]);
@@ -504,12 +337,7 @@ class BHM_Frontend {
         return $product->get_id();
     }
 
-    // Registered unconditionally in init() (NOT only inside
-    // ensure_tip_product(), which — bug fixed here — only ever runs
-    // once, the very first time the tip product is created; every
-    // request after that would otherwise never register this filter at
-    // all and silently fall back to charging the $1 catalog price
-    // regardless of what the fan actually typed).
+    // WHY: registered unconditionally in init(); ensure_tip_product() runs only once.
     /**
      * @param array<string, mixed> $cart_item_data
      * @return array<string, mixed>
@@ -517,19 +345,13 @@ class BHM_Frontend {
     public static function apply_tip_amount($cart_item_data, int $product_id): array {
         if ((int) $product_id !== (int) get_option('bhm_tip_product_id', 0)) return $cart_item_data;
         $requested_cents = isset($_GET['bhm_tip_amount']) ? BHM_Money::parse($_GET['bhm_tip_amount']) : 500;
-        // Clamped server-side — the min/max on the <input> above is a
-        // UX hint only; a request can trivially bypass HTML attributes,
-        // so the actual bound has to be enforced here.
+        // WHY: clamped server-side; the <input> min/max is only a UX hint.
         $cents = max(self::TIP_MIN_CENTS, min(self::TIP_MAX_CENTS, $requested_cents));
         $cart_item_data['bhm_tip_cents'] = $cents;
         return $cart_item_data;
     }
 
-    // The actual price override, applied every time WooCommerce
-    // recalculates cart totals — this is what makes the tip amount real
-    // rather than cosmetic. Re-clamps again here too (not just at
-    // add-to-cart time) since cart contents can persist across requests
-    // and this is the actual point money changes hands.
+    // The real price override; re-clamps because cart contents persist across requests.
     public static function apply_tip_price(\WC_Cart $cart): void {
         if (is_admin() && !defined('DOING_AJAX')) return;
         foreach ($cart->get_cart() as $item) {
@@ -541,20 +363,10 @@ class BHM_Frontend {
 
     /* ---------- pay-what-you-want purchases ---------- */
 
-    // Ceiling matches the tip jar's own TIP_MAX_CENTS reasoning exactly
-    // (an unbounded "name your price" field is a way to push arbitrarily
-    // large, oddly-labeled payments through the store) — same number,
-    // not duplicated by coincidence.
+    // Same ceiling reasoning as TIP_MAX_CENTS.
     const PURCHASE_MAX_CENTS = 50000;
 
-    // A track/release "Buy" link/form, wherever an artist drops this
-    // shortcode (a track's own content, a widget, a BH_Content block —
-    // deliberately not wired to any one specific template, since
-    // there's no existing front-end purchase entry point anywhere in
-    // this ecosystem yet; this shortcode IS that entry point, same
-    // "drop it wherever" posture as [bhm_tip_jar]). $atts['id'] is the
-    // track/release post ID (its own real ID, not the WC product ID —
-    // matches how BHM_Products::render_object_ui() is already keyed).
+    // [bhm_buy id=N]: N is the track/release post ID, not the WC product ID.
     /** @param mixed $atts */
     public static function render_purchase_button($atts): string {
         if (!BH_Commerce::available()) return '';
@@ -569,11 +381,7 @@ class BHM_Frontend {
 
         ob_start();
         if ($pwyw) {
-            // Suggested amounts scaled off the floor price rather than a
-            // fixed set (1x/1.5x/2x/3x) — same "give a tap-able anchor
-            // instead of a blank field" reasoning as the tip jar above,
-            // but the tip jar's fixed $5/$10/$25/$50 wouldn't make sense
-            // against an arbitrary floor price that could be $1 or $40.
+            // Suggested amounts scale off the floor price.
             $floor_dollars = $price_cents / 100;
             $suggested = array_unique(array_map(function ($mult) use ($floor_dollars) {
                 return (int) round($floor_dollars * $mult);
@@ -598,12 +406,7 @@ class BHM_Frontend {
         return ob_get_clean();
     }
 
-    // Same shape as apply_tip_amount() — clamps against the SPECIFIC
-    // purchase's own floor (its own _bhm_purchase_price_cents, not the
-    // tip jar's fixed TIP_MIN_CENTS), and only acts on a product this
-    // reverse-lookup confirms is actually a PWYW-enabled purchase
-    // product, never a tier/tip/wallet product that happens to share
-    // the cart.
+    // Clamps to this purchase's own floor; acts only on PWYW-enabled purchase products.
     /**
      * @param array<string, mixed> $cart_item_data
      * @return array<string, mixed>
@@ -615,8 +418,6 @@ class BHM_Frontend {
         if (!$floor_cents) return $cart_item_data;
 
         $requested_cents = isset($_GET['bhm_purchase_amount']) ? BHM_Money::parse($_GET['bhm_purchase_amount']) : $floor_cents;
-        // Clamped server-side — same reasoning as apply_tip_amount()'s
-        // own comment: the <input> min/max is a UX hint only.
         $cents = max($floor_cents, min(self::PURCHASE_MAX_CENTS, $requested_cents));
         $cart_item_data['bhm_purchase_cents'] = $cents;
         return $cart_item_data;
@@ -663,17 +464,8 @@ class BHM_Frontend {
 
     /* ---------- wallet top-up product sync ---------- */
 
-    // Called whenever the admin settings screen saves new top-up
-    // amounts (see class-admin.php) — keeps one WooCommerce product per
-    // configured top-up tier, tagged with how many wallet cents it
-    // grants so on_order_completed() in class-products.php knows what
-    // to credit.
-    // Migrated onto BH_Commerce::upsert_product() — see ensure_tip_product()
-    // above and class-commerce.php's docblock for the full migration
-    // history. $price here is a decimal dollar STRING (as stored in
-    // bhm_wallet_topup_options, entered by the artist on the settings
-    // screen), converted to integer cents for upsert_product()'s
-    // contract rather than passed through as a formatted price string.
+    // One hidden product per top-up amount, tagged with the wallet cents it grants.
+    // $price is a decimal dollar string from settings, converted to cents.
     public static function sync_wallet_topup_products(): void {
         if (!BH_Commerce::available()) return;
         $options = get_option('bhm_wallet_topup_options', []);

@@ -2,18 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * - bh_course: a course. Holds an ordered list of lesson IDs in
- *   `_bhc_lesson_order` (post meta, array of lesson post IDs) — same
- *   "ordered list of child IDs on the parent" shape bh-streaming uses
- *   for release->track ordering. Optionally paylocked via
- *   `_bhm_required_tier`, exactly like bh-streaming's tracks/releases —
- *   see class-gate.php.
- * - bh_lesson: one lesson, belonging to exactly one course
- *   (`_bhc_course_id`). A lesson is NOT one content blob — it's an
- *   ordered array of STEPS (see class-steps.php), each one a text
- *   block, an image block, or a quiz block. That's what makes a lesson
- *   "multistep/multipart": authoring a lesson means building a
- *   sequence, not filling in one big editor.
+ * - bh_course: holds an ordered list of lesson IDs in `_bhc_lesson_order`; optionally
+ *   tier-gated via `_bhm_required_tier` (class-gate.php).
+ * - bh_lesson: belongs to one course (`_bhc_course_id`); its body is an ordered array of
+ *   steps (class-steps.php).
  */
 class BHC_PostTypes {
     const MENU_PARENT = 'edit.php?post_type=bh_course';
@@ -21,55 +13,21 @@ class BHC_PostTypes {
     public static function register(): void {
         register_post_type('bh_course', [
             'labels' => [
-                // "OUS ·" text prefix dropped — the shared icon
-                // (OUS_MenuIcons::courses(), same rounded-square badge
-                // frame every OUS-owned top-level menu now carries) is
-                // what signals ecosystem membership now.
                 'name' => 'Courses', 'menu_name' => 'Courses', 'singular_name' => 'Course',
                 'add_new_item' => 'Add New Course', 'edit_item' => 'Edit Course', 'all_items' => 'All Courses',
             ],
-            // has_archive is deliberately OFF: the /courses/ catalog is a
-            // real Page with the bhc/catalog block (rendered through the
-            // active theme via the_content), not a CPT archive served by
-            // a hand-rolled full-page template. Single courses still live
-            // at /courses/<slug>/ via the rewrite slug below.
+            // No archive: /courses/ is a real Page with the bhc/catalog block.
             'public' => true, 'show_ui' => true, 'show_in_menu' => true, 'has_archive' => false,
             'rewrite' => ['slug' => 'courses'],
             'menu_icon' => OUS_MenuIcons::courses(), 'supports' => ['title', 'editor', 'thumbnail', 'revisions'],
             'capability_type' => 'post',
-            // show_in_rest stays true for the REST API generally, but
-            // the block editor for bh_course is turned OFF via a
-            // use_block_editor_for_post_type filter (bh-courses.php). An
-            // earlier pass put courses on the block editor "so it
-            // doesn't feel like a different app from its lessons" — in
-            // practice a course has NO block content (post_content is
-            // just the catalog description), so the canvas was an empty
-            // dark void whose "/" menu offered core Video/Image/Embed
-            // blocks that make no sense for a course, and mobile
-            // authoring of it was miserable. The real course-building
-            // surface is the "Course Details" metabox (sortable
-            // lessons, add-lesson, step outlines); the classic editor
-            // gives post_content a small, honest Description box right
-            // above it, no iframe.
+            // REST stays on, but the block editor is off for courses (bh-courses.php):
+            // post_content is only the description; the Course Details metabox is the builder.
             'show_in_rest' => true,
         ]);
 
-        // Category/topic — real WordPress taxonomies, same "don't
-        // reinvent what WordPress already ships" call bhs_genre
-        // (bh-streaming) and bhm_collection (bh-monetization-woo) already
-        // made for the identical shape of problem (QUIZ-AND-CATALOG-
-        // DESIGN-PLAN.md Part 2.2): the term-management admin UI, REST
-        // exposure, and tax_query filtering all come for free.
-        // 'rewrite' => false deliberately — no term-archive
-        // page (/course-category/foo/), only filtering via the [bh_courses]
-        // catalog shortcode's own query string (class-render.php). That
-        // sidesteps the whole "newly registered rewrite rule is invisible
-        // until flush_rewrite_rules() runs" class of bug entirely (the
-        // exact thing BHM_Storefront::add_rewrite()'s versioned-flush
-        // dance exists to work around) rather than needing to reproduce
-        // that dance for a term-archive URL nothing uses yet. If a real
-        // term-archive page is ever wanted, add 'rewrite' + the versioned
-        // flush pattern then, not speculatively now.
+        // Real taxonomies. 'rewrite' => false: no term archives, only catalog filtering, which
+        // avoids needing a versioned rewrite flush.
         register_taxonomy('bhc_course_category', 'bh_course', [
             'labels' => ['name' => 'Course Categories', 'singular_name' => 'Category'],
             'public' => true, 'show_ui' => true, 'show_in_menu' => true, 'show_in_rest' => true,
@@ -88,35 +46,12 @@ class BHC_PostTypes {
                 'name' => 'Lessons', 'singular_name' => 'Lesson', 'add_new_item' => 'Add New Lesson',
                 'edit_item' => 'Edit Lesson', 'all_items' => 'All Lessons',
             ],
-            // public so a direct lesson URL can be used for a "continue
-            // where you left off" link; actual gating happens at render
-            // time (class-gate.php / class-render.php), not by hiding
-            // the post type itself — same approach bh-streaming's
-            // tracks use (public post, gated player).
+            // Public so lesson URLs work; gating happens at render time.
             'public' => true, 'show_ui' => true, 'show_in_menu' => self::MENU_PARENT,
             'rewrite' => ['slug' => 'lesson'],
-            // 'editor' + show_in_rest — a lesson's steps
-            // are now authored directly on this real block-editor screen
-            // (bhc/* real Gutenberg blocks, BHC_ContentBridge) instead of
-            // BH_Studio's separate canvas; see that class's own docblock.
-            // Front-end rendering is untouched — BHC_Render still reads
-            // the legacy _bhc_steps postmeta array exclusively, kept in
-            // sync by BHC_ContentBridge's save_post_bh_lesson hook.
-            //
-            // 'revisions' added, ROADMAP-search-and-revisions.md's own
-            // framing (AJ: "versioning is most important for anything
-            // that is a post, like contests and lessons") — a lesson's
-            // steps genuinely ARE post_content now, so WordPress core's
-            // own native revision/restore UI already works correctly
-            // for free the moment this flag exists; no OUS_Revisions
-            // wiring needed for content that already lives in
-            // wp_posts. Zero new code beyond this one supports entry.
-            // 'custom-fields' is what makes WP_REST_Posts_Controller
-            // expose the `meta` field at all — without it the registered
-            // _bhc_* lesson meta (BHC_Admin::register_lesson_meta) is
-            // invisible to REST and the "Lesson" sidebar panel can't
-            // read or save it. Gutenberg hides the raw Custom Fields
-            // metabox by default, so this adds no visible clutter.
+            // 'editor' + show_in_rest: steps are authored as bhc/* blocks (BHC_ContentBridge).
+            // 'revisions': steps are post_content, so native revisions cover them.
+            // 'custom-fields': required for REST to expose `meta` to the Lesson sidebar panel.
             'supports' => ['title', 'editor', 'revisions', 'custom-fields'], 'show_in_rest' => true, 'capability_type' => 'post',
         ]);
     }
@@ -137,12 +72,8 @@ class BHC_PostTypes {
         return (string) get_post_meta($lesson_id, '_bhc_module_title', true);
     }
 
-    // Groups a course's ordered lesson IDs into display sections: each
-    // entry is ['title' => string, 'lesson_ids' => int[]]. A run of
-    // consecutive lessons sharing the same non-blank module title
-    // becomes one group; a blank title is its own single-lesson group
-    // with title '' (rendered ungrouped/standalone). Order itself still
-    // comes from _bhc_lesson_order — this never re-sorts, only buckets.
+    // Buckets the ordered lessons into ['title' => string, 'lesson_ids' => int[]] groups:
+    // consecutive lessons sharing a module title form one group; blank titles stand alone.
     /** @return array<int, array{title: string, lesson_ids: array<int, int>}> */
     public static function grouped_lesson_order(int $course_id): array {
         $groups = [];
@@ -158,9 +89,7 @@ class BHC_PostTypes {
         return $groups;
     }
 
-    // Position (0-based) of $lesson_id within its own course's order,
-    // or null if it isn't (yet) listed — a lesson can exist as a draft
-    // before an author adds it to the course's order.
+    // 0-based position of $lesson_id in its course's order, or null if not listed.
     public static function lesson_position(int $lesson_id): ?int {
         $course_id = self::course_for_lesson($lesson_id);
         if (!$course_id) return null;
@@ -169,16 +98,9 @@ class BHC_PostTypes {
         return $pos === false ? null : $pos;
     }
 
-    /* ---------------- catalog metadata (QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 2) ---------------- */
+    /* ---------------- catalog metadata ---------------- */
 
-    // A closed, fixed 3-value set an author picks FROM, never extends —
-    // a scalar enum in postmeta, not a taxonomy (see class-admin.php's
-    // save_course() for the sanitization whitelist this registry feeds,
-    // same in_array()-against-known-keys guard _bhm_required_benefit
-    // already uses). Filterable only so a future difficulty scale change
-    // has one place to make it, not because this is meant to be an
-    // open, author-extensible list like the category/topic taxonomies
-    // above.
+    // Closed set of difficulty keys; filterable only so the scale has one place to change.
     /** @return array<string, string> */
     public static function difficulty_registry(): array {
         return apply_filters('bhc_difficulty_registry', [
@@ -200,13 +122,7 @@ class BHC_PostTypes {
         return $key ? $registry[$key] : '';
     }
 
-    // Real WP user reference, falling back to the post author — see
-    // QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 2.2 for why this is a user ID
-    // rather than free text (unlike bhs_track's artist field, every
-    // course here is locally authored by someone with a real account).
-    // Returns null (never a fatal) if the referenced user was since
-    // deleted — get_userdata() legitimately returns false for that, and
-    // callers must not assume a truthy result.
+    // Instructor user, falling back to the post author; null if that user was deleted.
     public static function instructor(int $course_id): ?\WP_User {
         $instructor_id = (int) get_post_meta($course_id, '_bhc_instructor_id', true);
         if (!$instructor_id) {
@@ -218,18 +134,12 @@ class BHC_PostTypes {
         return $user ?: null;
     }
 
-    // Computed, not author-entered — see Part 2.2 for why (an
-    // author-typed "3 hours" silently lies the moment the course grows;
-    // a computed lesson count never does). Walks the same lesson_order()/
-    // BHC_Steps::count() data course_percent() already reads, so this
-    // adds no new data source, just a different aggregation of it.
+    // Computed from the lesson order, never author-entered.
     public static function lesson_count(int $course_id): int {
         return count(self::lesson_order($course_id));
     }
 
-    // The optional free-text override (e.g. "~4 hours of video") — see
-    // Part 2.2: computed-first, override-optional, never the other way
-    // around, so a course with no override still shows something honest.
+    // Optional free-text duration shown alongside the computed lesson count.
     public static function duration_note(int $course_id): string {
         return (string) get_post_meta($course_id, '_bhc_duration_note', true);
     }

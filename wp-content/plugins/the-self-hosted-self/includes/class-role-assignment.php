@@ -2,29 +2,13 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The role-assignment admin UI OUS_Roles' own docblock has always
- * flagged as separate, roadmapped scope — this is that UI. Framed
- * around ROLES-AS-JOBS ("Instructor," "Reviewer," ...), not a bare grid
- * of raw capability checkboxes, so a site owner grants "the Instructor
- * job" in the same language bh-courses/BH Feedback already use to
- * describe these capabilities in their own docblocks. The underlying
- * mechanism is unchanged from `OUS_Roles`: `WP_User::add_cap()`/
- * `remove_cap()`, a per-user grant layered on top of whatever the
- * user's own ROLE already provides.
- *
- * Administrators are excluded from the list entirely, not shown as a
- * confusing always-checked/disabled row — every capability in
- * `OUS_Roles::DEFAULT_CAPS` already includes 'administrator' in its
- * role list, so an admin account already has every job below via their
- * role and this UI would have nothing real to toggle for one.
+ * Role-assignment admin UI framed as jobs ("Instructor", "Reviewer"), granting
+ * per-user caps via add_cap()/remove_cap(). Administrators are excluded: their
+ * role already has every job.
  */
 class OUS_RoleAssignment {
-    // A curated subset of OUS_Roles::DEFAULT_CAPS, deliberately not 1:1
-    // with every registered capability — bhcore_author_custom_js and
-    // bhcore_view_crm_sensitive are excluded from this primary list on
-    // purpose (both are documented in class-roles.php as deliberately
-    // more restricted than an ordinary "grant this job" case) and only
-    // reachable via the Advanced section below.
+    // Curated subset of OUS_Roles::DEFAULT_CAPS. The two restricted caps
+    // (custom JS, sensitive CRM) are only in the Advanced section.
     const JOBS = [
         'instructor' => [
             'label' => 'Instructor',
@@ -62,12 +46,7 @@ class OUS_RoleAssignment {
         return $suites;
     }
 
-    // compute_job_diff()'s idempotency/admin-exclusion logic is the one
-    // piece of real branching in this class worth pinning down — the
-    // rest is plain WP_User_Query/add_cap()/remove_cap() calls with no
-    // interesting edge cases of their own. Runs against a real, tagged
-    // fixture user (OUS_Debug::get_or_create_test_user), cleaned up
-    // afterward.
+    // Tests compute_job_diff() against a tagged fixture user, cleaned up after.
     /** @return array<int, mixed> */
     public static function run_tests(): array {
         if (!class_exists('OUS_TestRunner') || !class_exists('OUS_Debug')) return [];
@@ -90,9 +69,7 @@ class OUS_RoleAssignment {
         $rows[] = OUS_TestRunner::assert_same(['instructor'], $diff['remove'], 'compute_job_diff(): a job the user has but no longer wants is queued to remove');
         $rows[] = OUS_TestRunner::assert_same([], $diff['add'], 'compute_job_diff(): nothing queued to add when the desired set is empty');
 
-        // Administrator exclusion — every job's capability already
-        // rides on that role (OUS_Roles::DEFAULT_CAPS), so this must
-        // always return an empty diff regardless of desired jobs.
+        // Administrators always get an empty diff.
         $admin_id = OUS_Debug::get_or_create_test_user('ous_roles_suite_admin', false);
         $admin_user = get_userdata($admin_id);
         $admin_user->set_role('administrator');
@@ -100,8 +77,7 @@ class OUS_RoleAssignment {
         $rows[] = OUS_TestRunner::assert_same([], $diff['add'], 'compute_job_diff(): an administrator is never queued to gain anything');
         $rows[] = OUS_TestRunner::assert_same([], $diff['remove'], 'compute_job_diff(): an administrator is never queued to lose anything either');
 
-        // Cleanup — reset the fixture users to a plain subscriber with
-        // no leftover capabilities.
+        // Reset fixture users to plain subscribers.
         foreach (self::JOBS as $job) {
             foreach ($job['caps'] as $cap) $user->remove_cap($cap);
         }
@@ -111,11 +87,6 @@ class OUS_RoleAssignment {
     }
 
     public static function add_menu(): void {
-        // Same working parent ('the-self-hosted-self') the Metrics/Security/
-        // Guided Setup submenus already use without issue — VISION.md's
-        // own documented get_plugin_page_hook() failure was isolated to
-        // submenus registered under the 'ous-debug' parent specifically
-        // (API Docs, Codebase Docs), not this one.
         $hook = add_submenu_page('ous', 'Roles', 'Roles', 'manage_options', 'ous-roles', [self::class, 'render']);
         if (!$hook && class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('error', 'add_submenu_page() for Roles FAILED (returned false).', [
@@ -205,16 +176,8 @@ class OUS_RoleAssignment {
         echo '</form>';
     }
 
-    // Pure(ish) diffing logic, split out from handle_save() specifically
-    // so it's directly unit-testable (see class-core-test-suite.php's
-    // own OUS_RoleAssignment coverage) without needing to fake $_POST.
-    // $desired_job_keys is the set of job keys the form said this user
-    // SHOULD have; returns which job keys actually need an add_cap()
-    // vs. remove_cap() call against the user's CURRENT capabilities —
-    // never touches anything for a job already in the right state
-    // (idempotent), and returns an empty diff entirely for an
-    // administrator (every job's capability already rides on that role,
-    // per OUS_Roles::DEFAULT_CAPS).
+    // Which job keys need add_cap() vs remove_cap() given the desired set.
+    // Idempotent; always empty for administrators. Split out for unit testing.
     /**
      * @param \WP_User|false|null $user
      * @param array<int, string> $desired_job_keys
@@ -261,12 +224,8 @@ class OUS_RoleAssignment {
         return $updated ? "Updated $updated capability grant(s)." : 'No changes.';
     }
 
-    // Advanced: grant/revoke ANY registered capability (not just the
-    // curated Jobs list above) to a specific user by ID — the escape
-    // hatch for the two deliberately-more-restricted capabilities
-    // (bhcore_author_custom_js, bhcore_view_crm_sensitive) and for
-    // anything a future plugin registers via bhcore_role_capabilities
-    // that this class has no curated Job entry for yet.
+    // Advanced: grant/revoke any registered capability, including the two
+    // restricted ones and plugin-registered caps without a Job entry.
     /** @return array<int, string> */
     private static function all_registered_caps(): array {
         $caps = array_keys(apply_filters('bhcore_role_capabilities', class_exists('OUS_Roles') ? OUS_Roles::DEFAULT_CAPS : []));

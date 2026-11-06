@@ -6,9 +6,7 @@ class BH_Helpers {
         return BHCON_Tables::votes();
     }
 
-    // Legacy single-contest fallback: newest published contest. Used when a
-    // shortcode or API call doesn't specify which contest it means — keeps
-    // old embeds working exactly as before multi-contest support existed.
+    // Newest published contest: the fallback when no contest is specified.
     public static function active_contest(): int {
         $q = new WP_Query([
             'post_type'      => 'bh_contest',
@@ -22,9 +20,7 @@ class BH_Helpers {
         return $q->posts[0] ?? 0;
     }
 
-    // All published contests, newest first — used to populate admin
-    // contest pickers (Results, Debug Tools) and the [bh_contest_player]
-    // slug lookup.
+    // All published contests, newest first.
     /** @return array<int, \WP_Post> */
     public static function all_contests(): array {
         $q = new WP_Query([
@@ -49,10 +45,8 @@ class BH_Helpers {
         return $q->posts[0] ?? 0;
     }
 
-    // Turns a raw "contest" value from a shortcode attribute or REST param
-    // (numeric ID, slug, or empty) into a validated, published contest ID.
-    // Empty/invalid falls back to active_contest() so untargeted embeds and
-    // older cached front-end code keep working.
+    // ID, slug, or empty -> a published contest ID (0 if invalid). Empty falls
+    // back to active_contest().
     /** @param mixed $raw */
     public static function resolve_contest($raw): int {
         $raw = is_string($raw) ? trim($raw) : $raw;
@@ -66,8 +60,6 @@ class BH_Helpers {
         return self::find_by_slug($raw);
     }
 
-    // [bh_contest_player contest="..."] string an admin can copy-paste to
-    // embed this specific contest anywhere.
     public static function shortcode_for(int $cid): string {
         $post = get_post($cid);
         $ref  = ($post && $post->post_name) ? $post->post_name : $cid;
@@ -85,12 +77,7 @@ class BH_Helpers {
         return 'open';
     }
 
-    // Same shape as contest_status(), but for the separate submission
-    // window. Unset (either date blank) means "no window configured" —
-    // treated as always-open, matching the plugin's original behavior
-    // from before submission windows existed, so older contests that
-    // never set these fields keep accepting submissions exactly as they
-    // always did.
+    // Like contest_status(), for the submission window. 'unscheduled' counts as open.
     public static function submission_status(int $cid): string {
         $start = self::normalize_dt(get_post_meta($cid, '_bh_sub_start', true));
         $end   = self::normalize_dt(get_post_meta($cid, '_bh_sub_end', true));
@@ -106,14 +93,8 @@ class BH_Helpers {
         return $status === 'open' || $status === 'unscheduled';
     }
 
-    // <input type="datetime-local"> submits "YYYY-MM-DDTHH:MM" (a literal T,
-    // no seconds). current_time('mysql') returns "YYYY-MM-DD HH:MM:SS" (a
-    // space, with seconds). Those two formats don't compare correctly as
-    // plain strings — on any day matching the stored date, the T sorts
-    // after the space regardless of actual time, which was making contests
-    // read as permanently "Upcoming". Normalize to the same shape before
-    // any comparison, here and wherever a raw value might have been saved
-    // in the old format already.
+    // WHY: datetime-local values ("...T10:00") don't string-compare correctly
+    // against current_time('mysql') ("... 10:00:00"); normalize before comparing.
     /** @param mixed $raw */
     private static function normalize_dt($raw): string {
         if (!$raw) return '';
@@ -126,11 +107,7 @@ class BH_Helpers {
         return self::contest_status($cid) === 'open';
     }
 
-    // One friendly sentence describing exactly where a contest currently
-    // sits across its whole lifecycle (draft → submissions → voting →
-    // results) — the single source of truth for the progress indicator
-    // in the metabox and (eventually) anywhere else that wants it,
-    // rather than each place re-deriving its own read of the same dates.
+    // One-line lifecycle label (draft -> submissions -> voting -> results) for status pills.
     /** @return array{label:string, color:string} */
     public static function contest_phase_summary(int $cid): array {
         if (get_post_status($cid) !== 'publish') {
@@ -164,19 +141,7 @@ class BH_Helpers {
         return ['label' => 'Voting closed — awaiting results', 'color' => '#b3261e'];
     }
 
-    // Categories are stored on the contest as a simple JSON list — no new
-    // post type/taxonomy needed. Empty/absent = single implicit "general"
-    // category (slug ''), which is also what every vote cast before this
-    // feature existed already uses, so nothing needs migrating.
-    // Basic flag, not fraud detection: a user who cast a lot of votes
-    // packed into an implausibly short window. Deliberately simple —
-    // this uses only the created_at timestamps already in the votes
-    // table (no IP tracking exists in this schema, and adding it would
-    // mean a migration for a "nice to have" rather than a core need), so
-    // it can't catch someone spacing out fake votes deliberately. It's
-    // meant to surface the obvious case (a script, or someone mashing
-    // the vote button across many tabs) for a human to actually look at,
-    // not to make an automated call.
+    // Flags users with many votes in a short window, for manual review only.
     /** @return array<int, object> */
     public static function suspicious_voters(int $cid, int $min_votes = 8, int $window_seconds = 120): array {
         global $wpdb;
@@ -192,21 +157,8 @@ class BH_Helpers {
         ));
     }
 
-    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2c — the IP+cookie
-    // half of the in-house anti-fraud signal, alongside
-    // suspicious_voters() above. A shared IP alone isn't suspicious (a
-    // household, a campus, a VPN exit node routinely puts many genuine
-    // voters behind one address); the actual signal is SEVERAL DIFFERENT
-    // ACCOUNTS voting from that IP within a short window — sock puppets
-    // sharing a connection, not a coincidence of geography. Same manual-
-    // review-only posture as suspicious_voters(): this surfaces a
-    // cluster for a human to look at, never blocks or auto-flags a vote.
-    // voter_fp is included per-row (not grouped on) so the admin view
-    // can additionally note whether the SAME browser fingerprint shows
-    // up under multiple accounts in a cluster — the strongest single
-    // signal this table can offer, short of an actual CAPTCHA vendor
-    // (explicitly not adopted — see this method's own roadmap doc
-    // section for that direct decision).
+    // Several accounts voting from one IP in a short window, for manual review only.
+    // same_fingerprint marks clusters where one browser cookie spans the accounts.
     /** @return array<int, object> */
     public static function suspicious_ip_clusters(int $cid, int $min_accounts = 2, int $window_seconds = 300): array {
         global $wpdb;
@@ -224,23 +176,13 @@ class BH_Helpers {
         ));
         foreach ($rows as $r) {
             $r->user_ids = array_map('intval', explode(',', $r->user_ids));
-            // A cluster where every account also shares the SAME browser
-            // fingerprint is a much stronger signal than one where each
-            // account has a distinct fingerprint (which just means
-            // several genuine devices happen to share a NAT'd IP).
             $fps = array_filter(explode(',', (string) $r->fingerprints));
             $r->same_fingerprint = count($fps) === 1 && count($r->user_ids) > 1;
         }
         return $rows;
     }
 
-    // Which contact-info fields a contest asks for at submission, and
-    // which of those are actually required — configurable per contest
-    // (see the Contest Rules metabox) rather than one fixed rule for
-    // every contest. Defaults reproduce the plugin's original behavior
-    // exactly (all fields shown, real name + at least one platform
-    // handle required, phone optional) so a contest that's never touched
-    // this setting works exactly as it always has.
+    // Per-contest contact fields shown/required at submission.
     const CONTACT_FIELDS = ['real_name', 'discord_name', 'twitch_name', 'youtube_name', 'typical_platform', 'phone'];
 
     /** @return array<string, mixed> */
@@ -254,29 +196,16 @@ class BH_Helpers {
         $saved = json_decode((string) get_post_meta($cid, '_bh_contact_config', true), true);
         if (!is_array($saved)) return $defaults;
         $cfg = array_merge($defaults, $saved);
-        // A field that isn't shown can't sensibly be required — this is
-        // enforced here too, not just nudged toward in the admin UI, so
-        // a stale/hand-edited config can't quietly lock submitters out
-        // over a field they were never even shown a way to fill in.
+        // WHY: a hidden field can never be required, or submitters get locked out.
         if (!in_array('real_name', $cfg['show'], true)) $cfg['require_real_name'] = false;
         if (!in_array('phone', $cfg['show'], true)) $cfg['require_phone'] = false;
-        // Same idea for the handle rule specifically: it's impossible to
-        // satisfy "at least one of Discord/Twitch/YouTube" if none of
-        // those three are even shown — that's not just meaningless, it's
-        // an unsatisfiable requirement that would block every submitter
-        // outright, so it's defused the same way as the two checks above.
         if (!array_intersect(['discord_name', 'twitch_name', 'youtube_name'], $cfg['show'])) {
             $cfg['require_handle'] = false;
         }
         return $cfg;
     }
 
-    // The bar for "ready to submit a track" — driven by the specific
-    // contest's own contact-field configuration above, checked against
-    // profile data from the Self-Hosted Self core plugin (BHI_Profiles) now
-    // that identity is shared across the ecosystem rather than owned by
-    // this plugin. Voters never have to clear this — only checked at
-    // submission time.
+    // Required contact fields still missing from the user's BHI_Profiles data (submission only).
     /** @return array<int, string> */
     public static function missing_for_submission(int $user_id, int $cid): array {
         $cfg = self::contact_config($cid);
@@ -301,15 +230,8 @@ class BH_Helpers {
         return $missing;
     }
 
-    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a — a genuine
-    // per-contest format choice, not a single ecosystem-wide behavior.
-    // 'public' (the pre-existing, unchanged voting model) is the default
-    // for every contest that never sets this, so nothing already running
-    // changes shape. 'judges' replaces public voting's leaderboard with
-    // BH_Judging::judge_results() everywhere a leaderboard is read.
-    // 'hybrid' keeps both running side by side, surfaced as two SEPARATE
-    // leaderboards (Judges' Pick / People's Choice) — a direct decision
-    // from the roadmap doc rather than inventing a blending formula.
+    // 'public' (default), 'judges' (rubric scores replace the vote leaderboard),
+    // or 'hybrid' (two separate leaderboards, never blended).
     public static function contest_format(int $cid): string {
         $format = get_post_meta($cid, '_bh_contest_format', true);
         return in_array($format, ['judges', 'hybrid'], true) ? $format : 'public';
@@ -322,9 +244,7 @@ class BH_Helpers {
         return is_array($list) ? $list : [];
     }
 
-    // '' if the contest has no named categories, otherwise the first
-    // defined category — used as the default when a request doesn't
-    // specify one.
+    // First category slug, or '' for an uncategorized contest.
     public static function default_category(int $cid): string {
         $cats = self::categories($cid);
         return $cats ? $cats[0]['slug'] : '';
@@ -375,13 +295,7 @@ class BH_Helpers {
         return !empty($q->posts);
     }
 
-    // A submission created with no audio file yet (contest's own "Allow
-    // submitting without audio yet" setting, class-api.php's submit())
-    // sits in 'draft' status until one is attached. Returns that
-    // submission's ID (for a "finish it" link/message) or 0 — a
-    // distinct check from has_submitted() above, which already counts
-    // 'draft' as "any status" for duplicate-blocking purposes but can't
-    // tell the caller WHICH kind of "already submitted" it found.
+    // ID of the user's no-audio 'draft' submission for this contest, or 0.
     public static function draft_submission_for(int $uid, int $cid): int {
         $q = new WP_Query([
             'post_type'      => 'bh_submission',
@@ -396,13 +310,8 @@ class BH_Helpers {
         return $q->posts ? (int) $q->posts[0] : 0;
     }
 
-    // Deliberately NOT the same check as has_submitted() above. A pending
-    // (unapproved) submission still correctly blocks a second entry via
-    // has_submitted(), but it must NOT earn the bonus vote — otherwise
-    // anyone could submit junk, get the bonus instantly, and vote with
-    // it before an admin ever reviews the track. Only a post_status of
-    // 'publish' (i.e. actually approved — see BH_AdminModeration in class-admin-moderation.php) counts
-    // here.
+    // WHY: only an approved ('publish') submission earns the bonus vote, so junk
+    // entries can't gain votes before review. Not the same as has_submitted().
     public static function has_approved_submission(int $uid, int $cid): bool {
         $q = new WP_Query([
             'post_type'      => 'bh_submission',
@@ -417,19 +326,8 @@ class BH_Helpers {
         return !empty($q->posts);
     }
 
-    // Vote limit applies per category independently — an APPROVED
-    // submission earns the bonus vote in every category, not just one.
-    // A contest can override the global base/bonus (see the Contest
-    // Rules metabox); leaving those fields blank falls back to the
-    // plugin-wide default.
-    //
-    // Deliberately scoped to THIS contest only ($cid is part of both
-    // queries above) — a user's submission history in other contests,
-    // or across their lifetime on the site, has no bearing on their vote
-    // count here. If a future feature ever wants a cross-contest loyalty
-    // bonus, that would need to be a new, explicitly-named function
-    // (e.g. lifetime_bonus()) added deliberately — not something that
-    // should ever fall out of quietly removing the $cid scoping below.
+    // Per-category vote limit: base + bonus for an approved submission in THIS
+    // contest only. Blank per-contest values fall back to the plugin defaults.
     public static function vote_limit(int $uid, int $cid): int {
         $base  = get_post_meta($cid, '_bh_vote_base', true);
         $bonus = get_post_meta($cid, '_bh_vote_bonus', true);
@@ -438,10 +336,7 @@ class BH_Helpers {
         return $base + (self::has_approved_submission($uid, $cid) ? $bonus : 0);
     }
 
-    // $round: ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b — null
-    // (every pre-existing call site) counts votes across every round, a
-    // no-op distinction for a single-round contest since every one of
-    // its votes carries round = 0.
+    // $round null counts votes across every round.
     public static function user_vote_count(int $uid, int $cid, string $category = '', ?int $round = null): int {
         global $wpdb;
         $t = self::table();
@@ -493,16 +388,8 @@ class BH_Helpers {
         return ['mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4'];
     }
 
-    // Standard "competition ranking": ties share a rank, and the next
-    // distinct value skips ahead to reflect how many entries are ahead
-    // of it — 10,7,7,5 votes ranks as 1,2,2,4, same convention as an
-    // Olympic medal tie (two silvers means no bronze at all, not two
-    // silvers plus an extra bronze). $votes_desc must already be sorted
-    // highest-first; returns one rank per input position, same length
-    // and order. The one canonical implementation of this — every place
-    // that builds a ranked leaderboard (category results, overall
-    // results, the reveal sequence) calls this rather than each
-    // re-deriving its own notion of what a tie means.
+    // Competition ranking (10,7,7,5 -> 1,2,2,4) over values sorted highest-first.
+    // The one shared tie rule for every leaderboard.
     /**
      * @param array<int, int|float> $votes_desc
      * @return array<int, int>

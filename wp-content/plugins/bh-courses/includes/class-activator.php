@@ -2,13 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Same hardened migration pattern as bh-streaming/bh-contest: versioned,
- * runs on every load via a cheap early-return (not just on real
- * activation, since a file-replace deploy never fires that hook), only
- * marks itself done if the migration actually succeeded.
+ * Versioned schema migration that runs on every load with a cheap early return (a
+ * file-replace deploy never fires the activation hook); only marks itself done on success.
  */
 class BHC_Activator {
-    const DB_VERSION = '1.6'; // 1.1 added attempts (quiz retry limits), bhc_enrollments (drip scheduling), bhc_completions (course-completed hook, deduped). 1.2 added bhc_progress.answers (QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1) — see that column's own comment below for why it's a self-contained snapshot, not a per-attempt history table. 1.3 added bhc_progress.watched_percent (ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b, real video progress tracking) — see that column's own comment below. 1.4 added bhc_reviews (course reviews/ratings — a real gap the plugin's own audit flagged as explicitly-deferred, no data model at all). 1.5 added bhc_achievements (LMS depth-of-magic Phase 3 — real, persistent cross-course mastery badges, the first genuinely new schema that phase needed). 1.6 added bhc_progress.sub_index (OPEN.md item 22, resolved 2026-08-26: an in-video annotation gets its own completion record, not just the step it lives in — see class-progress.php's own comment on step_status() for the resolution).
+    const DB_VERSION = '1.6';
 
     public static function activate(): void {
         BHC_PostTypes::register();
@@ -20,34 +18,15 @@ class BHC_Activator {
     }
 
     /**
-     * The course catalog needs a page to live on, and that should not depend
-     * on the site owner knowing to make one.
-     *
-     * bh-contest auto-creates its Archive and bh-streaming its Streaming
-     * page; bh-courses never did, so the catalog only existed if somebody
-     * built it by hand. OUS_Pages::ensure() is the shared version of what
-     * those two grew privately, and it also adopts an existing hand-made
-     * page rather than creating a duplicate.
-     *
-     * MUST NOT run on plugins_loaded. Creating a page that early fatals with
-     * "Call to a member function get_page_permastruct() on null" -- $wp_rewrite
-     * does not exist yet, and wp_insert_post's own hooks reach for permalinks.
-     * Verified by doing exactly that and taking every admin screen down.
-     * admin_init is late enough and is the only context that needs it.
-     *
-     * class_exists() at call time, not parse time -- core loads last.
-     * Without core there is simply no auto-created page, which is the same
-     * position this plugin was already in.
+     * Ensures the catalog page exists (adopting a hand-made one rather than duplicating).
+     * WHY: must not run on plugins_loaded; creating a page before $wp_rewrite exists fatals.
+     * admin_init is late enough.
      */
     public static function ensure_catalog_page(): void {
-        // method_exists, not class_exists: a peer plugin can deploy ahead of
-        // core, and then the class is present while the method it needs is
-        // not. Live went down with 'Call to undefined method
-        // OUS_Pages::ensure()' for exactly that reason -- class_exists said
-        // yes and the call still fatalled.
+        // WHY: method_exists, not class_exists: a peer can deploy ahead of core with an
+        // older OUS_Pages that lacks ensure().
         if (!method_exists('OUS_Pages', 'ensure')) return;
-        // bhc/catalog is the block form of the same catalog -- without it,
-        // a block-authored page is invisible to the lookup and gets duplicated.
+        // bhc/catalog (the block form) so block-authored pages are found, not duplicated.
         OUS_Pages::ensure('bh_courses', 'bhc_catalog_page_id', __('Courses', 'bh-courses'), ['bhc/catalog']);
     }
 
@@ -58,27 +37,16 @@ class BHC_Activator {
         }
     }
 
-    // 0.15.0: has_archive was removed from bh_course (the /courses/
-    // catalog is now the real Page, not a CPT archive template). A
-    // file-replace deploy never fires the activation hook, so the old
-    // /courses/ archive rewrite rule would otherwise linger in the
-    // cached rules and keep shadowing the Page until something else
-    // flushed. One-time, option-gated, on admin_init (after
-    // ensure_catalog_page has run) — same posture as every other
-    // deploy-safe migration in this plugin.
+    // One-time rewrite flush after has_archive was removed from bh_course, so the old
+    // /courses/ archive rule stops shadowing the catalog Page. Option-gated, admin_init.
     public static function maybe_flush_after_archive_removal(): void {
         if (get_option('bhc_flushed_archive_removal') === '1') return;
         flush_rewrite_rules(false);
         update_option('bhc_flushed_archive_removal', '1');
     }
 
-    // 0.16.0: the lesson "Lesson" sidebar panel treats lesson-side
-    // _bhc_course_id as the source of truth, but older data (and the
-    // seeders) only ever set the course-side _bhc_lesson_order. One-time
-    // backfill: for every lesson with no _bhc_course_id, if exactly one
-    // course's order already contains it, write that course onto the
-    // lesson. Option-gated, admin_init — same deploy-safe posture as the
-    // flush above.
+    // One-time backfill of lesson-side _bhc_course_id from the course-side order when
+    // exactly one course contains the lesson. Option-gated, admin_init.
     public static function maybe_backfill_lesson_course_ids(): void {
         if (get_option('bhc_backfilled_lesson_course_ids') === '1') return;
         $courses = get_posts(['post_type' => 'bh_course', 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids']);
@@ -98,26 +66,9 @@ class BHC_Activator {
         update_option('bhc_backfilled_lesson_course_ids', '1');
     }
 
-    // Content-repair migration, separate concern from the schema
-    // version above (own option, own version counter) — same "cheap
-    // early-return on every load, only marks itself done on real
-    // success" pattern. Real bug found live 2026-08-16: bhc/text and
-    // bhc/quiz's save() functions were both changed at some point from
-    // producing no static markup to wrapping their content in a real
-    // <div class="wp-block-...">. Any lesson saved BEFORE that change
-    // kept the old, wrapper-less serialization, which no longer
-    // matches what the CURRENT save() produces — Gutenberg's own
-    // client-side validator flags this as "Block contains unexpected
-    // or invalid content" and offers an "Attempt recovery" button that
-    // would have silently discarded bhc/quiz's real child questions
-    // (they're stored as nested child blocks, not an attribute — a
-    // real data-loss risk, not just a cosmetic one). 6 lessons on this
-    // install hit this (5 for bhc/text, 3 for bhc/quiz, one lesson only
-    // in the quiz set) — already hand-fixed via the REST API this
-    // session, but that fix lived only in this install's database.
-    // This migration makes the same fix portable to any other install
-    // still running old content, and to any lesson that slips through
-    // in the future.
+    // Content repair, versioned separately from the schema. Rewrites lessons saved before
+    // bhc/text and bhc/quiz's save() gained a wrapper div, which Gutenberg flags as invalid;
+    // its "Attempt recovery" would drop the quiz's child questions.
     const CONTENT_MIGRATION_VERSION = '1';
 
     public static function maybe_migrate_content(): void {
@@ -147,11 +98,7 @@ class BHC_Activator {
         return true;
     }
 
-    // bhc/text's save() wraps its `content` attribute in
-    // <div class="wp-block-bhc-text">...</div> — a self-closed
-    // `<!-- wp:bhc/text {...} /-->` comment (the old, dynamic-era
-    // shape) has nowhere to source that div from, so re-derive it
-    // straight from the same attribute the block already stores.
+    // Re-derives the missing wrapper div for a self-closed bhc/text block from its attribute.
     private static function fix_stale_text_blocks(string $content): string {
         $pattern = '/<!--\s*wp:bhc\/text\s*(\{[^}]*\})\s*\/-->/';
         return (string) preg_replace_callback($pattern, function ($m) {
@@ -163,12 +110,7 @@ class BHC_Activator {
         }, $content);
     }
 
-    // bhc/quiz is a container (its real questions are nested
-    // bhc/quiz-question child blocks, not an attribute) — the old
-    // shape had those children sitting directly inside the quiz's
-    // open/close comment pair with no wrapper div. Fixed by wrapping
-    // the EXISTING inner content as-is, never touching the children
-    // themselves, so no question data is at risk.
+    // Wraps a bhc/quiz's existing inner content in the div, never touching the child questions.
     private static function fix_stale_quiz_blocks(string $content): string {
         $pattern = '/(<!-- wp:bhc\/quiz \{[^}]*\} -->)([\s\S]*?)(<!-- \/wp:bhc\/quiz -->)/';
         return (string) preg_replace_callback($pattern, function ($m) {
@@ -177,13 +119,8 @@ class BHC_Activator {
         }, $content);
     }
 
-    // Runs the raw DROP+let-dbDelta-recreate step for the sub_index
-    // migration (DB_VERSION 1.6) — see create_or_update_schema()'s own
-    // comment for why this can't be left to dbDelta alone. Checked via
-    // information_schema, not a version flag, so this is safe to call
-    // on every activation regardless of DB_VERSION bookkeeping (an
-    // install that's somehow already past 1.6 with the old key shape,
-    // e.g. a restored backup, still gets fixed).
+    // Drops the old 3-column unique key so dbDelta can create the 4-column one. Checked via
+    // information_schema, so it's safe on every activation.
     private static function maybe_widen_progress_unique_key(): void {
         global $wpdb;
         $table = BHC_Tables::progress();
@@ -208,30 +145,12 @@ class BHC_Activator {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
 
-        // dbDelta() cannot widen an existing UNIQUE KEY's column list —
-        // confirmed live: it saw user_lesson_step already existed and
-        // tried to ADD a second key of the same name instead of
-        // altering it, a real "Duplicate key name" SQL error, silent
-        // to anything that doesn't check dbDelta's return value (which
-        // nothing here did before this). Explicit DROP first, only when
-        // the OLD (3-column) shape is actually present, so this is a
-        // no-op on a fresh install where dbDelta creates the correct
-        // 4-column key from scratch.
+        // WHY: dbDelta() can't widen an existing UNIQUE KEY (it tries to add a duplicate name),
+        // so drop the old 3-column shape first.
         self::maybe_widen_progress_unique_key();
 
-        // One real, queryable-across-users table — same convention as
-        // bh-monetization-woo's bhm_wallet/bhm_entitlements: anything
-        // that needs "every student's status on this lesson" or "this
-        // student's status across the whole course" gets a table, not
-        // per-user postmeta. Tracked at STEP granularity (not just
-        // per-lesson) so a multistep lesson can show real "3 of 7 steps
-        // done" progress and a quiz step can gate the next step on a
-        // passing score.
-        //
-        // step_index is the step's position within the lesson's own
-        // steps array at the time it was completed — see class-steps.php.
-        // score/passed are only ever set for quiz steps; NULL for a
-        // plain text/image step (there's nothing to score).
+        // Step-granularity progress, one table across users. step_index is the step's position
+        // in the lesson's steps array; score/passed are NULL for non-quiz steps.
         $progress = BHC_Tables::progress();
         $sql = "CREATE TABLE $progress (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -248,50 +167,15 @@ class BHC_Activator {
             PRIMARY KEY  (id),
             UNIQUE KEY user_lesson_step (user_id, lesson_id, step_index, sub_index)
         ) $charset;";
-        // sub_index: 0 is the step's own completion row (every existing
-        // row, and every non-annotation step, writes only this) — a
-        // positive value is one specific in-video annotation's own
-        // completion, independent of the step and of every other
-        // annotation in it. The unique key widened from (user, lesson,
-        // step) to include sub_index, which is additive: every existing
-        // row already implicitly has sub_index = 0 (the column default),
-        // so no existing row's uniqueness changes, and dbDelta() applies
-        // this as an ALTER TABLE, not a data migration.
-        // watched_percent: the furthest playback position (as a percent of
-        // duration) BHC_Progress::update_watch_progress() has recorded for
-        // a video step — NULL for every non-video step, same "real SQL
-        // NULL means N/A" convention score/passed/answers already use.
-        // Deliberately the FURTHEST position reached, not the last
-        // position reported (a student who rewinds to review a section
-        // shouldn't have their progress go backward) — see that method's
-        // own comment for the MAX-based UPDATE that enforces this.
-        // answers: JSON snapshot of the LATEST-WRITTEN attempt only (this
-        // row is an upsert, not a history table — see the class docblock
-        // above and QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1.1/1.2 for why
-        // that's the deliberate, precedented choice, not a shortcut). NULL
-        // for non-quiz steps and for any quiz row written before this
-        // column existed. Self-contained: stores the question text, choice
-        // list, and correct index AS THEY WERE at submission time, not
-        // just the chosen index — bhc/quiz-question blocks are editable
-        // content (LMS-AUTHORING-DESIGN-PLAN.md), so replaying a chosen
-        // index against the CURRENT quiz could point at a choice that's
-        // since been reworded or removed. A later quiz edit intentionally
-        // does not change what an old review shows — that's correct
-        // behavior, not staleness, and is worth remembering if it ever
-        // looks like a bug. See BHC_Steps::score_quiz()'s 'questions'
-        // return shape for the exact per-record fields.
+        // sub_index: 0 is the step's own row; >0 is one in-video annotation's completion.
+        // watched_percent: the furthest position reached (never regresses); NULL for non-video.
+        // answers: JSON snapshot of the latest attempt, self-contained (question text, choices,
+        // correct index as submitted), so later quiz edits don't change an old review.
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql);
 
-        // One row the first time a user gets real access to a course —
-        // NOT the same as a purchase/entitlement (bh-monetization-woo's
-        // own job) or a wallet debit; this is purely "when did this
-        // person's clock start for THIS course," which drip scheduling
-        // (class-gate.php) needs and nothing else in this ecosystem
-        // already tracks. A course a student never actually opens never
-        // gets a row — same "record it when it actually happens, not
-        // speculatively" approach bhm_play_log uses for plays.
+        // One row when a user first gets real access to a course: the drip clock start.
         $enroll = BHC_Tables::enrollments();
         $sql2 = "CREATE TABLE $enroll (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -303,14 +187,7 @@ class BHC_Activator {
         ) $charset;";
         dbDelta($sql2);
 
-        // One row the first time a user hits 100% on a course — the
-        // dedup mechanism for bhc_course_completed (see class-progress.php):
-        // the action should fire exactly once per student per course, not
-        // every time a re-check happens to land on 100% again (e.g. a
-        // step gets re-marked-complete after being reset). The INSERT's
-        // own UNIQUE KEY is what actually enforces "only once," not an
-        // application-level check — same atomic-write-decides approach
-        // BHM_Wallet::debit() uses instead of a read-then-write race.
+        // One row when a user first hits 100%: the UNIQUE KEY makes bhc_course_completed fire once.
         $completions = BHC_Tables::completions();
         $sql3 = "CREATE TABLE $completions (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -322,29 +199,8 @@ class BHC_Activator {
         ) $charset;";
         dbDelta($sql3);
 
-        // Reviews — a real table, not a CPT: a review is small, fixed-
-        // shape structured data (one rating + one body per user per
-        // course), the exact same "queryable-across-users, not per-user
-        // postmeta" reasoning bhc_progress/bhc_enrollments/bhc_completions
-        // above already established, not a second content type needing
-        // its own admin list-table/editor chrome for what's really one
-        // row. One review per user per course (UNIQUE KEY) — resubmitting
-        // an edited review UPDATEs the same row rather than creating a
-        // second one, and resets status back to 'pending' (see
-        // class-reviews.php) so an edited review is re-moderated, not
-        // grandfathered in on its original approval.
-        //
-        // status: real moderation gate — a review is
-        // never publicly visible until an admin approves it, same
-        // "held for review" posture WordPress core comments already use
-        // by default, not a bespoke concept. completed_at_review is a
-        // SNAPSHOT (not computed live from bhc_completions at render
-        // time) of whether the reviewer had actually finished the course
-        // AT THE MOMENT they wrote the review — deliberately captured
-        // once, not recalculated later, so a review honestly reflects
-        // "I'd completed it when I said this," and doesn't retroactively
-        // gain or lose that badge if their completion record is ever
-        // reset/edited after the fact.
+        // One review per user per course (UNIQUE KEY); resubmitting updates the row and resets
+        // status to 'pending'. completed_at_review is a snapshot taken at submission time.
         $reviews = BHC_Tables::reviews();
         $sql4 = "CREATE TABLE $reviews (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -362,15 +218,8 @@ class BHC_Activator {
         ) $charset;";
         dbDelta($sql4);
 
-        // Real, persistent cross-course achievements — LMS depth-of-magic
-        // Phase 3. course_id is NOT NULL with a 0 sentinel for a global
-        // (not course-specific) achievement like "3 courses mastered",
-        // same "0 = the open/global default" convention max_attempts and
-        // watch_threshold already use elsewhere in this plugin — a real
-        // NULL here would defeat the UNIQUE KEY's once-only guarantee,
-        // since MySQL treats every NULL in a unique index as distinct
-        // from every other NULL, letting the same global achievement be
-        // inserted for the same user more than once.
+        // WHY: course_id uses 0, not NULL, for global achievements; NULLs are distinct in a
+        // unique index and would defeat the once-only guarantee.
         $achievements = BHC_Tables::achievements();
         $sql5 = "CREATE TABLE $achievements (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,

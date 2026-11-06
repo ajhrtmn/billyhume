@@ -2,12 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Registers this plugin's three existing style previews (the player,
- * the sign-up/submit forms, the results modal) into bh-style's gallery
- * — same exact markup that used to be hardcoded into this plugin's own
- * settings page, now reached via the bhy_style_surfaces filter instead.
- * bh-style never needs to know these are "contest" previews specifically
- * — it just renders whatever HTML+CSS a registered surface hands it.
+ * Static style previews (player, forms, results, reveal, library) registered
+ * into the Styles gallery via the bhy_style_surfaces filter.
  */
 class BH_StyleSurfaces {
     public static function init(): void {
@@ -31,24 +27,12 @@ class BH_StyleSurfaces {
             'group' => 'Contest', 'label' => 'Results',
             'render' => [self::class, 'results_preview'],
         ];
-        // Live Results Reveal board (bh-contest 3.11.0's polish pass) —
-        // real static markup matching what reveal.ts actually renders
-        // for a category_reveal step (the LIVE badge, sound toggle, and
-        // winner-highlighted board), so a design review doesn't require
-        // spinning up a real contest and clicking through the reveal
-        // sequence to see the current look.
+        // Static markup mirroring reveal.ts's category_reveal step; keep in sync.
         $surfaces['bh-contest-reveal'] = [
             'group' => 'Contest', 'label' => 'Results Reveal',
             'render' => [self::class, 'reveal_preview'],
         ];
-        // Real, visitor-facing contest catalog/archive card grid
-        // ([bh_contest_library], BH_Contest_Library) — this was never
-        // registered as a surface at all despite being exactly the kind
-        // of front-end, style-token-driven view this gallery is for
-        // (same "Open now / Starting soon / Wrapped" grouped card grid
-        // a fan actually sees at /contests/). Static, matching that
-        // class's real markup — same convention as reveal_preview()
-        // above rather than invoking the real DB query.
+        // Static markup mirroring BH_Contest_Library's card grid; keep in sync.
         $surfaces['bh-contest-library'] = [
             'group' => 'Contest', 'label' => 'Contest Library (catalog)',
             'render' => [self::class, 'library_preview'],

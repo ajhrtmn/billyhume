@@ -2,16 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * LMS depth-of-magic Phase 3 — real, persistent cross-course mastery
- * badges (bhc_achievements — see class-activator.php 1.5). Deliberately
- * a small, fixed set of KEYS rather than a free-text achievement system:
- * same "don't expand the palette" posture this ecosystem's design system
- * already follows for callout variants/certificate tiers.
- *
- * Award triggers hook the two events that already exist for other
- * reasons (mark_step_complete()'s quiz-score path, the bhc_course_completed
- * action) — no new detection logic, just a new persistent record of
- * moments that were already real.
+ * Persistent cross-course badges (bhc_achievements), from a small fixed set of keys.
+ * Awarded from the existing quiz-score path and the bhc_course_completed action.
  */
 class BHC_Achievements {
     const FIRST_QUIZ_ACED = 'first_quiz_aced';
@@ -27,23 +19,12 @@ class BHC_Achievements {
     public static function init(): void {
         add_action('bhc_course_completed', [self::class, 'on_course_completed'], 10, 2);
 
-        // Depth-of-magic Phase 4 — the same `bhi_profile_badges` filter
-        // the-self-hosted-self's public-profile view already renders through
-        // (confirmed contract: `['label' => string, 'url' => string|null]`,
-        // display-only, no persistence of its own — see
-        // BHI_Profiles::badges_for()'s own docblock). Harmless no-op if
-        // the-self-hosted-self's profile view never calls apply_filters() on it,
-        // same "optional cross-plugin touch" posture every other filter
-        // hook in this ecosystem takes.
+        // Display-only profile badges (`['label' => string, 'url' => string|null]`).
         add_filter('bhi_profile_badges', [self::class, 'register_profile_badges'], 10, 2);
     }
 
-    // A course_distinction badge names the specific course (a student can
-    // earn it more than once — one per course cleared, unlike the two
-    // global achievements below, which the table's own 0-course-id
-    // sentinel + UNIQUE KEY guarantee only ever exist once), and links to
-    // that course's own page. first_quiz_aced/courses_mastered_3 are
-    // global (course_id 0) — generic label, no link.
+    // course_distinction is per course and links to it; first_quiz_aced/courses_mastered_3
+    // are global (course_id 0) with no link.
     /**
      * @param array<int, array<string, mixed>> $badges
      * @return array<int, array<string, mixed>>
@@ -71,13 +52,8 @@ class BHC_Achievements {
         return BHC_Tables::achievements();
     }
 
-    // INSERT IGNORE against the table's own UNIQUE KEY is what actually
-    // enforces "only once" — same atomic-write-decides pattern
-    // maybe_fire_course_completed() already uses for bhc_completions, not
-    // an application-level "have I awarded this already" check. Returns
-    // true only when this call is the one that actually newly earned it
-    // (rows_affected === 1) — callers use that to decide whether a
-    // dependent achievement (courses_mastered_3) needs re-checking.
+    // INSERT IGNORE on the UNIQUE KEY enforces once-only. Returns true only when newly
+    // earned, so callers know to re-check dependent achievements.
     public static function award(int $user_id, string $achievement_key, int $course_id = 0): bool {
         if (!$user_id || !isset(self::LABELS[$achievement_key])) return false;
         global $wpdb;
@@ -113,24 +89,13 @@ class BHC_Achievements {
         ), ARRAY_A);
     }
 
-    // Hooked from mark_step_complete() — the single funnel every quiz
-    // submission already passes through — the moment a fresh 100% score
-    // is written for any quiz step, in any course. A global achievement
-    // (course_id 0, the "no specific course" sentinel — see
-    // class-activator.php's own comment on why 0 rather than NULL), since
-    // "first" is a once-ever-across-the-whole-site milestone, not a
-    // per-course one.
+    // Called from mark_step_complete() on any 100% quiz score; global (course_id 0).
     public static function maybe_award_quiz_aced(int $user_id, int $score): void {
         if ((int) $score !== 100) return;
         self::award($user_id, self::FIRST_QUIZ_ACED);
     }
 
-    // Hooked on 'bhc_course_completed' ($user_id, $course_id) — fires
-    // exactly once per student per course (see maybe_fire_course_completed()'s
-    // own docblock). Reuses the exact same threshold filter/default the
-    // certificate's own "with distinction" branch already uses (Phase
-    // 1e) — one distinction bar for the whole plugin, not two that could
-    // silently drift apart.
+    // On 'bhc_course_completed'. Uses the same distinction threshold filter as certificates.
     public static function on_course_completed(int $user_id, int $course_id): void {
         if (!$user_id || !$course_id || !class_exists('BHC_Progress')) return;
 

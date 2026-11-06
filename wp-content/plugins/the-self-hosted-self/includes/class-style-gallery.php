@@ -2,19 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * BHY_Gallery — the actual "Storybook-patterned" UI: a sidebar listing
- * every registered surface (grouped by whichever plugin registered it),
- * a live preview canvas showing the selected one, and one shared
- * controls panel — colors, fonts, spacing, theme presets — that updates
- * whatever surface is currently visible in real time as you edit.
- *
- * Not real Storybook (that's a Node build tool with its own dev server
- * — flatly incompatible with shared hosting/no-CLI/no-persistent-Node),
- * but the same interaction model, implemented in plain PHP+JS.
- *
- * A consuming plugin registers a surface entirely from its own
- * bootstrap — this file never needs to know bh-contest or bh-streaming
- * exist:
+ * BHY_Gallery: the Styles / Design Suite page. A Storybook-style sidebar of
+ * registered surfaces, a live preview canvas, and one shared token controls
+ * panel. Plugins register surfaces from their own bootstrap:
  *
  *     add_filter('bhy_style_surfaces', function ($surfaces) {
  *         $surfaces['bh-contest-player'] = [
@@ -30,38 +20,9 @@ if (!defined('ABSPATH')) exit;
  *         return $surfaces;
  *     });
  *
- * All surfaces share the same global tokens — this isn't per-surface
- * theming, it's "how does one theme look across every part of the
- * product," which is the actual point of a shared design-token system.
- *
- * PAGE-BUILDER-DELETE-KEEP-AUDIT.md (2026-07-13) — THIS FILE'S OWN
- * CLEANUP HISTORY, worth reading before touching it again: across an
- * earlier arc of this same project, this file grew a second, unrelated
- * job bolted on top of the one above — a hand-rolled Structure/Library
- * rail/canvas/inspector shell (render_shell(), render_left_rail(), the
- * Library canvas/inspector panes, ~1,400 lines of embedded JS) meant to
- * be a general-purpose visual page builder. That whole layer, and the
- * files it depended on (assets/js/element-builder.js, class-element-
- * builder.php, class-element-prefab.php, class-element-state.php,
- * class-component-studio.php and its own JS/CSS), has been DELETED —
- * not simplified, not deprecated, actually removed — after a real,
- * honest assessment concluded a custom page builder was solving a
- * problem WordPress's own block editor already solves, and every
- * genuinely custom piece of value (the BH_Element_Data data-binding
- * resolver, the Surface/Slot render_slot() engine real pages actually
- * use) lives elsewhere and was untouched by this cleanup. This file is
- * back to doing exactly the one job its own original docblock (above)
- * describes — nothing else should be added here that isn't "site-wide
- * design tokens with a live preview."
- *
- * render_script()'s live-preview JS keeps one real improvement from the
- * builder-era code that predates this cleanup and is worth keeping: each
- * `.bhy-story-frame` attaches its preview document under a real
- * `attachShadow({mode:'open'})` root instead of a same-origin `<iframe>`
- * (a live-confirmed fix, 3.4.55 — a real `<iframe>`'s `:root` doesn't
- * exist inside a shadow tree, so token CSS vars need `:host` instead;
- * see that block's own comment). Everything else below is the original,
- * pre-builder-era shape.
+ * All surfaces share the same global tokens. Previews attach under a shadow
+ * root, so token CSS uses :host instead of :root. Keep this file to
+ * "site-wide design tokens with a live preview"; no page builder here.
  */
 class BHY_Gallery {
     public static function init(): void {
@@ -72,55 +33,28 @@ class BHY_Gallery {
     }
 
     public static function enqueue_media(string $hook): void {
-        // Widened (DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1) to also match
-        // the 'bh-design' top-level hook — BH_Design_Suite::add_menu()
-        // reuses this same render() callback as the Design Suite landing
-        // page, under a different slug/hook, so the media picker needs to
-        // load there too, not just on the standalone 'bh-style' submenu.
+        // Also matches 'bh-design': BH_Design_Suite reuses this render() callback.
         if (strpos($hook, 'bh-style') === false && strpos($hook, 'bh-design') === false) return;
         wp_enqueue_media();
 
-        // Font <option>s should preview in their real typeface.
-        // BHY_UI::font_field()'s <option> tags carry an inline
-        // font-family per option (class-ui.php), but that's cosmetically
-        // useless without the actual webfont files loaded on THIS page —
-        // this stylesheet used to only ever be enqueued INSIDE the
-        // canvas preview docs (preview_doc() below), never on the real
-        // admin page the <select> itself lives on.
+        // Load every curated webfont so the font <option>s preview in their typeface.
         $font_url = class_exists('BHY_Style') ? BHY_Style::preview_all_fonts_url() : '';
         if ($font_url) wp_enqueue_style('bhy-font-preview', $font_url, [], null);
 
-        // The shared colour resolver, so the live preview's buildCssText()
-        // derives --bh-on-* / --bh-text-muted / --bh-focus / … from the
-        // same recipe table (BHY_Contrast::spec()) a save runs through —
-        // one spec, two engines (PHP + this JS), no third hand-kept list.
+        // Shared color resolver so the live preview derives roles from the same
+        // BHY_Contrast::spec() a save uses.
         if (class_exists('BHY_Contrast')) {
             wp_enqueue_script('bhy-contrast-core', OUS_URL . 'assets/js/contrast-core.js', [], OUS_VER, false);
             wp_localize_script('bhy-contrast-core', 'bhyContrastSpec', BHY_Contrast::spec());
         }
     }
 
-    // DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1 — relocated from a
-    // submenu of 'the-self-hosted-self' to a submenu of the top-level 'bh-design'
-    // ("Design Suite") menu. Slug ('bh-style') and callback are
-    // UNCHANGED, so every existing admin.php?page=bh-style deep link
-    // keeps working. Capability is 'bhcore_design_site' (class-roles.php,
-    // granted to administrator + editor), not 'manage_options', so a
-    // non-admin employee can reach this page.
-    //
-    // OUS_VER 3.4.31 — real duplication fix, still true after this
-    // cleanup: parent is null ("hidden, reachable by direct link only"),
-    // the SAME pattern class-studio.php's own add_menu() uses — adding a
-    // real second submenu under 'bh-design' corrupts WordPress's own
-    // pairing of the bare 'admin.php?page=bh-design' request with its
-    // intended callback (BH_Design_Suite::add_menu() is the one real,
-    // visible top-level entry; this hidden page is what it actually
-    // renders).
+    // Capability is 'bhcore_design_site' so non-admin staff can reach it.
+    // WHY: parent is null (hidden page); a real second submenu under 'bh-design'
+    // corrupts WordPress's pairing of the top-level page with its callback.
     public static function add_menu(): void {
         $hook = add_submenu_page(null, 'Designer', 'Designer', 'bhcore_design_site', 'bh-style', [self::class, 'render']);
-        // Only the failure case is worth a log row — this used to fire
-        // an INFO row for every successful registration too, throttled
-        // only to once per 60 seconds, on every admin page load.
+        // Only the failure case is logged.
         if ($hook === false && class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('error',
                 'add_submenu_page() for Designer (bh-style, hidden/null parent) FAILED (returned false).',
@@ -129,16 +63,13 @@ class BHY_Gallery {
         }
     }
 
-    /* ---------- saving (unchanged shape from the original settings page) ---------- */
+    /* ---------- saving ---------- */
 
     public static function save(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhy_save_settings');
 
-        // BHY_Style::save_from_input() is the single authority for this
-        // sanitize pass — see its docblock for why (this used to be
-        // hand-copied here and in BH_Element::rest_save_site_tokens(),
-        // and the two copies had already drifted).
+        // BHY_Style::save_from_input() is the single sanitizer for this.
         $data = BHY_Style::save_from_input($_POST);
 
         update_option(BHY_Style::OPTION, $data);
@@ -151,11 +82,8 @@ class BHY_Gallery {
         exit;
     }
 
-    // OUS_Revisions::render_history_panel()'s Restore link points here.
-    // Writes the stored snapshot straight back to the option — same
-    // direct-restore reasoning bh_contest's own restore handler uses
-    // (the snapshot IS already the target shape, no need to re-simulate
-    // a fake $_POST through save() itself).
+    // Target of OUS_Revisions' Restore link. The snapshot is already the stored
+    // shape, so it is written straight back to the option.
     public static function handle_restore_revision(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         $version = (int) ($_GET['version'] ?? 0);
@@ -183,22 +111,16 @@ class BHY_Gallery {
 
     public static function render(): void {
         $s = BHY_Style::get();
-        // Flatten registered custom-slider values onto $s under
-        // 'custom_<key>' so render_controls() can hand them straight to
-        // BHY_UI::slider_row() exactly like a built-in field — no
-        // separate code path for "a plugin's slider" vs. "our slider".
+        // Flatten custom-slider values onto $s as 'custom_<key>' so they render
+        // exactly like built-in fields.
         foreach (BHY_Style::custom_sliders() as $key => $def) {
             $s['custom_' . $key] = $s['custom'][$key] ?? ($def['default'] ?? 0);
         }
-        // Same flattening for the font analogue (custom_fonts()) — a
-        // distinct 'customfont_' prefix so a font field's id/name can
-        // never collide with a numeric slider field of the same key.
+        // Custom fonts use a distinct 'customfont_' prefix to avoid id collisions.
         foreach (BHY_Style::custom_fonts() as $key => $def) {
             $s['customfont_' . $key] = $s['custom_fonts'][$key] ?? ($def['default'] ?? '');
         }
-        // Same flattening for grouped component tokens — 'comp_<group>_<key>'
-        // so each one hands straight to slider_row()/swatch_field() exactly
-        // like a built-in field.
+        // Component tokens flatten as 'comp_<group>_<key>'.
         foreach (BHY_Style::component_tokens() as $group => $def) {
             foreach (($def['tokens'] ?? []) as $key => $tdef) {
                 $s['comp_' . $group . '_' . $key] = $s['components'][$group][$key] ?? ($tdef['default'] ?? '');
@@ -212,12 +134,8 @@ class BHY_Gallery {
         echo '<h1>Design Suite</h1>';
         if (isset($_GET['saved'])) echo '<div class="notice notice-success is-dismissible"><p>Saved.</p></div>';
 
-        // Phase 3 — the "Components" section's live counterpart: the same
-        // granular tokens, edited from inside the native WP Customizer
-        // while looking at the real rendered page (BHY_Customizer). The
-        // Customizer's own `return` param is what sends its native Close
-        // (X) button back HERE — no bespoke "switch back" UI needed, just
-        // wiring the URL WordPress already understands.
+        // Link to the same tokens in the Customizer; its `return` param sends the
+        // Customizer's Close button back here.
         if (class_exists('BHY_Customizer')) {
             $customize_url = add_query_arg([
                 'url'                    => rawurlencode(BHY_Customizer::default_preview_url()),
@@ -228,11 +146,7 @@ class BHY_Gallery {
             echo '<p class="description">Same Component tokens as below, previewed against the actual site — and its own Custom CSS section (with the exact same rule builder as the one on this page, further down) so you never have to leave it. Inside it: <strong>click</strong> any styled element (a card, badge, button…) to jump straight to its controls; <strong>right-click</strong> for a menu of every matching component at that point (useful when one is nested inside another), plus "Add custom rule for this element" and "Copy CSS selector". Its own Close (X) button brings you back here.</p>';
         }
 
-        // Hidden for now (AJ, 2026-09-19) as part of pruning Design Suite
-        // down to front-end/user-facing surfaces — this is a dev-tool
-        // panel (Node build + UX audit runner), same category as the
-        // admin wizards already pruned. Set to false to bring it back;
-        // the panel/class itself is untouched.
+        // Dev-tool panel hidden from Design Suite; set true to bring it back.
         $show_storybook_panel = false;
         if ($show_storybook_panel && class_exists('BH_Storybook_Panel')) BH_Storybook_Panel::render();
 
@@ -265,11 +179,8 @@ class BHY_Gallery {
         echo '</div>';
     }
 
-    // No-iframes build — content is attached under a real
-    // attachShadow({mode:'open'}) root (render_script()'s own job) rather
-    // than a real same-origin <iframe>, so this emits a plain <div> with
-    // the whole preview document base64-encoded into a data attribute,
-    // not an <iframe src="...">.
+    // Emits a <div> with the preview document base64-encoded in a data
+    // attribute; render_script() attaches it under a shadow root.
     /**
      * @param array<string, mixed> $surfaces
      * @param array<string, mixed> $s
@@ -289,9 +200,8 @@ class BHY_Gallery {
         echo '</div>';
     }
 
-    // One real HTML document per surface — the surface's own stylesheet,
-    // the current tokens as CSS vars (with a stable id so the live-edit
-    // JS can rewrite just that tag), and the surface's real markup.
+    // One preview document per surface: its stylesheet, current tokens (stable
+    // id so live-edit JS can rewrite that tag), and its markup.
     /**
      * @param array<string, mixed> $payload
      * @param array<string, mixed> $s
@@ -302,23 +212,13 @@ class BHY_Gallery {
             . ($font_url ? '<link rel="stylesheet" href="' . esc_url($font_url) . '">' : '')
             . (!empty($payload['css_url']) ? '<link rel="stylesheet" href="' . esc_url($payload['css_url']) . '">' : '')
             . '<style id="bhy-vars">' . BHY_Style::inline_css() . '</style>'
-            // Shadow-DOM equivalent of "the box everything sits inside" —
-            // there is no real <body> once this is attached under a
-            // shadow root (render_script() moves only the children over),
-            // so a `body{...}` selector would match nothing; `:host`
-            // targets the .bhy-story-frame div itself, which every moved
-            // child then fills exactly like a real <body> would.
+            // WHY: there is no <body> inside a shadow root, so :host stands in for it.
             . '<style>:host{display:block;margin:0;background:var(--bh-bg);color:var(--bh-text);font-family:var(--bh-font-body);}</style>'
             . '</head><body>' . $payload['html'] . '</body></html>';
     }
 
-    // A small, always-visible strip of sample chips that directly apply
-    // every scale/shape token (radius, radius_sm, bar_height, font_scale,
-    // space_scale) to real elements right here in the controls panel.
-    // Exists because no single registered preview surface is guaranteed
-    // to visibly use every token at once (e.g. the default Player surface
-    // never shows --bh-radius without opening a modal) — this gives every
-    // slider instant, surface-independent feedback instead.
+    // Sample chips applying every scale/shape token directly, since no single
+    // surface is guaranteed to show them all.
     /** @param array<string, mixed> $s */
     private static function render_token_preview($s): void {
         echo '<div class="bhy-token-preview" id="bhy-token-preview">';
@@ -330,12 +230,7 @@ class BHY_Gallery {
         echo '</div>';
     }
 
-    // Section headers use small-caps/underline styling (.bhy-controls h3,
-    // class-ui.php); anything that isn't a small, always-relevant core
-    // set is a collapsible "<details class='bhel-style-group'>"
-    // disclosure (CSS ported into class-ui.php's shared admin_page_css()
-    // as part of this file's builder-era cleanup — see this file's own
-    // top docblock). Color swatches render through BHY_UI::swatch_field().
+    // Core sections stay visible; the rest are collapsible <details> groups.
     /** @param array<string, mixed> $s */
     private static function render_controls($s, string $default_group = 'brand'): void {
         echo '<div class="bhy-controls" id="bhy-controls-panel">';
@@ -343,14 +238,7 @@ class BHY_Gallery {
         wp_nonce_field('bhy_save_settings');
         echo '<input type="hidden" name="action" value="bhy_save_settings">';
 
-        // This panel used to say "Live token preview" with zero
-        // connection to whichever surface is actually selected in the
-        // canvas, reading as if IT were the live view. Renamed to be
-        // honest about what this widget is (a fixed reference strip for
-        // shape/scale tokens that many surfaces never exercise visibly,
-        // e.g. Player never shows --bh-radius without opening a modal)
-        // and added a "Previewing: X" label that updates live from the
-        // canvas selection (render_script()'s surface-switch handler).
+        // The "Previewing" label tracks the canvas selection (render_script()).
         echo '<p class="description" style="margin:0 0 4px;">Editing global styles — applies everywhere. Previewing: <strong id="bhy-current-surface-label">&hellip;</strong></p>';
         echo '<h3>Shape &amp; scale reference <span class="description" style="text-transform:none;font-weight:400;">(always the same, not tied to the surface above)</span></h3>';
         self::render_token_preview($s);
@@ -359,15 +247,7 @@ class BHY_Gallery {
         echo '<h3>Brand</h3>';
         echo '<div class="bhel-field-row"><label>Wordmark</label><p style="display:flex;gap:8px;margin:6px 0 0;"><input type="text" id="brand_part1" name="brand_part1" class="bhy-brand-input" value="' . esc_attr($s['brand_part1']) . '" placeholder="First part" style="flex:1;"> <input type="text" id="brand_part2" name="brand_part2" class="bhy-brand-input" value="' . esc_attr($s['brand_part2']) . '" placeholder="Accent part" style="flex:1;"></p></div>';
 
-        // BHY_Style::logo_url()/'brand_logo_id' are part of the data
-        // model and save() handler, and the player's own header already
-        // renders a logo when one is set (BHY_Style::get_brand_payload(),
-        // 'logoUrl') — but the inspector had no upload control for it,
-        // so brand_logo_id could never actually be set from this screen.
-        // wp.media() is already enqueued on this page (enqueue_media()),
-        // so this needed no new asset, just the missing control — same
-        // upload-button/preview shape bh-streaming's artwork picker uses
-        // (class-admin.php's pick() helper).
+        // Logo upload for brand_logo_id, using the wp.media() already enqueued here.
         $logo_id = (int) ($s['brand_logo_id'] ?? 0);
         $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
         echo '<div class="bhel-field-row" style="margin-top:14px;">';
@@ -380,15 +260,8 @@ class BHY_Gallery {
         echo '</div>';
 
         echo '<div class="bhy-token-group" data-token-group="colors">';
-        // Real gap this closes: a preset's whole selling point is "apply
-        // this instantly," but a plain <select><option> can't show what
-        // any of them actually LOOK like before picking one — the single
-        // highest-leverage "instant delight" moment on this page was
-        // hidden behind the most boring possible control. Each swatch
-        // renders 4 real dots straight from the preset's own color
-        // values (bg/surface/accent/text), so this is never a second,
-        // drifting copy of the palette — it's the same data
-        // render_script()'s click handler below reads via data-set.
+        // Each preset swatch shows 4 dots from the preset's own colors, the same
+        // data render_script()'s click handler reads via data-set.
         echo '<div class="bhel-field-row"><label>Quick theme</label>';
         echo '<div class="bhy-theme-swatch-groups">';
         foreach (BHY_Style::THEME_GROUPS as $group_label => $themes) {
@@ -408,7 +281,7 @@ class BHY_Gallery {
         }
         echo '</div></div>';
 
-        // Core colors — always visible, not tucked behind a disclosure.
+        // Core colors: always visible.
         echo '<h3>Colors</h3><div class="bhy-swatch-grid">';
         $color_labels = [
             'color_bg' => 'Background', 'color_surface' => 'Surface', 'color_surface_2' => 'Surface (raised)',
@@ -419,8 +292,7 @@ class BHY_Gallery {
         }
         echo '</div>';
 
-        // Less-common colors + the 8 category swatches — collapsible
-        // disclosures instead of one long always-expanded wall of fields.
+        // Less-common colors and category swatches: collapsible.
         echo '<details class="bhel-style-group"><summary class="bhel-style-group-title">Advanced colors</summary><div class="bhel-style-group-body bhy-swatch-grid">';
         $advanced_color_labels = [
             'color_text_dim' => 'Text (dim)', 'color_accent_soft' => 'Accent (soft)', 'color_overlay' => 'Modal backdrop',
@@ -452,12 +324,7 @@ class BHY_Gallery {
         BHY_UI::slider_row('bar_height', 'Now-playing bar height', $s, 56, 140, 2, 'px');
         echo '</div>';
 
-        // Plugin-registered custom sliders — rendered with the exact
-        // same BHY_UI::slider_row() the built-ins above use, in the same
-        // group style as "Scale", so a peer plugin's own token shows up
-        // looking like a first-class part of this page, not a bolted-on
-        // extra. See class-style.php's custom_sliders() docblock for the
-        // registration filter a plugin calls from its own bootstrap.
+        // Plugin-registered custom sliders, same markup as the built-ins.
         $custom_sliders = BHY_Style::custom_sliders();
         if ($custom_sliders) {
             echo '<div class="bhy-token-group" data-token-group="custom">';
@@ -468,9 +335,7 @@ class BHY_Gallery {
             echo '</div>';
         }
 
-        // Plugin-registered custom fonts — same "shows up for free"
-        // treatment as the sliders above, one plain text field per
-        // registration (see BHY_Style::custom_fonts()'s docblock).
+        // Plugin-registered custom fonts, one text field each.
         $custom_fonts = BHY_Style::custom_fonts();
         if ($custom_fonts) {
             echo '<div class="bhy-token-group" data-token-group="custom-fonts">';
@@ -483,15 +348,7 @@ class BHY_Gallery {
             echo '</div>';
         }
 
-        // Grouped component tokens (BHY_Style::component_tokens()) — the
-        // Phase-1 "real granular control over every little thing" surface:
-        // one collapsible <details> per registered COMPONENT (a card, a
-        // badge, a button — not one per property), so a dozen-plus small
-        // sizing/color/font properties for one real UI piece read as a
-        // single named, scannable section rather than flooding "Plugin
-        // adjustments" with a hundred ungrouped sliders. Collapsed by
-        // default, same posture as "Advanced colors"/"Category colors"
-        // above — most visits don't need to open most of these.
+        // Component tokens: one collapsed <details> per registered component.
         $components = BHY_Style::component_tokens();
         if ($components) {
             echo '<div class="bhy-token-group" data-token-group="components">';
@@ -530,33 +387,16 @@ class BHY_Gallery {
             echo '</div>';
         }
 
-        // The granular escape hatch beyond the registered Components
-        // above — a VISUAL rule editor (AJ, 2026-09-19: "actual controls
-        // for editing the css properties, not just a custom CSS text
-        // box"): pick a selector (filled in from the Customizer's
-        // click-to-select right-click menu — either "Copy CSS selector"
-        // pasted here, or the newer "Add custom rule for this element"
-        // which deep-links straight into a prefilled new rule below, see
-        // BHY_Customizer/customizer-preview.ts), an optional state
-        // (hover/focus/etc — css_state_options()), then add one or more
-        // real properties from css_property_registry() — each renders
-        // its OWN correctly-typed control (color picker, ranged
-        // slider+unit, a closed dropdown for keyword properties, a font
-        // field), not a text field to hand-type a value into. Declared
-        // rules are stored structured (BHY_Style::save_from_input()) and
-        // turned into real CSS text at emission time
-        // (BHY_Style::inline_css()). The raw textarea underneath remains
-        // for anything even this doesn't cover.
+        // Visual Custom CSS rule editor: selector (often from the Customizer's
+        // "Copy CSS selector"), optional state, and typed property controls.
+        // The raw textarea below covers anything else.
         echo '<div class="bhy-token-group" data-token-group="custom-css" id="custom-css">';
         echo '<h3>Custom CSS <span class="description" style="text-transform:none;font-weight:400;">(for anything the Components above don\'t cover)</span></h3>';
         echo '<p class="description">This is the exact same rule builder as the <a href="' . esc_url(add_query_arg(['url' => rawurlencode(class_exists('BHY_Customizer') ? BHY_Customizer::default_preview_url() : home_url('/'))], admin_url('customize.php'))) . '">Live Editor</a>\'s own Custom CSS section — right-clicking an element there adds a rule directly in the Customizer without leaving it, but you can build rules here just as well, or come back to fine-tune one later. <strong>How to get a selector without opening the Live Editor:</strong> not really practical by hand — right-click is the way. Preview: reload the real page after saving (rules here don\'t live-preview in the canvas above, since those previews are sandboxed per-surface and a real page selector wouldn\'t match anything in them anyway).</p>';
 
         $rules = is_array($s['custom_css_rules'] ?? null) ? $s['custom_css_rules'] : [];
-        // A rule started via the Customizer's "Add custom rule for this
-        // element" deep-link (?add_selector=...) lands as one extra,
-        // still-empty rule pre-filled with that selector, appended after
-        // whatever's already saved — never silently discarded, and
-        // never auto-saved until the admin actually presses Save.
+        // ?add_selector= from the Customizer appends one empty prefilled rule;
+        // nothing is saved until the admin presses Save.
         $prefill_selector = isset($_GET['add_selector']) ? BHY_Style::sanitize_css_selector(wp_unslash($_GET['add_selector'])) : '';
         if ($prefill_selector !== '') $rules[] = ['selector' => $prefill_selector, 'state' => '', 'declarations' => []];
 
@@ -574,15 +414,8 @@ class BHY_Gallery {
 
         echo '<p class="submit"><button type="submit" class="button button-primary">Save</button></p>';
 
-        // OUS_Revisions consumer, ROADMAP-search-and-revisions.md
-        // Section 2's last named candidate. A single, site-wide config
-        // (BHY_Style::OPTION is one option, not a per-post object) —
-        // object_id is a constant 1 rather than a real post/entity ID,
-        // since there's only ever one of these on the whole site.
-        // render_history_panel() itself is just links, not a <form>
-        // (fixed earlier this same pass), so it's safe to nest inside
-        // this page's own big <form id="bhy-form"> without repeating
-        // the nested-form bug that broke BHM_Tiers/bh_contest saves.
+        // Single site-wide config, so object_id is a constant 1. The history
+        // panel is links only (no <form>), so it is safe inside #bhy-form.
         if (class_exists('OUS_Revisions')) {
             echo '<div class="bhy-token-group" data-token-group="revisions">';
             echo '<h3>Version History</h3>';
@@ -594,12 +427,8 @@ class BHY_Gallery {
     }
 
     /**
-     * One row of the visual Custom CSS rule editor — a selector, an
-     * optional state, and its own list of typed property controls. Also
-     * called from JS's mirrored buildRuleRow() when "+ Add rule" is
-     * clicked, so the markup/name conventions here (custom_css_rules[i]
-     * [selector|state|props[j][property|value]]) MUST match that JS
-     * exactly, or a newly-added rule would silently fail to save.
+     * One rule-editor row. WHY: field names (custom_css_rules[i][selector|state|
+     * props[j][property|value]]) must match the JS buildRuleRow(), or new rules fail to save.
      *
      * @param array<string, mixed> $rule
      */
@@ -628,7 +457,7 @@ class BHY_Gallery {
         echo '</div>';
     }
 
-    /** One property row inside a rule — a property picker plus whatever control that property's registered type needs. */
+    /** One property row inside a rule: a property picker plus its typed control. */
     private static function render_css_prop_row(int $i, int $j, string $property, string $value): void {
         $registry = BHY_Style::css_property_registry();
         echo '<div class="bhy-css-prop-row" data-prop-index="' . esc_attr((string) $j) . '">';
@@ -648,11 +477,8 @@ class BHY_Gallery {
     }
 
     /**
-     * The actual typed control for one property — mirrors JS's
-     * buildPropControl() in render_script() exactly (same field name,
-     * same control shape per type) so a control rendered here on page
-     * load and one built by JS after picking a property from the
-     * dropdown are indistinguishable to the save handler.
+     * Typed control for one property. WHY: must match the JS buildPropControl()
+     * field names and shapes, or the save handler sees different input.
      *
      * @param array<string, mixed> $def
      */
@@ -670,10 +496,7 @@ class BHY_Gallery {
             }
             echo '</select>';
         } elseif ($type === 'font') {
-            // Stored value already carries the fallback ("Inter", sans-
-            // serif) — strip it back down to just the font name for the
-            // editable field, matching how component-token font fields
-            // already round-trip.
+            // Strip the stored fallback back to the bare font name for editing.
             $display = preg_replace('/^"?([^",]+)"?.*$/', '$1', $value);
             echo '<input type="text" class="regular-text" name="' . esc_attr($name) . '" value="' . esc_attr($display) . '" placeholder="' . esc_attr($def['default'] ?? 'Inter') . '">';
         } else { // 'size'

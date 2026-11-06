@@ -1,11 +1,5 @@
 /**
- * bh-monetization-woo front-end — tip jar / PWYW suggested-amount chips
- * (class-frontend.php's render_tip_jar()/render_purchase_button()).
- * Plain vanilla JS, no build step, same convention as this ecosystem's
- * other front-end widgets. Purely a convenience: clicking a chip just
- * sets the paired number input's value — the actual amount that gets
- * charged is still whatever's in that input at submit time, same
- * server-side-clamped path a manually-typed amount already goes through.
+ * Tip jar / PWYW amount chips: a chip only fills the number input; the server clamps the amount.
  */
 (function () {
     'use strict';

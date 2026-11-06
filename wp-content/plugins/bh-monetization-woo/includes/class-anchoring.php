@@ -2,45 +2,17 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Thin wrapper around an OpenTimestamps calendar server — the
- * lightweight, no-wallet anchoring approach chosen in
- * ROADMAP-streaming-media-scope-and-blockchain.md Part 2 over a
- * custom Bitcoin OP_RETURN transaction or any wallet/token-based
- * approach: OpenTimestamps anchors a SHA-256 hash to Bitcoin via its
- * public, free calendar servers, and neither this site nor the artist
- * nor the buyer ever holds or spends any cryptocurrency to use it.
- *
- * Only the hash is ever sent over the wire — never the buyer's name,
- * email, or any other identifying field from bhm_purchase_ledger. A
- * SHA-256 hash of {order_id, user_id, track_id, content_hash,
- * price_cents, event_type, created_at} is meaningless to the calendar
- * server or to anyone inspecting the public ledger without this site's
- * own database to cross-reference it against — exactly the same
- * pseudonymity posture ROADMAP-federated-metrics.md already applies to
- * its own aggregate submissions.
- *
- * Submission is a two-step, eventually-consistent process by design
- * (OpenTimestamps' own protocol, not a choice made here): submit a
- * hash now (fast, gets a "pending" attestation immediately), then
- * "upgrade" later once that hash has actually been included in a mined
- * Bitcoin block (can take anywhere from minutes to several hours).
- * BHM_PurchaseLedger's own row starts life as anchor_status='pending'
- * and this class re-checks it via a delayed OUS_Jobs re-enqueue until
- * it either confirms or the site gives up after MAX_UPGRADE_ATTEMPTS —
- * matching this ecosystem's existing "no inline retry, just come back
- * on the next scheduled run" HTTP-failure convention (see
- * bh-streaming's class-feeds.php sync_all()/handle_manual_sync()).
+ * Anchors purchase-ledger record hashes to Bitcoin via public OpenTimestamps calendars (no wallet).
+ * Only the SHA-256 hash leaves the site. Two steps: submit now (pending -> submitted), then upgrade
+ * via delayed OUS_Jobs retries until confirmed or MAX_UPGRADE_ATTEMPTS.
  */
 class BHM_Anchoring {
     const SUBMIT_JOB_HOOK  = 'bhm_anchor_submit';
     const UPGRADE_JOB_HOOK = 'bhm_anchor_upgrade';
     const UPGRADE_RETRY_DELAY = 30 * MINUTE_IN_SECONDS;
-    const MAX_UPGRADE_ATTEMPTS = 20; // ~10 hours of retries at the delay above before giving up and leaving the row 'pending' for a manual admin re-check
+    const MAX_UPGRADE_ATTEMPTS = 20; // ~10 hours, then the row stays 'submitted' for a manual re-check
 
-    // OpenTimestamps' own public calendar servers — the same three the
-    // reference `ots` client submits to by default, so a hash anchored
-    // here is provable with any standard OpenTimestamps verifier, not
-    // just this plugin's own code.
+    // The reference `ots` client's default calendars, so any standard verifier works.
     const CALENDAR_URLS = [
         'https://alice.btc.calendar.opentimestamps.org',
         'https://bob.btc.calendar.opentimestamps.org',
@@ -54,11 +26,7 @@ class BHM_Anchoring {
         }
     }
 
-    // Called synchronously by BHM_PurchaseLedger right after it writes
-    // a row — but the actual network call happens off-request via
-    // OUS_Jobs, same "never block the customer's checkout on a
-    // third-party HTTP call" reasoning as every other async path in
-    // this ecosystem (BH_Event::emit(), OUS_Notifications' email queue).
+    // Network call runs off-request so checkout never waits on a third party.
     public static function anchor_async(int $ledger_row_id): void {
         if (!class_exists('OUS_Jobs')) return;
         OUS_Jobs::enqueue(self::SUBMIT_JOB_HOOK, ['ledger_row_id' => (int) $ledger_row_id]);
@@ -88,9 +56,7 @@ class BHM_Anchoring {
                     'anchor_status' => 'submitted',
                     'anchor_proof'  => base64_encode($ots_receipt),
                 ]);
-                // First upgrade check gets a real head start (Bitcoin
-                // confirmation is never faster than ~10 minutes) rather
-                // than hammering the calendar server immediately.
+                // Bitcoin confirmation takes at least ~10 minutes, so delay the first check.
                 if (class_exists('OUS_Jobs')) {
                     OUS_Jobs::enqueue(self::UPGRADE_JOB_HOOK, ['ledger_row_id' => $row_id, 'attempt' => 1], self::UPGRADE_RETRY_DELAY);
                 }
@@ -98,12 +64,7 @@ class BHM_Anchoring {
             }
             self::log('warning', 'Anchoring submit failed against ' . $url . ': ' . (is_wp_error($resp) ? $resp->get_error_message() : 'HTTP ' . wp_remote_retrieve_response_code($resp)), $row_id);
         }
-        // Every calendar server failed — leave anchor_status='pending' so
-        // a future manual "retry anchoring" admin action (or the next
-        // purchase-triggered code path, if this were ever re-run) can
-        // pick it back up. No automatic re-submit scheduled here since a
-        // total submit failure across all three servers is more likely a
-        // real outage than a transient blip.
+        // All calendars failed (likely an outage): stays 'pending', no automatic re-submit.
     }
 
     /** @param array<string, mixed> $args */
@@ -115,18 +76,10 @@ class BHM_Anchoring {
 
         $ots_receipt = base64_decode((string) $row->anchor_proof);
         foreach (self::CALENDAR_URLS as $url) {
-            // OpenTimestamps' /timestamp/<commitment> upgrade endpoint —
-            // the commitment (the original hash) identifies which
-            // pending attestation to check for a completed Bitcoin
-            // block-inclusion proof.
             $resp = wp_remote_get(trailingslashit($url) . 'timestamp/' . $row->record_hash, ['timeout' => 10]);
             if (!is_wp_error($resp) && (int) wp_remote_retrieve_response_code($resp) === 200) {
                 $body = wp_remote_retrieve_body($resp);
-                // A confirmed OpenTimestamps proof is strictly longer
-                // than the pending "submitted" receipt (it now embeds a
-                // real Bitcoin block-header attestation) — the cheap,
-                // real signal this client-side code can check without
-                // needing the full OTS binary proof format parsed here.
+                // A confirmed proof is longer than the pending receipt (it embeds a block attestation).
                 if ($body && strlen($body) > strlen($ots_receipt)) {
                     self::update_row($row_id, ['anchor_status' => 'confirmed', 'anchor_proof' => base64_encode($body)]);
                     if (class_exists('BH_Event')) {

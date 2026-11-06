@@ -2,17 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Wires WordPress core's native Tools > Export/Erase Personal Data
- * screens for the two tables this plugin owns that are keyed directly
- * by user_id: wp_bhc_progress (lesson/quiz progress, free-text quiz
- * answers) and wp_bhc_achievements (earned badges). Both are safe to
- * hard-delete on request — no other feature in this ecosystem reads
- * another person's progress/achievement rows, so erasing one user's
- * own doesn't break anything else (unlike, say, a fraud-signal table).
- *
- * Deliberately excludes wp_bhc_reviews — that's public-facing content
- * (a star rating + free-text review other visitors see), which needs
- * its own anonymize-vs-delete policy decision, not a blind delete.
+ * Core personal-data export/erase for bhc_progress and bhc_achievements, which are safe to
+ * delete. bhc_reviews is excluded: public content needs its own anonymize-vs-delete policy.
  */
 class BHC_Privacy {
     public static function init(): void {

@@ -2,23 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Shared SEO/discoverability output — meta description, Open Graph/
- * Twitter Card tags, and JSON-LD structured data — one renderer every
- * plugin's own page-rendering code calls into, instead of each hand-
- * rolling its own tag soup (or, as confirmed before this class
- * existed, not rendering any of this at all — a full grep across the
- * whole ecosystem found zero meta/OG/schema.org output anywhere).
- * See ROADMAP-discoverability.md for the full plan this is Slice 1 of.
- *
- * Deliberately a simple set-then-render API, not a filter a plugin has
- * to independently re-derive "is this even my page" logic inside on
- * every request: whatever code already knows it's rendering a specific
- * piece of content (a shortcode handler, a template_redirect callback)
- * calls `BH_SEO::set_page_data([...])` once, right where it already
- * has the real data in hand; this class renders it at `wp_head` if
- * anything was set. `bh_seo_page_data` filter still exists as an
- * ESCAPE HATCH for a plugin that wants to adjust/override what another
- * piece of code already set, not as the primary registration path.
+ * Shared SEO output: meta description, Open Graph/Twitter tags, JSON-LD.
+ * Code that knows what it is rendering calls BH_SEO::set_page_data() once;
+ * this renders it at wp_head. The `bh_seo_page_data` filter is an override
+ * hatch, not the primary path.
  */
 class BH_SEO {
     /** @var array<string, mixed>|null */
@@ -43,24 +30,14 @@ class BH_SEO {
     /** @param array<string, mixed> $data */
     public static function set_page_data(array $data): void {
         self::$page_data = apply_filters('bh_seo_page_data', $data);
-        // WordPress core renders its own rel=canonical (pointing at the
-        // literal page permalink) via WP_Head's rel_canonical() hook.
-        // This class renders one too, deliberately pointing at the
-        // semantic content URL instead (e.g. a shortcode's ?bh_user=1
-        // rather than whatever page embeds it) — remove core's so a
-        // page doesn't end up with two conflicting canonical tags.
+        // This class emits its own canonical (the semantic content URL), so core's
+        // is removed to avoid two conflicting tags.
         remove_action('wp_head', 'rel_canonical');
     }
 
     /**
-     * Real gap, found live fixing the template_redirect-timing bug
-     * above: multiple independent template_redirect hooks (a specific
-     * plugin's own content-type handler, plus the theme's generic
-     * Page/Post fallback) can both fire for the SAME request — without
-     * this, whichever happens to register last wins by registration-
-     * order luck, not by design. A fallback consumer (the theme) should
-     * check this first and skip entirely if something more specific
-     * already claimed the page, rather than risk overwriting it.
+     * Lets a fallback consumer (the theme) skip if something more specific
+     * already set page data for this request.
      */
     public static function has_page_data(): bool {
         return self::$page_data !== null;
@@ -90,11 +67,7 @@ class BH_SEO {
         if ($image) echo '<meta name="twitter:image" content="' . esc_url($image) . '">' . "\n";
 
         if (!empty($d['schema']) && is_array($d['schema'])) {
-            // Strip nulls (a consumer's own optional-field-not-set
-            // shorthand, like a public profile with no bio) rather than
-            // encoding "field": null into every structured-data block —
-            // valid JSON-LD either way, but a cleaner, smaller payload
-            // and less noise for whatever parses it downstream.
+            // Strip nulls for a smaller, cleaner JSON-LD payload.
             $schema = array_filter($d['schema'], fn($v) => $v !== null);
             echo '<script type="application/ld+json">' . wp_json_encode($schema) . '</script>' . "\n";
         }
@@ -102,22 +75,9 @@ class BH_SEO {
     }
 
     /**
-     * Real, shared fix for a real, repeated bug (production-readiness
-     * sweep, 2026-08-16): bh-courses, bh-contest, bh-streaming, and
-     * bh-registry all called set_page_data() from INSIDE their own
-     * shortcode's render() — which only runs during the_content(),
-     * always after wp_head (where the tags actually echo) has already
-     * fired. Confirmed live on bh-courses: a real course page rendered
-     * zero meta/OG/JSON-LD despite the code "setting" them every
-     * render — fixed there by adding a template_redirect hook, which
-     * needs the shortcode's own attributes available BEFORE the_content()
-     * runs. This is that lookup, written once here instead of every
-     * plugin re-implementing its own shortcode-regex parsing: given a
-     * shortcode tag, returns that shortcode's own attributes as found
-     * in the CURRENT queried post's raw content, or null if that
-     * shortcode isn't present (not singular, no post, tag not found).
-     * First match wins — every consumer of this method embeds at most
-     * one instance of its own shortcode per page in practice.
+     * WHY: shortcode render() runs after wp_head, so SEO data must be set on
+     * template_redirect. Returns the attributes of the first $tag shortcode in
+     * the current queried post's content, or null if absent.
      *
      * @return array<string, mixed>|null
      */
@@ -126,29 +86,15 @@ class BH_SEO {
         $post = get_post();
         if (!$post || !has_shortcode($post->post_content, $tag)) return null;
 
-        // get_shortcode_regex()'s capture groups are numbered, not
-        // named — group 3 is the raw "inside the opening tag" attribute
-        // string (see wp-includes/shortcodes.php's own regex comments).
+        // Group 3 of get_shortcode_regex() is the raw attribute string.
         preg_match('/' . get_shortcode_regex([$tag]) . '/s', $post->post_content, $m);
         if (empty($m[3])) return [];
-        // shortcode_parse_atts()'s own PHPDoc guarantees array return
-        // (PHPStan flagged the old is_array() ternary here as dead code
-        // because of that stub) — no defensive check needed.
         return shortcode_parse_atts($m[3]);
     }
 
     /**
-     * A small, mostly-static /llms.txt endpoint — ROADMAP-discoverability.md
-     * Section 3's own description: the same spirit as robots.txt/
-     * sitemap.xml, written for an LLM crawler's consumption pattern
-     * (prose + links) instead of a search index's. Genuinely cheap once
-     * the site name/tagline/public surfaces are already known —
-     * assembled from get_bloginfo() plus whatever peer plugins declare
-     * via the 'bh_llms_txt_sections' filter (same zero-central-
-     * registration shape as ous_debug_tools/bhi_portal_panels), so a
-     * new plugin's own public catalog/registry/course listing shows up
-     * here automatically rather than needing this file edited by hand
-     * every time a new surface ships.
+     * Serves /llms.txt: site name/tagline plus sections peer plugins add via
+     * the 'bh_llms_txt_sections' filter.
      */
     public static function maybe_serve_llms_txt(): void {
         if (trim(parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/') !== 'llms.txt') return;

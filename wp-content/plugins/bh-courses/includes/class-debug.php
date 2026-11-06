@@ -2,29 +2,14 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * This plugin's own section on the core's shared Debug Tools page —
- * same extension point, same locking (OUS_Debug::is_locked(), checked
- * centrally by that page before this class's callbacks ever run) every
- * other plugin here uses.
- *
- * "Seed realistic test data" is the actual point: one full course, two
- * lessons, the original three step types (text, image, quiz — audit fix,
- * 2026-07-25: corrected from "every step type," which overclaimed; the
- * four LMS depth-of-magic types — callout/checklist/chord-chart/
- * audio-compare — aren't seeded here yet), and — if BH Monetization
- * is active — one gated course behind a test tier, PLUS a real test
- * student with progress already partway through, so this whole feature
- * is genuinely clickable/demoable in one button rather than staring at
- * an empty Courses list. Reset wipes only this plugin's own tagged rows;
- * real courses/students are untouched.
+ * This plugin's Debug Tools section. Seeds a demo course with two lessons (text, image,
+ * quiz steps), a tier-gated course if BH Monetization is active, and a test student with
+ * partial progress. Reset removes only this plugin's tagged rows.
  */
 class BHC_Debug {
     const SEED_TAG = '__bhc_test__';
 
     public static function init(): void {
-        // Registration itself happens in the main bootstrap file
-        // (add_filter('ous_debug_tools', ...)) — kept as an init() entry
-        // point anyway for consistency with every other class here.
     }
 
     public static function render_section(): void {
@@ -213,12 +198,8 @@ class BHC_Debug {
     }
 
     /**
-     * The named edge-case presets, one raw (pre-sanitization) step array
-     * per preset — deliberately the exact same shapes BHC_TestSuite's
-     * assertions and the PHPUnit suite in tests/ already cover, so a
-     * failure surfaced in either place has a matching "go look at it for
-     * real" button here rather than living only as a pass/fail row.
-     * Keyed so new presets can be added without renumbering anything.
+     * Named edge-case presets: raw step arrays matching the shapes BHC_TestSuite and the
+     * PHPUnit suite cover.
      */
     /** @return array<string, array<string, mixed>> */
     private static function edge_case_presets(): array {
@@ -338,13 +319,8 @@ class BHC_Debug {
             wp_delete_post($c->ID, true);
         }
 
-        // Test students created via OUS_Debug::get_or_create_test_user()
-        // are shared/tagged infrastructure (bhcore_is_test) reset by the
-        // "Wipe all test data (every plugin)" button on the main Debug
-        // Tools page, not by this plugin's own reset alone — deleting
-        // user accounts here could also wipe another plugin's test
-        // fixtures tagged onto the same account, which isn't this
-        // plugin's call to make.
+        // Test users are shared, tagged infrastructure cleared by the global "Wipe all test
+        // data" button, not here, since other plugins may use the same account.
         return count($courses) . ' seeded course(s) and ' . count($lessons) . ' seeded lesson(s) removed, plus their progress rows. Test student ACCOUNTS are left in place (shared across plugins) — use "Wipe all test data" on the main Debug Tools page to remove those too.';
     }
 }

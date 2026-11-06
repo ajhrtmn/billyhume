@@ -2,14 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Ecosystem depth-pass Tier 1e — instructor notes: a private,
- * NON-STUDENT-FACING note field on a lesson. One note per lesson (not
- * per student) — trivial postmeta, no schema change, matching the
- * plan's own scoping ("private note field on a lesson row = trivial
- * postmeta + capability gate on bhcore_manage_students"). Never
- * rendered anywhere on the front end — this is a WP-admin-only metabox
- * on the lesson's own edit screen, same capability
- * `BHC_ProgressAdmin`/`BHC_Reviews` already gate on.
+ * Private, admin-only instructor note per lesson (postmeta), gated on bhcore_manage_students.
  */
 class BHC_InstructorNotes {
     const META_KEY = '_bhc_instructor_note';

@@ -2,14 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Site-wide settings — the one screen that exists regardless of whether
- * WooCommerce is installed yet. Registers on 'ous_registered_plugins'
- * with 'wporg_slug' => 'woocommerce' as a real, on-demand-installable
- * dependency, exactly the pattern the core's own class-registry.php
- * docblock documents for third-party plugins — the "Install from
- * WordPress.org" button on the Self-Hosted Self dashboard handles the actual
- * install/activate, this plugin never bundles or redistributes
- * WooCommerce itself.
+ * Monetization settings screen (exists even without WooCommerce) and registry entries,
+ * including WooCommerce as an install-from-WordPress.org dependency (never bundled).
  */
 class BHM_Admin {
     public static function init(): void {
@@ -26,31 +20,15 @@ class BHM_Admin {
             'label' => 'BH Monetization', 'file' => 'bh-monetization-woo/bh-monetization-woo.php',
             'depends_on' => ['woocommerce'], 'check_class' => 'BHM_Gate',
             'description' => 'Supporter tiers, purchases, tips, and pay-per-play for bh-streaming — backed by WooCommerce, with refund/velocity fraud-pattern flagging.',
-            // Same gap fixed as bh-registry's: this plugin's own zip
-            // needs to physically exist at the-self-hosted-self/bundled/
-            // bh-monetization-woo.zip for the dashboard's one-click
-            // Install button to have anything to extract.
+            // Must exist at the-self-hosted-self/bundled/ for the dashboard's Install button.
             'bundled_zip' => 'bh-monetization-woo.zip',
             'dashboard_link' => 'admin.php?page=bhm-settings',
-            // 'parent' => 'woocommerce' — this used to default to
-            // 'the-self-hosted-self' (every admin_menus entry's implicit
-            // default, see the core's class-menu-merge.php), splitting
-            // this plugin's admin presence across two different
-            // top-level menus: "Monetization Settings" under the
-            // cross-cutting ecosystem hub, but its own Tiers CPT
-            // (class-tiers.php's own 'show_in_menu' => 'woocommerce')
-            // right there under WooCommerce instead. Joining Tiers
-            // under the same parent it already lives next to is the
-            // one consistent home for a WooCommerce-backed plugin.
+            // Under WooCommerce, next to the Tiers CPT menu.
             'admin_menus' => [
                 ['slug' => 'bhm-settings', 'label' => 'Monetization Settings', 'callback' => [self::class, 'render'], 'parent' => 'woocommerce'],
             ],
         ];
-        // The actual WooCommerce entry — same wporg_slug pattern the
-        // core's own docblock shows for a third-party dependency. Only
-        // added if nothing else (another plugin, or the core itself in
-        // a future version) has already registered it, so two plugins
-        // both depending on WooCommerce don't fight over the entry.
+        // Only if no other plugin already registered it.
         if (!isset($plugins['woocommerce'])) {
             $plugins['woocommerce'] = [
                 'label' => 'WooCommerce', 'file' => 'woocommerce/woocommerce.php',
@@ -62,11 +40,6 @@ class BHM_Admin {
     }
 
     public static function render(): void {
-        // Routed through BH_Commerce (this ecosystem's abstraction seam
-        // over WooCommerce — nothing should be hard-wired to an
-        // external, unmockable dependency) rather than a bare
-        // class_exists() — an audit found this file had been missed
-        // when the rest of this plugin's own call sites were fixed.
         $has_wc = BH_Commerce::available();
         $has_subs = BH_Commerce::has_subscriptions();
         echo '<div class="wrap"><h1>Monetization Settings</h1>';
@@ -104,12 +77,7 @@ class BHM_Admin {
                 echo '<p><em>Not set yet.</em></p>';
             }
 
-            // Audit fix (2026-07-25): gifting is a real revenue-adjacent
-            // feature (class-gifts.php) that silently degrades to "claim
-            // link points at the homepage" if this page isn't set up —
-            // same "Not set yet" visibility the tiers page above already
-            // gets, closing a real "it just works" gap before a fan hits
-            // a dead-end claim link.
+            // Without this page, gift claim links fall back to the homepage.
             $gift_redeem_page = get_option('bhm_gift_redeem_page_id', 0);
             echo '<h2>Gift redemption page</h2>';
             echo '<p class="description">Add the <code>[bhm_redeem_gift]</code> shortcode to a page so a gift recipient has somewhere to claim their tier.</p>';
@@ -124,12 +92,7 @@ class BHM_Admin {
         echo '</div>';
     }
 
-    // Audit fix (2026-07-25): the only place an admin could previously
-    // see gift-redemption status was the locked Debug Tools panel
-    // (class-debug.php, dev-only, shows claim links meant for local
-    // testing) — an artist selling gifts had no ordinary way to check
-    // "did they claim it yet." This is that ordinary view: status only,
-    // no test-only claim-link column.
+    // Gift status for admins; claim links are shown only in Debug Tools.
     private static function render_gift_status(): void {
         if (!class_exists('BHM_Gifts')) return;
         global $wpdb;
@@ -150,30 +113,11 @@ class BHM_Admin {
         echo '</tbody></table></div>';
     }
 
-    /**
-     * "It just works" applied to the one real gap the wizard-opportunity
-     * survey found: this plugin has NO payment-gateway screen of its
-     * own — real Stripe/PayPal/card processing is configured entirely
-     * in WooCommerce core's own checkout settings, which is exactly the
-     * kind of raw, technical, third-party screen VISION.md's "it just
-     * works" principle exists to wrap. Rather than reimplementing
-     * gateway configuration (WooCommerce core already ships a real
-     * guided Payments setup task), this is a thin, honest launcher: a
-     * REAL check of whether a gateway is actually enabled right now
-     * (WC_Payment_Gateways::get_available_payment_gateways() — a live
-     * API call, never a guess) plus a direct link into WooCommerce's
-     * own screen. Same "wrap what already exists, don't rebuild it"
-     * posture as OUS_MediaWizard pointing at Advanced Media Offloader.
-     */
+    /** Live "is any payment gateway enabled" check, linking to WooCommerce's own payments setup. */
     private static function render_get_paid_card(): void {
         $enabled = BH_Commerce::get_available_payment_gateways();
         $payments_url = admin_url('admin.php?page=wc-settings&tab=checkout');
 
-        // Audit fix (2026-07-25): was a bare 'bhy-alert' class carrying
-        // its own hand-rolled inline styles — a real, shared alert
-        // component with success/danger variants already exists
-        // (the-self-hosted-self's class-ui.php), this just uses it instead of
-        // re-implementing the same visual language one-off.
         echo '<div class="bhy-alert ' . ($enabled ? 'bhy-alert-success' : 'bhy-alert-danger') . '" style="max-width:760px;">';
         if ($enabled) {
             $names = implode(', ', array_map(fn($g) => $g->get_title(), $enabled));

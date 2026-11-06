@@ -2,23 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_PortalLayout — admin-editable portal layout config: panel order
- * and visibility, previously only settable via the hardcoded
- * bhi_portal_panels filter. Wires into OUS_Revisions as its own
- * consumer.
- *
- * Deliberately NOT a drag-and-drop UI: a numeric priority field per
- * panel plus a "hide" checkbox gives the same real capability
- * (reorder + hide) with zero new JS dependency, consistent with how
- * this codebase avoids reaching for a library until a simpler option
- * genuinely can't do the job.
- *
- * Storage: option BHI_Portal::LAYOUT_OPTION = ['order' => [id => int],
- * 'hidden' => [id => true]]. BHI_Portal::get_panels() applies this on
- * top of whatever bhy_portal_panels filter contributes — the filter
- * still owns which panels CAN exist; this only overrides their order
- * and visibility, so a plugin's own panel registration never has to
- * know this exists.
+ * OUS_PortalLayout: admin-editable portal panel order (numeric priority) and
+ * visibility, with OUS_Revisions history. Stored in BHI_Portal::LAYOUT_OPTION as
+ * ['order' => [id => int], 'hidden' => [id => true]] and applied on top of the
+ * bhi_portal_panels filter, which still decides which panels exist.
  */
 class OUS_PortalLayout {
     const OPTION = 'bhi_portal_layout';
@@ -39,9 +26,7 @@ class OUS_PortalLayout {
     }
 
     /**
-     * Applied by BHI_Portal::get_panels() after collecting the raw
-     * filter-contributed panel list. Never called directly by a panel
-     * provider — this is BHI_Portal's own concern, not theirs.
+     * Applied by BHI_Portal::get_panels() to the filter-contributed list.
      */
     /**
      * @param array<int, array<string, mixed>> $panels
@@ -72,10 +57,7 @@ class OUS_PortalLayout {
     public static function render(): void {
         if (!current_user_can('manage_options')) return;
 
-        // Read raw filter output directly, not BHI_Portal::get_panels()
-        // (which would already have this class's overrides applied) —
-        // a previously-hidden panel still needs to show up here with
-        // its checkbox available to re-enable it.
+        // Raw filter output, so hidden panels still appear here to re-enable.
         $panels = apply_filters('bhi_portal_panels', []);
         $panels = array_filter($panels, function ($p) {
             return !empty($p['id']) && !empty($p['label']);

@@ -2,32 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The generic, content-type-agnostic paywall mechanism this whole
- * plugin is actually built around. NOT specific to bh-streaming's
- * tracks/releases — this is the Patreon-lite foundation: any post type,
- * from any plugin, marks itself paylocked with one postmeta key and
- * calls one static method to check access. bh-streaming is the FIRST
- * consumer, not the only intended one.
- *
- * Real, shipped consumer (confirmed, doc-cleanup pass 2026-07-26 —
- * this comment previously called it "anticipated... not built yet"):
- * bh-courses gates its own lesson/course post type exactly this way —
- * sets `_bhm_required_tier` on its own CPT (`class-admin.php`,
- * `class-debug.php`) and calls `BHM_Gate::user_has_tier_access()` via
- * its own `class-gate.php`, without this plugin requiring a single
- * line of changes to support it, and without bh-courses requiring
- * bh-streaming to exist either. This was deliberately designed ahead
- * of time so that decision didn't
- * need revisiting later.
+ * Content-type-agnostic paywall: any post type marks itself locked with one postmeta key
+ * and calls one static method to check access (used by bh-streaming and bh-courses).
  */
 class BHM_Gate {
     public static function init(): void {
-        // Nothing to hook yet — this class is a pure, stateless API
-        // other code calls into (see USAGE below), not something that
-        // needs its own WordPress hooks. Kept as an init() entry point
-        // anyway for consistency with every other class in this
-        // ecosystem, and as a natural place to add caching/warmup later
-        // if entitlement checks ever become a measured hot path.
+        // Stateless API; no hooks needed.
     }
 
     /**
@@ -40,28 +20,14 @@ class BHM_Gate {
      *       return;
      *   }
      *
-     * A post with no `_bhm_required_tier` meta at all is simply not
-     * paylocked — get_required_tier() returns 0, and
-     * user_has_tier_access(..., 0) always returns true, so content stays
-     * fully open by default unless something explicitly locks it.
+     * No `_bhm_required_tier` meta means 0, which always passes: content is open by default.
      */
     public static function get_required_tier(int $post_id): int {
         return (int) get_post_meta($post_id, '_bhm_required_tier', true);
     }
 
-    // Extracted (not new logic) from the identical inline query that
-    // used to live separately inside both user_has_tier_access() and
-    // user_has_benefit() below — a real DRY fix made while adding a
-    // THIRD caller: BHC_Gate::user_can_access_course() needs this exact
-    // check reachable on its own, independent of any tier requirement.
-    // That's the actual reason this couldn't stay inlined: both
-    // existing callers only ever reach their own inline version of this
-    // query AFTER a tier-requirement short-circuit (user_has_tier_
-    // access() returns true immediately when $required_tier is 0,
-    // NEVER reaching the purchase check) — exactly wrong for "sold as a
-    // one-time purchase with no tier requirement at all," which is a
-    // real, intended configuration for a course, not an edge case to
-    // work around.
+    // Standalone purchase check, reachable without any tier requirement
+    // (BHC_Gate::user_can_access_course() sells courses as one-time purchases).
     public static function user_owns_object(int $user_id, int $object_id): bool {
         if (!$user_id || !$object_id) return false;
         global $wpdb;
@@ -71,12 +37,8 @@ class BHM_Gate {
         ));
     }
 
-    // True if $user_id has an active grant at $tier_id OR ANY higher
-    // tier (tiers are ordered by price — see BHM_Tiers::ordered_ids()),
-    // OR a standing account-wide streaming-tier entitlement, OR a
-    // one-time purchase entitlement scoped directly to this object, OR
-    // anything a future plugin's own filter callback decides to grant.
-    // $required_tier = 0 always passes (nothing to unlock).
+    // True for an active grant at $required_tier or any higher-priced tier, a purchase of
+    // $object_id, or anything the bhm_extra_entitlement_check filter grants. 0 always passes.
     public static function user_has_tier_access(int $user_id, int $required_tier, ?int $object_id = null): bool {
         if (!$required_tier) return true;
         if (!$user_id) return apply_filters('bhm_extra_entitlement_check', false, 0, $required_tier, $object_id);
@@ -85,8 +47,7 @@ class BHM_Gate {
         $t = BHM_Tables::entitlements();
         $now = current_time('mysql');
 
-        // Any tier/subscription entitlement at or above the tiers price
-        // rank, not yet expired (or a permanent — expires_at NULL — grant).
+        // expires_at NULL = permanent grant.
         $tier_ids = BHM_Tiers::ids_at_or_above($required_tier);
         if ($tier_ids) {
             $placeholders = implode(',', array_fill(0, count($tier_ids), '%d'));
@@ -96,39 +57,18 @@ class BHM_Gate {
             if ((int) $wpdb->get_var($wpdb->prepare($sql, $args))) return true;
         }
 
-        // A one-time purchase of this SPECIFIC object (a track/release
-        // bought outright) also satisfies its own tier requirement,
-        // regardless of tier rank — buying the thing directly always
-        // unlocks the thing.
+        // Buying the object outright always unlocks it.
         if ($object_id && self::user_owns_object($user_id, $object_id)) return true;
 
-        // The extension point: any other plugin can grant access for
-        // reasons this plugin has no way to know about in advance — a
-        // future courses plugin's own "enrolled and paid" state, a
-        // manually-comped account, whatever. Mirrors bh-crm's
-        // bh_crm_active_user_ids/activity_summary pattern: a filter this
-        // plugin defines and applies, with zero code changes required
-        // here no matter what future plugin ends up calling add_filter().
+        // Extension point for other plugins (comped accounts, enrollments, etc.).
         return (bool) apply_filters('bhm_extra_entitlement_check', false, $user_id, $required_tier, $object_id);
     }
 
     /**
-     * The fine-grained sibling to user_has_tier_access() (see
-     * BHM_Tiers::benefit_registry()'s own docblock for why price-rank
-     * alone isn't enough once tiers grant orthogonal things rather than
-     * strictly nested ones). USAGE, for a content type that wants "any
-     * tier granting THIS specific benefit," not "any tier at or above
-     * a price":
+     * Benefit-based gating: any tier granting $benefit_key, independent of price rank.
      *
      *   update_post_meta($post_id, '_bhm_required_benefit', 'courses');
      *   if (!BHM_Gate::user_has_benefit(get_current_user_id(), 'courses', $post_id)) { ... }
-     *
-     * A post using `_bhm_required_benefit` and a post using the older
-     * `_bhm_required_tier` are two independent, non-conflicting gating
-     * mechanisms — a content type picks whichever model actually fits
-     * how its access is sold (bh-courses uses this one when a specific
-     * benefit key is set on a course, and falls back to the price-tier
-     * model otherwise — see BHC_Gate::user_can_access_course()).
      */
     public static function user_has_benefit(int $user_id, string $benefit_key, ?int $object_id = null): bool {
         if (!$benefit_key) return true;
@@ -146,48 +86,18 @@ class BHM_Gate {
             if ((int) $wpdb->get_var($wpdb->prepare($sql, $args))) return true;
         }
 
-        // A one-time purchase of this specific object still unlocks it
-        // directly, same as user_has_tier_access() above — buying the
-        // thing outright doesn't care which gating model the content
-        // happened to be using.
         if ($object_id && self::user_owns_object($user_id, $object_id)) return true;
 
         return (bool) apply_filters('bhm_extra_entitlement_check', false, $user_id, 0, $object_id);
     }
 
-    /* ---------------- tier upgrade/downgrade (ROADMAP-platform-evolution.md Section 4) ---------------- */
+    /* ---------------- tier upgrade/downgrade ---------------- */
 
-    /**
-     * Best-effort, plain-WooCommerce proration for a mid-cycle downgrade
-     * or cancellation-with-credit — deliberately NOT reimplementing real
-     * subscription proration math. If WooCommerce Subscriptions is
-     * active, ITS OWN switch/proration handling is the correct, already-
-     * tested mechanism (see the WC_Subscriptions_Switcher class that
-     * extension ships) — this method explicitly steps aside when that's
-     * available, rather than fighting it with a second, competing
-     * proration calculation. Without WC Subscriptions (the common case
-     * for the "one-time purchase = 30 days of access" tier model this
-     * plugin already documents elsewhere), this is a simple day-based
-     * credit: unused whole days on the old tier, valued at the old
-     * tier's own daily rate, credited to the wallet — a real, honest
-     * number, just not full accounting-grade proration (no partial-day
-     * rounding beyond whole days, no tax adjustment).
-     */
-    // Extracted as a pure function (no DB, no WordPress calls) specifically
-    // so it's unit-testable without a live install — see
-    // class-test-suite.php's own coverage of this. $old_tier_price_cents
-    // is the tier's full period price; the 30-day period assumption is
-    // this plugin's own documented one-time-tier period (see
-    // class-tiers.php's docblock), not a general subscription-billing
-    // assumption.
-    // Audit fix (2026-07-25): this divisor and BHM_Entitlements' own
-    // strtotime('+30 days') grant-expiry literals were three independent
-    // copies of the same "one-time tier = 30 days" assumption, with
-    // nothing stopping them silently diverging (e.g. someone updating
-    // the grant period without knowing this proration math needs the
-    // same number) — a real invisible-coupling risk on actual wallet
-    // money. One constant, referenced everywhere the assumption is used.
+    // Access period of a one-time tier purchase. WHY: grant expiry and downgrade
+    // proration must use the same number, so both reference this constant.
     const FALLBACK_ACCESS_DAYS = 30;
+
+    // Pure (unit-tested): unused whole days at the old tier's daily rate. No tax/partial-day handling.
 
     public static function calculate_downgrade_credit_cents(int $old_tier_price_cents, int $days_remaining): int {
         if ($old_tier_price_cents <= 0 || $days_remaining <= 0) return 0;
@@ -195,14 +105,7 @@ class BHM_Gate {
         return (int) round($daily_rate_cents * $days_remaining);
     }
 
-    // Audit fix (2026-07-25): extracted out of class-frontend.php's
-    // render_tiers() — the one fan-facing money number in this plugin
-    // that wasn't independently testable before this, unlike this same
-    // class's calculate_downgrade_credit_cents() above. Pure function,
-    // same "no DB, no WordPress calls" shape. Only ever shown when it's a
-    // genuine discount (annual < 12x monthly) — never a misleading "0%"
-    // or negative number if an admin priced annual at or above the
-    // monthly-times-12 cost.
+    // Pure (unit-tested); never negative when annual is priced at or above 12x monthly.
     public static function annual_savings_percent(int $monthly_price_cents, int $annual_price_cents): int {
         $full_year_at_monthly_rate = $monthly_price_cents * 12;
         if ($full_year_at_monthly_rate <= 0) return 0;
@@ -210,18 +113,14 @@ class BHM_Gate {
         return max(0, (int) $percent);
     }
 
+    // Day-based wallet credit for a downgrade; steps aside when WC Subscriptions' switcher handles proration.
     public static function handle_tier_downgrade(int $user_id, int $old_tier_id, int $new_tier_id, string $expires_at): void {
-        // Routed through BH_Commerce::has_subscription_switching() as of
-        // the BH_Commerce migration's second pass — same
-        // class_exists('WC_Subscriptions_Switcher') check underneath,
-        // just no longer spelled out in a plugin file (see
-        // class-commerce.php's docblock for the full migration history).
         $has_switching = BH_Commerce::has_subscription_switching();
         if ($has_switching) {
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('info', 'Tier downgrade deferred to WooCommerce Subscriptions\' own switch/proration handling.', ['user_id' => $user_id, 'old_tier_id' => $old_tier_id, 'new_tier_id' => $new_tier_id], 'BH Monetization');
             }
-            return; // WC Subscriptions owns this — do not also credit a second time
+            return; // WC Subscriptions owns this; never credit twice
         }
         if (!class_exists('BHM_Wallet') || !$expires_at) return;
 
@@ -244,11 +143,7 @@ class BHM_Gate {
         }
     }
 
-    // A simple, Style-Gallery-themed "become a supporter" notice any
-    // consumer can drop in wherever it would otherwise render paylocked
-    // content — deliberately generic markup (no track/release-specific
-    // language) so a future courses plugin's own lesson page can use the
-    // exact same call.
+    // Generic "become a supporter" notice for any locked content type.
     public static function render_paywall_notice(int $tier_id): string {
         $tier = BHM_Tiers::get($tier_id);
         if (!$tier) return '<div class="bhm-paywall"><p>This content requires supporter access.</p></div>';

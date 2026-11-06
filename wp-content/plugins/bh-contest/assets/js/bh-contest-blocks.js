@@ -1,29 +1,8 @@
 "use strict";
 /**
- * bh-contest-blocks.js — editor-side registration for 'bh/contest-
- * player', 'bh/results-reveal', and 'bh/archive' (class-blocks.php).
- * Plain ES5-safe JS against WP core's own globals, no build step, same
- * convention as bh-monetization-woo's bhm-blocks.js (which this file
- * mirrors closely) and the-self-hosted-self's element-prefab-block.js.
- *
- * All three use wp.serverSideRender — the real render_callback output
- * (the exact same static container div the front end gets) shown live
- * in the canvas. This does NOT preview voting/playback/the reveal
- * sequence/the archive grid interactively inside the editor — those are
- * entirely player.js/reveal.js/archive.js hydrating that container on a
- * REAL front-end page load, which the editor canvas never runs. What
- * this DOES fix is the exact problem AJ originally flagged: a contest
- * shortcode rendering as raw bracket text with zero visual feedback in
- * the post editor. The container now shows correctly-styled real markup
- * instead of nothing.
- *
- * TypeScript pilot conversion — same posture as this plugin's other
- * converted files. Local, loosely-typed ambient interfaces for the
- * wp.* modules this file actually uses (createElement/useState/
- * useEffect, InspectorControls, PanelBody/SelectControl, i18n, apiFetch,
- * serverSideRender) rather than sharing the-self-hosted-self's own wp-globals.d.ts
- * (a separate tsc project — see reveal.ts's own docblock for why each
- * plugin declares its own local types instead).
+ * Editor registration for the bh-contest blocks (class-blocks.php), previewed via
+ * wp.serverSideRender. The editor shows the static container only; front-end JS
+ * hydrates it. wp.* globals are typed loosely and locally (separate tsc project).
  */
 (function (blocks, element, blockEditor, components, i18n, apiFetch, serverSideRender) {
     'use strict';
@@ -37,9 +16,7 @@
     const PanelBody = components.PanelBody;
     const SelectControl = components.SelectControl;
     const ServerSideRender = serverSideRender.default || serverSideRender;
-    // Shared by both contest-scoped blocks below — a dropdown of every
-    // published contest, same picker shape bh-monetization-woo's
-    // bhm/buy block already established for tracks/releases.
+    // Published-contest picker shared by the contest-scoped blocks.
     function useContestPicker() {
         const [contests, setContests] = useState([]);
         const [loading, setLoading] = useState(true);
@@ -103,8 +80,7 @@
         description: __('The public past-contests archive browser — the same [bh_archive] shortcode, as a real block with a live preview.', 'bh-contest'),
         icon: 'archive',
         category: 'widgets',
-        // No attributes — the archive is always every past contest,
-        // site-wide, same as the shortcode itself takes no atts.
+        // No attributes: the archive always spans every contest.
         edit: function () {
             return el(ServerSideRender, { block: 'bh/archive' });
         },

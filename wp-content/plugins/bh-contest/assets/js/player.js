@@ -1,56 +1,19 @@
 "use strict";
 /**
- * The embedded contest player — track list/voting/audio playback,
- * sign-up/login, submission upload, share cards, and results. The
- * ecosystem's TypeScript pilot's first class-shaped conversion (bh-
- * contest's other files this session were plain functions/IIFEs) —
- * real typed instance properties declared at the top of the class,
- * real method signatures throughout, no @ts-nocheck escape hatch.
- *
- * Howler.js (assets/js/vendor/howler.min.js) gets a minimal local
- * `declare class Howl` — only the constructor options and instance
- * methods this file actually calls (play/pause/stop/playing/seek/
- * duration), not a full @types/howler pull-in, matching this pilot's
- * existing "declare only what's used" convention for FullCalendar/
- * Sortable/anime.js elsewhere in this ecosystem.
- *
- * Same posture as every other TS-pilot file: plain `tsc`, no bundler,
- * compiled assets/js/player.js is committed since the live site runs
- * no build step. Run `npm run build:bh-contest` after editing.
- *
- * The REST API this talks to (bh/v1 and bhi/v1) has no typed OpenAPI
- * client of its own, so request bodies are typed per-endpoint below
- * from what this file actually reads off each response — real shapes,
- * not a blanket `any`, but not a full server-side contract either.
+ * The embedded contest player: track list, voting, playback, sign-up/login,
+ * submission upload, share cards, and results.
+ * Howl is declared locally with only the methods this file calls; response
+ * shapes below are typed from what this file reads, not a full server contract.
  */
 const D = window.BHData || {};
-// One color per category, assigned by order (not hashed) so it stays
-// stable as long as the admin doesn't reorder the category list. Each
-// slot resolves to a --bh-cat-N custom property set by BHY_Style (see
-// class-settings.php) — the actual hex values live in the Category
-// Colors panel on the Settings & Style admin page, not here. The literal
-// hexes below are only a fallback for the rare case that property isn't
-// defined (e.g. this script loaded outside the plugin's own CSS).
+// One color per category by list order. Real values come from the
+// --bh-cat-N properties set by BHY_Style; the hexes are only fallbacks.
 const CAT_COLORS = [
     'var(--bh-cat-1, #FF5A36)', 'var(--bh-cat-2, #2DD4BF)', 'var(--bh-cat-3, #A78BFA)', 'var(--bh-cat-4, #F472B6)',
     'var(--bh-cat-5, #38BDF8)', 'var(--bh-cat-6, #A3E635)', 'var(--bh-cat-7, #FBBF24)', 'var(--bh-cat-8, #FB7185)',
 ];
-// The one place the profile-field list/DOM-class mapping lives now —
-// contract-drift fix, caught by an audit run right after the quiz-
-// shuffle bug (the-self-hosted-self's BHI_Profiles::TEXT_COLS is the real PHP-
-// side source of truth, already correctly single-sourced there; this
-// was the JS-side counterpart, independently duplicated in THREE
-// places — appendProfileFields()'s own map, prefillSubmitProfile()'s
-// separately-typed copy of the identical map, and applyContactFields()/
-// the contactFields.show default's own hardcoded field-name array).
-// Nothing caught it drifting yet, but nothing PREVENTED it either — a
-// field added to BHI_Profiles::TEXT_COLS in the future would silently
-// never show up in one of these three without a human remembering to
-// update all three by hand. Server field key -> DOM class-suffix
-// mapping is legitimately a bh-contest template concern (not something
-// PHP needs to dictate), so this stays JS-side rather than crossing the
-// PHP/JS boundary via wp_localize_script — the fix is collapsing THREE
-// copies into ONE, not moving the one copy.
+// WHY: the single JS-side map of server profile key -> DOM class suffix.
+// Keep in sync with BHI_Profiles::TEXT_COLS (the PHP source of truth).
 const PROFILE_FIELDS = [
     { key: 'real_name', cls: 'realname' },
     { key: 'discord_name', cls: 'discord' },
@@ -59,10 +22,8 @@ const PROFILE_FIELDS = [
 ];
 const CONTACT_FIELD_KEYS = PROFILE_FIELDS.map(f => f.key).concat(['typical_platform', 'phone']);
 class BHPlayer {
-    // root: the specific .bh-player-root element for THIS instance. Every
-    // DOM lookup below is scoped to root.querySelector(...), never the
-    // global document — that's what lets multiple contests run on the same
-    // page at once without their controls colliding.
+    // WHY: every lookup is scoped to root, never document, so several
+    // players can share one page without their controls colliding.
     constructor(root) {
         this.root = root;
         this.api = D.rest || '/wp-json/bh/v1/';
@@ -72,17 +33,9 @@ class BHPlayer {
         this.maxBytes = D.maxBytes || 20971520;
         this.brand = D.brand || { part1: 'Your', part2: 'Brand', logoUrl: '' };
         this.contest = root.dataset.contest || ''; // '' = server falls back to newest published
-        // Per-contest "Allow submitting without audio yet" setting
-        // (class-admin.php's Contest Rules & Results box) — off by
-        // default, an admin opts a specific contest in.
         this.allowAudioOptional = root.dataset.allowAudioOptional === '1';
-        // Per-contest style override (accent + category colors + brand),
-        // set server-side only when a contest has "Override site
-        // styling" enabled (see BHY_Style::entity_style_payload).
-        // Applied as inline CSS custom properties directly on this root
-        // element so it only ever affects this one embedded instance —
-        // the site-wide theme and any other contest on the same page
-        // are untouched.
+        // Per-contest style override (BHY_Style::entity_style_payload), set as
+        // custom properties on this root only so other instances are untouched.
         if (root.dataset.styleOverrides) {
             try {
                 const ov = JSON.parse(root.dataset.styleOverrides);
@@ -166,23 +119,14 @@ class BHPlayer {
         catch (e) {
             return { ok: false, body: {} };
         }
-        // A 401/403 previously fell through to whatever generic action-
-        // specific fallback the caller had ("Could not record your
-        // vote."), which reads like the ACTION failed rather than the
-        // real cause. Only overridden when the server didn't already
-        // send its own specific message — a deliberately-permission-
-        // denied case (e.g. a not-yet-open contest) still shows ITS
-        // real reason, not a blanket "log in again" that would be wrong
-        // there.
+        // Name the real cause of a 401/403, but only when the server sent no
+        // specific message of its own (e.g. "contest not open yet").
         if (!res.ok && (res.status === 401 || res.status === 403) && !body.message) {
             body.message = 'Your session has expired — please log in again.';
         }
         return { ok: res.ok, body };
     }
-    // Same shape as req() above, but against bh-identity's REST base
-    // instead of this plugin's own — auth/profile calls now live there,
-    // not here, and unlike a contest-scoped call there's no contest
-    // param to append.
+    // Like req(), but against the identity REST base (auth/profile), with no contest param.
     async reqIdentity(path, opts = {}) {
         const o = { ...opts, headers: { 'X-WP-Nonce': this.nonce, ...(opts.headers || {}) } };
         let res;
@@ -374,31 +318,12 @@ class BHPlayer {
             </div>`;
         this.bind();
         this.injectExtraZone('headerExtra', '.bh-header-extra');
-        // Task #80 follow-up — three more genuinely new, empty divs
-        // (above the tracklist, after the now-playing bar, inside the
-        // results modal), same additive boundary as header_extra: none
-        // of these are read from or required by any this.q(...)-style
-        // lookup elsewhere in this file, so wiring them in carries the
-        // same low risk the first slot already proved out live.
         this.injectExtraZone('tracklistExtra', '.bh-tracklist-extra');
         this.injectExtraZone('nowPlayingExtra', '.bh-now-playing-extra');
         this.injectExtraZone('resultsModalIntro', '.bh-results-modal-intro');
     }
-    // Task #80's real, safe slice — a genuinely new insertion point, not
-    // a rebuild of anything player.js already owns. class-auth.php's
-    // render() base64-encodes each real, server-rendered
-    // 'bh_contest_player' BH_Element slot (editable in the Design Suite
-    // tree, same as any other real placement) onto this.root's own
-    // data-{name} attribute — read once here and dropped into that
-    // zone's own empty div. Generalized off the original, header-extra-
-    // only injectHeaderExtra() once three more zones needed the identical
-    // read/decode/insert logic — datasetKey is the camelCase form of the
-    // data-* attribute (e.g. 'headerExtra' reads this.root.dataset.
-    // headerExtra), selector is that zone's own empty div. Deliberately
-    // does NOT touch .bh-brand/.bh-header-actions, the tracklist itself,
-    // the now-playing bar's own controls, or '.bh-results-body' — every
-    // this.q(...)-style lookup elsewhere in this file keeps working
-    // exactly as before, untouched.
+    // Drops a server-rendered BH_Element slot (base64 in root's data-{datasetKey},
+    // see class-auth.php render()) into its empty zone div. Zones are additive only.
     injectExtraZone(datasetKey, selector) {
         const raw = this.root.dataset[datasetKey];
         if (!raw)
@@ -407,19 +332,12 @@ class BHPlayer {
         if (!target)
             return;
         try {
-            // atob() + decodeURIComponent/escape round-trip handles UTF-8
-            // content correctly (plain atob() alone mangles anything
-            // outside Latin1, e.g. a real emoji/accented character in an
-            // announcement) — same reasoning any base64<->UTF8 JS bridge
-            // needs, not specific to this feature.
+            // WHY: plain atob() mangles non-Latin1 text; this round-trip decodes UTF-8.
             const decoded = decodeURIComponent(escape(atob(raw)));
             target.innerHTML = decoded;
         }
         catch (e) {
-            // Malformed/corrupt attribute — fail silently to an empty
-            // (invisible, since CSS gives it no border/background of its
-            // own) div rather than breaking the rest of the player over
-            // one bad zone render.
+            // Malformed attribute: leave the zone empty rather than break the player.
         }
     }
     updateAuthUI() {
@@ -462,10 +380,7 @@ class BHPlayer {
             e.preventDefault();
             this.setAuthMode(!this.isLogin);
         };
-        // Password show/hide — a baseline expectation this auth form
-        // never had; flips the field's own type rather than duplicating
-        // it as a second text input, so nothing else about validation/
-        // submission needs to change.
+        // Password show/hide flips the field's own type.
         const passToggle = this.q('.bh-pass-toggle');
         if (passToggle) {
             passToggle.onclick = () => {
@@ -477,12 +392,8 @@ class BHPlayer {
                 passToggle.innerHTML = showing ? '&#128065;' : '&#128683;';
             };
         }
-        // Copy-to-clipboard: the one genuinely missing utility this
-        // ecosystem's micro-interaction survey found — a fan is
-        // explicitly told to "pair this link" but previously had to
-        // select/copy it by hand. navigator.clipboard requires a secure
-        // context (https or localhost); falls back to leaving the plain
-        // link selectable (which already worked) if unavailable.
+        // Copy link. navigator.clipboard needs a secure context; without it
+        // the link stays plain selectable text.
         const copyBtn = this.q('.bh-copy-link-btn');
         if (copyBtn) {
             copyBtn.onclick = () => {
@@ -496,11 +407,7 @@ class BHPlayer {
                     copyBtn.classList.add('is-copied');
                     setTimeout(() => { copyBtn.textContent = original; copyBtn.classList.remove('is-copied'); }, 1500);
                 }).catch(() => {
-                    // Permission denied or unsupported — the link text
-                    // itself is still a plain selectable/copyable <a>,
-                    // same fallback that already existed before this
-                    // button was added, so there's nothing broken here,
-                    // just nothing extra to confirm.
+                    // Denied or unsupported: the link is still selectable by hand.
                 });
             };
         }
@@ -552,21 +459,13 @@ class BHPlayer {
         const platform = this.q(`.bh-${prefix}-platform`).value;
         if (platform)
             fd.append('typical_platform', platform);
-        // No public/private checkbox for this one — it only exists on
-        // the submit form (prize contact only matters for someone who
-        // could actually win), so the lookup is guarded rather than
-        // assumed present the way the fields above are.
+        // Phone exists only on the submit form, so the lookup is guarded.
         const phoneEl = this.q(`.bh-${prefix}-phone`);
         if (phoneEl && phoneEl.value.trim())
             fd.append('phone', phoneEl.value.trim());
     }
-    // Replaces a native <select>'s on-page presentation with a themed
-    // trigger + option list, while leaving the real <select> in the DOM
-    // as the actual source of truth (just visually hidden). Every other
-    // place in this file that reads `.value` or listens for 'change' on
-    // one of these selects keeps working exactly as before — this only
-    // changes what's drawn, not how the value is stored. Reusable for any
-    // future <select> the plugin adds, not just the two current ones.
+    // Draws a themed trigger + option list over a native <select>, which stays
+    // in the DOM (visually hidden) as the source of truth for .value/'change'.
     enhanceSelect(select) {
         if (!select || select.dataset.enhanced)
             return;
@@ -610,19 +509,8 @@ class BHPlayer {
                 menu.appendChild(item);
             });
         };
-        // Real bug, AJ's own report (possibly Safari-specific, but not a
-        // browser quirk — it's a genuine layout bug in any engine): this
-        // menu is `position:absolute` inside `.bh-modal-content`, which is
-        // `overflow-y:auto` so long forms can scroll. Any absolutely-
-        // positioned child that would render past that container's visible
-        // edge gets clipped by the SAME overflow that lets the form
-        // scroll — worst on a short viewport (a phone) where the modal
-        // scrolls more and this field sits closer to the bottom edge, so
-        // the open menu could get cut off or invisible. Fixed by switching
-        // the menu to `position:fixed`, positioned from the trigger's real
-        // screen coordinates the moment it opens — that escapes the
-        // scrolling container entirely rather than trying to out-z-index
-        // a clip that z-index can't affect.
+        // WHY: position:fixed from the trigger's rect, because the modal's
+        // overflow-y:auto would clip an absolutely positioned menu.
         const positionMenu = () => {
             const r = trigger.getBoundingClientRect();
             menu.style.position = 'fixed';
@@ -645,10 +533,7 @@ class BHPlayer {
             positionMenu(); }, true);
         window.addEventListener('resize', () => { if (wrap.classList.contains('open'))
             positionMenu(); });
-        // Exposed so code elsewhere that sets select.value directly
-        // (bypassing the trigger, e.g. prefillSubmitProfile) can ask the
-        // visible label to catch up — a plain .value= write has no event
-        // for this component to observe on its own.
+        // Callers that set select.value directly fire no event, so they call this to resync.
         select.bhResync = () => { syncLabel(); renderOptions(); };
         syncLabel();
         renderOptions();
@@ -669,16 +554,9 @@ class BHPlayer {
         const { ok, body } = await this.reqIdentity(this.isLogin ? 'login' : 'register', { method: 'POST', body: fd });
         if (ok) {
             this.toast(this.isLogin ? 'Welcome back!' : 'Account created — you\'re now signed in.');
-            // Reload rather than patch state in place. WordPress rejects any
-            // REST request whose nonce doesn't match the CURRENT cookie
-            // session — and the browser applies this login's new session
-            // cookie before our very next request goes out, so an in-place
-            // "fetch a fresh nonce" call would itself be sent with the now-
-            // stale old nonce and get rejected. A reload sidesteps that
-            // race entirely: the server bakes in a correct nonce fresh.
-            // 1400ms (was 300) — long enough to actually read the toast
-            // before the reload wipes it out; toast() itself stays visible
-            // for 3400ms so this still cuts the reload in ahead of that.
+            // WHY: reload, because the new session cookie makes the current REST
+            // nonce stale, so even a "fetch fresh nonce" request would be rejected.
+            // The delay lets the toast be read first.
             setTimeout(() => window.location.reload(), 1400);
             return;
         }
@@ -691,9 +569,7 @@ class BHPlayer {
         btn.disabled = true;
         await this.reqIdentity('logout', { method: 'POST' });
         this.toast('Logged out.');
-        // Same reasoning as auth(): the session cookie just changed, so a
-        // reload is the only reliable way to pick up a matching nonce.
-        // 1400ms (was 300) so the toast is actually readable first.
+        // Reload for a matching nonce, same as auth().
         setTimeout(() => window.location.reload(), 1400);
     }
     /* ---------- submission ---------- */
@@ -729,9 +605,7 @@ class BHPlayer {
         const artist = this.q('.bh-sub-artist').value.trim();
         const note = this.q('.bh-sub-note').value.trim();
         const btn = this.q('.bh-upload-btn');
-        // Audio is only optional when THIS contest's own admin turned on
-        // "Allow submitting without audio yet" — every other contest
-        // keeps the original all-three-required behavior unchanged.
+        // Audio is optional only when this contest allows submitting without it.
         if (!title || !artist || (!file && !this.allowAudioOptional)) {
             this.toast(this.allowAudioOptional
                 ? 'Add a song title and artist name.'
@@ -758,9 +632,7 @@ class BHPlayer {
                 .forEach(el => { el.value = ''; });
             this.q('.bh-file-label-text').textContent = 'Choose an audio file…';
             if (body.needs_audio) {
-                // No share cards yet — nothing to share until a real
-                // track exists (showShareModal() would have nothing
-                // meaningful to point at).
+                // No share cards until real audio exists.
                 this.toast(body.message || 'Submission started! Attach your audio file from your account portal to finish.');
             }
             else {
@@ -774,21 +646,12 @@ class BHPlayer {
         btn.disabled = false;
         btn.innerText = 'Upload';
     }
-    // Populates and opens the share modal added alongside the submit
-    // flow — entered_card_url/vote_card_url/contest_page_url all ride
-    // on the submit API's own success response (class-api.php's
-    // submit()), so this needs no second request. Guarded on all three
-    // being present since an older cached copy of this JS talking to a
-    // freshly-updated API (or vice versa during a deploy) shouldn't
-    // throw trying to read a field that isn't there yet.
+    // Fills the share modal from the submit response's card URLs; guarded so
+    // a cached JS / newer API mismatch during deploy doesn't throw.
     showShareModal(body) {
         if (!body.entered_card_url || !body.vote_card_url)
             return;
-        // The one concrete "what happens next" a fan sees between
-        // submitting and however far off the reveal party is — there's no
-        // stored reveal date (that's admin-triggered live), so the
-        // voting/contest end date is the best real anchor available.
-        // Falls back to a plain reassurance if the contest has no set end.
+        // The reveal is admin-triggered with no stored date, so voting end is the best anchor.
         const nextEl = this.q('.bh-share-next');
         if (nextEl) {
             if (body.vote_end) {
@@ -820,10 +683,8 @@ class BHPlayer {
             list.innerHTML = '<div class="bh-empty">Could not load tracks.</div>';
             return;
         }
-        // The server resolves an untargeted shortcode to "newest published
-        // contest" — lock this instance to that specific ID so a second
-        // contest being published elsewhere mid-session can't silently
-        // swap what this embed shows.
+        // WHY: lock to the resolved ID so a newly published contest can't swap
+        // what an untargeted embed shows mid-session.
         if (body.contest_id)
             this.contest = String(body.contest_id);
         this.resultsPublished = !!body.results_published;
@@ -835,9 +696,6 @@ class BHPlayer {
             this.activeCategory = this.categories.length ? this.categories[0].slug : '';
         }
         this.renderCategoryTabs();
-        // Audit fix (2026-07-25): votes_remaining/vote_limit come back
-        // from /tracks now specifically so this counter has real data
-        // from page load, not only after casting a first vote.
         this.voteLimit = (_a = body.vote_limit) !== null && _a !== void 0 ? _a : null;
         this.votesRemaining = body.votes_remaining || {};
         this.renderVotesRemaining();
@@ -853,15 +711,8 @@ class BHPlayer {
         }
         this.renderTrackRows();
     }
-    // Shows/hides each contact field in the submit form per this
-    // contest's configuration (see BH_Helpers::contact_config() on the
-    // server), and rewrites the hint text to describe what's actually
-    // required here instead of a fixed sentence that might not match.
-    // Called after enhanceSelect() has already wrapped the platform
-    // <select> (that happens once, synchronously, during bind() at
-    // construction — this runs later, after the async tracks fetch
-    // resolves), so hiding "typical_platform" correctly targets the
-    // wrapper carrying that data-field, not the now-invisible raw select.
+    // Shows/hides submit-form contact fields per BH_Helpers::contact_config()
+    // and rewrites the hint. Runs after enhanceSelect(), so data-field hits the wrapper.
     applyContactFields() {
         const cfg = this.contactFields;
         if (!cfg)
@@ -885,10 +736,7 @@ class BHPlayer {
                 : 'Optional — fill in whatever you\'d like below.';
         }
     }
-    // A row of pill tabs, one per voting category — only shown when a
-    // contest actually defines 2+ of them. A single category is the same
-    // as none from the voter's perspective, so it stays hidden rather than
-    // adding a tab that never does anything.
+    // One pill tab per voting category, shown only for 2+ categories.
     renderCategoryTabs() {
         const wrap = this.q('.bh-category-tabs');
         if (this.categories.length < 2) {
@@ -904,9 +752,7 @@ class BHPlayer {
             btn.onclick = () => this.switchCategory(btn.dataset.cat || '');
         });
     }
-    // Switching categories never refetches — every category's vote state
-    // for every track came back in the initial /tracks call, so this is
-    // instant and reuses whatever's already in memory.
+    // No refetch: /tracks already returned every category's vote state.
     switchCategory(slug) {
         if (slug === this.activeCategory)
             return;
@@ -915,10 +761,8 @@ class BHPlayer {
         this.renderTrackRows();
         this.renderVotesRemaining();
     }
-    // Audit fix (2026-07-25): persistent votes-remaining indicator for
-    // the active category — voteLimit/votesRemaining are populated from
-    // loadTracks() (page load) and kept current from castVote()'s own
-    // response after every cast, so this never needs its own round trip.
+    // Votes-remaining indicator for the active category; data comes from
+    // loadTracks() and each vote response.
     renderVotesRemaining() {
         const el = this.q('.bh-votes-remaining');
         if (!el)
@@ -945,13 +789,7 @@ class BHPlayer {
         const votingClosed = this.votingOpen === false;
         list.innerHTML = this.tracks.map((t, i) => {
             const voted = !!(t.votes && t.votes[this.activeCategory]);
-            // An already-cast vote still reads as "Voted" (it happened,
-            // reflecting reality), but a NOT-yet-cast vote shows as
-            // disabled once voting has closed rather than staying a
-            // fully live-looking button that would just reject the
-            // click with a toast — the whole point of the banner above
-            // is to make that state visible before a click, not just
-            // after one.
+            // After close, cast votes still read "Voted"; uncast ones are disabled.
             const disabled = votingClosed && !voted;
             return `
             <div class="bh-track-row" data-index="${i}">
@@ -1029,11 +867,7 @@ class BHPlayer {
             body: JSON.stringify({ submission_id: id, category: this.activeCategory }),
         });
         if (ok && body.action === 'added') {
-            // Write the result back into the data model, not just the DOM —
-            // renderTrackRows() rebuilds from this.tracks on every tab
-            // switch, so without this the vote appeared to "disappear"
-            // the moment you switched away and back (it was never lost
-            // server-side, only in what got redrawn on screen).
+            // WHY: write to this.tracks too; renderTrackRows() rebuilds from it on tab switch.
             if (track) {
                 track.votes = track.votes || {};
                 track.votes[this.activeCategory] = true;
@@ -1063,10 +897,6 @@ class BHPlayer {
         else {
             this.toast(body.message || 'Could not record your vote.', true);
         }
-        // Audit fix (2026-07-25): both the added/removed branches above
-        // already return votes_left/limit — keep the persistent counter
-        // in sync with the same response instead of only showing it in
-        // the transient toast.
         if (ok && body.votes_left !== undefined) {
             this.votesRemaining = this.votesRemaining || {};
             this.votesRemaining[this.activeCategory] = body.votes_left;
@@ -1097,11 +927,7 @@ class BHPlayer {
         this._resultsActive = cats.length > 1 ? 'all' : cats[0].slug;
         this.renderResultsBody();
     }
-    // unit: 'votes' (default, real vote count) or 'score' — BH_Judging::
-    // judge_results() reuses the same `votes` JSON key for a rubric
-    // score/percentage (not an actual vote count), so a judged
-    // leaderboard needs its own label rather than rendering a
-    // nonsensical "75 votes".
+    // unit 'score': BH_Judging::judge_results() puts a rubric percentage in the `votes` key.
     renderResultsList(results, unit = 'votes') {
         if (!results || !results.length)
             return `<p class="bh-results-empty">No ${unit === 'score' ? 'scores' : 'votes'} yet.</p>`;
@@ -1116,21 +942,8 @@ class BHPlayer {
                 <span class="bh-results-votes">${unit === 'score' ? r.votes + '%' : r.votes + ' vote' + (r.votes === 1 ? '' : 's')}</span>
             </li>`).join('')}</ol>`;
     }
-    // Every category's results flattened into one list, re-ranked, with a
-    // colored category badge per row (matching the tab colors) so it
-    // reads as "all of it in one place" rather than a confusing mash-up.
-    //
-    // Audit fix (2026-07-25): this used to always sum/label rows as
-    // "votes," which was wrong for a 'judges'-format contest (`.results`
-    // there IS the rubric score, per renderResultsBody()'s own comment
-    // above). Now uses the same contest-wide unit renderResultsBody()
-    // already derives from this._resultsFormat. For 'hybrid' contests
-    // this still flattens each category's People's Choice (.results) —
-    // real vote counts — not judge_results, matching how the single-
-    // category active-tab view already keeps "Judges' Pick" and
-    // "People's Choice" as two separate lists rather than blending
-    // mismatched scales (a % score and a raw vote count) into one
-    // ranked list.
+    // All categories flattened and re-ranked, with a category badge per row.
+    // Hybrid contests flatten People's Choice only, never mixing % scores with vote counts.
     renderAllResultsList(cats) {
         const unit = this._resultsFormat === 'judges' ? 'score' : 'votes';
         const rows = [];
@@ -1167,12 +980,8 @@ class BHPlayer {
         }
         else {
             const activeCat = cats.find(c => c.slug === this._resultsActive) || cats[0];
-            // A hybrid contest's REST payload carries a second
-            // `judge_results` leaderboard (class-api.php's results()) —
-            // render both, labeled, matching Reveal Party's own
-            // "two leaderboards, not a blended score" convention.
-            // 'judges' format has no second key: `results` itself IS
-            // the rubric score, substituted server-side.
+            // Hybrid contests get two labeled leaderboards, never a blended score.
+            // In 'judges' format, `results` itself is the rubric score.
             if (activeCat.judge_results) {
                 body = `<h4 class="bh-results-subhead">Judges' Pick</h4>${this.renderResultsList(activeCat.judge_results, 'score')}`
                     + `<h4 class="bh-results-subhead">People's Choice</h4>${this.renderResultsList(activeCat.results)}`;
@@ -1191,12 +1000,5 @@ class BHPlayer {
 }
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.bh-player-root').forEach(root => new BHPlayer(root));
-    // Email-verification confirmation used to be handled here, but this
-    // checked for `bh_verified` while class-auth.php's actual redirect
-    // sends `bhi_verified` — a key-name mismatch that meant this never
-    // fired, ever, for any real user. Replaced with a single sitewide
-    // handler in the-self-hosted-self's class-auth.php (BHCoreToast, works on
-    // any page, not just ones with this contest player loaded) instead
-    // of fixing the mismatch here and keeping two mechanisms for the
-    // same moment.
+    // Email-verification toast is handled sitewide by core's BHCoreToast.
 });

@@ -1,21 +1,8 @@
 /**
- * Shared, hand-written ambient types for the subset of WordPress's
- * window.wp.* global that this ecosystem's TypeScript-pilot editor files
- * actually call. Deliberately NOT a full @wordpress/* type package (none
- * is installed — see search.ts's docblock for why this pilot stays on
- * plain `tsc` with no npm dependency beyond typescript itself). Widen an
- * interface here when a new file's conversion needs a wp.* member that
- * isn't covered yet; don't reach for @types/wordpress__* by default.
- *
- * Component props below are typed loosely (Record<string, unknown> /
- * unknown) rather than modeling each Gutenberg component's real prop
- * shape — the goal is catching typos in OUR code (wrong wp.* member
- * name, wrong argument count, wrong local variable type), not fully
- * type-checking core's own React tree.
- *
- * This file has no imports/exports, matching every other file in this
- * pilot (module: "none" in tsconfig.json) — its declarations are ambient
- * and global by TypeScript's own rule for a script-mode .d.ts.
+ * Hand-written ambient types for the window.wp.* members this ecosystem's TS
+ * calls; not a full @wordpress/* package. Widen as needed. Props are typed
+ * loosely: the goal is catching typos in our code. No imports/exports, so the
+ * declarations stay global (module: "none").
  */
 
 type WpComponentType = (props?: Record<string, unknown>) => unknown;

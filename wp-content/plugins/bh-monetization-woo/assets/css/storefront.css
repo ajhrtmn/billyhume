@@ -1,19 +1,5 @@
-/* Storefront browse/collection/listing styling — draws on BHY_Style's
- * design tokens (the --bh-* custom properties BHY_Style::inline_css()
- * actually emits, printed on every front-end page via wp_head).
- *
- * Real bug fixed here: every rule below previously referenced a
- * fictional, never-defined --bhy-color-* scheme (--bhy-color-border,
- * --bhy-color-surface, --bhy-color-accent, --bhy-color-text-muted) that
- * doesn't exist anywhere in this codebase — the-self-hosted-self 3.4.88 already
- * found and fixed the IDENTICAL bug in class-portal.php's own inline
- * styles ("every declaration silently fell through to hardcoded
- * generic-WP-blue fallbacks, so the portal NEVER showed the real site
- * brand... ever"), but this sibling file wasn't part of that pass and
- * had the same problem. Every reference below is now the real --bh-*
- * name BHY_Style actually writes (--bh-border, --bh-surface,
- * --bh-accent, --bh-text-dim, etc.), same as bh-contest/bh-crm/
- * bh-streaming's own front-end CSS already does it correctly. */
+/* Storefront styling. Uses the --bh-* tokens BHY_Style::inline_css() emits;
+ * there is no --bhy-color-* scheme, so don't reference one. */
 
 .bhm-storefront-wrap {
     max-width:1200px;
@@ -29,10 +15,7 @@
     margin:0 0 24px;
 }
 
-/* Same "control panel" language as bh-courses' catalog filter bar and
-   bh-registry's search row — ecosystem-wide consistency, not
-   reinvented per plugin: recessed surface-2 panel, pill-shaped inputs
-   with a real focus ring. */
+/* Filter bar: same panel style as bh-courses' catalog filter and bh-registry's search row. */
 .bhm-product-filter {
     display:flex;
     flex-wrap:wrap;
@@ -81,11 +64,7 @@
 @media (max-width:900px) { .bhm-product-grid { grid-template-columns:repeat(2, 1fr); } }
 @media (max-width:520px) { .bhm-product-grid { grid-template-columns:1fr; } }
 
-/* Same resting-depth + accent-tinted hover-lift language as every other
-   card in this ecosystem (.bhc-course-card, .bhr-card) — this one
-   already had A hover state, just not the shared vocabulary (no lift,
-   no glow), which read as a slightly different, less finished product
-   next to the catalog/registry cards. */
+/* Same hover lift as .bhc-course-card / .bhr-card. */
 .bhm-product-card {
     display:flex;
     flex-direction:column;
@@ -98,13 +77,7 @@
     background:var(--bh-surface, #fff);
     box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
     transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-    /* --bhm-grid-cols is a deliberate author-chosen column count (a
-       shortcode attribute), not a bug to auto-fit away like the other
-       grids this session — but with fewer real products than columns,
-       each track still gets its full 1fr share, stretching a card far
-       wider than its own content. max-width + justify-self:center keeps
-       the chosen column count intact while stopping individual cards
-       from stretching into oversized, awkward proportions. */
+    /* Column count is author-chosen; max-width stops cards stretching when there are fewer products than columns. */
     max-width: 320px;
     justify-self: center;
     width: 100%;
@@ -150,8 +123,7 @@
     color:var(--bh-text-dim, #646970);
 }
 
-/* "You may also like" — the automatic (or explicitly block-placed)
- * related-products section, BHM_Recommendations::render_related_products_block(). */
+/* "You may also like" (BHM_Recommendations). */
 .bhm-related-products {
     margin-top:40px;
     padding-top:24px;
@@ -163,23 +135,8 @@
     color:var(--bh-text, inherit);
 }
 
-/* Single-product light polish, ROADMAP-platform-evolution.md Section 5 —
- * WooCommerce's own stock single-product template stays (cart/checkout
- * logic is never reimplemented here), but its price/button now read as
- * this ecosystem's own brand rather than generic WooCommerce purple.
- *
- * Real bug, caught live: the first version of these rules only matched
- * the CLASSIC WooCommerce template's markup (`.summary .price`,
- * `.summary .single_add_to_cart_button`) — this site (and any
- * block-theme WooCommerce install, confirmed via the
- * `woocommerce-uses-block-theme` body class) instead renders the
- * product page as real Woo Blocks (`.wc-block-components-product-price`,
- * `.wp-block-woocommerce-add-to-cart-form`), an entirely different DOM
- * shape with no `.summary` ancestor at all — so every rule below
- * silently matched nothing and the button stayed plain WooCommerce
- * black. `.single_add_to_cart_button` itself is the one class name
- * that's stable across BOTH template modes; scoping to that directly
- * (dropping the `.summary` requirement) covers both. */
+/* Brand the single-product price/button. Selectors must match both classic templates and
+ * block themes (no .summary ancestor); .single_add_to_cart_button is stable in both. */
 .single-product .price,
 .single-product .wc-block-components-product-price { color:var(--bh-accent, #2271b1); }
 .single-product .button,

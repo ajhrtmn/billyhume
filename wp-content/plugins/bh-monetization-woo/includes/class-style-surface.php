@@ -2,10 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Registers a representative preview of the tier picker into the core's
- * Style gallery — same mechanism every other plugin in this ecosystem
- * uses (bh-contest's player, bh-streaming's library, bh-registry's
- * browse page).
+ * Tier picker preview for the core Style gallery (bhy_style_surfaces).
  */
 class BHM_StyleSurface {
     public static function init(): void {

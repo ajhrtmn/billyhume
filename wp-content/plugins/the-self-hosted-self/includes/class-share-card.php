@@ -2,28 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Shared social-share image generator (PHP GD, no external service or
- * headless-browser dependency) — one implementation reused by any
- * plugin that wants a "shareable moment" card (bh-courses: course
- * completion; bh-contest: submission entered / vote-for-me), instead
- * of each plugin rolling its own GD code. 'brand' reads the site's own
- * live --bh-* palette (BH_Style::get()), for a card that looks like it
- * belongs next to everything else this ecosystem renders; the
- * 'poster-*' styles are deliberately bolder, stand-alone treatments
- * (fixed high-contrast colors, not the live site palette) for when a
- * plugin/entity wants something louder than the site's own chrome —
- * three distinct compositions today (diagonal band, bordered frame,
- * color block), not three names for the same layout.
- *
- * STYLES is the one place a new style gets registered — every caller
- * (admin style-picker UIs in bh-courses/bh-contest, this class's own
- * dispatch) reads off this list rather than each hardcoding its own
- * copy of "which styles exist," so adding a future style (e.g. a
- * custom-logo/custom-asset-driven one) is a one-place change.
- *
- * Standard 1200x630 OG-image size throughout — the one dimension every
- * major platform (X/Twitter, Facebook, Discord, iMessage) actually
- * renders a link-preview image at without cropping oddly.
+ * Shared social-share image generator (PHP GD, no external service), 1200x630
+ * OG size. 'brand' uses the live --bh-* palette; 'poster-*' styles use fixed
+ * high-contrast colors. STYLES is the one place a style is registered.
  */
 class BH_ShareCard {
     const WIDTH = 1200;
@@ -45,28 +26,13 @@ class BH_ShareCard {
         return OUS_PATH . 'assets/fonts/' . $name;
     }
 
-    // Real bug, found via live verification of the GD-fallback fix
-    // above: every card style's corner wordmark was hardcoded to
-    // 'OWN UR SHIT' — this ecosystem's OWN pre-rebrand software name,
-    // not the artist's actual site brand the comment above each call
-    // site says it's meant to identify. Reads the live site name
-    // instead, same as any other "which site is this" mark should.
+    // Corner wordmark: the live site name.
     private static function site_mark(): string {
         return mb_strtoupper(get_bloginfo('name'));
     }
 
-    // Real field report: a broken-image icon in place of the share
-    // card on a deployed environment that couldn't be reproduced
-    // locally. Root cause traced to output_png() calling generate()
-    // (which calls imagettftext()/imagettfbbox() unconditionally)
-    // BEFORE sending the image/png header — on a host whose GD build
-    // lacks FreeType support (common on locked-down shared hosting,
-    // unlike this local install's own GD build), that call either
-    // fatals or emits a warning into the response body, corrupting the
-    // PNG bytes the browser then fails to decode. This guard lets
-    // output_png() detect that case up front and degrade to a plain
-    // solid-fill card (still real image bytes, still a valid PNG,
-    // still useful as a placeholder) instead of a broken response.
+    // WHY: hosts whose GD lacks FreeType fatal or warn inside imagettftext(),
+    // corrupting the PNG body. output_png() checks this and falls back to a plain card.
     private static function gd_capable(): bool {
         if (!function_exists('imagettftext') || !function_exists('imagettfbbox')) return false;
         $info = function_exists('gd_info') ? gd_info() : [];
@@ -74,11 +40,7 @@ class BH_ShareCard {
         return is_readable(self::font('WorkSans-Variable.ttf')) && is_readable(self::font('BebasNeue-Regular.ttf'));
     }
 
-    // Deliberately minimal — no text rendering, so nothing here can
-    // hit the same FreeType-dependent path that triggered the fallback
-    // in the first place. Still a real 1200x630 PNG, still on-brand
-    // (reads the live palette same as render_brand()), just without
-    // the title/eyebrow/subtitle text a TTF-less host can't draw.
+    // No text rendering, so it cannot hit the FreeType path. Still on-brand.
     /**
      * @param mixed $entity_id
      * @return \GdImage
@@ -93,11 +55,8 @@ class BH_ShareCard {
         return $im;
     }
 
-    // Hex string ("#RRGGBB" or "#RRGGBBAA") -> GD color index on $im.
-    // The 8-digit form (BH_Style's own color_overlay values) drops the
-    // alpha byte — GD's alpha model (0-127, inverted) doesn't map
-    // cleanly onto a straight hex alpha byte, and every call site here
-    // wants a solid fill, never a translucent one.
+    // "#RRGGBB" or "#RRGGBBAA" -> GD color index. The alpha byte is dropped;
+    // every caller wants a solid fill.
     /**
      * @param \GdImage $im
      * @return int|false
@@ -113,10 +72,7 @@ class BH_ShareCard {
         return imagecolorallocate($im, 255, 255, 255);
     }
 
-    // Naive greedy word-wrap using imagettfbbox for real measured width
-    // (not a fixed char-count guess, which a variable-width font like
-    // Work Sans would make look wrong) — good enough for the short
-    // titles/labels these cards render, not a general typesetting engine.
+    // Greedy word-wrap measured with imagettfbbox; fine for short titles.
     /** @return array<int, string> */
     private static function wrap_text(string $text, string $font_path, int $size, int $max_width): array {
         $words = preg_split('/\s+/', trim($text));
@@ -139,13 +95,12 @@ class BH_ShareCard {
 
     /**
      * $args:
-     *   style     'brand' (default) or 'poster'
+     *   style     'brand' (default) or a 'poster*' style
      *   eyebrow   small uppercase label above the title, e.g. "COURSE COMPLETE"
-     *   title     the headline — a course/contest/submission name
-     *   subtitle  smaller line under the title, e.g. an artist name or contest name
-     *   entity_id optional post ID — resolves 'brand' style to that entity's own style override if it has one
-     * Returns a GdImage (PHP 8) / gd resource, caller's responsibility
-     * to imagepng()/imagedestroy() it.
+     *   title     the headline
+     *   subtitle  smaller line under the title
+     *   entity_id optional post ID; 'brand' uses that entity's style override
+     * Caller must imagepng()/imagedestroy() the returned image.
      */
     /**
      * @param array<string, mixed> $args
@@ -167,10 +122,7 @@ class BH_ShareCard {
     }
 
     /* ---------------- brand style ----------------
-       Reads the site's live palette so the card visually matches
-       whatever theme/preset is actually active (dark by default, but
-       BH_Style has 10+ presets an admin can be running) — never a
-       hardcoded color set that could drift from the real site. */
+       Reads the live site palette so the card matches the active theme. */
     /**
      * @param mixed $entity_id
      * @return \GdImage
@@ -185,9 +137,7 @@ class BH_ShareCard {
         imagealphablending($im, true);
         imagefilledrectangle($im, 0, 0, self::WIDTH, self::HEIGHT, self::gd_color($im, $bg));
 
-        // A single thin accent rule along the top — the whole "brand"
-        // restraint this style is for, vs. poster's much louder
-        // diagonal band.
+        // A thin accent rule along the top.
         imagefilledrectangle($im, 0, 0, self::WIDTH, 10, self::gd_color($im, $accent));
 
         $body_font = self::font('WorkSans-Variable.ttf');
@@ -202,10 +152,8 @@ class BH_ShareCard {
             $y += 60;
         }
 
-        // Faux-bold: GD/FreeType can't select a named weight out of a
-        // variable font, so a real headline weight is simulated by
-        // drawing the same glyphs twice, offset by one device pixel —
-        // a standard GD workaround, not a rendering bug.
+        // Faux-bold: GD cannot pick a weight from a variable font, so glyphs are
+        // drawn twice, offset by one pixel.
         $title_lines = self::wrap_text($title, $body_font, 54, self::WIDTH - ($x * 2));
         foreach (array_slice($title_lines, 0, 3) as $line) {
             imagettftext($im, 54, 0, $x + 1, $y, $white, $body_font, $line);
@@ -218,9 +166,7 @@ class BH_ShareCard {
             imagettftext($im, 26, 0, $x, $y, $accent_color, $body_font, $subtitle);
         }
 
-        // Small wordmark, bottom-right — identifies which site/brand
-        // this came from once it's out in a social feed on its own,
-        // detached from any surrounding page chrome.
+        // Small wordmark, bottom-right.
         $mark = self::site_mark();
         $box = imagettfbbox(18, 0, $body_font, $mark);
         $mark_width = $box[2] - $box[0];
@@ -230,22 +176,14 @@ class BH_ShareCard {
     }
 
     /* ---------------- poster style ----------------
-       Deliberately louder and self-contained — condensed all-caps
-       display type (Bebas Neue) on a big diagonal accent band, not
-       reading the site's own live palette (a poster is meant to stand
-       apart from the page it's embedded in, same reasoning a gig
-       poster doesn't try to match the venue's website). Colors are a
-       fixed high-contrast pair rather than BH_Style's palette so this
-       style always looks the same regardless of which of BH_Style's
-       10+ presets happens to be active. */
+       Bebas Neue on a diagonal accent band, fixed colors independent of the
+       site palette. */
     /** @return \GdImage */
     private static function render_poster(string $eyebrow, string $title, string $subtitle) {
         $im = imagecreatetruecolor(self::WIDTH, self::HEIGHT);
         imagefilledrectangle($im, 0, 0, self::WIDTH, self::HEIGHT, self::gd_color($im, '#0B0B0E'));
 
-        // The diagonal band: a filled polygon, not a rotated rectangle
-        // (GD has no native rotated-rect primitive) — four points
-        // sweeping from the lower-left up to the upper-right.
+        // Diagonal band as a filled polygon (GD has no rotated rectangle).
         $accent = self::gd_color($im, '#FF5A36');
         imagefilledpolygon($im, [
             0, self::HEIGHT,
@@ -267,9 +205,7 @@ class BH_ShareCard {
             $y += 100; // real clearance before the 90px display type below — Bebas Neue's tall ascent at that size needs more headroom than the eyebrow's own line-height suggests
         }
 
-        // Bebas Neue is already a bold condensed display face at any
-        // size, so no faux-bold pass is needed here the way the
-        // Work-Sans-based brand style needs one.
+        // Bebas Neue is already bold; no faux-bold pass needed.
         $title_lines = self::wrap_text(mb_strtoupper($title), $display_font, 90, self::WIDTH - ($x * 2));
         foreach (array_slice($title_lines, 0, 2) as $line) {
             imagettftext($im, 90, 0, $x, $y, $white, $display_font, $line);
@@ -281,11 +217,7 @@ class BH_ShareCard {
             imagettftext($im, 28, 0, $x, $y, $white, $body_font, $subtitle);
         }
 
-        // White, not $dark — the bottom-right corner is where the
-        // diagonal band's polygon does NOT reach (it sweeps from
-        // bottom-left up to the top-right band only), so this sits on
-        // the plain dark background, not the accent band; $dark here
-        // would be invisible against that near-black background.
+        // White: this corner sits on the dark background, outside the band.
         $mark = self::site_mark();
         $box = imagettfbbox(20, 0, $body_font, $mark);
         $mark_width = $box[2] - $box[0];
@@ -295,12 +227,7 @@ class BH_ShareCard {
     }
 
     /* ---------------- poster-frame style ----------------
-       A concert-poster inset border with centered type — a genuinely
-       different composition from the diagonal-band 'poster' (centered
-       vs. left-aligned, a contained border vs. a bleeding shape,
-       cream-on-near-black vs. white-on-near-black), not a recolor of
-       the same layout. Corner tick marks are the one decorative flourish,
-       echoing a printed poster's own registration/crop marks. */
+       Inset border, centered type, corner registration-style tick marks. */
     /** @return \GdImage */
     private static function render_poster_frame(string $eyebrow, string $title, string $subtitle) {
         $im = imagecreatetruecolor(self::WIDTH, self::HEIGHT);
@@ -313,8 +240,7 @@ class BH_ShareCard {
         imagesetthickness($im, 2);
         imagerectangle($im, $margin, $margin, self::WIDTH - $margin, self::HEIGHT - $margin, $accent);
 
-        // Corner tick marks, just outside the frame — a printed-poster
-        // registration-mark reference, purely decorative.
+        // Decorative corner tick marks just outside the frame.
         $tick = 16;
         foreach ([[$margin, $margin], [self::WIDTH - $margin, $margin], [$margin, self::HEIGHT - $margin], [self::WIDTH - $margin, self::HEIGHT - $margin]] as $corner) {
             [$cx, $cy] = $corner;
@@ -359,12 +285,7 @@ class BH_ShareCard {
     }
 
     /* ---------------- poster-block style ----------------
-       A solid color block on the left third with reversed (dark-on-
-       accent) type, title continuing onto the dark right two-thirds —
-       the "album-art tile" composition: big flat color shape as the
-       dominant visual weight, rather than a line/border doing the work
-       'poster'/'poster-frame' use. Left-aligned throughout, unlike
-       poster-frame's centered layout. */
+       Solid color block on the left third with reversed type; left-aligned. */
     /** @return \GdImage */
     private static function render_poster_block(string $eyebrow, string $title, string $subtitle) {
         $im = imagecreatetruecolor(self::WIDTH, self::HEIGHT);
@@ -379,15 +300,11 @@ class BH_ShareCard {
         $display_font = self::font('BebasNeue-Regular.ttf');
         $body_font = self::font('WorkSans-Variable.ttf');
 
-        // Eyebrow lives INSIDE the block, reversed color — the block
-        // itself functions as a tag/label, not just a background shape.
+        // Eyebrow sits inside the block in reversed color.
         if ($eyebrow !== '') {
             imagettftext($im, 20, 0, 44, 100, $dark, $body_font, mb_strtoupper($eyebrow));
         }
-        // A big single-letter monogram (the title's first character) —
-        // the block's dominant visual element, same "one bold graphic
-        // mark" reasoning album-art tiles/app icons lean on, filling
-        // space a plain color rectangle would otherwise leave empty.
+        // Large monogram of the title's first character.
         $initial = mb_strtoupper(mb_substr(trim($title), 0, 1)) ?: '#';
         imagettftext($im, 180, 0, 44, 420, $white, $display_font, $initial);
 
@@ -412,12 +329,8 @@ class BH_ShareCard {
         return $im;
     }
 
-    // Streams the generated card as a PNG response and exits — the
-    // shared serving half of the "?xyz_share_card=ID" query-arg pattern
-    // both consuming plugins use (same shape as bh-courses' existing
-    // certificate download endpoint), so neither plugin needs to
-    // duplicate cache-header/content-type/imagepng-then-exit
-    // boilerplate.
+    // Streams the card as a PNG response and exits; the shared serving half of
+    // the "?xyz_share_card=ID" pattern consuming plugins use.
     /** @param array<string, mixed> $args */
     public static function output_png(array $args, string $filename = 'share-card.png'): void {
         if (self::gd_capable()) {

@@ -17,23 +17,9 @@ define('BHM_PATH', plugin_dir_path(__FILE__));
 define('BHM_URL',  plugin_dir_url(__FILE__));
 
 /**
- * Defining constraint: an artist who wants zero monetization pays zero
- * complexity cost.
- *
- * - Installs/activates independently of bh-streaming, which never calls
- *   into this plugin unless it's both installed and active (checked via
- *   the 'bhs_monetization_options' filter bh-streaming defines with an
- *   empty default).
- * - WooCommerce only becomes a hard requirement once an artist turns a
- *   monetization option on — until then this plugin just shows an
- *   "install WooCommerce" notice (same on-demand-install pattern as
- *   OUS_Registry/OUS_Installer, see 'wporg_slug' in class-admin.php).
- * - WooCommerce Subscriptions is an optional dependency on top of
- *   WooCommerce (detected via class_exists('WC_Subscriptions'), never
- *   required): without it, every option except the ongoing subscription
- *   tier still works on plain WooCommerce — that option just shows as
- *   unavailable rather than this plugin building its own parallel
- *   recurring-billing logic.
+ * Zero monetization costs zero complexity: bh-streaming works without this plugin, WooCommerce is
+ * needed only once a monetization option is used, and WC Subscriptions is optional (tiers fall back
+ * to one-time 30-day access).
  */
 foreach (['tables', 'money', 'activator', 'tiers', 'gate', 'post-gate', 'wallet', 'fraud', 'admin', 'product-sync', 'monetization-ui', 'play-gating', 'entitlements', 'products', 'gifts', 'referrals', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks', 'anchoring', 'purchase-ledger', 'ledger-crm-integration', 'auctions', 'auction-admin', 'auction-frontend'] as $f) {
     require_once BHM_PATH . "includes/class-$f.php";
@@ -41,10 +27,7 @@ foreach (['tables', 'money', 'activator', 'tiers', 'gate', 'post-gate', 'wallet'
 
 register_activation_hook(__FILE__, ['BHM_Activator', 'activate']);
 
-// WooCommerce's presence is checked separately, per-feature, inside
-// BHM_Products/BHM_Admin — unlike the core plugin, WooCommerce is meant to
-// be absent on install and only required once an artist opts in, so a
-// blanket admin_notice here would nag sites that haven't decided to use it.
+// WooCommerce is checked per feature; a blanket notice would nag sites that haven't opted in.
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
@@ -55,10 +38,7 @@ add_action('plugins_loaded', function () {
 
     BHM_Activator::maybe_upgrade();
 
-    // The tiers page gets the ecosystem's standalone chrome (theme
-    // nav/footer hidden, the slim eco-nav bar instead), same as the
-    // course catalog and contest library — a fan arriving from the
-    // portal's "See supporter tiers" shouldn't drop into the raw theme.
+    // The tiers page uses the ecosystem's standalone chrome.
     add_filter('bh_standalone_surface', function ($is) {
         if ($is) return true;
         $tiers_page = (int) get_option('bhm_tiers_page_id', 0);
@@ -77,13 +57,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHM_Frontend', 'init']);
     add_action('init',          ['BHM_Blocks', 'init']);
     add_action('init',          ['BHM_StyleSurface', 'init']);
-    // Design Suite Phase 2 (see bh-courses 0.16.31/0.16.32, bh-contest
-    // 3.15.12 for the pattern this follows). Two groups: the tier card
-    // shell (.bhm-tier-card) and .bhm-btn -- the latter is this
-    // ecosystem's one real button component, reused as-is by bh-streaming
-    // (frontend.css is the only place its CSS lives, but the class isn't
-    // bh-monetization-woo-exclusive). Exact prior hardcoded values kept
-    // as fallbacks, same guarantee as every other group.
+    // Design tokens for .bhm-tier-card and .bhm-btn (also used by bh-streaming); defaults match the old hardcoded CSS.
     if (class_exists('BHY_Style')) {
         add_filter('bhy_style_component_tokens', function ($components) {
             $components['tier_card'] = [
@@ -109,29 +83,16 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHM_Debug', 'init']);
     add_action('init',          ['BHM_MockCommerce', 'init']);
     add_action('init',          ['BHM_CRMIntegration', 'init']);
-    // Ledger-anchored proof of purchase (ROADMAP-streaming-media-scope-
-    // and-blockchain.md Part 2) — anchoring must init before the ledger,
-    // since the ledger calls BHM_Anchoring::anchor_async() the moment a
-    // row is written.
+    // Anchoring before the ledger: the ledger calls anchor_async() as soon as it writes a row.
     add_action('init',          ['BHM_Anchoring', 'init']);
     add_action('init',          ['BHM_PurchaseLedger', 'init']);
     add_action('init',          ['BHM_LedgerCRMIntegration', 'init']);
-    // Auction listings (Section 5a) — registers the OUS_Jobs handler
-    // that actually closes/finalizes an auction at its scheduled end
-    // time; see class-auctions.php's own docblock for the full design.
     add_action('init',          ['BHM_Auctions', 'init']);
-    // Authoring metabox (BHM_AuctionAdmin) + front-end bid form
-    // (BHM_AuctionFrontend) — the "next pass" class-auctions.php's own
-    // docblock flagged as not yet built; shipped 2026-08-26.
     add_action('init',          ['BHM_AuctionAdmin', 'init']);
     add_action('init',          ['BHM_AuctionFrontend', 'init']);
-    // BHM_PortalPanel is a class_exists()-guarded consumer of BHI_Portal's
-    // filter, not a hard dependency — harmless if core is absent/too old.
+    // Harmless if core's portal is absent.
     add_action('init',          ['BHM_PortalPanel', 'init']);
-    // Called directly (not via a nested 'init' hook) — see class-blocks.php's
-    // BHM_Blocks::init() docblock for why a nested add_action('init', ...)
-    // registered from inside an already-executing 'init' callback never
-    // fires in that request.
+    // Called directly: it registers its own 'init' hooks.
     BHM_Storefront::init();
     add_action('init',          ['BHM_TestSuite', 'init']);
     add_action('rest_api_init', ['BHM_Frontend', 'register_routes']);

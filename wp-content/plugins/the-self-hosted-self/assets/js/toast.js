@@ -1,31 +1,14 @@
 "use strict";
 /**
- * BHCoreToast — a minimal, dependency-free toast/notification renderer,
- * shared by the whole ecosystem (the-self-hosted-self core + every bh-* plugin) on
- * both wp-admin and the front end. No build step at runtime — TypeScript
- * pilot, compiled with plain `tsc` (no bundler) to assets/js/toast.js,
- * which is what class-toast.php actually enqueues via wp_enqueue_script().
- * Run `npm run build:the-self-hosted-self` after editing this file; the compiled
- * output is committed, since the live FTP-deployed site runs no build
- * step at all.
- *
- * Usage from ANY plugin's own JS, once this script (handle: 'bhcore-toast')
- * is enqueued/loaded on the page (the-self-hosted-self loads it globally — see
- * class-toast.php):
+ * BHCoreToast: dependency-free toast renderer, loaded globally in admin and
+ * front end (handle 'bhcore-toast', class-toast.php).
  *
  *   BHCoreToast.show('Vote recorded.', 'success');
  *   BHCoreToast.show('Could not save — try again.', 'error');
  *   BHCoreToast.show('Heads up: this is a preview.', 'warning');
  *   BHCoreToast.show('3 jobs ran.'); // type defaults to 'info'
  *
- * Optional third argument: auto-dismiss duration in ms (default 5000; pass
- * 0 to require the user to dismiss it manually via the close button).
- *
- * Not yet tested against a live browser/DOM in this pass — written and
- * reviewed for correctness, but there is no live JS execution available
- * in this environment. Please click a wired action (e.g. bh-crm "Save
- * notes") and confirm a toast actually appears before treating this as
- * proven.
+ * Optional third argument: auto-dismiss in ms (default 5000; 0 = manual close).
  */
 (function (window, document) {
     'use strict';
@@ -33,9 +16,8 @@
     var VALID_TYPES = ['success', 'error', 'info', 'warning'];
     var region = null;
     /**
-     * Lazily creates (once) the fixed-position, top-right toast stack —
-     * a single live region so a screen reader announces each new toast
-     * without re-announcing ones already on screen.
+     * Lazily creates the toast stack: one live region, so screen readers announce
+     * each new toast without repeating old ones.
      */
     function ensureRegion() {
         if (region && document.body.contains(region))
@@ -45,10 +27,7 @@
             found = document.createElement('div');
             found.id = REGION_ID;
             found.className = 'bhcore-toast-region';
-            // role="status" + aria-live="polite": announced without
-            // interrupting whatever the user is currently doing —
-            // appropriate for confirmations/errors that supplement,
-            // rather than replace, existing WP admin notices.
+            // Polite: announced without interrupting the user.
             found.setAttribute('role', 'status');
             found.setAttribute('aria-live', 'polite');
             found.setAttribute('aria-atomic', 'false');
@@ -59,10 +38,7 @@
     }
     var BHCoreToast = {
         /**
-         * Shows one toast. type is coerced to 'info' if not one of the
-         * four recognized values, so a typo'd/unexpected type never throws
-         * or silently fails to render — same "harmless degrade" posture as
-         * the rest of this ecosystem's shared utilities.
+         * Shows one toast. Unknown types are coerced to 'info'.
          */
         show: function (message, type, durationMs) {
             if (!message)
@@ -94,9 +70,7 @@
                     clearTimeout(timer);
                 toast.classList.remove('bhcore-toast-in');
                 toast.classList.add('bhcore-toast-out');
-                // Matches the CSS transition duration in toast.css — the
-                // node is removed only after the fade/slide-out actually
-                // finishes, not instantly, so the animation is visible.
+                // Matches toast.css's transition so the exit animation is visible.
                 setTimeout(function () {
                     if (toast.parentNode)
                         toast.parentNode.removeChild(toast);
@@ -104,10 +78,7 @@
             };
             closeBtn.addEventListener('click', dismiss);
             toastRegion.appendChild(toast);
-            // Applied on the next frame (not immediately) so the browser
-            // registers the initial (offscreen/transparent) state first —
-            // otherwise the CSS transition to bhcore-toast-in has nothing
-            // to transition FROM and the toast just appears instantly.
+            // Next frame, so the initial state registers and the transition runs.
             window.requestAnimationFrame(function () {
                 toast.classList.add('bhcore-toast-in');
             });
@@ -119,16 +90,9 @@
     };
     window.BHCoreToast = BHCoreToast;
     /**
-     * Body scroll-lock while any ecosystem modal is open. Every real modal
-     * across bh-contest/bh-streaming/bh-registry is shown/hidden by toggling
-     * `style.display` on its own root element (never removed from the DOM),
-     * at many different call sites — there's no single shared open()/close()
-     * function to hook. Rather than edit every call site in three plugins,
-     * this watches the known modal-root selectors with one MutationObserver
-     * and locks/unlocks <html> scrolling whenever any of them becomes
-     * visible/hidden. The modal's own inner container keeps its
-     * `overflow-y: auto`, so this only stops the page BEHIND it from
-     * scrolling — the modal itself still scrolls normally.
+     * Locks page scroll while any ecosystem modal is visible. Modals toggle
+     * `style.display` at many call sites, so one MutationObserver watches the
+     * known modal roots instead.
      */
     var MODAL_SELECTOR = '.bh-modal, .bhs-auth-modal, .bhs-import-modal, .bhs-jam-modal, .bhs-playlist-picker, .bhr-submit-modal';
     var LOCK_CLASS = 'bhcore-scroll-locked';

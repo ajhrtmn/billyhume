@@ -2,40 +2,13 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Ledger-anchored proof of purchase — ROADMAP-streaming-media-scope-
- * and-blockchain.md Part 2. Scope, deliberately narrow: this is
- * TAMPER-EVIDENT EVIDENCE that a purchase transaction occurred, for a
- * buyer's own records or a real dispute, and a durable per-artist
- * sales log (surfaced in bh-crm, see class-crm-integration.php's own
- * "activity_summary" convention). It is NOT an access-control
- * mechanism.
- *
- * THE ONE RULE THIS CLASS MUST NEVER BREAK: nothing here is ever
- * consulted by BHM_Gate/BHM_PlayGating to decide whether someone can
- * stream or download a track, and a reversed purchase's original row
- * is never treated as if it still grants anything. BHM_Entitlements::
- * on_order_reversed() already revokes access on refund/chargeback
- * specifically to stop "buy -> extract -> refund -> repeat" abuse
- * (see that class's own docblock, and class-fraud.php's
- * track_refund_pattern()) — an anchored "proof of purchase" that
- * overrode that would hand fraud a documented bypass. This class only
- * ever WRITES rows and reads its own table for display; it has no
- * hook into the gate/entitlement decision path at all.
- *
- * Only handles 'purchase'-type line items (a real track/release buy,
- * identified the same way BHM_Entitlements::on_order_completed() does
- * via _bhm_purchase_object_id/_bhm_purchase_object_type) — tier
- * subscriptions and wallet top-ups aren't "proof of purchase" for a
- * specific piece of media the way a track/release buy is, and are out
- * of scope here.
+ * Tamper-evident proof of purchase for track/release buys (tiers and top-ups are out of scope).
+ * WHY: never an access-control input. BHM_Gate must not consult it, or a refunded
+ * "proof of purchase" would bypass the refund revocation.
  */
 class BHM_PurchaseLedger {
     public static function init(): void {
-        // Registered as SEPARATE callbacks on the same hooks
-        // BHM_Entitlements already uses — this class never modifies or
-        // calls into class-entitlements.php, it just observes the same
-        // order lifecycle independently, so a bug here can't ever affect
-        // whether access is actually granted/revoked.
+        // Observes the same order hooks as BHM_Entitlements, independently.
         add_action('woocommerce_order_status_completed', [self::class, 'on_order_completed']);
         add_action('woocommerce_order_status_refunded', [self::class, 'on_order_reversed']);
         add_action('woocommerce_order_status_cancelled', [self::class, 'on_order_reversed']);
@@ -43,10 +16,7 @@ class BHM_PurchaseLedger {
         add_action('template_redirect', [self::class, 'maybe_serve_proof_file']);
     }
 
-    // Serves the raw OpenTimestamps proof bytes so a buyer can run it
-    // through any standard `ots verify` tool independent of this site —
-    // the whole point of anchoring is that verification doesn't have to
-    // go through bh-monetization-woo's own code.
+    // Raw .ots proof, verifiable with any standard `ots verify` tool independent of this site.
     public static function maybe_serve_proof_file(): void {
         if (!isset($_GET['bhm_download_proof'])) return;
         $row = self::get((int) $_GET['bhm_download_proof']);
@@ -63,21 +33,8 @@ class BHM_PurchaseLedger {
         exit;
     }
 
-    // Live-robustness audit fix (2026-08-26): no try/catch at all,
-    // unlike BHM_Downloads/BHM_Entitlements on the exact same hook — see
-    // class-downloads.php's own docblock for the real incident this
-    // exact class of bug already caused once (WC_Order::
-    // status_transition() wraps its ENTIRE woocommerce_order_status_
-    // completed dispatch in ONE try/catch, not one per callback, so an
-    // uncaught exception here would silently abort every callback
-    // registered after this one too). Registered at default priority
-    // 10, same as BHM_Entitlements but added to the hook afterward
-    // (BHM_Products::init() -> BHM_Entitlements::init() runs earlier in
-    // this plugin's own bootstrap than BHM_PurchaseLedger::init() does)
-    // — so today a failure here can't block entitlement-granting, but
-    // it WOULD still take down BHM_Referrals::on_order_completed()
-    // (priority 20) and anything else hooked afterward, and that
-    // ordering is incidental, not enforced.
+    // WHY: try/catch because WooCommerce wraps all callbacks of a hook in one try/catch;
+    // an exception here would abort later callbacks (referrals etc.).
     public static function on_order_completed(int $order_id): void {
         try {
             self::do_on_order_completed($order_id);
@@ -95,33 +52,18 @@ class BHM_PurchaseLedger {
         foreach ($order['items'] as $item) {
             $product_id = $item['product_id'];
             $object_id = (int) get_post_meta($product_id, '_bhm_purchase_object_id', true);
-            if (!$object_id) continue; // not a track/release purchase line item — tier/wallet-topup, out of scope for this ledger
+            if (!$object_id) continue; // tier/top-up line item: out of scope
 
             $object_type = get_post_meta($product_id, '_bhm_purchase_object_type', true);
             $track_id = $object_type === 'bhs_release' ? self::first_track_of_release($object_id) : $object_id;
             $content_hash = $track_id ? (string) get_post_meta($track_id, '_bhs_audio_hash', true) : '';
 
-            // Order-level total, not a per-line price — BH_Commerce::
-            // get_order()'s normalized item shape doesn't expose a
-            // per-line price today (see the-self-hosted-self/includes/
-            // class-commerce.php's get_order()), and the common case
-            // here is one purchase line item per order anyway. Accurate
-            // enough for a proof-of-purchase/metrics record; not a
-            // precise accounting ledger.
+            // Order total, not line price: BH_Commerce::get_order() items carry no price. Not accounting-grade.
             self::write_row('purchase', $order_id, (int) $order['customer_id'], $track_id, $content_hash, (int) $order['total_cents'], null);
         }
     }
 
-    // Live-robustness audit fix (2026-08-26): no try/catch — see this
-    // class's own on_order_completed() and class-downloads.php's
-    // docblocks for the real incident this class of bug already caused
-    // once (WooCommerce wraps its whole hook dispatch in ONE try/catch,
-    // not one per callback). Registered on the same two hooks as
-    // BHM_Entitlements::on_order_reversed() at the same default
-    // priority; today's registration order happens to run entitlement
-    // reversal (and fraud-pattern tracking) first, but that ordering
-    // is incidental, not enforced — this must not be able to take it
-    // down regardless.
+    // Same try/catch reasoning as on_order_completed().
     public static function on_order_reversed(int $order_id): void {
         try {
             self::do_on_order_reversed($order_id);
@@ -135,10 +77,7 @@ class BHM_PurchaseLedger {
     private static function do_on_order_reversed(int $order_id): void {
         global $wpdb;
         $t = BHM_Tables::purchase_ledger();
-        // Every still-un-reversed purchase row for this order gets a
-        // linked reversal row — "still un-reversed" so a second
-        // refunded->cancelled (or vice versa) status transition on the
-        // same order can't double-record the same reversal.
+        // Only not-yet-reversed rows, so refunded->cancelled can't record a second reversal.
         $purchases = $wpdb->get_results($wpdb->prepare(
             "SELECT p.* FROM $t p WHERE p.wc_order_id = %d AND p.event_type = 'purchase'
              AND NOT EXISTS (SELECT 1 FROM $t r WHERE r.linked_record_id = p.id AND r.event_type = 'reversal')",
@@ -212,11 +151,7 @@ class BHM_PurchaseLedger {
     }
 
     /**
-     * Confirmed purchases: every 'purchase' row without a matching
-     * 'reversal'. This netting rule is the ledger's own business logic and
-     * belongs here — bh-streaming's royalty export previously reimplemented
-     * it as its own cross-plugin SQL, which is exactly how two copies of one
-     * rule drift apart.
+     * Confirmed purchases: 'purchase' rows with no matching 'reversal'. Peers use this, not their own SQL.
      *
      * @return array<int, object>
      */
@@ -237,11 +172,7 @@ class BHM_PurchaseLedger {
 
     /* ---------------- buyer-facing verify page ---------------- */
 
-    // [bhm_verify_purchase id="123"] — 'id' is a bhm_purchase_ledger row
-    // id (linked from the portal panel's own Purchases table, see
-    // class-portal-panel.php), not the WooCommerce order id, so this
-    // page never needs to re-derive which purchase within a
-    // multi-item order is being verified.
+    // [bhm_verify_purchase id="123"]: id is a ledger row id, not a WooCommerce order id.
     /** @param mixed $atts */
     public static function render_verify_shortcode($atts): string {
         $atts = shortcode_atts(['id' => 0], $atts);
@@ -249,11 +180,7 @@ class BHM_PurchaseLedger {
         if (!$row || $row->event_type !== 'purchase') {
             return '<p>Purchase record not found.</p>';
         }
-        // Only the buyer themselves or an admin who can see financial
-        // CRM data may view this — a purchase record, even though it's
-        // meant to be independently verifiable via the public anchor,
-        // still shouldn't be readable by an arbitrary logged-in visitor
-        // who guesses a row id.
+        // Buyer or bhcore_view_crm_sensitive only; row ids are guessable.
         if ((int) $row->user_id !== get_current_user_id() && !current_user_can('bhcore_view_crm_sensitive')) {
             return '<p>Not allowed.</p>';
         }

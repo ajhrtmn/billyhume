@@ -2,31 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Front end: shortcode/hook registration + the shared enqueue/routing
- * plumbing. Kept deliberately simple/server-rendered (one step visible
- * at a time, plain form posts to AJAX for quiz submit / mark-complete)
- * — matches this ecosystem's general "plain PHP + a little JS," not a
- * SPA rebuild of bh-streaming's player.
- *
- * SRP QA pass, 0.4.8 — this used to be one 589-line class doing catalog
- * rendering, the course detail page, AND the lesson step-walker/quiz UI
- * all at once, three genuinely separate concerns with almost no overlap
- * (render_continue_cta() being the one real exception — see
- * class-render-course.php's own docblock for where that landed and
- * why). Split into three focused classes — BHC_Render_Catalog,
- * BHC_Render_Course, BHC_Render_Lesson (each new file, same includes/
- * directory) — with this class now doing exactly what its name says:
- * registering the shortcodes/hooks and enqueueing assets, then
- * delegating the actual rendering.
- *
- * Every method below is a PURE MOVE, not a rewrite — the real logic is
- * byte-for-byte identical to what used to live directly in this file,
- * just relocated. render_catalog()/render_course()/render_lesson_steps()/
- * render_quiz_review() are kept here too, as one-line delegates, so
- * every EXISTING external call site (class-test-suite.php,
- * templates/archive-bh_course.php, bh-courses.php's the_content filter)
- * keeps working with ZERO changes — this class's own public API surface
- * is unchanged, only its internals moved out.
+ * Front end: shortcode/hook registration and asset enqueueing. Rendering lives in
+ * BHC_Render_Catalog, BHC_Render_Course and BHC_Render_Lesson; the render_*() methods here
+ * are one-line delegates kept for existing call sites.
  */
 class BHC_Render {
     public static function init(): void {
@@ -40,16 +18,7 @@ class BHC_Render {
     }
 
     /**
-     * Real bug, exposed once a bh_course singular page actually renders
-     * BHC_Render_Course::render_course() via the_content (see
-     * bh-courses.php's own the_content filter) — that output already
-     * prints its own '<h1 class="bhc-course-title">' (needed for the
-     * [bh_course] shortcode/block's standalone usage on an arbitrary
-     * page, which has no theme-supplied title to fall back on), so the
-     * theme's own generic core/post-title block in single.html duplicates
-     * it, showing the course name twice. Only bh_course is affected —
-     * bh_lesson's render_lesson_steps() never prints its own title, so
-     * the theme's title block there is the only one and stays untouched.
+     * Hides the theme's post-title block on bh_course, which prints its own <h1>.
      */
     /** @param array<string, mixed> $block */
     public static function suppress_duplicate_course_title(string $block_content, $block): string {
@@ -59,11 +28,7 @@ class BHC_Render {
     }
 
     /**
-     * Same duplicate-content class of bug as the title above, caught live
-     * once the hero treatment (0.4.33) started rendering the course's own
-     * cover image inline via render_course_header() — the theme's generic
-     * core/post-featured-image block in single.html was already printing
-     * that same attachment, plain and undecorated, directly above it.
+     * Hides the theme's featured-image block on bh_course; the hero already shows the cover.
      */
     /** @param array<string, mixed> $block */
     public static function suppress_duplicate_course_cover(string $block_content, $block): string {
@@ -73,19 +38,8 @@ class BHC_Render {
     }
 
     /**
-     * Real, live-confirmed bug: the theme's single.html prints a
-     * "Written by {author} in {category}" byline via a core/group of
-     * core/post-author-name + core/post-terms blocks. On a bh_lesson/
-     * bh_course single page this reads as "Written by in" with both
-     * dynamic pieces blank — these post types have no author byline
-     * concept (a course's real instructor is BHC_PostTypes::instructor(),
-     * already shown in the course header) and are never assigned a
-     * 'category' term at all, so the theme's generic byline group has
-     * nothing to fill in on every single one of these pages. Keying off
-     * the literal "Written by" text (rather than the block name, which
-     * is just a generic core/group used all over the theme) is the same
-     * "match the specific broken output, not the whole block type"
-     * posture suppress_generic_post_navigation() already takes above.
+     * Hides the theme's "Written by {author} in {category}" byline, which renders blank
+     * on courses/lessons. Matched on the literal text, since the block is a generic core/group.
      */
     /** @param array<string, mixed> $block */
     public static function suppress_broken_byline(string $block_content, $block): string {
@@ -96,23 +50,9 @@ class BHC_Render {
     }
 
     /**
-     * Real, live-confirmed bug: the theme's single.html applies to every
-     * post type via a generic "post-navigation" pattern (core/post-
-     * navigation-link, prev/next). WordPress's get_adjacent_post() only
-     * scopes by post type, never by course — so on a bh_lesson page this
-     * silently walks through EVERY lesson on the site in date order,
-     * with zero regard for which course it belongs to. Confirmed by
-     * clicking it: it took a student from a "Mixing Basics" lesson
-     * straight into an unrelated "Songwriting Fundamentals" lesson,
-     * bypassing enrollment/access checks for that course entirely.
-     *
-     * BHC_Render_Lesson::render_lesson_steps() already renders its own,
-     * correctly course-scoped "Lesson X of Y" + "Next Lesson" navigation
-     * (built from BHC_PostTypes::lesson_order($course_id), not a global
-     * date-ordered query) — so the generic block is pure redundant risk
-     * here, never a feature being removed. Suppressed by block name
-     * rather than patching the theme, since another theme/pattern could
-     * reintroduce the same generic block later.
+     * Hides the theme's prev/next post navigation on lessons.
+     * WHY: get_adjacent_post() isn't course-scoped, so it walks into other courses' lessons;
+     * the lesson view has its own course-scoped navigation.
      */
     /** @param array<string, mixed> $block */
     public static function suppress_generic_post_navigation(string $block_content, $block): string {
@@ -121,80 +61,28 @@ class BHC_Render {
         return $block_content;
     }
 
-    // The /courses/ catalog is a real published Page holding the
-    // bhc/catalog block (BHC_Activator::ensure_catalog_page), rendered
-    // through the_content by the active theme — same as the account
-    // portal and the contest pages. It used to be a CPT archive
-    // ('has_archive' => 'courses') served by a hand-rolled full-page
-    // template (templates/archive-bh_course.php, deleted), which on a
-    // block theme meant reconstructing the document shell by hand
-    // instead of letting the theme own it. has_archive is off now; the
-    // Page wins /courses/ once rewrites are flushed
-    // (BHC_Activator::maybe_flush_after_archive_removal).
+    // The /courses/ catalog is a Page holding the bhc/catalog block, not a CPT archive.
 
     public static function maybe_enqueue(): void {
         if (!is_singular()) return;
         global $post;
-        // has_block() alongside each has_shortcode() — ROADMAP-ux-polish-
-        // and-feature-parity-2026-07.md 5a's WYSIWYG block conversion
-        // (class-blocks.php, 'bhc/catalog'/'bhc/course') means a page can
-        // embed either without any literal [bh_courses]/[bh_course]
-        // bracket text in post_content. Same class of regression already
-        // caught and fixed in bh-contest 3.5.0 and bh-streaming 0.5.4 —
-        // applied here preemptively before shipping, not after.
-        // $post->post_type === 'bh_course' added alongside the new
-        // the_content wiring for the course CPT's own singular view
-        // (bh-courses.php's the_content filter) — that page never
-        // literally contains the [bh_course] shortcode text (the plugin
-        // renders it directly via the_content, bypassing the shortcode
-        // entirely), so without this the CSS/JS this whole page's markup
-        // depends on never loaded — same class of gap this comment
-        // already flags for bh_lesson, just missed for bh_course itself.
+        // has_block() as well as has_shortcode(), and bh_course singulars (rendered directly
+        // via the_content), so assets load wherever course markup appears.
         if (!$post || !(has_shortcode($post->post_content, 'bh_courses') || has_shortcode($post->post_content, 'bh_course') || has_block('bhc/catalog', $post) || has_block('bhc/course', $post) || $post->post_type === 'bh_lesson' || $post->post_type === 'bh_course')) return;
         self::enqueue_assets();
     }
 
     private static function enqueue_assets(): void {
         wp_enqueue_style('bhc-front', BHC_URL . 'assets/css/courses.css', [], BHC_VER);
-        // Shared catalog structure/elevation, registered by the core plugin.
-        // By handle, so this plugin never needs to know where core keeps it;
-        // wp_enqueue_style() on an unregistered handle is a no-op, so the
-        // core-absent case degrades to this plugin's own styles.
+        // Core's shared catalog styles, by handle; a no-op if core hasn't registered it.
         wp_enqueue_style('ous-catalog');
         if (class_exists('BHY_Style')) wp_add_inline_style('bhc-front', BHY_Style::inline_css());
 
-        // Real seek-bar chapter markers (AJ's own direct ask: "like
-        // YouTube") only reach a genuine <video> tag's own scrubber via
-        // a real custom control bar — native <video controls> is drawn
-        // by the browser engine itself, completely unreachable from CSS
-        // or JS. Plyr (MIT, vendored — assets/js/vendor/plyr.min.js/.css,
-        // same "own the file, no CDN" posture as anime.js/Howler
-        // elsewhere in this ecosystem) is scoped to lesson pages only,
-        // since it's the one screen that ever renders a bhc/video step.
-        // Plyr WRAPS the existing native <video> element rather than
-        // replacing it — courses.ts's existing annotations/watch-
-        // threshold code (video.currentTime, timeupdate) needed zero
-        // changes, only the chapter-marker rendering moved from a
-        // companion strip to real ticks on Plyr's own progress bar.
-        // iconUrl/blankVideo both explicitly overridden to this
-        // plugin's own vendored copies — Plyr's own shipped default
-        // config points both at cdn.plyr.io, exactly the "quiet
-        // dependency on a third-party service" this ecosystem's own
-        // standing rule (CLAUDE.md) rules out; blankVideo is a real,
-        // locally-generated 2x2px/0.1s silent MP4 (ffmpeg), not a
-        // reference to Plyr's own hosted one.
+        // Plyr (vendored) supplies the custom control bar that seek-bar chapter markers need.
+        // iconUrl/blankVideo point at local copies, not cdn.plyr.io.
         $deps = [];
-        // A lesson (and therefore a bhc/video step) renders on the
-        // standalone lesson page AND inline inside the course view
-        // (is_singular('bh_course') / a page embedding [bh_course] /
-        // bhc/course). Gating Plyr + Bunny's player.js on bh_lesson
-        // alone meant that inside the course/portal view a video kept
-        // its bare controls and NONE of the chapter list, seek markers,
-        // pausing overlays or watch-% tracking loaded — reported live as
-        // "adding watch percentage killed everything for chapters" (it
-        // was the surrounding context that differed, not the setting).
-        // Pure catalog listings ([bh_courses] / bhc/catalog) never show
-        // a video, so they still skip this.
+        // Videos render on lesson pages and inline in course views, so load the player
+        // there too. Pure catalog listings skip it.
         global $post;
         $renders_lesson = is_singular(['bh_lesson', 'bh_course'])
             || ($post instanceof \WP_Post && (
@@ -208,16 +96,10 @@ class BHC_Render {
                 'iconUrl'    => BHC_URL . 'assets/js/vendor/plyr.svg',
                 'blankVideo' => BHC_URL . 'assets/js/vendor/plyr-blank.mp4',
             ]);
-            // A real dependency, not just load order: courses.js
-            // constructs `new Plyr(...)` at DOMContentLoaded, so Plyr's
-            // own global has to exist by then.
+            // courses.js constructs `new Plyr(...)` at DOMContentLoaded.
             $deps[] = 'bhc-plyr';
 
-            // Bunny Stream steps are driven through Bunny's player.js
-            // postMessage bridge so chapters/annotations/watch-threshold
-            // work over the cross-origin iframe. Only pulled in when the
-            // lesson actually has one — same "enqueue what the content
-            // needs" rule as Plyr itself.
+            // Bunny's player.js bridge, only when a Bunny step is present.
             if (self::context_has_bunny_step()) {
                 wp_enqueue_script('bhc-bunny-playerjs', 'https://assets.mediadelivery.net/playerjs/player-0.1.0.min.js', [], null, true);
                 $deps[] = 'bhc-bunny-playerjs';
@@ -241,10 +123,7 @@ class BHC_Render {
     }
 
     /**
-     * Whether the page being rendered will show a Bunny video step —
-     * whether that's a standalone lesson OR a lesson rendered inline
-     * inside its course view. Checking every lesson of a course is a
-     * handful of cheap meta reads and only happens on course pages.
+     * Whether the page shows a Bunny video step, standalone or inline in a course view.
      */
     private static function context_has_bunny_step(): bool {
         $obj = get_queried_object();
@@ -269,7 +148,7 @@ class BHC_Render {
         return false;
     }
 
-    /* ---------------- delegates — real logic lives in the three classes above ---------------- */
+    /* ---------------- delegates ---------------- */
 
     public static function render_catalog(): string {
         return BHC_Render_Catalog::render_catalog();
@@ -284,11 +163,7 @@ class BHC_Render {
         return BHC_Render_Lesson::render_lesson_steps($lesson_id);
     }
 
-    // Not called from anywhere in this codebase today (grepped before
-    // this split — only ever invoked internally by BHC_Render_Lesson's
-    // own render_step()), but it was public on the original class, so
-    // it stays public/delegated here too rather than silently narrowing
-    // this class's API surface.
+    // Kept public for API compatibility; not called externally.
     /** @param mixed $snapshot */
     public static function render_quiz_review($snapshot): string {
         return BHC_Render_Lesson::render_quiz_review($snapshot);

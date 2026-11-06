@@ -1,26 +1,9 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// BHM_VER 0.4.5 — register() now sets 'group' => OUS_Debug::GROUP_SEED_RESET
-// (the-self-hosted-self's Debug Tools reorganization pass — see that plugin's
-// class-debug.php docblock), filing this section under "Seed & Reset
-// Tools" instead of the default bucket. No other change.
-
 /**
- * Registers this plugin's section on the core's shared Debug Tools page
- * — same extension point every other plugin here uses. Deliberately
- * more capable than a typical "seed some fake rows" section: money
- * flows are exactly the kind of thing you want to exercise end-to-end
- * WITHOUT touching a real payment gateway, a real card, or waiting on a
- * real WooCommerce checkout — every action below mints entitlements,
- * wallet credit, and simulated orders directly, so an artist (or
- * anyone testing this plugin) can walk through every paywall/purchase/
- * tip/pay-per-play code path on a real site with zero real money moved.
- *
- * Locked behind OUS_Debug::is_locked() exactly like every other
- * registered section — these actions create real database rows
- * (entitlements, wallet balances) and must never be reachable on a
- * production site by accident.
+ * Debug Tools section: exercises every money path (entitlements, wallet, refunds, orders)
+ * with no real payment. Creates real DB rows, so it stays behind OUS_Debug::is_locked().
  */
 class BHM_Debug {
     const SEED_TAG = '__bhm_test__';
@@ -66,16 +49,7 @@ class BHM_Debug {
         echo '<p class="description">Exercises the SAME revocation code path a real chargeback/refund triggers (class-products.php\'s on_order_reversed()) — confirms an entitlement or wallet credit actually gets taken back, not just granted.</p>';
         OUS_Debug::button('bh-monetization-woo', 'simulate_refund_last_grant', 'Simulate a refund of your most recent test grant', '', 'This will revoke your most recently granted test entitlement or wallet credit — continue?');
 
-        // Real gap this closes: on_subscription_active()/on_subscription_ended()/
-        // on_subscription_paused() (class-products.php), and the front-end
-        // pause/resume UI (class-frontend.php), were completely
-        // unreachable for testing without the real, paid WooCommerce
-        // Subscriptions extension installed — this site doesn't have it.
-        // BHM_MockCommerce hooks BH_Commerce's own filter seams
-        // (bh_commerce_has_subscriptions/bh_commerce_get_subscription)
-        // rather than faking WooCommerce Subscriptions globally, so real
-        // production behavior is untouched unless this is explicitly
-        // switched on here.
+        // Mock subscriptions via BH_Commerce's filter seams, so the lifecycle is testable without WC Subscriptions.
         echo '<h4>Subscription lifecycle (mock — no real extension needed)</h4>';
         $mock_enabled = class_exists('BHM_MockCommerce') && BHM_MockCommerce::is_enabled();
         if (class_exists('WC_Subscriptions')) {
@@ -137,15 +111,7 @@ class BHM_Debug {
 
         switch ($action) {
             case 'seed_tiers':
-                // Benefit keys deliberately differ per tier, not just
-                // price — real coverage for the "orthogonal to price
-                // rank" case BHM_Tiers::benefit_registry() exists for
-                // (see its own docblock): the cheaper tier grants
-                // 'courses', the pricier one grants 'streaming' +
-                // 'downloads' but NOT 'courses' — so testing "is the
-                // cheap tier's course access actually independent of the
-                // pricier tier's streaming access" is possible
-                // immediately after seeding, not just theoretically true.
+                // Benefit keys differ per tier (the pricier one lacks 'courses') to test benefit vs. price gating.
                 foreach ([
                     ['Fan ' . self::SEED_TAG, 300, ['courses']],
                     ['Supporter ' . self::SEED_TAG, 800, ['streaming', 'downloads', 'merch_discount']],
@@ -176,15 +142,7 @@ class BHM_Debug {
                 return 'Test collection + 1 test product created — visit /' . BHM_Storefront::REWRITE_SLUG . '/' . ($created_term ? $created_term->slug : '') . '/ to see the auto-generated collection landing page.';
 
             case 'grant_top_tier':
-                // Was a raw $wpdb->insert(), bypassing grant_entitlement()
-                // entirely — meaning this button never exercised the real
-                // tier-exclusivity replacement logic, the
-                // bhm_entitlement_granted event, or the grant
-                // notification, giving false confidence that clicking it
-                // proved anything about the real purchase path. Now
-                // routes through BHM_Products::debug_grant_tier(), the
-                // exact same private grant_entitlement() a real order
-                // uses.
+                // Goes through the real grant path (exclusivity, event, notification).
                 $tiers = BHM_Tiers::all();
                 if (!$tiers) return 'No tiers exist yet — click "Create 2 test tiers" first.';
                 $top = end($tiers);
@@ -192,10 +150,7 @@ class BHM_Debug {
                 return 'Granted "' . $top['name'] . '" to your account for 30 days (via the real grant path — also replaces any other active tier you were holding, exactly like a real purchase would).';
 
             case 'revoke_all_tiers':
-                // Was a raw bulk $wpdb->delete() with no event/notification
-                // fired at all — now revokes each row through the same
-                // shared path the CRM's manual revoke button and the
-                // refund-simulation button below use.
+                // Real revoke path per row (event + notification).
                 $rows = $wpdb->get_results($wpdb->prepare(
                     "SELECT id FROM " . BHM_Tables::entitlements() . " WHERE user_id = %d AND type IN ('streaming_tier','subscription')", $uid
                 ));
@@ -218,10 +173,7 @@ class BHM_Debug {
                 return 'Wallet zeroed.';
 
             case 'simulate_refund_last_grant':
-                // Look at whichever happened more recently: the last
-                // entitlement grant or the last wallet credit — and
-                // reverse exactly that one, the same way a real
-                // refund/cancellation webhook would.
+                // Reverse whichever is newer: the last entitlement or the last wallet credit.
                 $last_ent = $wpdb->get_row($wpdb->prepare(
                     "SELECT * FROM " . BHM_Tables::entitlements() . " WHERE user_id = %d ORDER BY created_at DESC LIMIT 1", $uid
                 ));
@@ -229,13 +181,6 @@ class BHM_Debug {
                     "SELECT * FROM " . BHM_Tables::wallet_ledger() . " WHERE user_id = %d AND delta_cents > 0 ORDER BY created_at DESC LIMIT 1", $uid
                 ));
                 if ($last_ent && (!$last_credit || strtotime($last_ent->created_at) >= strtotime($last_credit->created_at))) {
-                    // Now genuinely the same code path a real refund
-                    // triggers (revoke_entitlement_by_id(), shared with
-                    // on_order_reversed()'s row-level revocation and the
-                    // CRM's manual revoke button) — this comment used to
-                    // claim that and be wrong; a raw $wpdb->delete() here
-                    // never fired the event or the notification a real
-                    // refund does.
                     BHM_Products::revoke_entitlement_by_id($last_ent->id, 'debug_simulated_refund');
                     return 'Revoked entitlement #' . $last_ent->id . ' (type: ' . $last_ent->type . ') — simulating a refund/chargeback via the real revoke path (event fired + notification sent).';
                 }
@@ -264,7 +209,7 @@ class BHM_Debug {
                 if (!$top['wc_product_id']) return 'That tier has no WooCommerce product yet — save it once from the Supporter Tiers screen.';
                 $fake_id = BHM_MockCommerce::create($uid, $top['wc_product_id']);
                 $fake = new BHM_FakeSubscription(BHM_MockCommerce::get($fake_id));
-                BHM_Products::on_subscription_active($fake); // the real production handler, exactly what a real WC Subscriptions webhook fires
+                BHM_Products::on_subscription_active($fake); // the real production handler
                 return 'Created fake subscription #' . $fake_id . ' for "' . $top['name'] . '" and activated it via the real on_subscription_active() handler.';
 
             case 'mock_pause':
@@ -276,9 +221,7 @@ class BHM_Debug {
                 $data = BHM_MockCommerce::get($sub_id);
                 if (!$data) return 'That fake subscription no longer exists.';
                 $fake = new BHM_FakeSubscription($data);
-                // update_status() itself calls the matching real
-                // on_subscription_paused()/on_subscription_ended()/
-                // on_subscription_active() handler — see class-mock-commerce.php.
+                // update_status() fires the matching real lifecycle handler.
                 $new_status = $action === 'mock_pause' ? 'on-hold' : ($action === 'mock_resume' ? 'active' : 'cancelled');
                 $fake->update_status($new_status);
                 return 'Fake subscription #' . $sub_id . ' set to "' . $new_status . '" via the real ' . ($action === 'mock_pause' ? 'on_subscription_paused()' : ($action === 'mock_resume' ? 'on_subscription_active()' : 'on_subscription_ended()')) . ' handler.';
@@ -293,7 +236,7 @@ class BHM_Debug {
                 $order = wc_create_order(['customer_id' => $uid]);
                 $order->add_product(wc_get_product($top['wc_product_id']), 1);
                 $order->calculate_totals();
-                $order->update_status('completed'); // fires woocommerce_order_status_completed for real — this is the actual production code path, not a shortcut
+                $order->update_status('completed'); // fires the real woocommerce_order_status_completed path
                 return 'Created and completed a real WooCommerce order (#' . $order->get_id() . ') for "' . $top['name'] . '" — check that the entitlement now shows up.';
 
             case 'simulate_gift_order':
@@ -307,9 +250,7 @@ class BHM_Debug {
 
                 $order = wc_create_order(['customer_id' => $uid]);
                 $item_id = $order->add_product(wc_get_product($top['wc_product_id']), 1);
-                // Same meta key BHM_Gifts::persist_gift_email_to_order_item()
-                // writes during a REAL checkout — set directly here since
-                // this simulation skips the cart entirely.
+                // Same meta a real checkout writes (BHM_Gifts::persist_gift_email_to_order_item()).
                 $item = $order->get_item($item_id);
                 if ($item) { $item->add_meta_data('_bhm_gift_email', $gift_email, true); $item->save(); }
                 $order->calculate_totals();
@@ -319,12 +260,7 @@ class BHM_Debug {
         return '';
     }
 
-    // The current user's most recent fake wc_subscription_id, if any —
-    // real entitlement rows created via mock_activate() above carry a
-    // wc_subscription_id in the >= 900001 sentinel range
-    // (BHM_MockCommerce::next_id()'s own reasoning), so this is a plain
-    // lookup against the real bhm_entitlements table, not a second
-    // parallel store of "which fake sub is this user's."
+    // Fake subscription ids are >= 900001 (BHM_MockCommerce::next_id()).
     private static function user_mock_subscription_id(int $user_id): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(

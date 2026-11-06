@@ -2,27 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The Test Runner (see the-self-hosted-self's class-test-runner.php) version of
- * this plugin's own test coverage — same convention bh-courses'
- * class-test-suite.php and bh-monetization-woo's class-test-suite.php
- * already established. Closes a real, flagged gap: this plugin had
- * ZERO automated test coverage despite real, non-trivial logic (round
- * eligibility/elimination, judge-score normalization, medal-reveal
- * sequencing) — the largest test-coverage gap in the ecosystem per an
- * ecosystem-wide DRY/SOLID/test-quality audit.
- *
- * Two shapes of test here, matching what's actually testable:
- * - BH_Reveal::medal_tier_count()/medal_slice() are genuinely pure
- *   (array in, array out, no DB/WP calls) but private — reached via
- *   reflection, same "test the real internals, not a public-API-only
- *   copy" posture bh-monetization-woo's own test suite already uses
- *   for grant_entitlement().
- * - BH_Rounds::is_eligible()/advance_round() and BH_Judging::
- *   save_score()/judge_results() are DB-coupled by nature (real
- *   postmeta reads, a real custom table) — exercised against real,
- *   tagged fixture bh_contest/bh_submission posts, cleaned up
- *   afterward, same convention bh-courses' run_gate_drip_tests()/
- *   run_review_tests() already established.
+ * Test Runner suites for bh-contest. Medal-reveal helpers are pure but private
+ * (reached via reflection); rounds and judging run against tagged DB fixtures
+ * that are cleaned up afterward.
  */
 class BH_TestSuite {
     const SEED_TAG = 'bh_test_suite';
@@ -94,10 +76,7 @@ class BH_TestSuite {
         $rows[] = OUS_TestRunner::assert_same(1, $just_full, 'Final reveal step surfaces the 1st-place (winner) tier');
         $rows[] = OUS_TestRunner::assert_same([1, 2, 3], array_column($entries_full, 'rank'), 'Final reveal step shows all three medal ranks');
 
-        // tied_second's medal ranks are only {1, 2} (rank 4 doesn't
-        // medal) — 2 distinct tiers total, worst (rank 2, the tied pair)
-        // first. reveal_count=1 (the FIRST reveal step) must surface
-        // BOTH tied rank-2 entries together, not just one of them.
+        // The first step of the tied set must surface BOTH rank-2 entries together.
         [$tie_entries, $tie_just] = $slice->invoke(null, $tied_second, 1);
         $rows[] = OUS_TestRunner::assert_same(2, $tie_just, 'The first reveal step of a tied set reports rank 2 (the worst/tied tier) as just-revealed');
         $rows[] = OUS_TestRunner::assert_same(2, count($tie_entries), 'A 2-way tie for a rank reveals BOTH tied entries together on the same step, not just one');
@@ -134,10 +113,7 @@ class BH_TestSuite {
             return [['name' => 'Judging test fixture creation failed', 'pass' => false, 'message' => 'Could not create fixture contest/submission posts — skipping judging tests.']];
         }
 
-        // A 10-point and a 20-point criterion, deliberately different
-        // maxes — this is exactly the "5-criterion and 3-criterion rubric
-        // land on the same 0-100 footing" case the plugin's own docblock
-        // describes.
+        // Different maxes on purpose, to exercise normalization to 0-100.
         $rubric = [
             ['slug' => 'originality', 'name' => 'Originality', 'max' => 10],
             ['slug' => 'production', 'name' => 'Production', 'max' => 20],
@@ -156,9 +132,7 @@ class BH_TestSuite {
         BH_Judging::save_score($judge_c_draft, $cid, $sub1, '', ['originality' => 10, 'production' => 20], 'draft');
         // Judge A on sub2: zero on both criteria.
         BH_Judging::save_score($judge_a, $cid, $sub2, '', ['originality' => 0, 'production' => 0], 'submitted');
-        // Judge A tries to save an OUT-OF-RANGE score on sub2 (production
-        // way over its max of 20, originality negative) — save_score()
-        // must clamp server-side, not trust the caller.
+        // Out-of-range scores must be clamped server-side.
         BH_Judging::save_score($judge_a, $cid, $sub2, '', ['originality' => -50, 'production' => 999], 'submitted');
 
         $clamped = BH_Judging::judge_status($judge_a, $cid, $sub2, '');
@@ -174,9 +148,7 @@ class BH_TestSuite {
         $rows[] = OUS_TestRunner::assert_same(1, $by_id[$sub1]['rank'] ?? null, 'The higher-scored submission ranks #1');
         $rows[] = OUS_TestRunner::assert_same(2, $by_id[$sub2]['rank'] ?? null, 'The lower (clamped-to-zero) submission ranks #2, not tied or omitted');
 
-        // A submission with only a DRAFT (no submitted score at all) must
-        // be omitted entirely from judge_results() — "nothing to rank"
-        // per the method's own docblock, not shown with a 0 or null score.
+        // A draft-only submission must be omitted entirely, not shown with a 0 score.
         $sub3 = wp_insert_post([
             'post_type' => 'bh_submission', 'post_status' => 'publish', 'post_title' => 'Fixture Sub Three (draft only)',
             'meta_input' => ['bhcore_is_test' => self::SEED_TAG, '_bh_contest_id' => $cid],
@@ -235,9 +207,7 @@ class BH_TestSuite {
             return [['name' => 'Rounds test fixture creation failed', 'pass' => false, 'message' => 'Could not create fixture submission posts — skipping rounds tests.']];
         }
 
-        // Fresh submission, no _bh_round_reached meta at all, contest
-        // still on round 0 -> eligible (0 >= 0), never regresses to
-        // "ineligible by default."
+        // No _bh_round_reached meta on round 0 means eligible (0 >= 0).
         $rows[] = OUS_TestRunner::assert_true(BH_Rounds::is_eligible($subs['A'], $cid), 'A brand-new submission with no round_reached meta is eligible for round 0 (0 >= 0)');
 
         // Judge scores that clearly rank A > B > C, so advance_round()'s
@@ -259,9 +229,7 @@ class BH_TestSuite {
         $rows[] = OUS_TestRunner::assert_same(1, BH_Rounds::round_reached($subs['A']), 'A survivor\'s round_reached is bumped to the new round index');
         $rows[] = OUS_TestRunner::assert_same(0, BH_Rounds::round_reached($subs['C']), 'An eliminated submission\'s round_reached is left alone (eliminated, not deleted or regressed)');
 
-        // Now that the contest has moved to round 1, the eliminated
-        // submission (still at round_reached=0) must no longer be
-        // eligible — this is the actual "cut" taking effect.
+        // In round 1, the eliminated submission (round_reached=0) is no longer eligible.
         $rows[] = OUS_TestRunner::assert_false(BH_Rounds::is_eligible($subs['C'], $cid), 'An eliminated submission is no longer eligible once the contest advances past its round_reached');
         $rows[] = OUS_TestRunner::assert_true(BH_Rounds::is_eligible($subs['A'], $cid), 'A survivor remains eligible in the new active round');
 

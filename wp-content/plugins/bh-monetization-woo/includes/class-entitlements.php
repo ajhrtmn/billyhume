@@ -2,100 +2,49 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Split out of class-products.php (DRY/SOLID audit Phase 3) — the actual
- * order/subscription -> entitlement bridge. Fires bhm_entitlement_granted /
- * bhm_entitlement_revoked — the tier-level third-party-integration choke
- * point ROADMAP-platform-evolution.md Section 4 asks for (its named
- * example: "connect Discord and grant a role per tier"). No such
- * integration is built here; this is just the one clean place for a
- * future one to hook in, args: ($user_id, $type, $scope, $object_id[, $reason]).
+ * Order/subscription -> entitlement bridge.
+ * Fires bhm_entitlement_granted / bhm_entitlement_revoked ($user_id, $type, $scope, $object_id[, $reason]).
  */
 class BHM_Entitlements {
     public static function init(): void {
         add_action('woocommerce_order_status_completed', [self::class, 'on_order_completed']);
-        // A refunded or cancelled order must actually TAKE BACK whatever
-        // it granted — otherwise a chargeback (a real, common fraud
-        // pattern: pay with a stolen/disputed card, keep the access or
-        // wallet credit after the payment gets reversed) leaves the
-        // entitlement standing forever with the artist eating the loss
-        // AND the fraudster keeping what they "bought." This is the
-        // actual, in-scope thing this plugin can do about fraud —
-        // detecting the fraud itself is the payment gateway's job (see
-        // this class's own docblock and the README).
+        // A refunded/cancelled order (incl. chargebacks) takes back what it granted.
         add_action('woocommerce_order_status_refunded', [self::class, 'on_order_reversed']);
         add_action('woocommerce_order_status_cancelled', [self::class, 'on_order_reversed']);
-        // Subscription renewal/cancellation — only registered if
-        // WooCommerce Subscriptions is actually present, since these
-        // hooks don't exist otherwise.
         $has_subs = BH_Commerce::has_subscriptions();
         if ($has_subs) {
             add_action('woocommerce_subscription_status_active', [self::class, 'on_subscription_active']);
             add_action('woocommerce_subscription_status_cancelled', [self::class, 'on_subscription_ended']);
             add_action('woocommerce_subscription_status_expired', [self::class, 'on_subscription_ended']);
-            // ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a — real,
-            // pre-existing bug, not just a missing feature: WooCommerce
-            // Subscriptions' native on-hold/pause status fired this same
-            // event bus all along, but nothing here ever listened for
-            // it, so a paused subscription's entitlement was never
-            // revoked (a fan could pause billing and silently keep
-            // tier-gated access indefinitely). on_subscription_active()
-            // already re-grants on the way back out of on-hold (that
-            // hook fires again on resume), so pause+resume round-trips
-            // correctly with just this one addition — no change needed
-            // on the resume side.
+            // Pausing revokes access; status_active fires again on resume and re-grants.
             add_action('woocommerce_subscription_status_on-hold', [self::class, 'on_subscription_paused']);
         }
     }
 
     /* ---------- order/subscription -> entitlement ---------- */
 
-    // Fires for EVERY completed WooCommerce order, not just this
-    // plugin's own products — cheap early-return for anything that
-    // isn't one of ours. Handles: tier purchases (one-time, when
-    // WooCommerce Subscriptions isn't active), track/release purchases,
-    // and wallet top-ups.
+    // Runs for every completed order: tier purchases (no WC Subscriptions), track/release purchases, wallet top-ups.
     public static function on_order_completed(int $order_id): void {
-        // BH_Commerce::get_order() normalizes the order into a plain
-        // array (id/status/customer_id/total_cents/items[{product_id,quantity}])
-        // — this file no longer touches a WC_Order object directly, same
-        // treatment BHM_ProductSync::sync_tier_wc_product() already got.
-        // class_exists('BH_Commerce') isn't checked here because this
-        // whole class already requires the core (BHCORE_LOADED gate in
-        // bh-monetization-woo.php); an old core without BH_Commerce
-        // would need its own fallback, out of scope for this migration.
+        // Plain array: id/status/customer_id/total_cents/items[{product_id,quantity}].
         $order = BH_Commerce::get_order($order_id);
         if (!$order) {
-            // A completed-order hook firing for an order ID that can't
-            // be loaded is exactly the kind of "money moved but nothing
-            // here can trust it" situation worth a loud log entry rather
-            // than a silent early return — someone paid and this plugin
-            // has no idea what they should now have access to.
+            // Someone paid and we can't tell what for: log loudly.
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('error', "on_order_completed: order $order_id could not be loaded", ['order_id' => $order_id], 'BH Monetization');
             }
             return;
         }
 
-        // Per-item, not per-order: one bad product meta lookup or a
-        // single grant_entitlement() throwing must not stop every OTHER
-        // item in the same order from being fulfilled — a fan who bought
-        // a tier AND a track in one checkout shouldn't lose the track
-        // just because the tier grant hit an edge case (or vice versa).
+        // WHY: try/catch per item, so one failed grant doesn't block the rest of the order.
         foreach ($order['items'] as $item) {
             $product_id = $item['product_id'];
             try {
                 $user_id = $order['customer_id'];
-                if (!$user_id) continue; // guest checkout has no account to grant an entitlement to — nothing to attach access to
+                if (!$user_id) continue; // guest checkout: no account to grant to
 
                 $tier_id = (int) get_post_meta($product_id, '_bhm_tier_id', true);
                 if ($tier_id) {
-                    // Gifting: a line item carrying a recipient email
-                    // (BHM_Gifts::capture_gift_email(), set at add-to-cart
-                    // time) never grants the BUYER anything — it creates a
-                    // redemption code and emails the recipient instead.
-                    // The buyer's payment still fully processes as an
-                    // ordinary tier purchase; only the entitlement side
-                    // is redirected.
+                    // A gift line item grants the buyer nothing; it creates a redemption code for the recipient.
                     $gift_email = !empty($item['gift_email']) ? $item['gift_email'] : '';
                     if ($gift_email && class_exists('BHM_Gifts')) {
                         BHM_Gifts::create_redemption($tier_id, $user_id, $order_id, $gift_email);
@@ -111,16 +60,6 @@ class BHM_Entitlements {
                 $object_id = (int) get_post_meta($product_id, '_bhm_purchase_object_id', true);
                 $object_type = get_post_meta($product_id, '_bhm_purchase_object_type', true);
                 if ($object_id) {
-                    // Extended for bh-courses' one-time course purchase —
-                    // previously a binary ternary that would have granted
-                    // a course entitlement with scope='track', wrong
-                    // metadata (though the actual UNLOCK check, BHM_Gate
-                    // ::user_owns_object(), only filters on object_id and
-                    // type='purchase', never scope — so this specific bug
-                    // wouldn't have broken access, just mislabeled the
-                    // entitlements table's own data. Fixed anyway: wrong
-                    // data is a real bug even when nothing currently
-                    // reads the wrong field).
                     $scope_by_type = ['bhs_release' => 'release', 'bh_course' => 'course'];
                     $scope = $scope_by_type[$object_type] ?? 'track';
                     self::grant_entitlement($user_id, 'purchase', $scope, $object_id, $order_id, null, null);
@@ -137,38 +76,14 @@ class BHM_Entitlements {
                         'order_id' => $order_id, 'product_id' => $product_id,
                     ], 'BH Monetization');
                 }
-                // Deliberately swallowed past this point (not re-thrown)
-                // — a fulfillment bug on one line item must never turn
-                // into a fatal error mid-way through WooCommerce's own
-                // order-completion flow for the customer's whole order.
+                // Swallowed: never fatal mid-way through WooCommerce's order-completion flow.
             }
         }
     }
 
-    // legacy_get_order_array() removed — PHPStan-confirmed genuinely
-    // dead code (no call site anywhere in this plugin). Its own comment
-    // described it as a fallback for "BH_Commerce itself isn't loaded,"
-    // but whatever was meant to call it never did, or was removed
-    // separately without cleaning this up.
-
-    // The reversal counterpart to on_order_completed() — a refunded or
-    // cancelled order takes back whatever it granted. Wallet top-ups are
-    // reversed by debiting the SAME amount that was credited (recorded
-    // in the ledger with reason 'topup_reversed', so the history stays
-    // honest about what happened rather than just vanishing a row) —
-    // capped at the wallet's current balance so a fan who already spent
-    // some of the disputed credit doesn't end up with a negative
-    // balance; the artist absorbs whatever was already spent, same as
-    // any real merchant would on a chargeback for a consumed good.
-    // Live-robustness audit fix (2026-08-26): no try/catch, unlike this
-    // same class's own on_order_completed() (see its docblock, and
-    // class-downloads.php's, for the real incident this class of bug
-    // already caused once — WooCommerce wraps its ENTIRE hook dispatch
-    // in ONE try/catch, not one per callback). Genuinely higher-stakes
-    // here than the completed path: a failure partway through used to
-    // risk BHM_Fraud::track_refund_pattern() below never running at
-    // all — silently losing this ecosystem's one real refund-abuse
-    // detection signal on exactly the request where it matters most.
+    // Reverses a refunded/cancelled order. Wallet top-ups are debited (reason 'topup_reversed'),
+    // capped at the current balance so it never goes negative.
+    // WHY: try/catch because WooCommerce wraps all callbacks of a hook in one try/catch.
     public static function on_order_reversed(int $order_id): void {
         try {
             self::do_on_order_reversed($order_id);
@@ -185,13 +100,7 @@ class BHM_Entitlements {
         if (!$order) return;
 
         $t = BHM_Tables::entitlements();
-        // Fetch what's about to be deleted BEFORE deleting it, so the
-        // bhm_entitlement_revoked action (see grant_entitlement()'s
-        // granted counterpart below) can tell a listener which specific
-        // entitlements just got taken back — a future Discord-role-sync
-        // consumer (the exact example ROADMAP-platform-evolution.md
-        // Section 4 names) needs the object/scope, not just "something
-        // changed for this user."
+        // Read before deleting so bhm_entitlement_revoked listeners get each row's object/scope.
         $revoked = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t WHERE wc_order_id = %d", $order_id), ARRAY_A);
         $wpdb->delete($t, ['wc_order_id' => $order_id]);
         foreach ($revoked as $row) {
@@ -211,15 +120,6 @@ class BHM_Entitlements {
 
         if ($order['customer_id']) BHM_Fraud::track_refund_pattern($order['customer_id'], $order_id);
 
-        // A second real notification example alongside BH Courses'
-        // course-completion one (see the core's OUS_Notifications
-        // docblock) — chosen specifically because it's a genuine
-        // transparency moment: something a customer's account just had
-        // taken away, not a nice-to-have "hey, FYI." class_exists()-
-        // guarded since notifications shipped in core 3.2.0 — this
-        // plugin only ever depends on the core's PRESENCE, never any
-        // one optional feature inside it, so an older core still works,
-        // it just doesn't send this particular notice.
         if (class_exists('OUS_Notifications') && $order['customer_id']) {
             OUS_Notifications::notify(
                 $order['customer_id'],
@@ -232,25 +132,12 @@ class BHM_Entitlements {
         }
     }
 
-    // Refund/chargeback abuse-pattern detection lives in its own
-    // BHM_Fraud class (includes/class-fraud.php) — see that file's
-    // docblock for the DRY/SOLID-refactor rationale. This class only
-    // calls into it (on_order_reversed() above).
-
-    // $subscription arrives as the real WC_Subscription object — that
-    // part can't be abstracted away, it's WooCommerce Subscriptions' own
-    // action hook signature (woocommerce_subscription_status_active).
-    // What DOES get abstracted is everything this method does WITH it:
-    // normalize_subscription() is the one place that reaches into
-    // get_customer_id()/get_items()/get_id(), same treatment
-    // BH_Commerce::get_order() already gives WC_Order objects.
+    // $subscription is a real WC_Subscription (hook signature); normalize_subscription() flattens it.
     /** @param mixed $subscription */
     public static function on_subscription_active($subscription): void {
         $sub = BH_Commerce::normalize_subscription($subscription);
         if (!$sub) {
-            // Fallback for an old core without BH_Commerce — same
-            // direct-object shape this migration removed from the main
-            // path.
+            // Fallback for an older core whose normalize_subscription() returns nothing.
             $sub = ['id' => $subscription->get_id(), 'customer_id' => $subscription->get_customer_id(), 'items' => array_map(function ($item) {
                 return ['product_id' => $item->get_product_id()];
             }, array_values($subscription->get_items()))];
@@ -269,18 +156,7 @@ class BHM_Entitlements {
         self::revoke_subscription_entitlements($subscription, 'subscription_ended');
     }
 
-    /**
-     * WooCommerce Subscriptions' on-hold status (a fan pausing billing
-     * rather than cancelling outright) — same revocation as a real
-     * cancellation, since a paused subscription isn't being billed and
-     * shouldn't keep gated access, but tagged with its own reason so
-     * anything listening on bhm_entitlement_revoked (the tier-level
-     * integration choke point this class's own docblock describes) can
-     * tell "paused, might come back" apart from "actually over."
-     * on_subscription_active() already re-grants automatically when a
-     * fan resumes (WooCommerce Subscriptions fires that same event again
-     * on the way out of on-hold) — nothing extra needed on that side.
-     */
+    // Same revocation as cancellation, with its own reason so listeners can tell "paused" from "over".
     /** @param mixed $subscription */
     public static function on_subscription_paused($subscription): void {
         self::revoke_subscription_entitlements($subscription, 'subscription_paused');
@@ -289,7 +165,7 @@ class BHM_Entitlements {
     /** @param mixed $subscription */
     private static function revoke_subscription_entitlements($subscription, string $reason): void {
         global $wpdb;
-        $sub_id = $subscription->get_id(); // trivial accessor, not worth a full normalize_subscription() round trip just for this
+        $sub_id = $subscription->get_id();
         $t = BHM_Tables::entitlements();
         $revoked = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t WHERE wc_subscription_id = %d", $sub_id), ARRAY_A);
         $wpdb->delete($t, ['wc_subscription_id' => $sub_id]);
@@ -297,15 +173,7 @@ class BHM_Entitlements {
             do_action('bhm_entitlement_revoked', (int) $row['user_id'], $row['type'], $row['scope'], (int) $row['object_id'], $reason);
         }
 
-        // Real gap, caught during a refund/revocation audit: on_order_reversed()
-        // above notifies the customer when a refund/cancellation takes
-        // access away, but this path (subscription paused or ended —
-        // arguably the MORE common way access actually lapses, since it
-        // needs no manual refund at all) never did. A fan whose card
-        // just failed or who quietly cancelled got no signal their
-        // access was gone until they next hit a paywall. Reason-aware
-        // copy ('paused' can resume automatically per on_subscription_active(),
-        // 'ended' cannot) rather than one generic message for both.
+        // Tell the fan their access lapsed; copy differs for paused (resumable) vs ended.
         if ($revoked && class_exists('OUS_Notifications')) {
             $user_id = (int) $revoked[0]['user_id'];
             if ($user_id) {
@@ -324,18 +192,8 @@ class BHM_Entitlements {
         }
     }
 
-    // Public entry point for BHM_Gifts::handle_redeem() — a gift claim
-    // has no order/subscription of its OWN to dedupe grant_entitlement()
-    // against on the redeeming side (the order already belongs to the
-    // buyer, not the recipient), so this always grants a fresh
-    // streaming_tier entitlement rather than routing through the private
-    // grant_entitlement()'s order/subscription-keyed idempotency check —
-    // BHM_Gifts' own `status = 'redeemed'` guard is what prevents a
-    // double-claim, not this.
     /**
-     * The user's current membership entitlement, or null. Owns the
-     * "unexpired subscription/streaming_tier" rule so cross-plugin
-     * callers don't query this plugin's schema directly.
+     * The user's current unexpired membership entitlement, or null (so other plugins don't query this schema).
      *
      * @return array<string,mixed>|null
      */
@@ -350,13 +208,12 @@ class BHM_Entitlements {
         return $row ?: null;
     }
 
+    // For BHM_Gifts::handle_redeem(): skips grant_entitlement()'s order-keyed dedupe (the order is
+    // the buyer's); BHM_Gifts' own 'redeemed' status prevents double claims.
     public static function grant_gift_entitlement(int $user_id, int $tier_id, int $order_id): void {
         global $wpdb;
         $t = BHM_Tables::entitlements();
-        // Same tier-exclusivity enforcement grant_entitlement() applies —
-        // this bypasses that method entirely (see docblock above), so it
-        // needs its own call or a gift redemption could stack a second
-        // active tier on top of whatever the recipient already has.
+        // Bypasses grant_entitlement(), so tier exclusivity must be enforced here too.
         self::replace_active_tier_entitlements($user_id, $tier_id);
         $wpdb->insert($t, [
             'user_id' => $user_id, 'type' => 'streaming_tier', 'scope' => 'account', 'object_id' => $tier_id,
@@ -365,13 +222,7 @@ class BHM_Entitlements {
         do_action('bhm_entitlement_granted', $user_id, 'streaming_tier', 'account', $tier_id);
     }
 
-    // Public, single shared "revoke one specific entitlement row by ID"
-    // path — factored out so BHM_CRMIntegration's manual admin revoke
-    // button and BHM_Debug's own "simulate a refund" test action both
-    // fire the exact same real event/notification, instead of two
-    // independently-written copies of "delete a row and maybe notify"
-    // drifting apart. Returns the deleted row (as an array) on success,
-    // or null if no such entitlement existed.
+    // Shared by the CRM revoke button and Debug Tools; returns the deleted row or null.
     /** @return array<string, mixed>|null */
     public static function revoke_entitlement_by_id(int $entitlement_id, string $reason = 'manual_revoke'): ?array {
         global $wpdb;
@@ -395,14 +246,7 @@ class BHM_Entitlements {
         return $row;
     }
 
-    // Debug Tools' own test-grant buttons previously wrote directly to
-    // $wpdb, bypassing grant_entitlement() entirely — meaning they never
-    // exercised the real tier-exclusivity replacement logic, the
-    // bhm_entitlement_granted event, or the grant notification, giving
-    // false confidence that "testing" a grant here proved anything about
-    // the real purchase path. These two thin public wrappers route
-    // Debug Tools through the exact same private grant_entitlement()
-    // every real order/subscription webhook uses.
+    // Debug Tools grants go through the real grant_entitlement() path.
     public static function debug_grant_tier(int $user_id, int $tier_id, int $days = 30): void {
         self::grant_entitlement($user_id, 'streaming_tier', 'account', (int) $tier_id, null, null, gmdate('Y-m-d H:i:s', strtotime('+' . (int) $days . ' days')));
     }
@@ -411,18 +255,8 @@ class BHM_Entitlements {
         self::grant_entitlement($user_id, 'purchase', $scope, (int) $object_id, null, null, null);
     }
 
-    // Deletes every OTHER active account-scope subscription/streaming_tier
-    // entitlement this user currently holds, so grant_entitlement()'s
-    // insert below is always the ONE active tier, never a second one
-    // stacked alongside it. Returns true only when a DIFFERENT tier was
-    // actually replaced (used by grant_entitlement() to skip its own
-    // generic "Access granted" notice in favor of this method's more
-    // specific switch/upgrade/downgrade one).
-    //
-    // A same-tier existing row (early renewal, a duplicate webhook for
-    // a case the order/subscription-keyed idempotency check above
-    // didn't happen to catch) is cleared silently — no downgrade-credit
-    // math, no "you switched" messaging, since it isn't a tier change.
+    // Clears the user's other active account-scope tier rows so only one tier is ever active.
+    // Returns true only if a DIFFERENT tier was replaced; same-tier rows are cleared silently.
     private static function replace_active_tier_entitlements(int $user_id, int $new_tier_id): bool {
         global $wpdb;
         $t = BHM_Tables::entitlements();
@@ -450,11 +284,7 @@ class BHM_Entitlements {
             $new_tier = class_exists('BHM_Tiers') ? BHM_Tiers::get($new_tier_id) : null;
             $is_downgrade = $old_tier && $new_tier && $new_tier['price_cents'] < $old_tier['price_cents'];
 
-            // Wallet-credits unused days on the OLD tier — previously
-            // dead code (defined, never called from anywhere real) until
-            // this fix wired the one call site that actually needed it.
-            // Steps aside on its own when WooCommerce Subscriptions'
-            // real switcher is active (see its own docblock).
+            // Credits unused old-tier days to the wallet (no-op when WC Subscriptions' switcher is active).
             if ($is_downgrade && class_exists('BHM_Gate') && $row['expires_at']) {
                 BHM_Gate::handle_tier_downgrade($user_id, $old_tier_id, $new_tier_id, $row['expires_at']);
             }
@@ -479,15 +309,8 @@ class BHM_Entitlements {
         global $wpdb;
         $t = BHM_Tables::entitlements();
 
-        // Idempotent per (user, type, scope, object, and whichever of
-        // order/subscription actually applies) — a webhook retry or a
-        // page reload hitting this twice must not create duplicate
-        // grants. $order_id is legitimately NULL for a subscription-
-        // driven grant (see on_subscription_active()) — %d would coerce
-        // that to 0 and silently break this check against a real NULL
-        // column value, so the two cases are built as separate,
-        // correctly-NULL-safe queries rather than one that papers over
-        // the difference.
+        // Idempotent against webhook retries. WHY: separate queries because %d would turn a NULL
+        // order/subscription id into 0 and miss the existing row.
         if ($subscription_id) {
             $existing = $wpdb->get_var($wpdb->prepare(
                 "SELECT id FROM $t WHERE user_id = %d AND type = %s AND scope = %s AND object_id = %d AND wc_subscription_id = %d",
@@ -499,23 +322,11 @@ class BHM_Entitlements {
                 $user_id, $type, $scope, $object_id, $order_id
             ));
         } else {
-            $existing = null; // neither an order nor a subscription to dedupe against — always insert (shouldn't normally happen)
+            $existing = null; // nothing to dedupe against
         }
         if ($existing) return;
 
-        // Real correctness gap an ecosystem audit caught: nothing
-        // enforced "one active tier at a time" — a fan could end up
-        // with several simultaneous active subscription/streaming_tier
-        // rows (two tiers in one cart, or bought at different times),
-        // each independently satisfying BHM_Gate's "at or above" check
-        // with no single canonical "current tier." Account-scope tier
-        // grants are exclusive: granting a new one always replaces
-        // whatever active tier entitlement already existed, the same
-        // way a real subscription upgrade/downgrade works everywhere
-        // else. Scoped to subscription/streaming_tier + scope='account'
-        // only — a one-time track/release purchase legitimately stacks
-        // (owning five tracks is normal; being subscribed to five tiers
-        // at once isn't).
+        // One active tier at a time: a new tier grant replaces the old one. Purchases stack.
         $replaced_different_tier = false;
         if ($scope === 'account' && in_array($type, ['subscription', 'streaming_tier'], true)) {
             $replaced_different_tier = self::replace_active_tier_entitlements($user_id, $object_id);
@@ -526,35 +337,10 @@ class BHM_Entitlements {
             'wc_order_id' => $order_id, 'wc_subscription_id' => $subscription_id, 'expires_at' => $expires_at,
         ]);
 
-        // ROADMAP-platform-evolution.md Section 4's tier-level
-        // third-party-integration hook — the concrete example named
-        // there is "connect Discord and grant a role per tier." Not
-        // building Discord integration itself (that's Section 7/
-        // roadmap-only territory), just the one clean choke point a
-        // future consumer needs: this fires for every entitlement grant
-        // (tier subscription, one-time tier purchase, track/release
-        // purchase — same $type values on_order_completed()/
-        // on_subscription_active() already pass in above), not just
-        // tiers, since a future integration might reasonably care about
-        // "this user bought this track" too. Sits at this single
-        // low-level choke point rather than in each higher-level caller,
-        // same reasoning as the OUS_Notifications call two lines below.
+        // Integration hook for every grant type (tiers and purchases).
         do_action('bhm_entitlement_granted', $user_id, $type, $scope, $object_id);
 
-        // A third real notification example (alongside BH Courses'
-        // completion notice and this same plugin's own refund-reversal
-        // one above) — deliberately placed at this single low-level
-        // choke point rather than in each of the several higher-level
-        // callers (tier purchase, one-time buy, subscription activation)
-        // that funnel through here, so every entitlement type gets this
-        // for free without duplicating the notify() call per caller.
-        // Sitting AFTER the `if ($existing) return;` guard above means
-        // this only ever fires once per real grant, never on a webhook
-        // retry re-confirming something already granted. Skipped when
-        // replace_active_tier_entitlements() already sent its own more
-        // specific "you switched tiers" notification above — a generic
-        // "Access granted" right after that would just be a confusing,
-        // redundant second notice about the exact same event.
+        // Skipped when replace_active_tier_entitlements() already sent a "you switched tiers" notice.
         if (!$replaced_different_tier && class_exists('OUS_Notifications')) {
             OUS_Notifications::notify(
                 $user_id,
@@ -563,7 +349,7 @@ class BHM_Entitlements {
                 'Thanks for your support — your access is active now.',
                 '',
                 'BH Monetization',
-                false // in-app only; a purchase already gets its own WooCommerce order-confirmation email, no need to double up
+                false // in-app only; WooCommerce already emails an order confirmation
             );
         }
     }

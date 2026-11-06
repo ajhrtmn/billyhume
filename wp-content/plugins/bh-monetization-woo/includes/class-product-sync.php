@@ -2,26 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Split out of class-products.php (DRY/SOLID audit Phase 3) — this file's
- * one job is keeping a WooCommerce product in sync with a tier or a
- * track/release's own purchase option. No entitlement logic, no gating,
- * no rendering; just "the artist edited a price/name over here, make the
- * matching WC product agree."
+ * Keeps WooCommerce products in sync with tiers and track/release/course purchase options.
  */
 class BHM_ProductSync {
-    // As of the platform-evolution handoff, this goes through the core's
-    // BH_Commerce interface (the-self-hosted-self/includes/class-commerce.php)
-    // instead of instantiating WC_Product_* classes directly — the
-    // concrete first migration the roadmap doc asked for. Falls back to
-    // the original direct-WooCommerce path if BH_Commerce isn't loaded
-    // (an old core version), same class_exists()-guarded-degrade
-    // convention as everywhere else in this ecosystem.
-    // $annual_price_cents = 0 means "no annual option offered" — the
-    // second (annual) product is created/kept in sync only when a real
-    // price is set, and is otherwise left alone (never deleted here,
-    // since the artist may just be toggling the field back and forth
-    // while drafting; a stale-but-hidden annual product is harmless —
-    // catalog_visibility is already 'hidden', same as the monthly one).
+    // Via BH_Commerce, with a direct-WooCommerce fallback for older cores.
+    // $annual_price_cents = 0: no annual product synced; an existing one is left hidden, never deleted.
     public static function sync_tier_wc_product(int $tier_post_id, string $name, int $price_cents, int $annual_price_cents = 0, int $trial_days = 0): void {
         if (!(BH_Commerce::available())) return;
         $existing_id = (int) get_post_meta($tier_post_id, '_bhm_wc_product_id', true);
@@ -32,24 +17,16 @@ class BHM_ProductSync {
                 'name' => $name . ' — Supporter Tier',
                 'price_cents' => $price_cents,
                 'virtual' => true, // no shipping — this is access, not a physical good
-                'catalog_visibility' => 'hidden', // never shows up in a normal WooCommerce shop listing — sold only via this plugin's own tier picker
-                'subscription' => true, // BH_Commerce itself degrades to a plain Simple product if WooCommerce Subscriptions isn't active
+                'catalog_visibility' => 'hidden', // sold only via the tier picker
+                'subscription' => true, // BH_Commerce degrades to a Simple product without WC Subscriptions
                 'subscription_period' => 'month',
                 'subscription_period_interval' => 1,
-                // Free trial, ROADMAP-platform-evolution.md Section 4's
-                // remaining open item — a real conversion lever Patreon
-                // itself offers per-tier. Days is the unit this plugin's
-                // own admin field uses; WC Subscriptions' trial_period
-                // unit is fixed to 'day' here rather than exposed as a
-                // second dropdown, since "N days" is the one artists
-                // actually reach for and a week/month/year trial is
-                // exactly representable as a day count anyway.
                 'trial_length' => (int) $trial_days,
                 'trial_period' => 'day',
             ]);
             if ($product_id) {
                 update_post_meta($tier_post_id, '_bhm_wc_product_id', $product_id);
-                update_post_meta($product_id, '_bhm_tier_id', $tier_post_id); // reverse lookup, used by on_order_completed()/on_subscription_active()
+                update_post_meta($product_id, '_bhm_tier_id', $tier_post_id); // reverse lookup for fulfilment
             }
 
             if ($annual_price_cents > 0) {
@@ -66,13 +43,7 @@ class BHM_ProductSync {
                 ]);
                 if ($annual_id) {
                     update_post_meta($tier_post_id, '_bhm_wc_product_id_annual', $annual_id);
-                    // Same reverse-lookup meta as the monthly product so
-                    // on_order_completed()/on_subscription_active() grant
-                    // the identical tier regardless of which billing
-                    // cadence a fan actually bought — the entitlement
-                    // itself (BHM_Tiers benefit_keys/price rank) doesn't
-                    // know or care about billing period, only ABOUT the
-                    // tier.
+                    // Same reverse lookup: either cadence grants the same tier.
                     update_post_meta($annual_id, '_bhm_tier_id', $tier_post_id);
                 }
             }
@@ -97,10 +68,7 @@ class BHM_ProductSync {
         update_post_meta($tier_post_id, '_bhm_wc_product_id', $product->get_id());
         update_post_meta($product->get_id(), '_bhm_tier_id', $tier_post_id);
 
-        // Annual fallback product only makes sense if Subscriptions is
-        // active at all — a plain one-time WooCommerce product has no
-        // billing period to speak of, so "annual" would be meaningless
-        // (identical to the monthly one-time product, just mispriced).
+        // Annual only means something with Subscriptions active.
         if ($annual_price_cents > 0 && $has_subs) {
             $annual_price = BHM_Money::price($annual_price_cents);
             $annual_product = $existing_annual_id ? wc_get_product($existing_annual_id) : null;
@@ -118,23 +86,12 @@ class BHM_ProductSync {
         }
     }
 
-    // Same idea as sync_tier_wc_product() but for a single track/release's
-    // own outright-purchase option — a plain one-time Simple product,
-    // never a subscription (buying a track outright is never recurring).
-    // Also migrated behind BH_Commerce, same fallback shape as above.
-    // Public (not private, unlike its original class-products.php home)
-    // since BHM_MonetizationUI::save_object() now calls it from a
-    // different class.
+    // One-time downloadable product for an outright track/release/course purchase.
     public static function sync_object_purchase_product(int $object_id, string $post_type, int $price_cents): int {
         if (!(BH_Commerce::available())) return 0;
         $meta_key = '_bhm_purchase_wc_product_id';
         $existing_id = (int) get_post_meta($object_id, $meta_key, true);
         $title = get_the_title($object_id);
-        // Extended for bh-courses' one-time course purchase (previously
-        // a binary ternary that mislabeled anything that wasn't a
-        // release as a "Track Purchase" — harmless while the only two
-        // real callers were tracks/releases, a real bug the moment a
-        // third object type showed up).
         $labels = ['bhs_release' => 'Album', 'bh_course' => 'Course'];
         $name = $title . ' (' . ($labels[$post_type] ?? 'Track') . ' Purchase)';
 

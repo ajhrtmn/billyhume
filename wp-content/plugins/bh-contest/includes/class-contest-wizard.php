@@ -2,31 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * "It just works" guided contest creation — VISION.md's own design
- * principle (see the-self-hosted-self's OUS_MediaWizard for the reference
- * implementation this follows) applied to the single most confusing
- * screen in this whole ecosystem: the real "Add New Contest" edit
- * screen spans 7 metaboxes and 30+ interdependent fields (submission
- * window, voting window, per-category votes, contact-info rules,
- * judging format, elimination rounds, Discord webhook, branding).
- * Confirmed by direct code read, not guessed.
- *
- * This wizard deliberately covers only the fields a contest ALWAYS
- * needs to actually run (name, submission window, voting window,
- * categories, vote counts, judging format) and leaves the genuinely
- * advanced/rare stuff — elimination rounds, Discord notifications,
- * branding overrides, contact-field customization — on the real edit
- * screen, reached via "Advanced settings" immediately after creation.
- * That split is deliberate, not a shortcut: those fields have sensible
- * defaults a first-time contest doesn't need to touch.
- *
- * Does NOT duplicate BH_AdminMetaboxes::save_contest_meta()'s validation/
- * sanitization logic (categories parsing, rubric parsing, contact-
- * field defaults) — it populates $_POST with the exact same field
- * names that screen posts and creates the contest via wp_insert_post(),
- * which fires the real save_post_bh_contest hook and runs the real
- * save handler. One save path, one place bugs get fixed, not two
- * copies that can drift.
+ * Guided contest creation covering only the essentials (name, windows, categories,
+ * votes, judging format); everything else stays on the full edit screen.
+ * WHY: it fills $_POST with the edit screen's field names and calls wp_insert_post(),
+ * so BH_AdminMetaboxes::save_contest_meta() stays the single save path.
  */
 class BH_ContestWizard {
     public static function init(): void {
@@ -122,28 +101,16 @@ class BH_ContestWizard {
         $title = sanitize_text_field(wp_unslash($_POST['wiz_title'] ?? ''));
         if ($title === '') wp_die('A contest name is required.', '', ['response' => 400, 'back_link' => true]);
 
-        // Same real save path the raw edit screen uses (BH_AdminMetaboxes::
-        // save_contest_meta(), hooked on save_post_bh_contest) — this
-        // class's own docblock explains why populating $_POST with that
-        // screen's own field names and letting wp_insert_post() fire the
-        // real hook is deliberate, not a shortcut.
+        // Feeds save_contest_meta() through $_POST (see class docblock).
         $_POST['bh_contest_nonce'] = wp_create_nonce('bh_save_contest');
         $_POST['bh_share_card_style'] = 'brand';
-        // Never published from creation, always an explicit later step
-        // — the real handler checks isset(), not truthiness
-        // (`isset($_POST['bh_results_published']) ? '1' : '0'`), so this
-        // has to be UNSET, not set to '' or false — setting it to ''
-        // still saved _bh_results_published as '1'.
+        // WHY: must be unset, not '': the save handler checks isset().
         unset($_POST['bh_results_published']);
         $_POST['bh_vote_base'] = BH_VOTE_BASE;
         $_POST['bh_vote_bonus'] = BH_VOTE_BONUS;
 
-        // The documented default contact-info config (BH_Helpers::
-        // contact_config()'s own $defaults) written explicitly rather
-        // than left to "no meta yet" — save_contest_meta() unconditionally
-        // writes _bh_contact_config on every save, so leaving this unset
-        // would silently persist an EMPTY shown-fields list instead of
-        // preserving the intended default.
+        // WHY: save_contest_meta() always writes _bh_contact_config, so posting
+        // nothing would save an empty shown-fields list instead of the defaults.
         $_POST['bh_contact_show'] = BH_Helpers::CONTACT_FIELDS;
         $_POST['bh_require_real_name'] = '1';
         $_POST['bh_require_handle'] = '1';

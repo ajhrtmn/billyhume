@@ -1,12 +1,6 @@
 /**
- * Front-end browse/filter interactivity for bhm-product-filter +
- * bhm-product-grid (see class-storefront.php's render functions for the
- * markup this wires up). Plain vanilla JS, no framework — this runs on
- * the public storefront for anonymous visitors, so no @wordpress/*
- * dependency (those are enqueued for logged-in admin/editor contexts
- * only) and no build step, same discipline as every other front-end
- * script in this ecosystem (see OUS_Notifications' own inline-script
- * convention).
+ * Front-end product filter for bhm-product-filter/bhm-product-grid.
+ * Vanilla JS with no @wordpress/* deps, since it runs for anonymous visitors.
  */
 (function () {
     'use strict';
@@ -48,8 +42,7 @@
                 grid.removeAttribute('aria-busy');
             })
             .catch(function () {
-                // Previously left the stale grid up with no sign to the
-                // shopper that their filter selection failed to apply.
+                // Tell the shopper the filter failed rather than leaving stale results.
                 grid.removeAttribute('aria-busy');
                 var msg = 'Could not update results — check your connection and try again.';
                 if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'error'); }
@@ -64,10 +57,7 @@
         if (form) applyFilter(form);
     });
 
-    // Live-filter on input too (debounced), not just the explicit Apply
-    // click — the Apply button stays as a clear, always-available action
-    // for anyone on a slower connection or who prefers not to trigger a
-    // request on every keystroke.
+    // Debounced live filtering; the Apply button still works on its own.
     var debouncedApply = debounce(function (form) { applyFilter(form); }, 400);
     document.addEventListener('input', function (e) {
         var form = e.target.closest('.bhm-product-filter');

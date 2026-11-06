@@ -2,31 +2,17 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * DRY/SOLID audit Phase 3: this file used to be a single 920-line class
- * mixing four distinct responsibilities (WC product sync, bh-streaming
- * metabox UI, play/access gating, and the order/subscription →
- * entitlement bridge). Split into four focused classes:
- *   - BHM_ProductSync    (includes/class-product-sync.php)
- *   - BHM_MonetizationUI (includes/class-monetization-ui.php)
- *   - BHM_PlayGating     (includes/class-play-gating.php)
- *   - BHM_Entitlements   (includes/class-entitlements.php)
- *
- * BHM_Products itself stays only as a thin, backward-compatible facade:
- * its init() wires each new class's own init(), and its public methods
- * are one-line delegations to whichever new class now owns that logic —
- * every existing external call site (BHM_Debug, BHM_CRMIntegration,
- * BHM_Gifts, BHM_Tiers, BHM_MockCommerce) keeps working unchanged.
+ * Backward-compatible facade: inits and delegates to BHM_ProductSync, BHM_MonetizationUI,
+ * BHM_PlayGating and BHM_Entitlements.
  */
 class BHM_Products {
     public static function init(): void {
-        // BHM_ProductSync has no init() — it's a pure static helper with
-        // nothing to hook.
         BHM_MonetizationUI::init();
         BHM_PlayGating::init();
         BHM_Entitlements::init();
     }
 
-    /* ---------- delegating facade methods (see class docblock) ---------- */
+    /* ---------- delegating facade methods ---------- */
 
     public static function sync_tier_wc_product(int $tier_post_id, string $name, int $price_cents, int $annual_price_cents = 0, int $trial_days = 0): void {
         BHM_ProductSync::sync_tier_wc_product($tier_post_id, $name, $price_cents, $annual_price_cents, $trial_days);

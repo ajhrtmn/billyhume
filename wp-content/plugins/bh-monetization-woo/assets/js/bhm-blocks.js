@@ -1,12 +1,6 @@
 /**
- * bhm-blocks.js — editor-side registration for 'bhm/buy' and
- * 'bhm/tip-jar' (class-blocks.php). Plain ES5-safe JS against WP core's
- * own globals, no build step, same convention every other block in
- * this ecosystem follows (the-self-hosted-self's element-prefab-block.js,
- * bh-courses' Studio blocks). Unlike element-prefab-block.js (which
- * deliberately deferred a live preview), this uses wp.serverSideRender.
- * ServerSideRender — the actual PHP render_callback output shown live
- * in the canvas, not a mimic.
+ * Editor registration for bhm/buy, bhm/tip-jar and bhm/tiers (class-blocks.php).
+ * Hand-written ES5 against WP globals; previews use wp.serverSideRender.
  */
 (function (blocks, element, blockEditor, components, i18n, apiFetch, serverSideRender) {
     'use strict';
@@ -45,9 +39,7 @@
                         setObjects(Array.isArray(list) ? list : []);
                         setLoading(false);
                     })
-                    // Not fatal — an empty picker with a plain-language
-                    // explanation, not a broken block, same posture
-                    // element-prefab-block.js's own picker uses.
+                    // Non-fatal: the picker shows its empty-state explanation.
                     .catch(function () { setLoading(false); });
             }, []);
 
@@ -79,10 +71,7 @@
             );
         },
 
-        // Server-rendered — the editor never saves markup of its own for
-        // this block, only its attributes, matching WP core's own
-        // dynamic-block contract (same as the-self-hosted-self's element-prefab
-        // block).
+        // Dynamic block: only attributes are saved.
         save: function () { return null; },
     });
 
@@ -93,9 +82,7 @@
         icon: 'money-alt',
         category: 'widgets',
 
-        // No attributes, no picker — the tip jar is always the one
-        // site-wide Tip product (same as the shortcode itself takes no
-        // attributes), so the preview renders unconditionally.
+        // No attributes: the tip jar is site-wide.
         edit: function () {
             return el(ServerSideRender, { block: 'bhm/tip-jar' });
         },
@@ -110,8 +97,6 @@
         icon: 'awards',
         category: 'widgets',
 
-        // Same zero-attribute shape as bhm/tip-jar — always every
-        // configured tier, site-wide.
         edit: function () {
             return el(ServerSideRender, { block: 'bhm/tiers' });
         },

@@ -2,15 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * This plugin's contribution to BHI_Portal (the-self-hosted-self's `bhi_portal_panels`
- * filter — see class-portal.php over there) — one of the four real panels
- * this handoff scoped (subscription/wallet, course progress, contest
- * submissions, notifications): a fan should be able to manage their
- * supporter tier from their own account area, not wp-admin. Read-only
- * for now (view balance/ledger/active tier); actual
- * tier changes still route through WooCommerce's own checkout/My Account
- * subscription management — this panel is the "own the interface" layer
- * on top of that, not a reimplementation of WooCommerce's billing UI.
+ * Read-only "Membership & Wallet" panel in the fan portal (bhi_portal_panels).
+ * Tier changes still go through WooCommerce checkout.
  */
 class BHM_PortalPanel {
     public static function init(): void {
@@ -32,16 +25,7 @@ class BHM_PortalPanel {
         return $panels;
     }
 
-    // Real bug (a fatal-adjacent DB error in the debug log): this
-    // queried an `ORDER BY tier_id` column that doesn't exist
-    // on `bhm_entitlements` (the real column, per class-activator.php's
-    // own CREATE TABLE, is `object_id` — a tier entitlement's object_id
-    // IS the tier post ID, just not named `tier_id`). Also widened to
-    // only ever select tier-granting entitlement types: this table also
-    // holds one-time track/release PURCHASE entitlements
-    // (grant_entitlement()'s 'purchase' type), which have nothing to do
-    // with "active tiers" and would have shown up here as bogus
-    // "Tier #123" rows once the column-name bug above was fixed.
+    // Tier entitlements only (object_id is the tier post ID); purchases are excluded.
     /** @return array<int, array<string, mixed>> */
     private static function active_entitlements(int $user_id): array {
         global $wpdb;
@@ -68,9 +52,6 @@ class BHM_PortalPanel {
             if (class_exists('BHM_Tiers')) echo '<a class="button" href="' . esc_url(BHM_Tiers::tiers_page_url()) . '">See supporter tiers &rarr;</a>';
             echo '</div>';
         } else {
-            // Chip-per-tier, matching the Overview tab's own tier badge
-            // instead of a plain <li> list — this was the only panel
-            // where "which tier am I on" was buried in bulleted text.
             echo '<div class="bhi-tier-chip-row">';
             foreach ($entitlements as $ent) {
                 $tier = class_exists('BHM_Tiers') ? BHM_Tiers::get($ent['object_id']) : null;
@@ -125,9 +106,7 @@ class BHM_PortalPanel {
                 echo '</tbody></table>';
                 echo '<p class="description">"Verify" shows this purchase\'s tamper-evident proof record — independent of this site\'s own database.</p>';
             }
-            // A verify link on this same page renders inline via the
-            // shortcode rather than navigating away, so a fan reviewing
-            // their purchases can check one without losing their place.
+            // Verify renders inline so the fan keeps their place.
             if (isset($_GET['bhm_verify'])) {
                 echo '<div class="bhi-portal-section">' . do_shortcode('[bhm_verify_purchase id="' . (int) $_GET['bhm_verify'] . '"]') . '</div>';
             }

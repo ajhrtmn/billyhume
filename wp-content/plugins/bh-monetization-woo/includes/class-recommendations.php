@@ -2,23 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * "Customers also bought" / "You may also like" — the storefront's own
- * version of bh-streaming's BHS_Recommendations (ROADMAP-platform-
- * evolution.md Section 5 names that class directly as reusable prior
- * art: "worth sharing the scoring approach rather than inventing a
- * second one"). Same deliberate posture as the original: content-based
- * (shared collection/category/tag terms), not collaborative-filtering
- * or purchase-history-driven — an honest scoping choice, not a
- * placeholder. A real "customers who bought X also bought Y" engine
- * needs real order-volume at real scale to beat these simple,
- * explainable rules; claiming that without the data to back it would be
- * overselling what a solo artist's storefront actually has.
- *
- * The product equivalent of tracks' artist/release/genre three-signal
- * score: bhm_collection (this ecosystem's own curated-collection
- * taxonomy, BHM_Storefront::TAXONOMY) weighted highest since it's the
- * artist's own deliberate merchandising grouping, product_cat next,
- * product_tag last as the loosest signal.
+ * Content-based related products (same approach as BHS_Recommendations), deliberately not
+ * purchase-history based. Shared terms score: collection x3, category x2, tag x1.
  */
 class BHM_Recommendations {
     /** @return array<int, \WC_Product> */
@@ -34,9 +19,7 @@ class BHM_Recommendations {
         $categories  = is_wp_error($categories) ? [] : $categories;
         $tags        = is_wp_error($tags) ? [] : $tags;
 
-        // Same "score the whole catalog, no separate index" posture as
-        // BHS_Recommendations::get_related() — fine at the catalog sizes
-        // this ecosystem targets (a solo artist's merch store).
+        // Scores the whole catalog; fine at solo-artist catalog sizes.
         $candidates = get_posts([
             'post_type' => 'product', 'post_status' => 'publish', 'posts_per_page' => -1,
             'post__not_in' => [$product_id], 'fields' => 'ids',
@@ -71,10 +54,7 @@ class BHM_Recommendations {
         return $out;
     }
 
-    // Shared by the BH_Content/core-block render path (an artist
-    // deliberately placed this block) AND the automatic
-    // woocommerce_after_single_product_summary hook (every product gets
-    // this for free, no authoring required) — one renderer, two callers.
+    // Shared by the placed block and the automatic single-product section.
     /** @param array<string, mixed> $attrs */
     public static function render_related_products_block($attrs): string {
         $product_id = (int) ($attrs['productId'] ?? 0);
@@ -97,13 +77,7 @@ class BHM_Recommendations {
         return $out;
     }
 
-    // Zero-authoring default: every real single-product page gets a
-    // related-items section automatically. An artist who wants to
-    // reposition/restyle it can still place the bhm/related-products
-    // block explicitly in the product's own description (this hook
-    // no-ops via the `bhm_related_products_manual` flag an explicit
-    // block render sets, so the automatic section never double-renders
-    // alongside a manually-placed one on the same page).
+    // Automatic related section on every product page; skipped when the block was placed manually.
     public static function auto_render_related(): void {
         if (!function_exists('wc_get_product')) return;
         global $post;

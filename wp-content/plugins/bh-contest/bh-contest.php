@@ -29,11 +29,8 @@ foreach (['tables', 'activator', 'post-types', 'helpers', 'auth', 'api', 'admin-
 register_activation_hook(__FILE__, ['BH_Activator', 'activate']);
 
 /**
- * Gated behind plugins_loaded rather than checked directly here: WordPress
- * loads active plugins' files in alphabetical folder order, so a direct
- * class_exists() check at file-parse time could run before the dependency's
- * file has been read yet. plugins_loaded always fires after every active
- * plugin's main file has loaded, regardless of folder name order.
+ * WHY: plugins_loaded, because plugins load alphabetically and core may not be
+ * parsed yet when this file is.
  */
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
@@ -95,10 +92,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BH_Archive', 'init']);
     add_action('init',          ['BH_Contest_Library', 'init']);
 
-    // Opt the contest surfaces into the ecosystem's standalone chrome
-    // (theme nav/footer hidden, ecosystem's own slim bar) — see
-    // OUS_MenuSync. Any page carrying a contest shortcode/block, or a
-    // single bh_contest.
+    // Pages with a contest shortcode/block use the standalone chrome (see OUS_MenuSync).
     add_filter('bh_standalone_surface', function ($is) {
         if ($is) return true;
         if (is_singular('bh_contest')) return true;
@@ -115,13 +109,8 @@ add_action('plugins_loaded', function () {
     });
     add_action('init',          ['BH_ShareCards', 'init']);
 
-    // Design Suite Phase 2 (see bh-courses 0.16.31/0.16.32 for the first
-    // real component_tokens() registrations) — this plugin's first.
-    // .bh-contest-badge (player.css) is a genuinely separate hardcoded
-    // implementation from the shared .bh-badge core already tokenized,
-    // not just a class-name coincidence, so it gets its own group rather
-    // than being folded into "badge". Exact-prior-value fallback
-    // guarantee, same as every other group.
+    // .bh-contest-badge is separate from core's .bh-badge, so it gets its own token group.
+    // Defaults equal the prior hardcoded values.
     if (class_exists('BHY_Style')) {
         add_filter('bhy_style_component_tokens', function ($components) {
             $components['contest_badge'] = [
@@ -196,9 +185,7 @@ add_action('plugins_loaded', function () {
         }
 
         if ($has_library) {
-            // Server-rendered, no JS — just the icon font the stat strip
-            // on each card uses (front-end doesn't load dashicons by
-            // default).
+            // No JS; just dashicons for the card stat strip (not loaded front-end by default).
             wp_enqueue_style('dashicons');
         }
     });

@@ -2,31 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Same versioned, idempotent migration pattern as every other plugin in
- * this ecosystem (bh-streaming's likes table, bh-contest's votes table,
- * bh-registry's artists/links tables).
- *
- * Two small custom tables, not postmeta — both are genuinely relational
- * (per-user, queried by user across many tracks/releases) in a way
- * postmeta would make awkward:
- *
- * - bhm_entitlements: "this user has access to this thing" — one row
- *   per purchase, subscription, or streaming-tier grant, linked back to
- *   the WooCommerce order (and subscription, if WooCommerce
- *   Subscriptions is active) that paid for it. This is the ONE table
- *   BHM_Gate checks to decide whether a listener can stream or download
- *   something — it never re-derives access from WooCommerce order
- *   status on every page load.
- * - bhm_wallet / bhm_wallet_ledger: a prepaid credit balance for
- *   pay-as-you-listen, topped up via a WooCommerce product (buying
- *   "500 play credits" is itself just a normal WC order) and debited
- *   per play. A ledger table alongside the balance so a listener (or an
- *   artist looking at their own CRM activity, see bh-streaming's
- *   class-crm-integration.php for the established pattern) can see
- *   what actually happened, not just a single opaque number.
+ * Versioned, idempotent schema (dbDelta). bhm_entitlements is the one table BHM_Gate reads;
+ * access is never re-derived from WooCommerce order status.
  */
 class BHM_Activator {
-    const DB_VERSION = '1.7'; // 1.2 added bhm_refund_fingerprints; 1.3 migrates _bhm_purchase_object_type meta values after bh-streaming renamed bh_track/bh_release to bhs_track/bhs_release; 1.4 added bhm_gift_redemptions (gifting, ROADMAP-platform-evolution.md Section 4's last open item besides promo codes, which already work via WooCommerce's own native coupon system); 1.5 added bhm_referral_codes + bhm_referrals (ecosystem depth-pass Tier 2, referral/affiliate tracking — see class-referrals.php); 1.6 added bhm_purchase_ledger (ledger-anchored proof of purchase — see class-purchase-ledger.php, ROADMAP-streaming-media-scope-and-blockchain.md Part 2); 1.7 added bhm_wallet.held_cents + bhm_auction_bids (auction listings, ROADMAP-platform-evolution.md Section 5a — see class-auctions.php)
+    const DB_VERSION = '1.7'; // bump on any schema change
 
     public static function activate(): void {
         if (self::create_or_update_schema()) {
@@ -43,18 +23,8 @@ class BHM_Activator {
         self::migrate_purchase_object_type_meta();
     }
 
-    // Companion to bh-streaming's own BHS_Activator::rename_post_types_to_prefixed().
-    // This plugin stores the purchased object's post_type as a plain
-    // STRING VALUE in postmeta (_bhm_purchase_object_type — see
-    // class-products.php::sync_object_purchase_product()), not as an
-    // actual post_type column, so renaming the CPT slugs in bh-streaming
-    // doesn't touch this data on its own — any purchase product created
-    // before this version still has the OLD 'bh_release'/'bh_track'
-    // string sitting in its meta, which class-products.php's own
-    // on_order_completed() compares against the NEW 'bhs_release' string
-    // going forward. Without this migration, an existing release
-    // purchase would silently misclassify as a "track" purchase after
-    // upgrading. Idempotent: an UPDATE matching zero rows is a no-op.
+    // _bhm_purchase_object_type stores bh-streaming's post type as a string, so its
+    // bh_* -> bhs_* rename must be mirrored here. Idempotent.
     private static function migrate_purchase_object_type_meta(): void {
         global $wpdb;
         $renames = ['bh_track' => 'bhs_track', 'bh_release' => 'bhs_release'];
@@ -72,12 +42,8 @@ class BHM_Activator {
         $wallet       = BHM_Tables::wallet();
         $ledger       = BHM_Tables::wallet_ledger();
 
-        // type: 'purchase' | 'subscription' | 'streaming_tier'. scope:
-        // 'track' | 'release' | 'account' (an account-wide streaming-tier
-        // grant covers every track/release the artist site sells that
-        // tier for, without one row per track). expires_at is NULL for
-        // a one-time purchase (permanent) and set for subscription/
-        // streaming_tier grants, refreshed on each renewal webhook.
+        // type: 'purchase' | 'subscription' | 'streaming_tier'. scope: 'track' | 'release' | 'course' | 'account'.
+        // expires_at NULL = permanent.
         dbDelta("CREATE TABLE $entitlements (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             user_id bigint(20) unsigned NOT NULL,
@@ -92,16 +58,7 @@ class BHM_Activator {
             KEY user_lookup (user_id, type, scope, object_id)
         ) $charset;");
 
-        // held_cents (1.7): funds committed to an open auction bid but not
-        // yet captured — a separate column, not a second row/table,
-        // because "how much can this user still spend right now" is
-        // balance_cents - held_cents, computed on every hold() the exact
-        // same atomic-UPDATE-with-WHERE-clause way debit() already avoids
-        // a TOCTOU race for plain plays (see class-wallet.php's hold()).
-        // A bid never actually debits balance_cents until the auction
-        // closes and that bidder has won (capture_hold()) — losing or
-        // being outbid only ever needs held_cents released, the
-        // spendable balance itself was never touched.
+        // Spendable = balance_cents - held_cents, checked atomically in hold().
         dbDelta("CREATE TABLE $wallet (
             user_id bigint(20) unsigned NOT NULL,
             balance_cents bigint(20) NOT NULL DEFAULT 0,
@@ -122,23 +79,8 @@ class BHM_Activator {
             KEY user_id (user_id)
         ) $charset;");
 
-        // The authoritative, money-relevant play record — distinct from
-        // bh-streaming's own _bhs_play_count (a cheap, unauthenticated,
-        // "slightly gameable by refresh-spamming" vanity counter, which
-        // is fine for a vanity counter but not something a payout should
-        // ever be computed from). Every row here corresponds to either a
-        // real wallet debit (paid = 1, cents = the actual amount taken)
-        // or a play that was allowed for a non-monetary reason (a tier/
-        // subscription/purchase entitlement already covering it, paid =
-        // 0) — so an artist (or a future payout/reporting feature) has a
-        // real, server-authored history to work from, not a client-
-        // reported number. Deliberately does NOT attempt to compute or
-        // issue actual payouts/royalty splits here — see class-debug.php
-        // and this table's own read helpers for the explicit note that a
-        // real "split subscription revenue by relative plays" payout
-        // engine is a flagged, NOT-YET-BUILT next step, consistent with
-        // VISION.md's layered scope (this is Patreon-lite groundwork,
-        // not a full royalty accounting system).
+        // Server-authored play record (unlike bh-streaming's gameable _bhs_play_count).
+        // paid=1 rows are wallet debits; paid=0 plays were covered by an entitlement.
         $play_log = BHM_Tables::play_log();
         dbDelta("CREATE TABLE $play_log (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -152,15 +94,8 @@ class BHM_Activator {
             KEY user_id (user_id)
         ) $charset;");
 
-        // Refund/fraud-pattern correlation: one row per refunded order,
-        // carrying a fingerprint (hashed IP + a persistent non-tracking
-        // cookie id — see class-products.php's fingerprint_for()) rather
-        // than the raw IP itself. This is what lets "3+ refunds on one
-        // ACCOUNT" (already flagged via user meta) extend to "3+ refunds
-        // across DIFFERENT accounts sharing the same device/connection"
-        // — the same person evading a flag by signing up again. Hashed,
-        // not raw, so this table itself isn't a new place raw IPs sit
-        // around indefinitely.
+        // One row per refunded order with a hashed device fingerprint (never a raw IP),
+        // to spot refund abuse across accounts.
         $fingerprints = BHM_Tables::refund_fingerprints();
         dbDelta("CREATE TABLE $fingerprints (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -172,14 +107,7 @@ class BHM_Activator {
             KEY fingerprint (fingerprint)
         ) $charset;");
 
-        // Gifting: buying a tier "for" someone else doesn't grant the
-        // BUYER an entitlement at all — it creates a redemption code and
-        // emails the recipient a claim link (class-products.php's
-        // on_order_completed(), class-gifts.php's claim flow). One row
-        // per gift purchased, whether or not it's been claimed yet —
-        // status distinguishes "waiting", "claimed", so a fan (or the
-        // artist, via a future admin view) can see what's still
-        // outstanding, not just silently lose track of an unredeemed gift.
+        // One row per gifted tier purchase, claimed or not.
         $gifts = BHM_Tables::gift_redemptions();
         dbDelta("CREATE TABLE $gifts (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -197,19 +125,8 @@ class BHM_Activator {
             KEY recipient_email (recipient_email)
         ) $charset;");
 
-        // Referral/affiliate tracking (ecosystem depth-pass Tier 2) — a
-        // referrer's code IS a real WooCommerce coupon (see
-        // BHM_Referrals::get_or_create_code()), so it's a genuine
-        // discount a customer can actually use, not attribution-only.
-        // bhm_referral_codes is the one-time mapping (one row per
-        // referrer, created lazily on first view of their own referral
-        // section); bhm_referrals is one row PER REDEMPTION — a
-        // completed order that used a known referral code — carrying
-        // its own commission amount and a UNIQUE KEY on wc_order_id so
-        // the same order can never be credited twice even if
-        // woocommerce_order_status_completed somehow fires more than
-        // once for it (the INSERT itself is the atomic claim — see
-        // BHM_Referrals::on_order_completed()).
+        // bhm_referral_codes: one code (a real WC coupon) per referrer. bhm_referrals: one row per
+        // redemption. WHY: UNIQUE wc_order_id makes the INSERT the atomic no-double-credit claim.
         $referral_codes = BHM_Tables::referral_codes();
         $referral_codes_sql = "CREATE TABLE $referral_codes (
             user_id bigint(20) unsigned NOT NULL,
@@ -235,22 +152,8 @@ class BHM_Activator {
         ) $charset;";
         dbDelta($referrals_sql);
 
-        // Ledger-anchored proof of purchase (ROADMAP-streaming-media-
-        // scope-and-blockchain.md Part 2) — one row per purchase AND one
-        // linked row per reversal, never a row deleted or overwritten.
-        // record_hash is what actually gets anchored to a public ledger
-        // (see class-anchoring.php); everything else here is this
-        // site's own plain-database copy of what that hash covers, kept
-        // ONLY so the record can be looked up and displayed — the
-        // anchored hash is what makes it independently verifiable, not
-        // this table. user_id is deliberately the only person-identifying
-        // column, and it never leaves this database (see
-        // class-anchoring.php's own docblock on what gets hashed vs.
-        // what gets anchored). linked_record_id points a reversal row
-        // back at the purchase it reverses, so BOTH remain visible —
-        // this table is a history, not a current-state cache, precisely
-        // so a buyer's "proof of purchase" can never be quietly made to
-        // look like it never happened.
+        // Append-only proof of purchase: never update or delete rows; a reversal is a new row
+        // linked via linked_record_id. Only record_hash is anchored; user_id never leaves this DB.
         $purchase_ledger = BHM_Tables::purchase_ledger();
         $purchase_ledger_sql = "CREATE TABLE $purchase_ledger (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -272,15 +175,8 @@ class BHM_Activator {
         ) $charset;";
         dbDelta($purchase_ledger_sql);
 
-        // Auction listings (1.7, ROADMAP-platform-evolution.md Section
-        // 5a) — "reuse existing product/tier machinery with an auction
-        // pricing mode" was the agreed shape, not a new CPT: an auction
-        // IS a real WooCommerce product (see class-auctions.php), this
-        // table is only the per-bid history that product/tier machinery
-        // has no equivalent of. status: 'active' (still the current
-        // high bid) | 'outbid' (a later bid beat it) | 'won' | 'refunded'
-        // (reserve wasn't met, or the auction never finalized in this
-        // bidder's favor — held funds were released either way).
+        // Per-bid history. status: active | outbid | won | reserve_not_met | won_pending_review |
+        // payment_failed | rejected (see BHM_Auctions).
         $auction_bids = BHM_Tables::auction_bids();
         $auction_bids_sql = "CREATE TABLE $auction_bids (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,

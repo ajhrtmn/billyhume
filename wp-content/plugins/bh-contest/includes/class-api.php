@@ -2,11 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 class BH_API {
-    // Audit fix (2026-07-25) — separate from register_routes() (only
-    // fires on rest_api_init) because OUS_Jobs::register() needs to run
-    // on every request, including the plain WP-Cron/Action-Scheduler tick
-    // that later actually processes a queued job — rest_api_init doesn't
-    // fire on that request. Hooked on plain 'init' in bh-contest.php.
+    // WHY: job handlers register on 'init', not rest_api_init, because the
+    // cron/Action Scheduler request that runs a queued job never fires rest_api_init.
     public static function init(): void {
         if (class_exists('OUS_Jobs')) {
             OUS_Jobs::register('bh_contest_submission_confirmation_email', [self::class, 'send_submission_confirmation_email']);
@@ -20,12 +17,8 @@ class BH_API {
         $idarg  = ['submission_id' => ['required' => true, 'sanitize_callback' => 'absint']];
         $carg   = [
             'contest'  => ['sanitize_callback' => 'sanitize_text_field'],
-            // Not a bare 'sanitize_title' reference: WordPress's REST
-            // framework calls sanitize_callback as (value, request, key) —
-            // sanitize_title() declares 3 params too, so those extra
-            // arguments silently land in its $fallback_title/$context
-            // slots instead of being ignored. Wrapping it forces exactly
-            // one argument through.
+            // WHY: wrapped, because REST passes (value, request, key) and a bare
+            // sanitize_title would take those as $fallback_title/$context.
             'category' => ['sanitize_callback' => function ($v) { return sanitize_title((string) $v); }],
         ];
 
@@ -34,28 +27,13 @@ class BH_API {
         register_rest_route('bh/v1', '/results', ['methods' => 'GET',  'callback' => [self::class, 'results'], 'args' => $carg] + $pub);
         register_rest_route('bh/v1', '/vote',    ['methods' => 'POST', 'callback' => [self::class, 'vote'],    'args' => $idarg + $carg] + $auth);
         register_rest_route('bh/v1', '/submit',  ['methods' => 'POST', 'callback' => [self::class, 'submit'],  'args' => $carg] + $auth);
-        // Contestant self-service "wrong file uploaded" fix. Ownership is enforced INSIDE replace_audio()
-        // (post_author === current user), not just is_user_logged_in()
-        // here, same "auth tier here + real ownership check in the
-        // callback" pattern bh-monetization-woo's admin_post_
-        // bhm_manage_subscription handler already uses.
+        // These two only require login here; ownership is checked inside each callback.
         register_rest_route('bh/v1', '/submissions/replace-audio', ['methods' => 'POST', 'callback' => [self::class, 'replace_audio'], 'args' => $idarg] + $auth);
-        // Real gap, named explicitly in ROADMAP-platform-evolution.md
-        // Section 6: the portal's Contest Submissions panel let a
-        // contestant swap the AUDIO FILE (replace_audio() above) but had
-        // no way to fix a typo'd song/artist title without emailing an
-        // admin — "edit your submission" was described as a genuine
-        // capability gap this portal build should close, not just a UI
-        // move. Same ownership + submission-window gating as
-        // replace_audio(), same reasoning: still editable while the
-        // contest is accepting submissions, locked once it closes.
         register_rest_route('bh/v1', '/submissions/edit-details', ['methods' => 'POST', 'callback' => [self::class, 'edit_details'], 'args' => $idarg + [
             'title'  => ['sanitize_callback' => 'sanitize_text_field'],
             'artist' => ['sanitize_callback' => 'sanitize_text_field'],
         ]] + $auth);
-        // Admin-only live tally. Completely separate gate from /results —
-        // always reflects the true current count regardless of the "Publish
-        // Results" checkbox, and only ever answers manage_options users.
+        // Admin-only live tally, independent of the "Publish Results" setting.
         register_rest_route('bh/v1', '/admin/live', ['methods' => 'GET', 'callback' => [self::class, 'admin_live'], 'args' => $carg] + $admin);
     }
 
@@ -84,10 +62,8 @@ class BH_API {
             'meta_value'     => $cid,
         ]);
 
-        // Every category's vote state for the current user, fetched in one
-        // query and keyed as $mine[submission_id][category] — lets the
-        // front end switch between category tabs instantly with no extra
-        // round trip per tab.
+        // The user's vote state for every category in one query, as
+        // $mine[submission_id][category], so tab switches need no round trip.
         $mine = [];
         if (is_user_logged_in()) {
             global $wpdb;
@@ -115,15 +91,7 @@ class BH_API {
                 'votes'  => $votes,
             ];
         }
-        // Audit fix (2026-07-25) — a voter previously had no way to know
-        // how many votes they had left in a category before/after
-        // casting one; the only signal was a post-vote toast that
-        // disappeared, and otherwise clicking "Vote" until it stopped
-        // working. Computed once per category here (same
-        // BH_Helpers::vote_limit()/user_vote_count() pair the vote-cast
-        // endpoint already uses for its own votes_left) so the front end
-        // can render a persistent counter from page load, not only after
-        // the first vote.
+        // Votes left per category, same math as vote()'s votes_left.
         $votes_remaining = [];
         $vote_limit = null;
         if (is_user_logged_in()) {
@@ -147,47 +115,25 @@ class BH_API {
             'results_published' => get_post_meta($cid, '_bh_results_published', true) === '1',
             'vote_limit'        => $vote_limit,
             'votes_remaining'   => $votes_remaining,
-            // Real bug, found live: the player had zero client-side
-            // awareness of the contest's own voting window — every "Vote"
-            // button stayed fully enabled regardless of phase, and a
-            // voter only ever discovered voting had closed after a real
-            // round trip failed with "Voting is not open right now,"
-            // toast-only, no upfront indication. player.ts now uses this
-            // to disable voting and show a real closed-state banner
-            // instead of an always-live-looking UI that quietly rejects
-            // every click.
+            // The player uses this to disable vote buttons and show a closed banner.
             'voting_open'       => class_exists('BH_Rounds') ? BH_Rounds::is_voting_open($cid) : BH_Helpers::is_voting_open($cid),
         ]);
     }
 
-    // Shared with vote() below — same validate-before-trust pattern this
-    // endpoint already used for its own rate-limit key.
     private static function client_ip(): string {
         return (isset($_SERVER['REMOTE_ADDR']) && filter_var($_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP))
             ? $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
     }
 
-    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2c: a first-party,
-    // long-lived cookie distinguishing browsers independent of which
-    // account is logged in — a second signal alongside IP for
-    // BH_Helpers::suspicious_ip_clusters(), since a shared IP alone
-    // (a household, a campus, a VPN exit node) is common and NOT itself
-    // suspicious; several DIFFERENT fingerprints voting from the same IP
-    // is normal, while the same fingerprint reappearing under several
-    // DIFFERENT accounts from that IP is the real signal. Generated once
-    // per browser, not per vote — set via a plain httponly cookie, never
-    // read back into anything auth-related.
+    // Long-lived per-browser cookie, a second signal beside IP for
+    // BH_Helpers::suspicious_ip_clusters(): the same fingerprint under several
+    // accounts is suspicious; a shared IP alone is not. Never used for auth.
     private static function voter_fingerprint(): string {
         if (!empty($_COOKIE['bh_vfp']) && preg_match('/^[a-f0-9]{32}$/', $_COOKIE['bh_vfp'])) {
             return $_COOKIE['bh_vfp'];
         }
         $fp = bin2hex(random_bytes(16));
-        // REST responses haven't sent headers yet at this point in the
-        // callback in a real request — setcookie() here lands in the
-        // same response the vote confirmation does, no extra round trip.
-        // headers_sent() guard is defensive only (some hosting setups
-        // buffer/flush unusually) — this is a best-effort second signal,
-        // never something a vote should fail over.
+        // Best effort only; a vote never fails over a missing cookie.
         if (!headers_sent()) {
             setcookie('bh_vfp', $fp, time() + 5 * YEAR_IN_SECONDS, COOKIEPATH ?: '/', COOKIE_DOMAIN, is_ssl(), true);
         }
@@ -234,50 +180,22 @@ class BH_API {
         $sid   = (int) $req->get_param('submission_id');
         $limit = BH_Helpers::vote_limit($uid, $cid);
 
-        // Toggle-off is checked BEFORE the "belongs to this contest /
-        // still published" gate below — a real trapped-vote bug, found
-        // by tracing what happens when an admin rejects a submission
-        // AFTER it already collected votes (handle_reject_submission()
-        // sets post_status = 'rejected', BH_AdminModeration in class-admin-moderation.php): every voter
-        // who'd already voted for it used to hit the publish-status
-        // check on every future request for that submission_id and get
-        // "That track does not belong to this contest" — permanently
-        // unable to free that vote slot, with the track invisible on
-        // /tracks so they couldn't even see what was consuming it.
-        // Freeing an EXISTING vote is always safe regardless of the
-        // submission's current status (it can only ever reduce a tally,
-        // never let anyone vote for something invalid); only casting a
-        // NEW vote needs the full validity gate below.
+        // WHY: look up an existing vote BEFORE the validity gate, so a vote for
+        // a since-rejected submission can always be freed. Only new votes are gated.
         $existing = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM $t WHERE user_id = %d AND contest_id = %d AND category = %s AND submission_id = %d AND round = %d",
             $uid, $cid, $cat, $sid, $round
         ));
 
-        // The track must actually belong to THIS contest — without this
-        // check a client could vote on a submission from a different
-        // contest while pointed at this one, corrupting both tallies.
-        // QA fix: also require post_status === 'publish'. Without it, a
-        // user who knows/guesses a pending or rejected submission's ID
-        // could vote for it directly via this endpoint (the UI only ever
-        // lists published tracks via /tracks) — the vote would silently
-        // never appear in results/reveal (those both already filter by
-        // publish status) but would still consume one of the user's
-        // limited votes in that category, and would retroactively count
-        // if the submission were approved later, without the voter
-        // having chosen against the actual field of approved tracks.
-        // Only enforced on the toggle-ON path — see the toggle-off
-        // comment above for why an existing vote must always be freeable.
+        // A new vote must target a published submission of THIS contest; otherwise
+        // a guessed ID could cross-vote contests or vote for pending/rejected tracks.
         if (!$existing) {
             $sub = get_post($sid);
             if (!$sub || $sub->post_type !== 'bh_submission' || $sub->post_status !== 'publish'
                 || (int) get_post_meta($sid, '_bh_contest_id', true) !== $cid) {
                 return self::err('bad', 'That track does not belong to this contest.', 400);
             }
-            // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: an
-            // entry that didn't survive a prior cut can't collect new
-            // votes in the current round — no-op check for a single-
-            // round contest, where every submission is always eligible
-            // for round 0.
+            // Entries cut in a prior round can't collect new votes.
             if (class_exists('BH_Rounds') && !BH_Rounds::is_eligible($sid, $cid)) {
                 return self::err('eliminated', 'This entry did not advance to the current round.', 400);
             }
@@ -287,20 +205,11 @@ class BH_API {
         if ($existing) {
             $deleted = $wpdb->delete($t, ['id' => $existing], ['%d']);
             if ($deleted === false && class_exists('OUS_DebugLog')) {
-                // Previously unchecked — the response always claimed
-                // "removed" regardless of whether the row actually went
-                // away, so a failed delete looked identical to a
-                // successful one to both the voter and anyone debugging
-                // a "my vote count looks wrong" report later.
                 OUS_DebugLog::log('error', 'Vote removal DB delete failed.', [
                     'user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'vote_row_id' => $existing, 'db_error' => $wpdb->last_error,
                 ], 'BH Contest Voting');
             }
-            // BH_Event: fire-and-forget, after this DB write (no
-            // transaction wraps the removal path) — purely for the
-            // activity-stream/CRM side, never touching the vote-tallying
-            // logic above. See EVENT-TRACKING-ARCHITECTURE-PLAN.md
-            // Section 5 item 4.
+            // Fire-and-forget activity event; never affects the tally.
             if (class_exists('BH_Event')) {
                 BH_Event::emit('bh/vote', [
                     'user_id' => $uid,
@@ -338,21 +247,14 @@ class BH_API {
             ['%d', '%d', '%s', '%d', '%s', '%s', '%d']
         );
         if ($inserted === false && class_exists('OUS_DebugLog')) {
-            // Previously unchecked and the transaction still COMMITted
-            // regardless — a failed insert told the voter "added" with
-            // no actual vote recorded, and nothing anywhere would have
-            // explained a later "why is my vote count wrong" report.
             OUS_DebugLog::log('error', 'Vote insert DB write failed — COMMIT proceeded anyway, response will incorrectly report success.', [
                 'user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'submission_id' => $sid, 'db_error' => $wpdb->last_error,
             ], 'BH Contest Voting');
         }
         $wpdb->query('COMMIT');
 
-        // BH_Event: fired here, AFTER the transaction commits — must
-        // NOT move inside the transaction or onto the queue in a way
-        // that could delay/block the synchronous votes_left response
-        // the caller needs immediately. See
-        // EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 5 item 4.
+        // WHY: emit after COMMIT, never inside the transaction, so it can't
+        // delay the synchronous votes_left response.
         if (class_exists('BH_Event')) {
             BH_Event::emit('bh/vote', [
                 'user_id' => $uid,
@@ -387,17 +289,14 @@ class BH_API {
                 : 'Submissions have closed for this contest.';
             return self::err('sub_closed', $msg, 403);
         }
-        // A draft (no audio yet — see below) gets its own message
-        // pointing at how to finish, not "you already submitted".
+        // An unfinished draft (no audio yet) gets a "finish it" message instead.
         $existing_draft = BH_Helpers::draft_submission_for($uid, $cid);
         if ($existing_draft) {
             return self::err('needs_audio', 'You already started a submission for this contest — finish it by uploading your audio file from your account portal.', 409, ['submission_id' => $existing_draft]);
         }
         if (BH_Helpers::has_submitted($uid, $cid)) return self::err('duplicate', 'You have already submitted a track to this contest.', 403);
 
-        // Fold in whatever profile fields rode along with this submission —
-        // registration may have already captured some of these; only what's
-        // present in THIS request gets written (see BHI_Profiles::save).
+        // Save only the profile fields present in this request.
         $profile_fields = BHI_Profiles::from_request($req);
         if ($profile_fields) BHI_Profiles::save($uid, $profile_fields);
 
@@ -411,11 +310,8 @@ class BH_API {
             );
         }
 
-        // A fan can start a submission with no audio file yet and attach
-        // it later from the account portal (BH_PortalPanel, reusing
-        // replace_audio()'s upload form below). Per-contest, off by
-        // default — an admin opts in via "Allow submitting without
-        // audio yet" (Contest Rules & Results box).
+        // Per-contest opt-in: submit now, attach audio later from the portal
+        // (via replace_audio()).
         $allow_draft = (bool) get_post_meta($cid, '_bh_allow_audio_optional', true);
         $f = $req->get_file_params();
         $has_file = !empty($f['audio']['tmp_name']);
@@ -435,15 +331,8 @@ class BH_API {
         require_once ABSPATH . 'wp-admin/includes/image.php';
         require_once ABSPATH . 'wp-admin/includes/media.php';
 
-        // The has_submitted() check above is a fast, friendly early
-        // rejection — good UX, but not race-safe on its own: two
-        // near-simultaneous requests from the same user (double-clicked
-        // submit, a retried request) could both pass it before either
-        // has actually inserted a post. add_option() is genuinely atomic
-        // (option_name is a unique key at the database level), so this
-        // is the real guarantee — the second concurrent request to reach
-        // this point fails here even though it already passed the
-        // earlier check.
+        // WHY: has_submitted() above isn't race-safe; add_option() is atomic
+        // (unique option_name), so this lock is the real duplicate guard.
         $lock_key = 'bh_sub_lock_' . $uid . '_' . $cid;
         if (!add_option($lock_key, time(), '', 'no')) {
             return self::err('duplicate', 'You have already submitted a track to this contest.', 403);
@@ -452,12 +341,8 @@ class BH_API {
         $pid = wp_insert_post([
             'post_title'  => $title,
             'post_type'   => 'bh_submission',
-            // A no-file entry (only reachable when $allow_draft is on)
-            // is genuinely NOT ready for review yet — 'draft' keeps it
-            // out of the admin approval queue and out of
-            // has_approved_submission()'s bonus-vote check, but
-            // has_submitted()'s 'any'-status query still correctly
-            // blocks a second entry attempt while it's outstanding.
+            // 'draft' keeps a no-audio entry out of review and the bonus-vote
+            // check; has_submitted() still counts it, blocking a second entry.
             'post_status' => $has_file ? 'pending' : 'draft',
             'post_author' => $uid,
         ], true);
@@ -476,9 +361,7 @@ class BH_API {
         update_post_meta($pid, '_bh_admin_note', sanitize_textarea_field($req->get_param('note')));
 
         if (!$has_file) {
-            // No email/CRM event yet — notify_submission_complete()
-            // fires once audio actually shows up (here or via
-            // replace_audio()), the point a submission is genuinely "in".
+            // Notification waits until audio arrives (see notify_submission_complete()).
             return self::ok([
                 'submission_id' => $pid,
                 'needs_audio' => true,
@@ -491,12 +374,6 @@ class BH_API {
             wp_delete_post($pid, true); // roll back so a bad upload doesn't lock the user out
             delete_option($lock_key);   // upload genuinely failed — let them retry
             if (class_exists('OUS_DebugLog')) {
-                // Previously the cause was discarded entirely — a bad
-                // file, a disk/permission problem, and a corrupt upload
-                // all produced the identical generic client-facing
-                // message with nothing anywhere to distinguish them
-                // later (e.g. "several submissions failing" vs. "this
-                // one user's file was bad").
                 OUS_DebugLog::log('warning', 'Contest submission media_handle_sideload() failed.', [
                     'user_id' => $uid, 'contest_id' => $cid, 'filename' => $f['audio']['name'] ?? '', 'wp_error' => $aid->get_error_message(),
                 ], 'BH Contest Submission');
@@ -506,33 +383,19 @@ class BH_API {
         update_post_meta($pid, '_bh_audio_id', $aid);
         self::notify_submission_complete($pid, $uid, $cid, $title);
 
-        // submission_id + the two share-card URLs ride along on the
-        // success response so the submit form's own JS can offer
-        // "Get shareable image" immediately, without a second request —
-        // same shape class-share-cards.php's card_url() builds, just
-        // called from here since this is a REST context, not a
-        // template_redirect one.
+        // Share-card URLs ride along so the player can offer them without a second request.
         $share = class_exists('BH_ShareCards') ? [
             'entered_card_url' => BH_ShareCards::entered_card_url($pid),
             'vote_card_url' => BH_ShareCards::vote_card_url($pid),
             'contest_page_url' => BH_ShareCards::contest_page_url($cid),
         ] : [];
-        // Rides along so the post-submit share modal can say something
-        // concrete about what happens next ("Voting closes X") instead of
-        // leaving a fan with nothing between "submitted" and whenever the
-        // reveal party happens — there's no separate stored reveal date
-        // (that's admin-triggered live), so the voting/contest end date is
-        // the one real "next thing" this API already tracks.
+        // Lets the share modal say "Voting closes X" (the reveal has no stored date).
         $vote_end = get_post_meta($cid, '_bh_end', true);
         return self::ok(['submission_id' => $pid, 'vote_end' => $vote_end ?: null] + $share);
     }
 
-    // Shared by submit() (audio attached in the same request) and
-    // replace_audio()'s first-time-attach branch (audio attached later
-    // from the portal) — a submission is only genuinely "in" for review
-    // once real audio exists, so this is the one place both paths
-    // converge to fire the CRM timeline event + confirmation email,
-    // rather than maintaining two copies of the same notice text.
+    // Fires the event + confirmation email once a submission has real audio;
+    // shared by submit() and replace_audio()'s first-attach branch.
     private static function notify_submission_complete(int $pid, int $uid, int $cid, string $title): void {
         if (class_exists('BH_Event')) {
             BH_Event::emit('bh/submission_created', [
@@ -547,22 +410,13 @@ class BH_API {
             $subject = 'We got your submission — ' . get_bloginfo('name');
             $body = "Hi {$user->user_login},\n\nYour track \"{$title}\" for {$contest_title} has been received and is pending review. You'll hear from us once it's approved.\n\nThanks for entering!";
 
-            // Audit fix (2026-07-25): this used to call wp_mail()
-            // synchronously here — inside the same REST request that's
-            // also handling the submission's file upload, a real timeout
-            // risk on a slow mail transport. Now queued via OUS_Jobs
-            // (handler registered in init() above, run_one() actually
-            // sends it), same discipline as bh_contest_email_winner.
-            // bhcore/email_sent now fires from the job handler on real
-            // send success, not at enqueue time.
+            // WHY: queued, not sent inline, so slow mail can't time out the upload request.
             if (class_exists('OUS_Jobs')) {
                 OUS_Jobs::enqueue('bh_contest_submission_confirmation_email', [
                     'user_id' => $uid, 'submission_id' => $pid, 'email' => $user->user_email, 'subject' => $subject, 'body' => $body,
                 ]);
             } else {
-                // No job queue active (shouldn't happen — same plugin,
-                // same activation) — fail toward still sending rather
-                // than silently dropping the confirmation.
+                // No job queue: send inline rather than drop the confirmation.
                 if (class_exists('BH_Mail')) {
                     BH_Mail::send([
                         'to' => $user->user_email, 'user_id' => $uid, 'subject' => $subject, 'body' => $body,
@@ -575,9 +429,7 @@ class BH_API {
         }
     }
 
-    // OUS_Jobs handler, registered in init() above — the actual send now
-    // happens off the original REST request, via Action Scheduler (or
-    // the fallback cron queue).
+    // OUS_Jobs handler registered in init().
     /** @param array<string, mixed> $args */
     public static function send_submission_confirmation_email($args): void {
         $email = $args['email'] ?? '';
@@ -596,20 +448,9 @@ class BH_API {
     }
 
     /**
-     * "Wrong file uploaded" fix. Available to the submission's OWN
-     * author (self-service) or an admin, any time the contest's
-     * submission window is still open — same BH_Helpers::is_submission_open()
-     * gate submit() itself uses, so a swap can never happen after the
-     * window a fresh submission would also be rejected in.
-     *
-     * The new file goes into `_bh_pending_audio_id`, NEVER directly
-     * into `_bh_audio_id` — the currently-live file (whatever's
-     * actually being played/voted on right now) keeps serving
-     * unchanged until an admin reviews and approves the swap
-     * (BH_AdminModeration::handle_approve_swap()). If a pending swap
-     * already exists (the contestant swapped more than once before
-     * review), the previous pending attachment is deleted and
-     * replaced — only the newest ever needs review.
+     * Owner/admin audio swap while submissions are open. The new file goes to
+     * `_bh_pending_audio_id`, never `_bh_audio_id`, until an admin approves it
+     * (BH_AdminModeration::handle_approve_swap()); only the newest pending swap is kept.
      */
     /** @return \WP_REST_Response|\WP_Error */
     public static function replace_audio(\WP_REST_Request $req) {
@@ -652,10 +493,7 @@ class BH_API {
             return self::err('upload', 'We could not process that audio file. Please try another.', 400);
         }
 
-        // A draft submission has no live audio yet — this is its real
-        // first file, not a swap, so it goes straight into _bh_audio_id
-        // and becomes reviewable (draft -> pending), sharing submit()'s
-        // completion notice rather than the pending-swap path below.
+        // A draft's first file is not a swap: it goes live and the draft moves to pending.
         if ($post->post_status === 'draft' && !get_post_meta($pid, '_bh_audio_id', true)) {
             update_post_meta($pid, '_bh_audio_id', $aid);
             wp_update_post(['ID' => $pid, 'post_status' => 'pending']);
@@ -663,16 +501,14 @@ class BH_API {
             return self::ok(['message' => 'Submission complete — your track is now pending review!']);
         }
 
-        // Only the newest pending swap survives — delete a prior
-        // unreviewed one rather than stacking pending files.
+        // Only the newest pending swap survives.
         $old_pending = (int) get_post_meta($pid, '_bh_pending_audio_id', true);
         if ($old_pending && $old_pending !== $aid) wp_delete_attachment($old_pending, true);
 
         update_post_meta($pid, '_bh_pending_audio_id', $aid);
         update_post_meta($pid, '_bh_pending_replaced_by', $uid);
         update_post_meta($pid, '_bh_pending_replaced_at', current_time('mysql'));
-        // A prior rejection is no longer the last word once a new file
-        // shows up — put it back in front of an admin.
+        // A new file sends a rejected submission back to review.
         if ($post->post_status === 'rejected') wp_update_post(['ID' => $pid, 'post_status' => 'pending']);
 
         if (class_exists('BH_Event')) {
@@ -686,12 +522,8 @@ class BH_API {
     }
 
     /**
-     * Song title + artist name, the two fields a contestant can typo at
-     * submit time with no self-service fix until now. Deliberately NOT
-     * touching the audio file (replace_audio() above already owns that)
-     * or re-opening admin review — a title/artist correction doesn't
-     * need the same "goes back to pending" treatment a new audio file
-     * does, since nothing about the actual submitted work changed.
+     * Owner/admin edit of song title + artist while submissions are open.
+     * Does not re-open review, since the submitted audio is unchanged.
      */
     /** @return \WP_REST_Response|\WP_Error */
     public static function edit_details(\WP_REST_Request $req) {
@@ -723,9 +555,7 @@ class BH_API {
         return self::ok(['message' => 'Saved.', 'title' => $title, 'artist' => $artist]);
     }
 
-    // Always returns a `categories` array — a contest with no named
-    // categories gets a single entry (slug '') so the client can treat
-    // both shapes uniformly and only render tabs when there's more than one.
+    // Always returns `categories`; an uncategorized contest gets one entry with slug ''.
     /** @return \WP_REST_Response|\WP_Error */
     public static function results(\WP_REST_Request $req) {
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
@@ -739,14 +569,8 @@ class BH_API {
         $cats = BH_Helpers::categories($cid);
         if (!$cats) $cats = [['slug' => '', 'name' => '']];
 
-        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a: 'judges'
-        // replaces the public vote tally everywhere a leaderboard is
-        // read; 'hybrid' adds a SECOND leaderboard rather than blending
-        // the two into one score (the roadmap doc's own direct decision)
-        // — a 'judge_results' key is only present at all for a
-        // judges/hybrid contest, so an existing front end reading only
-        // 'results' keeps working unmodified for every 'public' contest,
-        // which is every contest that predates this feature.
+        // 'judges' swaps the rubric score into `results`; 'hybrid' adds a separate
+        // `judge_results` leaderboard rather than blending the two.
         $format = BH_Helpers::contest_format($cid);
         $out = [];
         foreach ($cats as $c) {
@@ -761,16 +585,8 @@ class BH_API {
         return self::ok(['contest' => get_the_title($cid), 'categories' => $out, 'format' => $format]);
     }
 
-    // Public so BH_Reveal can reuse the exact same ranked-results query
-    // rather than re-deriving it — one source of truth for "who's
-    // currently winning a category."
-    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: $round scopes
-    // the tally to one round's votes only (each round's votes are
-    // independent rows — class-activator.php 1.7) — null (the default,
-    // every pre-existing call site) means "every vote regardless of
-    // round," which is exactly today's unchanged behavior for a
-    // single-round contest, since every one of its votes carries
-    // round = 0 anyway.
+    // Ranked results for one category; public so BH_Reveal shares the same query.
+    // $round limits the tally to one round's votes; null counts every round.
     /** @return array<int, array<string, mixed>> */
     public static function category_results(int $cid, string $category, ?int $round = null): array {
         global $wpdb;
@@ -806,22 +622,14 @@ class BH_API {
         return $out;
     }
 
-    // Admin-only: the true current tally for a SPECIFIC contest, live,
-    // regardless of whether results have been published. Includes vote
-    // velocity (last vote timestamp) and voter turnout so admins can gauge
-    // how a contest is going without tipping anything off publicly.
-    // category=all returns every category's rows together (one row per
-    // submission+category, with the category name attached) instead of a
-    // single category's leaderboard.
+    // Admin-only live tally with turnout and last-vote time, published or not.
+    // category=all returns one row per submission+category.
     /** @return \WP_REST_Response|\WP_Error */
     public static function admin_live(\WP_REST_Request $req) {
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
         if (!$cid) return self::err('no_contest', 'No matching contest.', 404);
 
-        // Check the raw query value directly for the 'all' sentinel rather
-        // than only the sanitized param — belt-and-suspenders against any
-        // future sanitize_callback change silently breaking this specific
-        // comparison the way the unwrapped sanitize_title() reference did.
+        // Also check the raw query value for 'all', in case sanitizing ever alters it.
         $raw   = $req->get_query_params();
         $param = $req->get_param('category');
         $all   = ($param === 'all') || (($raw['category'] ?? '') === 'all');

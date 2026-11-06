@@ -2,15 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Optionally enriches BH CRM's person view with this plugin's own
- * activity — active supporter tier, purchase history, and wallet
- * balance. Entirely one-directional and entirely optional, mirroring
- * bh-streaming's own class-crm-integration.php exactly: if BH CRM isn't
- * installed, these add_filter() calls just sit unused.
- *
- * This is also the pattern a future LMS/courses plugin should follow
- * for its own "enrolled and paid" activity — a separate, independent
- * bh_crm_activity_summary section, never something bolted onto this one.
+ * Adds tier, purchases, wallet and fraud flags to BH CRM's person view.
+ * One-directional; the filters sit unused when BH CRM isn't installed.
  */
 class BHM_CRMIntegration {
     public static function init(): void {
@@ -19,27 +12,11 @@ class BHM_CRMIntegration {
         add_action('admin_post_bhm_revoke_entitlement', [self::class, 'handle_revoke_entitlement']);
     }
 
-    /**
-     * Real support-case gap this closes: the only ways an entitlement
-     * ever got revoked were a real WooCommerce refund/cancellation
-     * (class-products.php's on_order_reversed()/revoke_subscription_
-     * entitlements()) or a Debug Tools action that only ever touches
-     * the CURRENTLY LOGGED-IN admin's own account (class-debug.php) —
-     * a comped-access-given-in-error, or a chargeback/dispute handled
-     * entirely outside WooCommerce (bank-side, not a WC refund), had no
-     * admin-facing fix anywhere. Fires the exact same
-     * bhm_entitlement_revoked action every automated revocation path
-     * already fires, so any current or future listener (Discord-role
-     * sync, bh-courses' own course-access notice, etc.) sees this as
-     * identical to a real refund — not a second, divergent code path.
-     */
+    /** Manual admin revoke (e.g. a bank-side chargeback); fires the same bhm_entitlement_revoked as a refund. */
     public static function handle_revoke_entitlement(): void {
         if (!current_user_can('bhcore_view_crm_sensitive') || !check_admin_referer('bhm_revoke_entitlement')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
-        // Shared with BHM_Debug's own "simulate a refund" test action —
-        // one real revoke-by-id path, not two independently-written
-        // copies of "delete a row and maybe notify."
         $entitlement_id = (int) ($_GET['entitlement_id'] ?? 0);
         $row = $entitlement_id ? BHM_Products::revoke_entitlement_by_id($entitlement_id, 'manual_admin_revoke') : null;
         if ($row && class_exists('OUS_Toast')) OUS_Toast::queue('Access revoked — the fan has been notified.', 'success');
@@ -65,22 +42,10 @@ class BHM_CRMIntegration {
      */
     public static function activity_summary($sections, int $user_id): array {
         global $wpdb;
-        // QA fix: wallet balance, tier, purchase history, and refund-
-        // fraud flags were shown to anyone who could reach the CRM
-        // person page at all (bhcore_manage_crm, granted to editor and
-        // the new Studio Manager role) — including in the collapsed
-        // section SUMMARY line, visible without even expanding it. This
-        // is exactly the "financial/private data" security-audit finding
-        // — gated behind the new admin-only bhcore_view_crm_sensitive
-        // capability instead.
+        // WHY: financial data, so gated on bhcore_view_crm_sensitive, not bhcore_manage_crm (editors).
         if (!current_user_can('bhcore_view_crm_sensitive')) return $sections;
         $entitlements = $wpdb->get_results($wpdb->prepare(
-            // id DESC as a tiebreaker — created_at only has 1-second
-            // resolution, and the loop below actually depends on this
-            // order to pick which entitlement counts as the "active
-            // tier" (the most recently granted non-expired one), so a
-            // same-second tie (bulk migration/promo grant) isn't just a
-            // display-order nit here, it could pick the wrong tier.
+            // id DESC breaks same-second ties; the loop below picks the active tier by this order.
             "SELECT * FROM " . BHM_Tables::entitlements() . " WHERE user_id = %d ORDER BY created_at DESC, id DESC", $user_id
         ));
         $balance = class_exists('BHM_Wallet') ? BHM_Wallet::balance_cents($user_id) : 0;
@@ -96,16 +61,11 @@ class BHM_CRMIntegration {
         }
 
         $purchase_count = count(array_filter($entitlements, fn($e) => $e->type === 'purchase'));
-        // BHM_Fraud (refund/velocity fraud-pattern detection) was split
-        // out of BHM_Products in the DRY/SOLID refactor pass — see
-        // includes/class-fraud.php.
         $refund_count = class_exists('BHM_Fraud') ? BHM_Fraud::refund_count_recent($user_id) : 0;
         $flagged = get_user_meta($user_id, '_bhm_refund_flagged', true) === '1';
         $shared_device_flagged = get_user_meta($user_id, '_bhm_refund_shared_device_flagged', true) === '1';
         $velocity_flagged = get_user_meta($user_id, '_bhm_velocity_flagged', true) === '1';
-        // Wallet top-up velocity cap — a distinct signal
-        // from the play-rate velocity flag above (that's plays, this is
-        // money going INTO the wallet unusually fast).
+        // Top-up velocity (money in), distinct from play-rate velocity above.
         $topup_flagged = class_exists('BHM_Fraud') && get_user_meta($user_id, '_bhm_topup_velocity_flagged', true) === '1';
         $topup_recent_cents = class_exists('BHM_Fraud') ? BHM_Fraud::topup_total_recent_cents($user_id) : 0;
 
@@ -147,11 +107,7 @@ class BHM_CRMIntegration {
             $label = $e->scope === 'account' ? (BHM_Tiers::get($e->object_id)['name'] ?? 'Tier #' . $e->object_id) : ($e->scope . ' #' . $e->object_id);
             $revoke_url = wp_nonce_url(admin_url('admin-post.php?action=bhm_revoke_entitlement&entitlement_id=' . (int) $e->id), 'bhm_revoke_entitlement');
             echo '<tr><td>' . esc_html($e->type) . '</td><td>' . esc_html($label) . '</td><td>' . esc_html($e->created_at) . '</td><td>' . esc_html($e->expires_at ?: 'Never') . '</td>';
-            // Arm/disarm instead of confirm() — same banned-native-dialog
-            // reason as every other irreversible-ish action in this
-            // ecosystem (bh-streaming's jam-kick button, this same
-            // reasoning). First click relabels/arms for 3s; a second
-            // click while armed actually revokes.
+            // Two-click arm/confirm instead of a native confirm() dialog.
             echo '<td><button type="button" class="button button-small bhm-revoke-btn" data-url="' . esc_url($revoke_url) . '" style="color:#b32d2e;">Revoke</button></td>';
             echo '</tr>';
         }
@@ -188,15 +144,7 @@ class BHM_CRMIntegration {
     }
 }
 
-// First real bh-monetization-woo contributor to the shared Metrics
-// dashboard (the-self-hosted-self's OUS_Metrics) — same "tandem infrastructure"
-// pass as bh-courses/bh-contest/bh-crm's own versions of this
-// registration, filling the one real gap left: revenue/entitlement
-// data wasn't represented anywhere on that dashboard. No BH_Event
-// exists for a purchase/entitlement grant today (only
-// bhm/wallet_credit and bhm/wallet_debit do — see class-wallet.php),
-// so this reads bhm_entitlements directly rather than inventing event
-// data that doesn't exist yet.
+// Metrics dashboard cards, read from bhm_entitlements (grants emit no BH_Event).
 add_filter('bhcore_metrics_widgets', function ($widgets) {
     if (!class_exists('OUS_Metrics')) return $widgets;
 

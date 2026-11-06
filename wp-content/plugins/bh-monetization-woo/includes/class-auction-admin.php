@@ -2,14 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Product-edit authoring UI for BHM_Auctions (class-auctions.php) — the
- * "next pass" that class's own docblock flagged as not yet built. Same
- * metabox shape as BHM_PostGate's own on 'product' instead of post/page
- * (add_meta_box on 'product' post type, save_post handler, nonce).
- *
- * Also owns the one human-in-the-loop action the fraud gate needs:
- * approving or rejecting a winning bid BHM_Auctions flagged for review
- * (see that class's charge-on-win/fraud-gate docblock notes).
+ * Auction metabox on the product editor, plus approve/reject for fraud-flagged winning bids.
  */
 class BHM_AuctionAdmin {
     public static function init(): void {
@@ -74,8 +67,7 @@ class BHM_AuctionAdmin {
             return;
         }
 
-        // Already has bids or has closed — terms are locked, don't let
-        // an edit change what bidders already bid against.
+        // Terms are locked once bidding has ended.
         if ($was_auction && !in_array($status, ['open', 'not_auction'], true)) return;
 
         $starting_cents = (int) round(((float) ($_POST['bhm_auction_starting'] ?? 0)) * 100);
@@ -83,7 +75,7 @@ class BHM_AuctionAdmin {
         $ends_raw = sanitize_text_field($_POST['bhm_auction_ends'] ?? '');
         $ends_mysql = $ends_raw ? str_replace('T', ' ', $ends_raw) . ':00' : '';
 
-        if ($starting_cents <= 0 || !$ends_mysql) return; // incomplete form, nothing sane to save yet
+        if ($starting_cents <= 0 || !$ends_mysql) return; // incomplete form
 
         BHM_Auctions::convert_to_auction($post_id, $starting_cents, $reserve_cents, $ends_mysql);
     }

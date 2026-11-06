@@ -2,17 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * bh-crm activity surfacing for the purchase ledger — a separate,
- * independent bh_crm_activity_summary section from BHM_CRMIntegration's
- * own wallet/tier/refund-flag summary (see that class's own docblock:
- * "a separate, independent ... section, never something bolted onto
- * this one"). Same one-directional, optional pattern: if bh-crm isn't
- * installed, these add_filter() calls just sit unused.
- *
- * This is the artist-facing "metrics log" half of
- * ROADMAP-streaming-media-scope-and-blockchain.md Part 2 — a durable,
- * tamper-evident sales record per person, distinct from (and a useful
- * cross-check against) whatever WooCommerce's own admin reports show.
+ * Purchase-ledger section in BH CRM's person view (separate from BHM_CRMIntegration's section).
  */
 class BHM_LedgerCRMIntegration {
     public static function init(): void {
@@ -24,8 +14,7 @@ class BHM_LedgerCRMIntegration {
      * @return array<int, array<string, mixed>>
      */
     public static function activity_summary($sections, int $user_id): array {
-        // Same sensitivity class as BHM_CRMIntegration's own wallet/
-        // purchase data — this is financial/proof-of-purchase data.
+        // Financial data.
         if (!current_user_can('bhcore_view_crm_sensitive')) return $sections;
         if (!class_exists('BHM_PurchaseLedger')) return $sections;
 

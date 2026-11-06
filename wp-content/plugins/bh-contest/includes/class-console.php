@@ -2,23 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Private, admin-only dashboard for running a contest live. Shows every
- * submission for a chosen contest with its audio right there to play,
- * plus the real identity behind it (name, Discord/Twitch/YouTube — see
- * BHI_Profiles) pulled in from the participant profile system, so an
- * admin listening through entries can immediately see who they're
- * listening to without cross-referencing anything.
- *
- * Also embeds the Results Reveal controls (see BH_Reveal::
- * render_controls_widget()) directly on this page — everything needed to
- * actually run the show, both the participant reference info and the
- * buttons that drive what's on stream, colocated on one screen instead
- * of split across two separate admin pages.
- *
- * Deliberately never shown or linked anywhere near the public-facing
- * Results Reveal page — this is the one place in the whole plugin
- * that's explicitly NOT safe to have visible in an OBS capture, since
- * it shows private contact info.
+ * Admin-only Live Console: every submission with playable audio and the
+ * participant's identity (BHI_Profiles), plus the reveal controls.
+ * PRIVACY: shows private contact info, so never link it from or show it on stream.
  */
 class BH_Console {
     public static function init(): void {
@@ -45,11 +31,8 @@ class BH_Console {
             return;
         }
 
-        // The submenu lives under edit.php?post_type=bh_contest (see BH_PostTypes::MENU_PARENT),
-        // so a bare GET form here MUST carry post_type through explicitly — a plain <form method="get">
-        // replaces the whole query string with only its own fields, dropping post_type, which makes
-        // WordPress unable to resolve 'bh-console' as a submenu and throw "Sorry, you are not allowed
-        // to access this page." on the redirect. Root cause found and fixed this session.
+        // WHY: a GET form drops the query string, so carry post_type explicitly or WP
+        // can't resolve the submenu ("Sorry, you are not allowed to access this page").
         echo '<form method="get" style="margin:0 0 var(--bhy-space-4);"><input type="hidden" name="post_type" value="bh_contest"><input type="hidden" name="page" value="bh-console">';
         echo '<select name="contest_id" onchange="this.form.submit()">';
         foreach ($contests as $c) {
@@ -67,11 +50,7 @@ class BH_Console {
         echo '<a href="' . esc_url(admin_url('edit.php?post_type=bh_contest&page=bh-results&contest_id=' . $cid)) . '">Full results</a> &middot; ';
         echo '<a href="' . esc_url(admin_url('edit.php?post_type=bh_submission&bh_contest_filter=' . $cid)) . '">All submissions</a></p>';
 
-        // "Everything you'd otherwise have to visit 3 other screens to
-        // piece together" — approved/pending counts (the moderation
-        // queue depth) plus votes/voters, right next to the phase badge
-        // so a glance at Console tells you both where the contest is
-        // AND whether anything needs attention.
+        // At-a-glance counts: approved, pending review, votes, voters.
         $approved = BH_Helpers::submission_count($cid, 'publish');
         $pending  = BH_Helpers::submission_count($cid, 'pending');
         $votes    = BH_Helpers::vote_count($cid);
@@ -109,10 +88,7 @@ class BH_Console {
             echo '</ul></div>';
         }
 
-        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2c: the second,
-        // independent anti-fraud signal alongside the timestamp-
-        // clustering check above — same manual-review-only posture, this
-        // never blocks anything, it just tells a human where to look.
+        // Second fraud signal (shared IP); like the one above, for review only, never blocking.
         $ip_clusters = BH_Helpers::suspicious_ip_clusters($cid);
         if ($ip_clusters) {
             echo '<div class="bhy-alert bhy-alert-warning">';
@@ -129,9 +105,6 @@ class BH_Console {
             echo '</ul></div>';
         }
 
-        // Reveal controls live right here, not on a separate admin page —
-        // everything needed to actually run the show (who's who, plus
-        // the buttons that drive what's on stream) stays on one screen.
         echo '<div class="bhy-card" style="max-width:640px;">';
         echo '<h2>Reveal Controls</h2>';
         BH_Reveal::render_controls_widget($cid);
@@ -166,10 +139,6 @@ class BH_Console {
             echo '<td><strong>' . esc_html($p->post_title) . '</strong><br><span style="color:var(--bhy-ink-dim);">' . esc_html($artist) . '</span>';
             if ($url) echo '<br><audio controls preload="none" src="' . esc_url($url) . '" style="height:32px;margin-top:6px;max-width:240px;"></audio>';
             echo '</td>';
-            // Distinguish "hasn't been reviewed yet" from "was reviewed
-            // and turned down" — both used to render as the same red
-            // "Pending" badge, which read as though a rejected entry
-            // still needed a decision.
             $status_badge = [
                 'publish'  => '<span class="bhy-badge bhy-badge-success">Approved</span>',
                 'rejected' => '<span class="bhy-badge bhy-badge-neutral">Rejected</span>',
@@ -194,13 +163,8 @@ class BH_Console {
         BHY_UI::shell_close();
     }
 
-    // Splits into what's actually safe to say out loud on stream (only
-    // fields the participant explicitly marked public — see BHI_Profiles)
-    // versus the full private reference underneath. Artist name is
-    // deliberately not part of this — that's already shown in the Track
-    // column and is always public by nature of being submitted; this is
-    // specifically about which of their *personal* names/handles they
-    // consented to have shared, which is a separate question entirely.
+    // "OK on stream" lists only fields the participant marked public; the full
+    // private reference goes underneath. Artist name is shown in the Track column.
     /** @param array<string, mixed> $p */
     private static function identity_cell($p): string {
         $fields = [
@@ -218,9 +182,7 @@ class BH_Console {
             $all[] = $line;
             if ((int) $p[$public_key] === 1) $public[] = $line;
         }
-        // Phone has no public/private toggle at all — it's never a
-        // candidate for the "OK on stream" list above, only the private
-        // reference below (prize-contact purposes only).
+        // Phone is never public (prize contact only).
         if ($p['phone'] !== '') $all[] = 'Phone: ' . esc_html($p['phone']);
 
         if (!$all) return '<em style="color:var(--bhy-ink-dim);">No profile on file</em>';

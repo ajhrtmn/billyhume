@@ -1,18 +1,7 @@
 /*
-  Design tokens
-  -------------
-  Every color, font, and size below is a CSS custom property with a
-  literal fallback — the fallback is what you see here (currently "The
-  Door", a near-black maroon with a terracotta accent), but the actual
-  values are set per-site by BH_Settings (see includes/class-settings.php)
-  and can be swapped entirely from Settings & Style in wp-admin, including
-  via a library of full-palette presets. Nothing in this file should be
-  read as "the" palette — it's just the default one.
-
-  Two-face type system: --bh-font-display for anything with personality
-  (brand, titles, headings), --bh-font-body for interface text — both
-  also configurable. Signature element: a small gradient "disc" per track
-  that spins while it's the one playing, standing in for missing artwork.
+  Design tokens. Every value is a custom property with a literal fallback; real
+  values come from BHY_Style (Settings & Style), so these are only the defaults.
+  --bh-font-display is for brand/titles, --bh-font-body for interface text.
 */
 :root {
     --bh-bg: #170807;
@@ -23,60 +12,31 @@
     --bh-text-dim: #B99584;
     --bh-accent: #C1503A;
     --bh-accent-soft: #E0A184;
-    /* Derived, not hand-picked — a genuine gap this token system had:
-       --bh-accent-soft is a separate admin-configurable field (Settings
-       & Style's color_accent_soft) with no enforced relationship to
-       --bh-accent at all, so nothing stopped it from landing light-on-
-       light against --bh-text on a dark theme (confirmed: ~1.4:1
-       contrast in two real components before this existed). This is a
-       small, fixed proportion of --bh-accent mixed into --bh-surface —
-       always dark (surface dominates the mix), always legible with
-       --bh-text on top, and it recomputes automatically for ANY chosen
-       accent/surface pair instead of needing a second hand-picked color
-       that could accidentally fail contrast again. Use this — never
-       --bh-accent-soft — anywhere an accent-tinted color sits BEHIND
-       body text; --bh-accent-soft stays reserved for its original job
-       (a lighter one-off, e.g. hovering an already-accent-colored
-       element).
-    */
+    /* WHY: derived from --bh-accent + --bh-surface so it stays legible under
+       --bh-text for any palette. Use it, never --bh-accent-soft, behind body text. */
     --bh-accent-muted-bg: color-mix(in srgb, var(--bh-accent) 18%, var(--bh-surface));
     --bh-bar-height: 84px;
     --bh-radius: 12px;
     --bh-radius-sm: 8px;
     --bh-font-display: 'Space Grotesk', 'Segoe UI', sans-serif;
     --bh-font-body: 'Inter', 'Segoe UI', sans-serif;
-    /* Multipliers, not literal values — every declaration below that uses
-       these does calc(BASEpx * var(--bh-*-scale)), so one number scales
-       every spacing/type value proportionally without touching any
-       flex/grid structure. --bh-disc-size is a fixed token (not exposed
-       in Settings & Style) rather than a proportion of anything — the
-       "vinyl" disc reads best at a specific size regardless of how
-       dense or spacious the rest of the layout is set to. */
+    /* Multipliers: declarations use calc(BASEpx * var(--bh-*-scale)).
+       --bh-disc-size is fixed on purpose. */
     --bh-font-scale: 1;
     --bh-space-scale: 1;
     --bh-disc-size: 40px;
 }
 
 /* ---------------- Theme-isolation reset ----------------
-   This renders straight into whatever WP theme is active (a shortcode
-   in normal page content, not an iframe), so leakage runs both ways:
-   an aggressive theme stylesheet can bleed INTO these components
-   (global a/button/ul/h1-h6 resets, oversized base font-size, etc.),
-   and — the bug this replaces — an unscoped `* { box-sizing }` here
-   used to leak OUT and silently change box-sizing for the ENTIRE page,
-   not just this widget. Everything below is scoped under .bh-container
-   specifically so neither direction of leakage happens. */
+   WHY: renders inside the active theme, so everything is scoped under
+   .bh-container to block leakage in both directions. */
 .bh-container, .bh-container * { box-sizing: border-box; }
 .bh-container :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li) {
     margin: 0;
     padding: 0;
     list-style: none;
 }
-/* Live-reported twice ("Contests" brand, "LIVE" reveal badge): some
-   builder-theme global typography rules put a line-through / underline
-   on non-link text in the content area, and text-decoration propagates
-   into descendant text unless the element clears it. Blanket-clear it
-   for the ecosystem's own headings/labels. */
+/* Some builder themes add text-decoration to content text; clear it here. */
 .bh-container :where(h1, h2, h3, h4, h5, h6, .bh-brand, [class*="-label"], [class*="-badge"], [class*="-kicker"]) {
     text-decoration: none;
 }
@@ -96,12 +56,8 @@
 }
 .bh-container {
     line-height: 1.4;
-    /* Transparent by default so the host theme's page background shows
-       through — the player reads as part of the site, not a dark slab
-       dropped onto it. The inner cards/header carry their own
-       --bh-surface fills for the contrast the controls need. A site that
-       wants the old contained-dark-panel look can set
-       `.bh-container { background: var(--bh-bg); }` in its own CSS. */
+    /* Transparent so the host page background shows through; inner surfaces
+       carry their own fills. */
     background-color: transparent;
     color: var(--bh-text);
     font-family: var(--bh-font-body);
@@ -111,24 +67,14 @@
        themes overlay the page top and expect each section to pad for
        it). Tunable per-site; set to 0 for themes with a static header. */
     padding-top: var(--bh-header-clearance, 72px);
-    /* Self-constrain + centre. The shortcode renders straight into a
-       full-bleed <main> on a block/builder theme, so without this the
-       whole player (a vote list, a category row) stretched edge to edge
-       — a 1400px-wide "Title · Artist · Vote" row reads as broken.
-       1200px matches bh-courses' catalog/lesson width so the LMS and the
-       contest look like one system. */
+    /* Self-constrain to 1200px (matches bh-courses), since full-bleed themes would stretch it. */
     max-width: 1200px;
     margin-inline: auto;
 }
 
 /* ---- server-rendered asides around the JS player ----
-   The "All contests" back-link and any before/after BH_Element slot
-   content render as siblings OUTSIDE the .bh-container player.js builds
-   inside .bh-player-root, so they need their own wrapper to line up
-   with the centred 1200px player instead of sitting against the
-   viewport edge. --before also owns the floating-header clearance
-   (via .ous-back-link's own margin-top), so .bh-container drops its
-   duplicate top padding when the aside precedes it. */
+   Siblings outside .bh-container, aligned to the same 1200px column.
+   --before owns the header clearance, so .bh-container drops its own. */
 .bh-player-aside {
     max-width: 1200px;
     margin-inline: auto;
@@ -154,10 +100,7 @@
     font-size: calc(20px * var(--bh-font-scale));
     font-weight: 600;
     letter-spacing: -0.02em;
-    /* Live-reported: some builder-theme global typography rules put a
-       line-through + underline on this heading (text-decoration
-       propagates to descendant text unless the element sets its own).
-       Explicitly clear it. */
+    /* Builder themes can decorate this heading; clear it explicitly. */
     text-decoration: none;
 }
 .bh-brand span { color: var(--bh-accent); }
@@ -169,16 +112,8 @@
     height: auto;
 }
 
-/* Task #80 — a genuinely new, additive header zone (player.js's
- * injectHeaderExtra(), fed by bh-contest's real 'header_extra'
- * BH_Element slot). :empty hides it from the flex layout entirely on
- * every contest that hasn't added anything there — .bh-header is
- * display:flex + justify-content:space-between, so an always-present
- * third flex child (even a zero-width one) would still claim a flex
- * distribution slot and shift .bh-header-actions slightly; :empty
- * removes it from that calculation completely, so a contest with no
- * header_extra content renders BYTE-IDENTICAL to before this feature
- * existed. Only takes part in the layout once real content is injected. */
+/* Additive header_extra zone (player.ts injectExtraZone()). :empty removes it
+ * from the flex layout so it never shifts .bh-header-actions. */
 .bh-header-extra:empty { display: none; }
 .bh-header-extra {
     display: flex;
@@ -186,21 +121,9 @@
     gap: calc(10px * var(--bh-space-scale));
 }
 
-/* Task #80 follow-up — three more additive zones, same :empty-hides-it
- * reasoning as .bh-header-extra above (an unused zone renders byte-
- * identical to before this feature existed; only takes up any space once
- * a contest actually has content there).
- *
- * .bh-now-playing-extra needs its own explicit caveat, flagged rather
- * than silently assumed fine: .bh-now-playing-bar (below) is
- * position:fixed, which removes it from normal document flow — a
- * sibling placed after it in the DOM does NOT visually render "below"
- * the bar the way it would for a normally-flowing element, since the
- * fixed bar no longer reserves any space in the layout. Left in place
- * (no live browser to iterate against this session) but this is
- * genuinely untested visually and worth a real click-through — may want
- * a bottom-margin/padding nudge, or a rethink of exactly where this zone
- * anchors, once someone can actually see it. */
+/* More additive zones, hidden by :empty when unused.
+ * .bh-now-playing-extra follows a position:fixed bar, so it doesn't render
+ * below it visually; not checked in a browser. */
 .bh-tracklist-extra:empty, .bh-now-playing-extra:empty, .bh-results-modal-intro:empty { display: none; }
 .bh-tracklist-extra { margin-bottom: calc(12px * var(--bh-space-scale)); }
 .bh-now-playing-extra { margin-top: calc(12px * var(--bh-space-scale)); }
@@ -246,10 +169,7 @@
 .bh-btn-outline:hover { border-color: var(--bh-text-dim); }
 
 
-/* Results button: only ever shown once an admin has actually published
-   results, so its appearance is itself an event worth marking — a warm
-   gold treatment and a slow glow set it apart from the everyday coral
-   accent used everywhere else. */
+/* Results button appears only once results publish: gold + slow glow. */
 .bh-btn-results {
     background: linear-gradient(135deg, #FFDD8C, #F5A623);
     color: #2A1600;
@@ -276,11 +196,7 @@
     margin-bottom: calc(18px * var(--bh-space-scale));
     flex-wrap: wrap;
 }
-/* Real bug, found live: every "Vote" button stayed fully enabled
-   regardless of the contest's own voting window — a full-width,
-   unmissable notice (not a quiet ambient pill like
-   .bh-votes-remaining below) since it changes what every button on
-   this page actually does right now. */
+/* Full-width notice, since a closed vote changes what every button does. */
 .bh-voting-closed-banner {
     font-size: calc(13px * var(--bh-font-scale));
     font-weight: 600;
@@ -291,11 +207,7 @@
     padding: calc(10px * var(--bh-space-scale)) calc(14px * var(--bh-space-scale));
     margin-bottom: calc(14px * var(--bh-space-scale));
 }
-/* Audit fix (2026-07-25) — persistent votes-remaining indicator, see
-   BHContestPlayer.renderVotesRemaining(). A small quiet pill rather
-   than a full-width text line: it's a persistent status readout, not
-   an alert, so it should read as calm ambient chrome next to the tabs
-   it describes — not compete with them for attention. */
+/* Votes-remaining pill: a quiet status readout, not an alert. */
 .bh-votes-remaining {
     display: inline-flex;
     align-items: center;
@@ -310,10 +222,7 @@
     margin: -4px 0 calc(14px * var(--bh-space-scale));
     font-variant-numeric: tabular-nums;
 }
-/* Still a status, not a warning — "no votes left" is expected, normal
-   end-state, so this only lowers emphasis (no fill/hue change) rather
-   than switching to --bh-accent, which reads as an error elsewhere in
-   this stylesheet. */
+/* No votes left is a normal end state: lower emphasis, no accent (accent reads as error). */
 .bh-votes-remaining--empty { opacity: 0.75; }
 .bh-cat-tab {
     background: transparent;
@@ -446,25 +355,12 @@
     display: flex;
     align-items: center;
     gap: calc(24px * var(--bh-space-scale));
-    /* Background spans the viewport (it's a dock), but the content
-       inside lines up with the 1200px player column above it: symmetric
-       side padding that grows to (viewport - 1200) / 2 once there's room,
-       never less than the base 28px. No inner wrapper needed. */
+    /* Full-width dock; content aligns to the 1200px column via padding. */
     padding: 0 max(calc(28px * var(--bh-space-scale)), calc((100% - 1200px) / 2));
     z-index: 9999;
 }
-/* Real bug, caught live: the-self-hosted-self's own bottom user bar
-   (.bhi-user-bar, class-user-bar.php) is ALSO position:fixed;bottom:0,
-   z-index 99998 — higher than this bar's 9999 — so on any page with
-   both (a logged-in fan playing a track), the user bar sat on top of
-   and covered this bar's lower ~49px, hiding the actual playback
-   controls behind it. the-self-hosted-self already flags its own presence via
-   body.bhi-has-user-bar so other plugins can react to it, and now also
-   exposes --bhi-user-bar-height for the exact stacking offset — an
-   earlier version of this fix guessed 56px (that class's own body
-   padding-bottom value, which deliberately includes extra breathing
-   room under scrolled content) instead of the bar's true height,
-   leaving a stray 7px gap between the two bars. */
+/* WHY: core's .bhi-user-bar is also fixed at bottom:0 with a higher z-index, so
+   lift this bar by --bhi-user-bar-height when body.bhi-has-user-bar. */
 body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 56px); }
 
 .bh-np-track {
@@ -585,10 +481,7 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     position: relative;
     box-sizing: border-box;
 }
-/* Results has more to show per row (rank, song, category badge, votes) —
-   the shared 400px form-modal width reads cramped once that badge shows
-   up, especially with the "All" combined view. Auth/submit stay narrow;
-   they're just forms. */
+/* Results needs more width per row than the 400px form modals. */
 .bh-results-modal .bh-modal-content { max-width: 560px; }
 .bh-share-modal .bh-modal-content { max-width: 480px; }
 .bh-share-cards {
@@ -623,14 +516,8 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     font-size: calc(12px * var(--bh-font-scale));
     color: var(--bh-text-dim);
 }
-/* The "what happens next" beat — set apart from the plain share-hint
-   text below it so a fan's eye actually lands on it, not just the
-   generic "you're in" heading. --bh-surface-2 + --bh-accent is this
-   ecosystem's existing dark-surface/accent-text pairing (used
-   throughout this file) — --bh-accent-soft is a LIGHT tint meant for
-   hover states, not a text background, so pairing it with accent text
-   was a real contrast failure (~1.5:1), caught and fixed before this
-   shipped. */
+/* "What happens next" callout. --bh-accent-soft is a light hover tint, so it
+   must not be used behind accent text (contrast). */
 .bh-share-next {
     background: var(--bh-surface-2);
     color: var(--bh-accent);
@@ -701,12 +588,8 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     outline: none;
     border-color: var(--bh-accent);
 }
-/* flex-shrink:0 — a <textarea> has an implicit overflow:auto, which
-   (per the flexbox spec) disables the automatic content-based minimum
-   size a flex-column item normally gets, letting it get compressed
-   toward zero when the modal's stack of fields runs tight on space.
-   Caught live: the notes field rendered at ~18px tall (less than one
-   line) despite rows="3", clipping its own placeholder text. */
+/* WHY: flex-shrink:0, since a textarea's implicit overflow removes the flex
+   minimum size and lets it collapse. */
 .bh-modal-content textarea {
     resize: vertical;
     flex-shrink: 0;
@@ -717,11 +600,7 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     font-size: calc(12px * var(--bh-font-scale));
     margin-top: -6px;
 }
-/* Placeholders default to a browser-chosen gray that has no relationship
-   to the theme — can read too bright, too dim, or just visibly "off"
-   depending on the palette in use. Pinned to the same dim-text token
-   used everywhere else. Firefox defaults placeholder opacity to ~0.54,
-   so opacity:1 is needed here or the color above renders extra-faint. */
+/* Placeholders use the dim-text token; Firefox needs opacity:1 or they render faint. */
 .bh-modal-content input::placeholder, .bh-modal-content textarea::placeholder {
     color: var(--bh-text-dim);
     opacity: 1;
@@ -748,23 +627,11 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 }
 .bh-pass-toggle:hover { color: var(--bh-text); }
 
-/* Custom select — a native <select>'s open dropdown panel is drawn by
-   the OS, not the page, so it can't be themed and always looks out of
-   place against a custom dark UI. The real <select> stays in the DOM
-   (invisibly, behind the trigger) as the actual source of truth, so
-   every existing .value read/write and 'change' listener elsewhere in
-   this file keeps working untouched — only how it's PRESENTED changes.
-   See BHPlayer.enhanceSelect(). */
+/* Custom select: the native <select> stays in the DOM, invisible, as the source
+   of truth; see BHPlayer.enhanceSelect(). */
 .bh-select-wrap { position: relative; }
-/* AJ's own report: this dropdown looked "oddly styled" in Safari — the
-   real, visible control is always .bh-select-trigger below; this native
-   <select> only exists as an invisible functional layer and should never
-   paint anything of its own. Hardened defensively (appearance/background/
-   z-index) against the possibility that opacity:0 alone doesn't fully
-   suppress a browser's own native chrome (e.g. an OS-level accent-color
-   highlight) in every engine/version — couldn't reproduce directly to
-   confirm the exact mechanism, so this closes the most plausible gap
-   without touching the working .bh-select-trigger styling at all. */
+/* The native <select> must never paint anything (Safari showed stray styling),
+   hence appearance/background/z-index on top of opacity:0. */
 .bh-select-native {
     position: absolute;
     inset: 0;
@@ -807,12 +674,8 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 }
 .bh-select-wrap.open .bh-select-chevron { transform: rotate(180deg); }
 .bh-select-menu {
-    /* JS (BHPlayer.enhanceSelect()) switches this to `position:fixed` with
-       real left/top/width the moment it opens, so it renders outside
-       .bh-modal-content's own overflow-y:auto and can't get clipped by it
-       — this absolute/z-index:20 pair is only the pre-JS/no-JS fallback
-       shape. z-index bumped past .bh-modal's own 10000 since a `fixed`
-       menu stacks against the whole page, not just this local context. */
+    /* No-JS fallback; enhanceSelect() switches to position:fixed on open. z-index
+       is above .bh-modal's 10000 because a fixed menu stacks page-wide. */
     position: absolute;
     top: calc(100% + 4px);
     left: 0;
@@ -844,10 +707,7 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     font-weight: 600;
 }
 
-/* Native checkboxes can at least take a theme color without a full
-   rebuild — accent-color is supported everywhere this plugin already
-   relies on color-mix(), so it's a safe, low-effort match for the rest
-   of the form controls. */
+/* accent-color themes native checkboxes. */
 .bh-modal-content input[type="checkbox"] {
     accent-color: var(--bh-accent);
     width: 15px;
@@ -1121,14 +981,8 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 }
 
 /* ================= Contest Library =================
-   Standalone page ([bh_contest_library]). Distinct from the Archive:
-   this browses the contests themselves by lifecycle stage. Every card
-   carries real state — cover, phase pill with a live dot, countdown,
-   contextual stats, a phase-specific feature block, and a
-   submissions -> voting -> results track. Tone classes (tone-live /
-   -urgent / -soon / -done / -muted) come from
-   BH_Contest_Library::contest_lifecycle() and drive one restrained
-   accent per state (a tint + a hairline, never a saturated fill). */
+   [bh_contest_library] cards. tone-* classes come from
+   BH_Contest_Library::contest_lifecycle(), one restrained accent per state. */
 .bh-contest-library .bh-header { margin-bottom: 6px; }
 .bh-contest-library-lead {
     margin: 0 0 calc(24px * var(--bh-space-scale));
@@ -1447,11 +1301,7 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 }
 
 /* ---- interaction states ----
-   Deliberately designed, not left to browser defaults: the whole card
-   is one link, so hover/active/focus should make every part of it feel
-   like it responded together — the cover warms, a light sweeps across,
-   the accent rail thickens and glows, the current stage dot blooms,
-   and the "->" affordance leans toward where it's taking you. */
+   The whole card is one link, so all of its parts respond to hover/focus together. */
 .bh-contest-card {
     isolation: isolate;
 }
@@ -1461,12 +1311,7 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 .bh-contest-card.is-unlinked:hover { transform: none; box-shadow: none; border-color: var(--bh-border); }
 .bh-contest-card.is-unlinked:hover::after { opacity: 0; animation: none; }
 .bh-contest-card.is-unlinked .bh-contest-card-more { display: none; }
-/* The card is one big <a>; block themes (Etch/ACSS here) reassert
-   `text-decoration: underline` on a:hover at a specificity the
-   .bh-container :where(a) reset doesn't cover, and it propagates to
-   every bit of text inside — the "everything underlined on hover" in
-   the field report. Kill it explicitly for this link in every
-   interaction state. */
+/* WHY: block themes reassert a:hover underline above the :where(a) reset; clear it here. */
 .bh-contests-landing a.bh-contest-card,
 .bh-contests-landing a.bh-contest-card:hover,
 .bh-contests-landing a.bh-contest-card:focus,

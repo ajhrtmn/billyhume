@@ -2,16 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The Test Runner (see the-self-hosted-self's class-test-runner.php) version of
- * the tier-depth logic — same convention bh-courses'
- * class-test-suite.php already established. Covers the PURE, no-database
- * parts (BHM_Gate::calculate_downgrade_credit_cents() and
- * BHM_Tiers::benefit_registry()'s shape) directly; the DB-backed parts
- * (user_has_benefit(), ids_granting_benefit()) are exercised end-to-end
- * instead via BHM_Debug's existing seed/reset actions on Debug Tools,
- * which already create and tear down real tier posts/entitlement rows —
- * duplicating that as a second, parallel fixture-based test here would
- * just be two ways of doing the same thing, not real extra coverage.
+ * Test Runner suite (bhcore_test_suites). Pure helpers are tested directly; wallet, tier,
+ * referral, ledger and auction logic run against real, tagged, cleaned-up DB fixtures.
  */
 class BHM_TestSuite {
     public static function init(): void {
@@ -62,7 +54,7 @@ class BHM_TestSuite {
             'Negative days remaining (already expired) credits nothing, never a negative wallet debit'
         );
 
-        /* ---------- annual_savings_percent() (audit fix, 2026-07-25) ---------- */
+        /* ---------- annual_savings_percent() ---------- */
 
         $rows[] = OUS_TestRunner::assert_same(
             17, BHM_Gate::annual_savings_percent(1000, 10000),
@@ -101,15 +93,7 @@ class BHM_TestSuite {
             'An empty required_benefit (unlocked content) always passes, even with no user'
         );
 
-        /* ---------- user_has_tier_access()/user_has_benefit() real gating, seeded ----------
-         * The two assertions above only prove the degenerate "nothing
-         * required" short-circuit works — they'd still pass even if the
-         * real entitlement lookup below were completely broken. This
-         * seeds a real fixture tier (with a real benefit key and a real
-         * price), a real test user, and a real bhm_entitlements row, then
-         * exercises actual grant/no-grant/expired/wrong-tier cases against
-         * the real DB-backed logic in BHM_Gate.
-         */
+        /* ---------- user_has_tier_access()/user_has_benefit() real gating, seeded ---------- */
         if (class_exists('OUS_Debug') && method_exists('OUS_Debug', 'get_or_create_test_user')) {
             global $wpdb;
             $entitlements_table = BHM_Tables::entitlements();
@@ -164,60 +148,28 @@ class BHM_TestSuite {
             }
         }
 
-        /* ---------- BHM_Wallet debit/credit + ledger consistency ----------
-         * No coverage existed for this before — added after this session's
-         * logging pass found debit()/apply_delta() had zero error
-         * handling (see class-wallet.php's own comments). This exercises
-         * the REAL debit/credit paths against a real (tagged, cleaned-up)
-         * fake user's wallet, since the atomic-UPDATE-based logic
-         * (deliberately not a check-then-write, see debit()'s own
-         * docblock) is exactly the kind of thing worth a real DB
-         * round-trip rather than a mock. */
+        /* ---------- BHM_Wallet debit/credit + ledger consistency ---------- */
         if (class_exists('BHM_Wallet') && class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_wallet_tests());
         } elseif (class_exists('BHM_Wallet')) {
             $rows[] = ['name' => 'BHM_Wallet tests skipped', 'pass' => false, 'message' => 'OUS_Debug (for get_or_create_test_user) not loaded.'];
         }
 
-        /* ---------- tier-exclusivity (BHM_Products::grant_entitlement()) ----------
-         * No coverage existed for this before — a refund/monetization
-         * audit found nothing enforced "one active tier at a time,"
-         * letting a user stack multiple simultaneous active
-         * subscription/streaming_tier entitlements. grant_entitlement()
-         * is private (called only from real order/subscription webhook
-         * handlers), so this reaches it via reflection rather than
-         * duplicating its logic in a mock — same "exercise the real
-         * thing" posture run_wallet_tests() above already takes. Runs
-         * against two real, tagged fixture bhm_tier posts + a real
-         * fake user's entitlement rows, cleaned up afterward. */
+        /* ---------- tier exclusivity (BHM_Entitlements::grant_entitlement(), via reflection) ---------- */
         if (class_exists('BHM_Products') && class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_tier_exclusivity_tests());
         }
 
-        // Referral/affiliate tracking (ecosystem depth-pass Tier 2) —
-        // exercises the real order-completion path end to end (a real
-        // WC_Coupon, a real WC_Order, real wallet crediting), rather than
-        // a mock of any of it, same "exercise the real thing" posture as
-        // the wallet/tier-exclusivity suites above. Needs WooCommerce
-        // actually active (creates a real product/order/coupon).
+        // Referral and purchase-ledger suites need WooCommerce (real product/order/coupon).
         if (class_exists('BHM_Referrals') && class_exists('OUS_Debug') && BH_Commerce::available()) {
             $rows = array_merge($rows, self::run_referral_tests());
         }
 
-        // Same availability gate as run_referral_tests() above — a real
-        // WC product/order is needed to exercise write_row() through
-        // its actual entry point (on_order_completed()), not a mock of it.
         if (class_exists('BHM_PurchaseLedger') && class_exists('OUS_Debug') && BH_Commerce::available()) {
             $rows = array_merge($rows, self::run_purchase_ledger_tests());
         }
 
-        // Auction listings (Section 5a) — hold/release/capture on a real
-        // (tagged, cleaned-up) fake wallet, same posture as
-        // run_wallet_tests() above, plus the bidding engine itself
-        // (BHM_Auctions) against a real post standing in for a product —
-        // this class never actually calls wc_get_product() or checks
-        // post_type, so a plain post exercises the exact same code path
-        // a real WooCommerce product would.
+        // Auctions run against a plain post: BHM_Auctions never calls wc_get_product().
         if (class_exists('BHM_Wallet') && class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_wallet_hold_tests());
         }
@@ -251,7 +203,6 @@ class BHM_TestSuite {
         $grant = new ReflectionMethod('BHM_Entitlements', 'grant_entitlement');
         $grant->setAccessible(true);
 
-        // Grant the cheap tier first — a plain, uncontested grant.
         $grant->invoke(null, $uid, 'subscription', 'account', $cheap_tier, 1000001, null, gmdate('Y-m-d H:i:s', strtotime('+' . BHM_Gate::FALLBACK_ACCESS_DAYS . ' days')));
         $count_after_first = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE user_id = %d", $uid));
         $rows[] = OUS_TestRunner::assert_same(1, $count_after_first, 'Granting a first tier leaves exactly one active entitlement row');
@@ -262,13 +213,11 @@ class BHM_TestSuite {
         $rows[] = OUS_TestRunner::assert_same(1, count($rows_after_switch), 'Granting a DIFFERENT tier replaces the old one — never two simultaneous active tiers');
         $rows[] = OUS_TestRunner::assert_same((string) $pricey_tier, (string) ($rows_after_switch[0]->object_id ?? null), 'After switching tiers, the ONE remaining row is the newly-granted tier, not the old one');
 
-        // Re-granting the SAME tier (e.g. an early renewal) should still
-        // leave exactly one row — not stack a second row for itself.
+        // Same tier again (early renewal).
         $grant->invoke(null, $uid, 'subscription', 'account', $pricey_tier, 1000003, null, gmdate('Y-m-d H:i:s', strtotime('+60 days')));
         $count_after_renewal = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE user_id = %d", $uid));
         $rows[] = OUS_TestRunner::assert_same(1, $count_after_renewal, 'Re-granting the SAME tier (early renewal) still leaves exactly one row, not a second stacked one');
 
-        // Cleanup.
         $wpdb->delete($t, ['user_id' => $uid]);
         wp_delete_post($cheap_tier, true);
         wp_delete_post($pricey_tier, true);
@@ -280,26 +229,19 @@ class BHM_TestSuite {
     private static function run_wallet_tests(): array {
         $rows = [];
         global $wpdb;
-        $uid = OUS_Debug::get_or_create_test_user('bhm_wallet_suite', false); // false = always a fresh user, never reuse a pool member mid-assertions
+        $uid = OUS_Debug::get_or_create_test_user('bhm_wallet_suite', false); // false = fresh user, never a pool member
         $wallet_table = BHM_Tables::wallet();
         $ledger_table = BHM_Tables::wallet_ledger();
 
-        // Start from a clean, known state regardless of whatever this
-        // fake user's wallet happened to hold from a previous run.
         $wpdb->delete($wallet_table, ['user_id' => $uid]);
         $wpdb->delete($ledger_table, ['user_id' => $uid]);
 
-        // Credit via apply_ledger_delta() (the public entry point) —
-        // real balance write + real ledger row.
         BHM_Wallet::apply_ledger_delta($uid, 500, 'test_topup');
         $balance = (int) $wpdb->get_var($wpdb->prepare("SELECT balance_cents FROM $wallet_table WHERE user_id = %d", $uid));
         $rows[] = OUS_TestRunner::assert_same(500, $balance, 'apply_ledger_delta(+500) credits the wallet balance to exactly 500');
         $ledger_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $ledger_table WHERE user_id = %d AND reason = %s", $uid, 'test_topup'));
         $rows[] = OUS_TestRunner::assert_same(1, $ledger_count, 'apply_ledger_delta() writes exactly one matching ledger row');
 
-        // A debit within balance should succeed and leave balance/ledger
-        // consistent with each other, not just each individually
-        // "looking right."
         $debit_ok = BHM_Wallet::debit($uid, 200, null);
         $rows[] = OUS_TestRunner::assert_true($debit_ok, 'debit(200) against a 500-cent balance succeeds');
         $balance_after_debit = (int) $wpdb->get_var($wpdb->prepare("SELECT balance_cents FROM $wallet_table WHERE user_id = %d", $uid));
@@ -307,10 +249,7 @@ class BHM_TestSuite {
         $ledger_debit_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $ledger_table WHERE user_id = %d AND reason = %s AND delta_cents = %d", $uid, 'play', -200));
         $rows[] = OUS_TestRunner::assert_same(1, $ledger_debit_count, 'a successful debit() writes a matching -200 ledger row (reason "play")');
 
-        // A debit exceeding the remaining balance must be DECLINED, not
-        // allowed to drive the balance negative — this is the whole
-        // point of debit()'s atomic UPDATE...WHERE balance_cents >= %d
-        // guard (see that method's own docblock re: TOCTOU races).
+        // Over-balance debit must be declined by debit()'s atomic WHERE guard.
         $decline_ok = BHM_Wallet::debit($uid, 9999, null);
         $rows[] = OUS_TestRunner::assert_false($decline_ok, 'debit(9999) against a 300-cent balance is correctly declined');
         $balance_after_decline = (int) $wpdb->get_var($wpdb->prepare("SELECT balance_cents FROM $wallet_table WHERE user_id = %d", $uid));
@@ -318,24 +257,14 @@ class BHM_TestSuite {
         $ledger_after_decline = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $ledger_table WHERE user_id = %d", $uid));
         $rows[] = OUS_TestRunner::assert_same(2, $ledger_after_decline, 'a declined debit writes NO new ledger row (still just the +500 and -200 from before)');
 
-        // Cleanup — this fake user's own wallet/ledger rows. The user
-        // account itself is left for OUS_Debug's own "Reset Everything"
-        // sweep (tagged bhcore_is_test => bhm_wallet_suite), same
-        // convention every other suite/seed action in this ecosystem
-        // uses, not re-implemented here.
+        // The tagged test user itself is left for OUS_Debug's "Reset Everything" sweep.
         $wpdb->delete($wallet_table, ['user_id' => $uid]);
         $wpdb->delete($ledger_table, ['user_id' => $uid]);
 
         return $rows;
     }
 
-    /**
-     * BHM_Wallet::hold()/release_hold()/capture_hold() (1.7, auction
-     * listings) — the three new methods a bid actually calls. Same
-     * fresh-tagged-user + real-DB-round-trip posture as run_wallet_tests()
-     * above, since these are exactly the kind of atomic-UPDATE-with-a-
-     * WHERE-clause logic worth exercising for real rather than mocking.
-     */
+    /** BHM_Wallet::hold()/release_hold()/capture_hold() against a real wallet. */
     /** @return array<int, array<string, mixed>> */
     private static function run_wallet_hold_tests(): array {
         $rows = [];
@@ -374,13 +303,7 @@ class BHM_TestSuite {
         return $rows;
     }
 
-    /**
-     * BHM_Auctions end to end — bidding, outbid release, reserve
-     * handling, and close_auction()'s own idempotency — against two
-     * real (tagged, cleaned-up) fake users and a plain post standing in
-     * for a product (see the call site's own comment on why that's a
-     * faithful stand-in here).
-     */
+    /** BHM_Auctions end to end: bidding, outbids, reserve, close_auction() idempotency. */
     /** @return array<int, array<string, mixed>> */
     private static function run_auction_tests(): array {
         $rows = [];
@@ -413,10 +336,7 @@ class BHM_TestSuite {
 
         $rows[] = OUS_TestRunner::assert_true(is_wp_error(BHM_Auctions::place_bid($product_id, $bidder_a, 400)), 'a bid below the starting price is rejected');
         $rows[] = OUS_TestRunner::assert_false(is_wp_error(BHM_Auctions::place_bid($product_id, $bidder_a, 500)), "bidder A's opening bid at exactly the starting price succeeds");
-        // Charge-on-win (2026-08-26 payment-timing rework, explicit
-        // standing instruction): a bid never holds funds — only the
-        // winner is charged, at close. held_cents stays 0 for both
-        // bidders throughout bidding; balance stays untouched too.
+        // Charge-on-win: bids never hold funds; only the winner is charged, at close.
         $rows[] = OUS_TestRunner::assert_same(0, BHM_Wallet::held_cents($bidder_a), "bidder A's bid does NOT hold funds (charge-on-win) — held_cents stays 0");
         $rows[] = OUS_TestRunner::assert_same(10000, BHM_Wallet::balance_cents($bidder_a), "bidder A's balance is untouched by placing a bid — nothing is charged until a win");
 
@@ -430,23 +350,16 @@ class BHM_TestSuite {
         $outbid_status = $wpdb->get_var($wpdb->prepare("SELECT status FROM $bids_table WHERE product_id = %d AND user_id = %d AND amount_cents = 500", $product_id, $bidder_a));
         $rows[] = OUS_TestRunner::assert_same('outbid', $outbid_status, "bidder A's own 500-cent bid row is marked 'outbid', not deleted — a real history, not just current-state");
 
-        // Reserve (800) is NOT met by the current 700 high bid —
-        // close_auction() should never attempt to charge bidder B at
-        // all, and the listing should NOT report as sold.
+        // Reserve 800 not met by 700: no charge, not sold.
         BHM_Auctions::close_auction(['product_id' => $product_id]);
         $rows[] = OUS_TestRunner::assert_same('closed', BHM_Auctions::status($product_id), 'status() is "closed" once close_auction() has actually finalized it');
         $rows[] = OUS_TestRunner::assert_same(10000, BHM_Wallet::balance_cents($bidder_b), "bidder B's balance is completely untouched — the reserve wasn't met, so charge-on-win never attempted a debit");
 
-        // Idempotency: calling close_auction() again must be a pure
-        // no-op, never a second debit attempt against money that was
-        // already settled (or, here, correctly never charged) once.
         $balance_before_replay = BHM_Wallet::balance_cents($bidder_b);
         BHM_Auctions::close_auction(['product_id' => $product_id]);
         $rows[] = OUS_TestRunner::assert_same($balance_before_replay, BHM_Wallet::balance_cents($bidder_b), 'calling close_auction() a second time on an already-finalized auction is a no-op — balance does not move again');
 
-        // A SEPARATE listing with no reserve should actually sell —
-        // charge-on-win means BHM_Wallet::debit() moves the winner's
-        // money for real, for the first time, at the moment of close.
+        // No-reserve listing: the winner is debited at close.
         $product_id_2 = wp_insert_post(['post_type' => 'product', 'post_status' => 'publish', 'post_title' => 'Auction Suite Fixture (no reserve)'], true);
         BHM_Auctions::convert_to_auction($product_id_2, 500, 0, $ends_at);
         BHM_Auctions::place_bid($product_id_2, $bidder_a, 600);
@@ -513,9 +426,7 @@ class BHM_TestSuite {
         ));
         $rows[] = OUS_TestRunner::assert_same(1, $redemption_count, 'Exactly one bhm_referrals redemption row is written for the order');
 
-        // Idempotency — calling the handler again for the SAME order
-        // must not double-credit (the UNIQUE KEY on wc_order_id is the
-        // atomic guard, not a prior SELECT).
+        // Replay must not double-credit (UNIQUE KEY on wc_order_id).
         BHM_Referrals::on_order_completed($order->get_id());
         $balance_after_replay = class_exists('BHM_Wallet') ? BHM_Wallet::balance_cents($referrer_id) : 0;
         $rows[] = OUS_TestRunner::assert_same($expected_cents, $balance_after_replay, 'Re-firing on_order_completed() for the same order does NOT credit the referrer a second time');
@@ -533,7 +444,6 @@ class BHM_TestSuite {
         ));
         $rows[] = OUS_TestRunner::assert_same(0, $self_redemption_count, 'A self-referral order writes no redemption row at all');
 
-        // Cleanup
         $wpdb->delete(BHM_Tables::referrals(), ['wc_order_id' => $order->get_id()]);
         $wpdb->delete(BHM_Tables::referrals(), ['wc_order_id' => $self_order->get_id()]);
         $wpdb->delete(BHM_Tables::referral_codes(), ['user_id' => $referrer_id]);
@@ -547,20 +457,8 @@ class BHM_TestSuite {
         return $rows;
     }
 
-    // Audit fix (2026-07-26): BHM_PurchaseLedger + BHM_Anchoring
-    // (tamper-evident proof-of-purchase, ROADMAP-streaming-media-scope-
-    // and-blockchain.md Part 2) had zero test coverage since they
-    // shipped. Live-verified in a browser this pass (a real WC order,
-    // a real anchoring job, a real refund) — this covers the same
-    // ground as a real DB-backed fixture, matching every other suite
-    // in this file, EXCEPT BHM_Anchoring's own actual network calls to
-    // OpenTimestamps (handle_submit_job()/handle_upgrade_job()):
-    // deliberately NOT exercised here — hitting a real third-party
-    // calendar server from an automated suite is slow, flaky, and not
-    // CI-friendly (the live browser pass already confirmed the real
-    // submission round-trip works). This only asserts that write_row()
-    // successfully ENQUEUES the job — a job-queue interaction, not the
-    // HTTP call itself.
+    // Purchase ledger + anchoring. Only asserts the anchor job is enqueued; the
+    // OpenTimestamps network call is deliberately not exercised (slow, flaky).
     /** @return array<int, array<string, mixed>> */
     private static function run_purchase_ledger_tests(): array {
         if (!class_exists('BHS_API')) return []; // content_hash lookup needs a real bhs_track
@@ -584,7 +482,7 @@ class BHM_TestSuite {
         $order = wc_create_order(['customer_id' => $customer_id]);
         $order->add_product(wc_get_product($product_id), 1);
         $order->calculate_totals();
-        $order->update_status('completed'); // fires the real woocommerce_order_status_completed path, same convention as run_referral_tests() above
+        $order->update_status('completed'); // fires the real woocommerce_order_status_completed path
 
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE wc_order_id = %d AND event_type = 'purchase'", $order->get_id()));
         $rows[] = OUS_TestRunner::assert_true((bool) $row, 'A completed order for a downloadable track-purchase product writes a real bhm_purchase_ledger row');
@@ -594,20 +492,8 @@ class BHM_TestSuite {
             $rows[] = OUS_TestRunner::assert_true((bool) $row->record_hash && strlen($row->record_hash) === 64, 'record_hash is a real 64-char SHA-256 hex digest');
             $rows[] = OUS_TestRunner::assert_same('pending', $row->anchor_status, 'A freshly-written row starts anchor_status=pending, before any anchoring job has run');
 
-            // write_row() -> anchor_async() should have enqueued a real
-            // bhm_anchor_submit job for this row — checked via Action
-            // Scheduler's own query API (this ecosystem runs on real
-            // Action Scheduler, not the OUS_Jobs fallback table, per
-            // BHM_Anchoring::init()'s registration). Not asserting the
-            // job actually RAN (see this method's own docblock).
-            // Queried directly against Action Scheduler's own table
-            // rather than as_get_scheduled_actions() — that helper
-            // defaults to pending-only status, but this install's
-            // Action Scheduler runner processes jobs almost immediately
-            // (confirmed live this pass), so by the time this query
-            // runs the job may already be 'complete'. The assertion is
-            // "a job was enqueued at all" (any status), not "one is
-            // still waiting."
+            // WHY: query Action Scheduler's table directly (any status); as_get_scheduled_actions()
+            // defaults to pending-only and the job may already have completed.
             $as_table = $wpdb->prefix . 'actionscheduler_actions';
             if ($wpdb->get_var("SHOW TABLES LIKE '$as_table'") === $as_table) {
                 $enqueued_count = (int) $wpdb->get_var($wpdb->prepare(
@@ -618,8 +504,7 @@ class BHM_TestSuite {
             }
         }
 
-        // Reversal: refunding the order must write a SECOND, linked row
-        // — never mutate/delete the original.
+        // A refund writes a second linked row, never mutating the original.
         $order->update_status('refunded');
         $reversal = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE wc_order_id = %d AND event_type = 'reversal'", $order->get_id()));
         $rows[] = OUS_TestRunner::assert_true((bool) $reversal, 'Refunding the order writes a linked reversal row rather than mutating the original purchase row');
@@ -627,22 +512,17 @@ class BHM_TestSuite {
             $rows[] = OUS_TestRunner::assert_same((string) $row->id, (string) $reversal->linked_record_id, 'The reversal row\'s linked_record_id points back at the original purchase row');
         }
 
-        // The double-reversal guard: a second status transition through
-        // a reversal-triggering hook (e.g. refunded -> cancelled, a real
-        // multi-step lifecycle) must NOT record a second reversal for
-        // the same already-reversed purchase.
+        // Double-reversal guard (e.g. refunded -> cancelled).
         BHM_PurchaseLedger::on_order_reversed($order->get_id());
         $reversal_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE wc_order_id = %d AND event_type = 'reversal'", $order->get_id()));
         $rows[] = OUS_TestRunner::assert_same(1, $reversal_count, 'Calling on_order_reversed() again for an already-reversed order does not record a second reversal (the NOT EXISTS guard)');
 
-        // Read helpers
         $rows[] = OUS_TestRunner::assert_same(1, count(BHM_PurchaseLedger::for_user($customer_id)), 'for_user() returns exactly this customer\'s one purchase row');
         if ($row) {
             $found_reversal = BHM_PurchaseLedger::reversal_for($row->id);
             $rows[] = OUS_TestRunner::assert_true((bool) $found_reversal, 'reversal_for() finds the linked reversal row for the original purchase');
         }
 
-        // Cleanup
         $wpdb->delete($t, ['wc_order_id' => $order->get_id()]);
         $order->delete(true);
         if ($product_id) wp_delete_post($product_id, true);

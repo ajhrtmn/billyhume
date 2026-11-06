@@ -2,42 +2,15 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The design-token system every ecosystem plugin's stylesheet reads
- * from — colors, typography, spacing, and a curated theme-preset
- * library. Originally built inside bh-contest (as BH_Settings); this is
- * that same, proven logic, generalized so any post in any plugin can
- * get a per-entity override (a contest, a track, a release — whatever
- * the consuming plugin's own concept of "one themeable thing" is),
- * not just a contest specifically.
- *
- * Stored as a single option (one row, one array) rather than one option
- * per field — this is small, always read together, and never queried
- * piecemeal, so one row is both simpler and cheaper than a dozen.
+ * Design-token system (colors, typography, spacing, theme presets) every
+ * ecosystem stylesheet reads from, with optional per-entity overrides.
+ * Stored as one option array: always read together, never queried piecemeal.
  */
 class BHY_Style {
     /**
-     * Site-wide token availability: `inline_css()`'s `:root{--bh-*:...}`
-     * block was only ever echoed on specific pages that already knew to
-     * ask for it (class-public-profile.php's public profile pages,
-     * class-portal.php's portal pages, the gallery preview) — never
-     * globally. A `bg.color` token ref set through the Advanced Styles
-     * panel on an ORDINARY page/post produced a real
-     * `background-color:var(--bh-accent)` declaration in both the editor
-     * canvas and the rendered front end, but `--bh-accent` itself
-     * resolved to nothing outside those special pages. Two hooks fix
-     * both halves of that gap: `wp_head` (every
-     * real front-end page, `print_global_css()`) and the block editor
-     * iframe's own styles list via `block_editor_settings_all`
-     * (`add_editor_iframe_styles()`) — the iframe has its own separate
-     * document and does NOT inherit admin `wp_head`/`admin_head`, so
-     * `enqueue_block_editor_assets` alone can't reach it; `styles` is
-     * core's own supported extension point for raw CSS in that iframe
-     * (used internally for `add_editor_style()` under the hood). Neither
-     * hook touches the existing per-page echoes above — those still
-     * fire later in the document and still correctly win the cascade for
-     * any entity-specific override, since CSS's own last-declaration-
-     * wins rule already handles that; this only adds the SITE DEFAULT
-     * that was previously missing everywhere else.
+     * WHY: tokens must exist on every page, not just pages that echo inline_css().
+     * The editor iframe is a separate document that ignores admin_head, so it
+     * gets them via block_editor_settings_all's `styles` list instead.
      */
     public static function init(): void {
         add_action('wp_head', [self::class, 'print_global_css']);
@@ -45,41 +18,17 @@ class BHY_Style {
     }
 
     /**
-     * Prints all three front-end CSS layers, in layer order — see
-     * STYLE-SYSTEM.md at the plugins root for the full 4-layer model
-     * (tokens / utilities / components / plugin-local) this file and
-     * class-ui.php's admin-side equivalent both follow. Quick map for
-     * "where does my new rule go":
-     *   inline_css()             — LAYER 1, tokens (--bh-* custom
-     *                               properties only, no selectors).
-     *   text_overflow_utils_css()— LAYER 2, utilities (.bh-truncate,
-     *                               .bh-clamp-2/3, .bh-nowrap — generic,
-     *                               single-purpose, composable).
-     *   badge_css()               — LAYER 3, components (.bh-badge and
-     *                               its color/truncate modifiers — a
-     *                               named, reusable UI piece built from
-     *                               the two layers above).
-     * Anything more specific than these three belongs in the consuming
-     * plugin's own .css file (LAYER 4), referencing these tokens/
-     * utilities/components rather than re-declaring them.
+     * Prints the front-end CSS layers in order (see STYLE-SYSTEM.md):
+     * tokens (inline_css), utilities (text_overflow_utils_css), components (badge_css).
+     * Anything more specific belongs in the consuming plugin's own stylesheet.
      */
     public static function print_global_css(): void {
         echo '<style id="bhy-global-vars">' . self::inline_css() . '</style>';
         echo '<style id="bh-text-overflow-utils">' . self::text_overflow_utils_css() . '</style>';
         echo '<style id="bh-badge">' . self::badge_css() . '</style>';
         echo '<style id="bh-alert">' . self::alert_css() . '</style>';
-        // Real gap found live (2026-08-15): --bh-font-display/--bh-font-body
-        // were already correctly set site-wide by inline_css() above, but
-        // google_fonts_url() — the thing that actually loads the WEBFONT
-        // FILE those variables reference — was only ever called from
-        // class-public-profile.php, never hooked globally. Every ordinary
-        // front-end page (the homepage, any post/page) had the CSS
-        // variable pointing at a font that was never fetched, silently
-        // falling back to the browser default — invisible with a subtle
-        // font choice, glaring the moment a distinctive display face
-        // (Righteous) was set as the actual default. Skip entirely for
-        // 'System UI' (google_fonts_url() already omits it — no url() to
-        // print — but guard here too rather than emit an empty href).
+        // Load the webfont file the --bh-font-* vars reference; without this the
+        // vars point at a font that was never fetched. 'System UI' has no URL.
         $fonts_url = self::google_fonts_url();
         if ($fonts_url !== '') {
             echo '<link rel="stylesheet" id="bhy-google-fonts" href="' . esc_url($fonts_url) . '">';
@@ -87,53 +36,12 @@ class BHY_Style {
     }
 
     /**
-     * Shared front-end text-overflow utility classes — the client-side
-     * counterpart to class-ui.php's admin-only .bhy-badge/.bhy-truncate
-     * (that file's own doc comment already argues for "reuse instead of
-     * one-off inline overflow handling per call site"; this is the same
-     * argument for every plugin's own front-end stylesheet). Printed
-     * once, site-wide, via the same wp_head hook print_global_css()
-     * already uses for --bh-* tokens — any plugin's markup can reach for
-     * these instead of re-inventing nowrap/ellipsis/line-clamp per
-     * component. One rule per content shape:
-     *
-     *   .bh-nowrap         — a badge/pill with a short, FIXED-length
-     *                        label (a status word like "up to date",
-     *                        "Active", "Draft"). Never wraps onto a
-     *                        second line — a chip breaking mid-phrase
-     *                        (e.g. "up to" / "date") is always wrong,
-     *                        and a fixed-vocabulary label has no length
-     *                        risk to guard against, so plain nowrap is
-     *                        enough on its own.
-     *   .bh-badge-truncate — a badge/pill whose content is dynamic/
-     *                        unbounded (a user-entered tag, a username,
-     *                        an artist-chosen category name) — nowrap
-     *                        ALONE would just blow out the layout
-     *                        instead of wrapping ugly. Bounds the badge
-     *                        to a sane max-width and truncates with an
-     *                        ellipsis instead. Pair with title="..."
-     *                        carrying the full text, same reasoning as
-     *                        .bh-truncate below.
-     *   .bh-truncate       — single-line truncation for non-badge
-     *                        content (table cells, list titles, file
-     *                        names). Pair with a real title="..."
-     *                        attribute carrying the FULL text — this
-     *                        only hides content visually for a sighted
-     *                        mouse user, who needs some way to recover
-     *                        it; a screen reader already gets the
-     *                        untruncated DOM text regardless.
-     *   .bh-clamp-2 / .bh-clamp-3 — multi-line clamp (card titles/
-     *                    descriptions — a course/lesson card, a product
-     *                    card). Ends in a real ellipsis at a fixed line
-     *                    count instead of either overflowing the card's
-     *                    own layout or cutting off with no visual
-     *                    indicator that text is missing.
-     *
-     * Deliberately NOT a rule for long unbreakable tokens (URLs, hashes) —
-     * that's `overflow-wrap: break-word` on the specific element showing
-     * one, applied inline where it's needed rather than a reusable class,
-     * since (unlike the ones above) the goal there is showing the FULL
-     * string, just wrapped gracefully instead of truncated.
+     * Front-end text-overflow utilities:
+     *   .bh-nowrap         fixed-vocabulary badge labels that must never wrap.
+     *   .bh-badge-truncate dynamic badge text; bounded width plus ellipsis.
+     *   .bh-truncate       single-line truncation; pair with title="full text".
+     *   .bh-clamp-2/-3     multi-line clamp for card titles/descriptions.
+     * Long unbreakable tokens (URLs, hashes) use overflow-wrap inline instead.
      */
     private static function text_overflow_utils_css(): string {
         return '.bh-nowrap{white-space:nowrap;}'
@@ -144,54 +52,14 @@ class BHY_Style {
     }
 
     /**
-     * Front-end counterpart to class-ui.php's admin-only .bhy-badge —
-     * this exact "small pill, ~11px text, ~999px radius" shape was
-     * independently hand-rolled at least 8 times across the ecosystem's
-     * front-end stylesheets (bh-courses' .bhc-badge/.bhc-term/
-     * .bhc-review-badge, bh-streaming's .bhs-badge, bh-crm's
-     * .bhcrm-kanban-stalled-badge, bh-registry's .bhr-badge, bh-live's
-     * .bhl-live-badge, bh-feedback's .bhf-badge, bh-monetization-woo's
-     * .bhm-badge/.bhm-billing-badge/.bhm-amount-chip), each with its own
-     * ad hoc color literal and inconsistent white-space handling — the
-     * 2026-08 CSS-file audit's single clearest "belongs in the shared
-     * system" finding. One definition here instead of a ninth.
-     *
-     * Deliberately fixed semantic colors (success/warning/danger), not
-     * themeable via inline_css()'s per-entity color settings — these are
-     * status colors (a submission is "open" or "closed" regardless of
-     * a track's brand palette), not brand colors, so they don't belong
-     * in the same override system as --bh-accent/--bh-surface/etc.
-     *
-     * --bh-success is deliberately #1DB954 (Spotify green), NOT a mirror
-     * of class-ui.php's admin --bhy-success (#1a7f37, WP-admin-style
-     * muted green). The 2026-08 audit found #1DB954 already pervasive
-     * across the front-end ecosystem's OWN established "open/live/
-     * attached/success" convention (bh-contest, bh-streaming,
-     * bh-monetization-woo, bh-registry) well before this token existed —
-     * an earlier version of this token copied the admin shade instead
-     * and would have been a 4th, unused green nobody was actually
-     * calling. Admin intentionally keeps its own muted --bhy-success;
-     * front-end and admin are allowed to disagree here since they're
-     * different visual contexts (a WP-admin screen vs. a themed public
-     * page) that happened to reach different colors independently.
+     * WHY: status colors (success/warning/danger) are fixed, not themeable per
+     * entity. Front-end --bh-success (#1DB954) intentionally differs from the
+     * admin --bhy-success; they are separate visual contexts.
      */
     /**
      * LAYER 3 component: the front end's message block.
-     *
-     * WHY: `.bh-alert` had ZERO occurrences ecosystem-wide, which
-     * STYLE-SYSTEM.md has listed as a gap for months. The consequence was
-     * measured, not assumed -- every front-end error is hand-rolled, spread
-     * across 34 hardcoded red literals in three different values
-     * (#b32d2e x21, #d63638 x12, #cc1818 x1). A fan hitting two different
-     * errors on this site saw two different designs.
-     *
-     * Text is --bh-text, NOT the hue token. An alert is a block of prose,
-     * unlike a badge, which is one word at 11px where the hue carries the
-     * meaning. Painting body text in a saturated hue on a tint of that same
-     * hue is exactly the shape tools/check-accent-on-tint.js exists to
-     * catch: it produced five AA failures in one session. Here the hue lives
-     * in the left rule and the icon, where it identifies the alert without
-     * having to survive as readable prose.
+     * WHY: body text is --bh-text, not the hue; the hue lives in the left rule
+     * and icon so the prose stays legible on any tint.
      */
     private static function alert_css(): string {
         return '.bh-alert{'
@@ -208,16 +76,8 @@ class BHY_Style {
             . '.bh-alert p{margin:0;}'
             . '.bh-alert p + p{margin-top:6px;}'
             . '.bh-alert-icon{flex:0 0 auto;font-size:15px;line-height:1.4;}'
-            // The hue identifies the alert through the rule and the icon. Body
-            // text stays --bh-text so it is legible on every surface.
-            //
-            // The icon lifts the hue toward the text colour rather than using
-            // it raw. Measured raw on the dark front end: 2.68:1 for danger
-            // and 2.95:1 for warning, because #b3261e and #8a5a00 are hues
-            // chosen for a LIGHT admin background. The 4px rule beside them
-            // is a block of colour and reads fine at any of these values; a
-            // small glyph does not. Mixing toward --bh-text keeps the hue
-            // recognisable and clears 3:1 on either ground.
+            // WHY: the icon mixes the hue toward --bh-text so it clears 3:1 on both
+            // light and dark grounds; the raw admin hues fail on the dark front end.
             . '.bh-alert-success{border-left-color:var(--bh-success,#1DB954);}'
             . '.bh-alert-success .bh-alert-icon{color:color-mix(in srgb,var(--bh-success,#1DB954) 60%,var(--bh-text,#f2ede1));}'
             . '.bh-alert-warning{border-left-color:var(--bh-warning,#8a5a00);}'
@@ -255,22 +115,15 @@ class BHY_Style {
             . '--bh-warning:#8a5a00;--bh-warning-bg:#fef3e2;'
             . '--bh-danger:#b3261e;--bh-danger-bg:#fbe4e2;'
             . '}'
-            // Design Suite Phase 1 proof-of-concept: the shared .bh-badge
-            // component (every badge/pill ecosystem-wide — course
-            // difficulty, contest categories, "buy once," etc.) is now a
-            // registered component_tokens() group ('badge', below), so
-            // its padding/radius/font-size/weight are real Design Suite
-            // controls instead of numbers hardcoded here. Falls back to
-            // the exact previous values when unconfigured.
+            // Badge sizing comes from the 'badge' component_tokens() group, with
+            // the original values as fallbacks.
             . '.bh-badge{display:inline-block;padding:var(--bh-comp-badge-padding_v,2px) var(--bh-comp-badge-padding_h,10px);border-radius:var(--bh-comp-badge-radius,999px);font-size:var(--bh-comp-badge-font_size,11px);font-weight:var(--bh-comp-badge-font_weight,600);white-space:nowrap;background:var(--bh-comp-badge-bg_color,#f0f0f1);color:var(--bh-comp-badge-text_color,#646970);}'
             . '.bh-badge-success{background:var(--bh-success-bg);color:var(--bh-success);}'
             . '.bh-badge-warning{background:var(--bh-warning-bg);color:var(--bh-warning);}'
             . '.bh-badge-danger{background:var(--bh-danger-bg);color:var(--bh-danger);}'
             . '.bh-badge-neutral{background:var(--bh-surface-2,#f0f0f1);color:var(--bh-text-dim,#646970);}';
-        // Need a truncating badge? Combine with the existing
-        // .bh-badge-truncate utility from text_overflow_utils_css()
-        // above (class="bh-badge bh-badge-success bh-badge-truncate")
-        // rather than a third variant here.
+        // For a truncating badge, combine with .bh-badge-truncate rather than
+        // adding another variant here.
     }
 
     /**
@@ -285,10 +138,7 @@ class BHY_Style {
     const OPTION = 'bhy_style_settings';
 
     const DEFAULTS = [
-        // Generic, brand-neutral out of the box — this is a two-tone
-        // wordmark any site customizes via Settings & Style (or its
-        // own per-contest/per-track override); it was never meant to be
-        // one specific artist's name hardcoded as the fallback.
+        // Generic, brand-neutral default wordmark.
         'brand_part1'  => 'Your',
         'brand_part2'  => 'Brand',
         'brand_logo_id' => '',
@@ -298,38 +148,14 @@ class BHY_Style {
         'color_border'      => '#3D1B14',
         'color_text'        => '#EDDFCB',
         'color_text_dim'    => '#B99584',
-        // 2026-08-25: #C1503A -> #C85C48, ~4% lighter, same hue. AJ's call,
-        // same precedent as --shsas-neon-cyan (2026-08-23): when a colour's
-        // aesthetic value and its legibility conflict, move the token rather
-        // than patch around it. Measured, not guessed -- the first real
-        // ecosystem-wide front-end audit found TWO AA failures sharing this
-        // one root cause: .oust-btn-primary (dark ink on accent fill) at
-        // 4.20:1 and bh-courses' .bhc-archive-kicker (accent as text on the
-        // night ground) at 4.17:1, both needing 4.5. Now 4.77:1 and 4.73:1.
+        // WHY: tuned so accent-on-night and dark-ink-on-accent both pass AA (4.5:1).
         'color_accent'      => '#C85C48',
         'color_accent_soft' => '#E0A184',
         'color_overlay'     => '#0D0504D1',
         'cat_color_1' => '#C1503A', 'cat_color_2' => '#D9A441', 'cat_color_3' => '#B8785A', 'cat_color_4' => '#8C3B2E',
         'cat_color_5' => '#C98B5E', 'cat_color_6' => '#A66A4D', 'cat_color_7' => '#D96C4D', 'cat_color_8' => '#7A4A38',
-        // Direct request, applied ecosystem-wide (front end, wp-admin,
-        // theme): Jost for display + Atkinson Hyperlegible for body
-        // (accessibility-purpose-built). Two corrections deep now:
-        // Righteous (1970s-80s bubble-letter novelty) -> Josefin Sans
-        // (real 1920s-30s geometric-sans reasoning, but its tall,
-        // idiosyncratic proportions still read as "kitschy" at display
-        // sizes per direct feedback) -> Jost. Jost is modeled on the
-        // same period lineage (Erbar/Kabel-influenced 1920s German
-        // geometric sans, the same family Futura itself grew out of)
-        // but with genuinely restrained, professional proportions —
-        // real period reasoning without the costume-y edge. Josefin
-        // Sans stays in FONT_OPTIONS below as a real, selectable
-        // alternative, not removed. Was Space Grotesk / Inter before
-        // that, also kept.
-        // 'Theme default' (the INHERIT sentinel — see font_family() and
-        // FONT_OPTIONS) is the out-of-the-box choice: an ecosystem
-        // installed onto a real site should look like THAT site, not
-        // impose its own typeface on every course/contest/portal page.
-        // Jost / Atkinson Hyperlegible are still one dropdown pick away.
+        // WHY: 'Theme default' (INHERIT_FONT) keeps the active theme's typeface
+        // so the ecosystem looks like the host site out of the box.
         'font_display'        => 'Theme default',
         'font_display_custom' => '',
         'font_body'           => 'Theme default',
@@ -341,10 +167,8 @@ class BHY_Style {
         'bar_height'  => '84',
     ];
 
-    // The one non-Google-Font choice. Its emitted value is `inherit`, so
-    // the page keeps whatever font the active theme set — see
-    // font_family() / inline_css(). Handled specially everywhere
-    // FONT_OPTIONS is iterated (loading, saving, the picker).
+    // The one non-Google-Font choice; emits `inherit` so the theme's font wins.
+    // Handled specially everywhere FONT_OPTIONS is iterated.
     const INHERIT_FONT = 'Theme default';
 
     const FONT_OPTIONS = [
@@ -359,18 +183,8 @@ class BHY_Style {
         'Sora'                  => 'Sora:wght@500;600;700',
         'Work Sans'             => 'Work+Sans:wght@400;500;600;700',
         'Roboto Mono'           => 'Roboto+Mono:wght@400;500;600;700',
-        // Jost — real 1920s German geometric-sans lineage (see the
-        // DEFAULTS comment above for the Righteous->Josefin Sans->Jost
-        // history) with restrained, professional proportions instead
-        // of Josefin Sans's more idiosyncratic ones — paired with a
-        // body face chosen specifically for accessibility (Atkinson
-        // Hyperlegible, Braille Institute, SIL OFL — purpose-built to
-        // distinguish easily-confused characters like 1/l/I and 0/O
-        // for low-vision readers). Josefin Sans and Righteous both kept
-        // in this list (not removed) as real, selectable alternatives;
-        // neither is the default anymore. All free/OFL, all fetchable
-        // via this exact same Google Fonts mechanism as every other
-        // option here.
+        // Jost + Atkinson Hyperlegible (built for low-vision legibility) is the
+        // recommended pairing. All options are free/OFL Google Fonts.
         'Jost'                  => 'Jost:wght@400;500;600;700',
         'Josefin Sans'          => 'Josefin+Sans:wght@400;600;700',
         'Righteous'             => 'Righteous',
@@ -390,15 +204,7 @@ class BHY_Style {
             'The Door — Day' => [
                 'color_bg' => '#F4E9DC', 'color_surface' => '#EADCC8', 'color_surface_2' => '#E0CFB5',
                 'color_border' => '#C9B096', 'color_text' => '#2B120C', 'color_text_dim' => '#6B4A3A',
-                // OPEN.md AA gap, fixed 2026-08-26: the old #C1503A (shared
-                // with Night's own accent) measured 3.92:1 on #F4E9DC and
-                // 3.48:1 on #EADCC8 — both fail AA's 4.5:1 text minimum.
-                // Night's own fix (lightening to #C85C48) makes Day WORSE,
-                // since Day's ground is already light — Day needs a
-                // DARKER value instead. #A83D1A keeps the same warm
-                // terracotta hue (just deepened, not hue-shifted) and
-                // measures 5.24:1 / 4.65:1 — both real AA passes, verified
-                // via WCAG relative-luminance math, not eyeballed.
+                // WHY: darker than Night's accent so text on Day's light grounds passes AA.
                 'color_accent' => '#A83D1A', 'color_accent_soft' => '#E8B49A', 'color_overlay' => '#170807B3',
                 'cat_color_1' => '#C1503A', 'cat_color_2' => '#B8860B', 'cat_color_3' => '#8B5E3C', 'cat_color_4' => '#7A2E22',
                 'cat_color_5' => '#A8623D', 'cat_color_6' => '#8C5A3C', 'cat_color_7' => '#B6432E', 'cat_color_8' => '#5C2C1E',
@@ -522,10 +328,7 @@ class BHY_Style {
                 'cat_color_5' => '#CFB8CF', 'cat_color_6' => '#755C75', 'cat_color_7' => '#DECCDE', 'cat_color_8' => '#634D63',
             ],
         ],
-        // Every theme above but "The Door — Day" is a dark palette — this
-        // group fills the light-background side of the library the same
-        // "The Door — Day" already proved out, so a site that wants a
-        // bright/airy look isn't stuck picking from one single option.
+        // Light-background presets.
         'Pastel & Soft' => [
             'Cotton Candy' => [
                 'color_bg' => '#FDF2F8', 'color_surface' => '#FCE7F3', 'color_surface_2' => '#FBCFE8',
@@ -588,13 +391,8 @@ class BHY_Style {
         ],
     ];
 
-    // Fields a single entity (a contest, a track, whatever the
-    // consuming plugin considers "one themeable thing") is allowed to
-    // override — the whole color palette plus brand identity.
-    // Typography, spacing, and component sizing stay global-only: those
-    // are "how the app feels" decisions that should stay consistent
-    // everywhere, whereas a full color re-skin per entity (a sponsor
-    // look, a seasonal palette) is a completely reasonable thing to want.
+    // Fields a single entity may override: the color palette plus brand identity.
+    // Typography, spacing and component sizing stay global for consistency.
     const OVERRIDABLE_FIELDS = [
         'brand_part1', 'brand_part2', 'brand_logo_id',
         'color_bg', 'color_surface', 'color_surface_2', 'color_border', 'color_text', 'color_text_dim',
@@ -602,10 +400,7 @@ class BHY_Style {
         'cat_color_1', 'cat_color_2', 'cat_color_3', 'cat_color_4', 'cat_color_5', 'cat_color_6', 'cat_color_7', 'cat_color_8',
     ];
 
-    // Pass an entity ID (any post, from any plugin) to layer that
-    // entity's own overrides (if it has one enabled — see
-    // entity_overrides()) on top of the global settings. Omit it for
-    // the plain global settings, e.g. on the settings page itself.
+    // Pass an entity ID to layer its enabled overrides over the global settings.
     /** @return array<string, mixed> */
     public static function get(?int $entity_id = null): array {
         $saved = get_option(self::OPTION, []);
@@ -619,12 +414,8 @@ class BHY_Style {
         return $settings;
     }
 
-    // Generic meta keys (bhy_-prefixed, not tied to "contest" or any
-    // other specific consuming plugin's vocabulary) — any plugin can set
-    // these on any post it owns to give that post its own style override.
-    // Only fields actually present AND in OVERRIDABLE_FIELDS make it
-    // through, so a stray/old key in stored JSON can't leak into a field
-    // this version doesn't intend to let entities touch.
+    // Generic bhy_-prefixed meta keys any plugin can set on its own posts.
+    // Only keys in OVERRIDABLE_FIELDS pass through.
     /** @return array<string, mixed> */
     public static function entity_overrides(int $entity_id): array {
         if (!get_post_meta($entity_id, '_bhy_style_override', true)) return [];
@@ -642,11 +433,8 @@ class BHY_Style {
         return $url ?: '';
     }
 
-    // Small JSON-ready payload a consuming plugin's front end can apply
-    // client-side, scoped to just one rendered instance. Returns null
-    // when the entity has no override enabled, so the caller can skip
-    // the data attribute entirely — the common case of "no per-entity
-    // override" adds zero extra markup or client-side work.
+    // Client-side payload scoped to one rendered instance; null when the
+    // entity has no override, so callers can skip the data attribute.
     /** @return array<string, mixed>|null */
     public static function entity_style_payload(int $entity_id): ?array {
         $overrides = self::entity_overrides($entity_id);
@@ -664,13 +452,8 @@ class BHY_Style {
         foreach ($var_names as $field => $css_var) {
             if (isset($overrides[$field])) $vars[$css_var] = self::safe_color($merged[$field]);
         }
-        // Any per-entity colour override can shift what the DERIVED roles
-        // (--bh-accent-muted-bg / -contrast / -hover / -pressed and the
-        // context-aware roles) should be — otherwise the site-wide
-        // derived values, computed from the un-overridden seeds, stay
-        // applied underneath and drift out of sync with this entity's
-        // actual colours. Recompute the whole derived set from the merged
-        // seeds through the one resolver, same as inline_css().
+        // WHY: overridden seeds change the derived roles too; recompute them
+        // from the merged seeds or they drift from the entity's real colors.
         $seed_fields = array_flip(array_keys(array_diff_key($var_names, ['color_overlay' => 1])));
         if (array_intersect_key($overrides, $seed_fields)) {
             foreach (BHY_Contrast::for_settings($merged) as $css_var => $val) {
@@ -684,16 +467,9 @@ class BHY_Style {
         ];
     }
 
-    // Inline <style> block overriding the CSS custom properties every
-    // consuming plugin's own stylesheet already reads from — enqueued
-    // after that stylesheet so it wins the cascade. The stylesheets
-    // themselves never need to change per site; only this changes.
-    //
-    // WHY (3.21.30): the WCAG luminance/contrast/ink_on helpers that used
-    // to live here moved to BHY_Color (pure, no-WP, reusable), and every
-    // colour DERIVED from a seed — the four accent tokens plus the new
-    // context-aware roles — is now produced by BHY_Contrast::resolve()
-    // from one recipe table. See class-contrast.php.
+    // Inline <style> overriding the --bh-* properties every consuming stylesheet
+    // reads; enqueued after those stylesheets so it wins the cascade.
+    // Derived colors come from BHY_Contrast::resolve() (class-contrast.php).
     public static function inline_css(?int $entity_id = null, bool $include_custom_css = true): string {
         $s = self::get($entity_id);
         $vars = [
@@ -705,16 +481,8 @@ class BHY_Style {
         $decls = '';
         foreach ($vars as $name => $val) $decls .= $name . ':' . self::safe_color($val) . ';';
 
-        // Every colour derived FROM those seeds — the four accent tokens
-        // that used to be hand-rolled here (--bh-accent-muted-bg /
-        // -contrast / -hover / -pressed, still emitted byte-for-byte) and
-        // the context-aware roles added in 3.21.30 (--bh-on-*,
-        // --bh-text-muted / -disabled, --bh-border-strong, --bh-ui* ,
-        // --bh-focus) — comes from one recipe table now: BHY_Contrast.
-        // The old inline comments explaining WHY muted-bg / -contrast /
-        // -hover exist are preserved in class-contrast.php's SPEC and in
-        // CHANGELOG 3.21.30. Debug Tools -> Contrast Audit shows every
-        // pairing measured against the current theme.
+        // Every color derived from the seeds comes from BHY_Contrast's recipe
+        // table. Debug Tools -> Contrast Audit shows each pairing measured.
         $derived = $entity_id === null
             ? BHY_Contrast::global_palette()
             : BHY_Contrast::for_settings($s);
@@ -730,39 +498,21 @@ class BHY_Style {
         $decls .= '--bh-radius-sm:' . self::safe_number($s['radius_sm'], 0, 24, 8) . 'px;';
         $decls .= '--bh-bar-height:' . self::safe_number($s['bar_height'], 56, 140, 84) . 'px;';
 
-        // Front-end elevation scale. The admin skin gained one; the front end
-        // had none at all, which is why bh-courses hardcoded
-        // rgba(0,0,0,.04) on its cards and bh-contest's cards simply had no
-        // depth. Two surfaces cannot read as being at different heights
-        // without it, so any catalog built on top would be flat by default.
-        //
-        // Elevation is the PAIR: a surface step and a shadow step move
-        // together. These are the shadow half; --bh-surface/-2 are the other.
-        //
-        // Alpha sits between the admin light and dark values because the
-        // front-end palette is user-configurable and a single set has to read
-        // on whichever ground the artist picks.
+        // Front-end elevation (shadow half; --bh-surface/-2 are the surface half).
+        // Alpha is a middle value because the artist picks the ground color.
         $decls .= '--bh-shadow-sm:0 1px 2px rgba(0,0,0,.18), 0 2px 6px -2px rgba(0,0,0,.22);';
         $decls .= '--bh-shadow:0 12px 28px -14px rgba(0,0,0,.45);';
         $decls .= '--bh-shadow-lg:0 24px 56px -20px rgba(0,0,0,.55);';
 
-        // Plugin-registered custom sliders (custom_sliders() below) — same
-        // treatment as every built-in token: read from the same option,
-        // sanitized with the same safe_number(), emitted as a real
-        // --bh-custom-<key> var a consuming plugin's own stylesheet reads
-        // directly, e.g. var(--bh-custom-queue-row-height). No first-
-        // class/second-class distinction from a plugin's own CSS's point
-        // of view.
+        // Plugin-registered custom sliders, emitted as --bh-custom-<key>.
         foreach (self::custom_sliders() as $key => $def) {
             $safe_key = sanitize_key($key);
             $val = $s['custom'][$key] ?? ($def['default'] ?? 0);
             $decls .= '--bh-custom-' . $safe_key . ':' . self::safe_number($val, $def['min'] ?? 0, $def['max'] ?? 999999, $def['default'] ?? 0) . ($def['unit'] ?? '') . ';';
         }
 
-        // Plugin-registered custom fonts (custom_fonts() above) — same
-        // treatment, a distinct --bh-custom-font-<key> namespace so a
-        // font token can never collide with a numeric slider token of
-        // the same key.
+        // Plugin-registered custom fonts, emitted as --bh-custom-font-<key>
+        // (separate namespace so they cannot collide with slider keys).
         foreach (self::custom_fonts() as $key => $def) {
             $safe_key = sanitize_key($key);
             $val = trim((string) ($s['custom_fonts'][$key] ?? ''));
@@ -771,9 +521,7 @@ class BHY_Style {
             if ($val !== '') $decls .= '--bh-custom-font-' . $safe_key . ':' . self::css_safe_string($val) . ', ' . $fallback . ';';
         }
 
-        // Grouped component tokens (component_tokens() above) — one
-        // --bh-comp-<group>-<key> var per token, sanitized by its own
-        // declared 'type' the same way the flat mechanisms already do.
+        // Grouped component tokens, emitted as --bh-comp-<group>-<key>.
         foreach (self::component_tokens() as $group => $def) {
             $safe_group = sanitize_key($group);
             foreach (($def['tokens'] ?? []) as $key => $tdef) {
@@ -789,11 +537,8 @@ class BHY_Style {
                     $fallback = preg_replace('/[^a-z-]/', '', strtolower((string) ($tdef['fallback'] ?? 'sans-serif'))) ?: 'sans-serif';
                     $decls .= '--bh-comp-' . $safe_group . '-' . $safe_key . ':' . self::css_safe_string($val) . ', ' . $fallback . ';';
                 } elseif ($type === 'toggle') {
-                    // Show/hide a whole element via a CSS keyword swap
-                    // rather than 0/1 (plain CSS can't branch on a numeric
-                    // custom property) — a plugin's stylesheet reads
-                    // display:var(--bh-comp-<group>-<key>, <its own 'off'
-                    // keyword>) directly, no JS/markup change needed.
+                    // CSS keyword swap rather than 0/1: CSS cannot branch on a
+                    // numeric custom property.
                     $on  = self::css_safe_string_keyword($tdef['on']  ?? 'none');
                     $off = self::css_safe_string_keyword($tdef['off'] ?? 'flex');
                     $val = !empty($stored) ? $on : $off;
@@ -807,27 +552,11 @@ class BHY_Style {
 
         $css = ':root{' . $decls . '}';
 
-        // Raw custom CSS (see save_from_input()'s docblock note on it) —
-        // real selectors, so appended as-is rather than folded into the
-        // :root block above. Only defense here is against breaking out
-        // of the <style> tag this gets embedded in; the admin-only trust
-        // boundary is the same one every other token on this page
-        // already crosses (font names, custom colors are free text too).
-        // $include_custom_css=false exists for exactly one caller
-        // (BHY_Gallery's own light-DOM ".bhy-token-preview" scale-
-        // reference swatches, class-style-gallery.php) — an arbitrary
-        // admin-typed selector there would apply to the REAL admin page
-        // chrome around it, not a sandboxed preview, since that one
-        // preview element is NOT inside a shadow root like every real
-        // registered surface is.
+        // Raw custom CSS: real selectors, appended as-is; only guarded against
+        // breaking out of <style>. $include_custom_css=false is for the gallery's
+        // light-DOM preview, where arbitrary selectors would hit real admin chrome.
         if ($include_custom_css) {
-            // Structured rules from the visual rule editor first (real
-            // typed values, already sanitized per-property in
-            // save_from_input() against css_property_registry()), THEN
-            // the raw-text escape hatch — so a hand-typed override below
-            // always wins the cascade over a visually-built rule above
-            // it, matching the on-page ordering (rules list, then the
-            // "Advanced / raw CSS" textarea underneath it).
+            // Structured rules first, then raw CSS, so hand-typed overrides win.
             foreach ((array) ($s['custom_css_rules'] ?? []) as $rule) {
                 if (!is_array($rule) || empty($rule['selector']) || empty($rule['declarations'])) continue;
                 $selector = self::sanitize_css_selector($rule['selector']) . (string) ($rule['state'] ?? '');
@@ -850,26 +579,10 @@ class BHY_Style {
     }
 
     /**
-     * "The ability for the dev to add custom sliders like the 'now
-     * playing bar height' for plugin specific adjustments" (AJ). A
-     * consuming plugin registers one from its own bootstrap:
-     *
-     *     add_filter('bhy_style_custom_sliders', function ($sliders) {
-     *         $sliders['queue_row_height'] = [
-     *             'label' => 'Queue row height', 'min' => 32, 'max' => 96,
-     *             'step' => 2, 'unit' => 'px', 'default' => 48,
-     *         ];
-     *         return $sliders;
-     *     });
-     *
-     * and it shows up in the Design Suite's "Plugin adjustments" group
-     * (BHY_Gallery::render_controls()) rendered with the exact same
-     * BHY_UI::slider_row() every built-in scale slider uses — same
-     * markup, same live-preview wiring, same save path, same
-     * --bh-custom-<key> var naming convention as the built-ins. The
-     * value round-trips through the SAME bhy_style_settings option,
-     * namespaced under 'custom' => [key => value] so it can never
-     * collide with a real DEFAULTS key.
+     * Plugin-registered numeric tokens, via the bhy_style_custom_sliders filter:
+     *     $sliders['queue_row_height'] = ['label' => 'Queue row height', 'min' => 32,
+     *         'max' => 96, 'step' => 2, 'unit' => 'px', 'default' => 48];
+     * Stored under bhy_style_settings['custom'], emitted as --bh-custom-<key>.
      */
     /** @return array<string, mixed> */
     public static function custom_sliders(): array {
@@ -877,21 +590,9 @@ class BHY_Style {
     }
 
     /**
-     * Font-family analogue of custom_sliders() above — same
-     * registration/render/save/inline_css shape, for a plugin token
-     * that's a font choice rather than a number. Registered from a
-     * plugin's own bootstrap:
-     *
-     *     add_filter('bhy_style_custom_fonts', function ($fonts) {
-     *         $fonts['caption'] = ['label' => 'Caption font', 'default' => 'Inter', 'fallback' => 'sans-serif'];
-     *         return $fonts;
-     *     });
-     *
-     * Shows up in the Design Suite's "Plugin adjustments" area as a
-     * plain text field (one font name, same shape as font_display/
-     * font_body's existing "Custom" escape hatch), persists under
-     * bhy_style_settings['custom_fonts'][key], and is emitted as
-     * --bh-custom-font-<key> by inline_css().
+     * Plugin-registered font tokens, via the bhy_style_custom_fonts filter:
+     *     $fonts['caption'] = ['label' => 'Caption font', 'default' => 'Inter', 'fallback' => 'sans-serif'];
+     * Stored under bhy_style_settings['custom_fonts'], emitted as --bh-custom-font-<key>.
      */
     /** @return array<string, mixed> */
     public static function custom_fonts(): array {
@@ -899,52 +600,16 @@ class BHY_Style {
     }
 
     /**
-     * The GROUPED sibling of custom_sliders()/custom_fonts() above —
-     * those two are fine for a small handful of one-off tokens (the
-     * lesson screen has three sliders and a font, that's genuinely all
-     * it needs), but a real component (a card, a badge, a button) has
-     * a dozen-plus small properties, and a flat list of a hundred
-     * ungrouped sliders is unusable, not "granular control" — it's
-     * noise. This is the schema a plugin registers a whole COMPONENT
-     * through at once, rendered as one named, collapsible section
-     * (BHY_Gallery::render_controls()'s "Components" area) instead of
-     * flooding the flat "Plugin adjustments" list.
-     *
-     * Registered from a plugin's own bootstrap:
-     *
-     *     add_filter('bhy_style_component_tokens', function ($components) {
-     *         $components['course_card'] = [
-     *             'label' => 'Course card',
-     *             'tokens' => [
-     *                 'thumb_radius'    => ['label' => 'Thumbnail corner radius', 'type' => 'size',  'min' => 0, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 10],
-     *                 'badge_font_size' => ['label' => 'Badge text size',         'type' => 'size',  'min' => 9, 'max' => 16, 'step' => 1, 'unit' => 'px', 'default' => 11],
-     *                 'accent'          => ['label' => 'Badge color',            'type' => 'color', 'default' => '#2271b1'],
-     *                 'heading_font'    => ['label' => 'Title font',             'type' => 'font',  'default' => 'Inter', 'fallback' => 'sans-serif'],
-     *                 'show_author'     => ['label' => 'Show author byline',     'type' => 'toggle', 'on' => 'none', 'off' => 'flex', 'default' => false],
-     *             ],
-     *         ];
-     *         return $components;
-     *     });
-     *
-     * 'toggle' is a checkbox — a plain CSS keyword swap (not 0/1; plain
-     * CSS can't branch on a numeric custom property), for show/hide an
-     * ENTIRE element rather than tuning one of its properties. The
-     * consuming stylesheet reads display:var(--bh-comp-<group>-<key>,
-     * <its own normal display value>) directly; no markup/JS change
-     * needed on the plugin side. 'on'/'off' are the CSS keyword ('none',
-     * 'flex', 'block', etc) for each checkbox state — default 'none'/
-     * 'flex' if omitted.
-     *
-     * Each token type resolves through the exact same sanitizers/
-     * emitters the flat mechanisms already use (safe_number for
-     * 'size', safe_color for 'color', css_safe_string+fallback for
-     * 'font') — this is a grouping/rendering layer on top of the same
-     * primitives, not a second parallel system. Persists under
+     * Grouped component tokens, via the bhy_style_component_tokens filter:
+     *     $components['course_card'] = ['label' => 'Course card', 'tokens' => [
+     *         'thumb_radius' => ['label' => '...', 'type' => 'size', 'min' => 0, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 10],
+     *         'accent'       => ['label' => '...', 'type' => 'color', 'default' => '#2271b1'],
+     *         'heading_font' => ['label' => '...', 'type' => 'font', 'default' => 'Inter', 'fallback' => 'sans-serif'],
+     *         'show_author'  => ['label' => '...', 'type' => 'toggle', 'on' => 'none', 'off' => 'flex', 'default' => false],
+     *     ]];
+     * 'toggle' swaps CSS display keywords ('on'/'off'). Stored under
      * bhy_style_settings['components'][group][key]; emitted as
-     * --bh-comp-<group>-<key> (size/color) or
-     * --bh-comp-<group>-<key>-font (font), read directly by the
-     * plugin's own stylesheet, e.g.
-     * var(--bh-comp-course_card-thumb_radius, 10px).
+     * --bh-comp-<group>-<key> (fonts: ...-<key>-font).
      */
     /** @return array<string, mixed> */
     public static function component_tokens(): array {
@@ -952,19 +617,8 @@ class BHY_Style {
     }
 
     /**
-     * The visual Custom CSS rule editor's property list (AJ, 2026-09-19:
-     * "actual controls for editing the css properties, not just a
-     * custom CSS text box"). A curated set of the properties someone
-     * actually reaches for when tweaking a real element — not an
-     * exhaustive CSS property dump — each mapped to the SAME control
-     * types component_tokens() already uses (size/color/font) plus a
-     * new 'keyword' type (a closed dropdown of valid values, since a
-     * property like display or text-align only ever wants one of a
-     * handful of words, never a free number or color). Extensible via
-     * filter so a plugin can add its own properties the same way it
-     * adds component_tokens() groups, but this list is deliberately not
-     * "all of CSS" — see BHY_CustomCssRules's docblock for the rest of
-     * this feature's shape.
+     * Property list for the visual Custom CSS rule editor: a curated set, not
+     * all of CSS. Types: size/color/font/keyword. Filterable.
      *
      * @return array<string, array<string, mixed>>
      */
@@ -1004,11 +658,7 @@ class BHY_Style {
     }
 
     /**
-     * The pseudo-class states the visual rule editor offers per rule —
-     * "all potential element states" (AJ) scoped to the ones that are
-     * actually meaningful CSS states on an arbitrary element, rather
-     * than every named pseudo-class CSS has. Appended directly to the
-     * rule's selector (e.g. ".foo:hover") at emission time.
+     * Pseudo-class states the rule editor offers; appended to the selector.
      *
      * @return array<string, string>
      */
@@ -1017,12 +667,8 @@ class BHY_Style {
     }
 
     /**
-     * One property value, sanitized according to its registered type —
-     * the one place a raw value from either editor (the admin form's
-     * $_POST, or the Customizer control's already-JSON-decoded value)
-     * turns into a real, trusted CSS value. $raw may already be a fully-
-     * formed value from a previous save (re-sanitized defensively, same
-     * as every other round-trip in this class) or fresh user input.
+     * Sanitizes one property value by its registered type. The single place
+     * raw input from either editor becomes a trusted CSS value.
      *
      * @param array<string, mixed> $pdef
      * @param mixed $raw
@@ -1037,10 +683,8 @@ class BHY_Style {
             return array_key_exists((string) $raw, $options) ? (string) $raw : (string) ($pdef['default'] ?? array_key_first($options));
         }
         if ($type === 'font') {
-            // Accepts either a bare font name (fresh input) or an
-            // already-formatted "name", fallback value (re-sanitizing a
-            // previously-saved value) — strip back to the bare name
-            // first so re-sanitizing never doubles up the fallback.
+            // Strip back to the bare name first so re-sanitizing a saved
+            // '"name", fallback' value never doubles the fallback.
             $bare = preg_replace('/^"?([^",]+)"?.*$/', '$1', (string) $raw);
             $fallback = preg_replace('/[^a-z-]/', '', strtolower((string) ($pdef['fallback'] ?? 'sans-serif'))) ?: 'sans-serif';
             return self::css_safe_string(sanitize_text_field($bare)) . ', ' . $fallback;
@@ -1051,14 +695,9 @@ class BHY_Style {
     }
 
     /**
-     * The visual Custom CSS rule editor's shared sanitizer — takes
-     * either shape either editor produces (the admin form's per-rule
-     * 'props' list of {property, value} pairs, or the Customizer
-     * control's own {selector, state, declarations: {property: value}}
-     * objects) and returns the one canonical stored shape: an array of
-     * {selector, state, declarations: {property: value}}, every
-     * property an allowlisted css_property_registry() key and every
-     * value re-sanitized through sanitize_css_property_value().
+     * Normalizes rules from either editor (form-post 'props' rows or the
+     * Customizer's 'declarations' map) into {selector, state, declarations},
+     * allowlisted against css_property_registry().
      *
      * @param array<int, mixed> $incoming_rules
      * @return array<int, array<string, mixed>>
@@ -1076,9 +715,7 @@ class BHY_Style {
             if (!array_key_exists($state, $states)) $state = '';
 
             $declarations = [];
-            // Form-post shape: a list of {property, value} rows (a
-            // property can't be an array key in $_POST field names the
-            // way the admin page's dynamic rows are indexed).
+            // Form-post shape: a list of {property, value} rows.
             $incoming_props = is_array($rule['props'] ?? null) ? $rule['props'] : [];
             foreach ($incoming_props as $prop_row) {
                 if (!is_array($prop_row)) continue;
@@ -1086,9 +723,7 @@ class BHY_Style {
                 if (!isset($registry[$property])) continue; // strict allowlist, not a filter
                 $declarations[$property] = self::sanitize_css_property_value($registry[$property], $prop_row['value'] ?? '');
             }
-            // Customizer control shape: already a {property: value} map
-            // (JSON round-trips objects/associative arrays natively, so
-            // there's no need for the form-post's flat-array workaround).
+            // Customizer shape: already a {property: value} map.
             $incoming_declarations = is_array($rule['declarations'] ?? null) ? $rule['declarations'] : [];
             foreach ($incoming_declarations as $property => $raw_value) {
                 $property = str_replace('_', '-', sanitize_key((string) $property));
@@ -1102,14 +737,8 @@ class BHY_Style {
     }
 
     /**
-     * Single authority for turning a raw associative array (either
-     * $_POST from BHY_Gallery::save() or the decoded JSON body from
-     * BH_Element::rest_save_site_tokens()) into a sanitized style-settings
-     * array ready for update_option(). Both call sites used to hand-copy
-     * this ~25-line sanitize pass independently; they'd already drifted
-     * (the REST copy silently dropped custom_sliders() handling), so this
-     * is the one place the field list/sanitization rules live now — add a
-     * new sanitized field here once, not in two places that can diverge again.
+     * Single sanitizer for style settings from both the admin form ($_POST) and
+     * the REST site-tokens endpoint. Add new fields here only.
      */
     /**
      * @param array<string, mixed> $incoming
@@ -1168,9 +797,7 @@ class BHY_Style {
                         $raw = sanitize_text_field($incoming[$field] ?? ($tdef['default'] ?? ''));
                         $data['components'][$group][$key] = $raw !== '' ? $raw : (string) ($tdef['default'] ?? '');
                     } elseif ($type === 'toggle') {
-                        // Unchecked checkboxes are simply absent from
-                        // $incoming, same as every other checkbox in this
-                        // codebase — no separate "unset" sentinel needed.
+                        // Unchecked checkboxes are simply absent.
                         $data['components'][$group][$key] = !empty($incoming[$field]);
                     } else {
                         $data['components'][$group][$key] = self::safe_number($incoming[$field] ?? null, $tdef['min'] ?? 0, $tdef['max'] ?? 999999, $tdef['default'] ?? 0);
@@ -1179,28 +806,14 @@ class BHY_Style {
             }
         }
 
-        // The VISUAL Custom CSS rule editor (AJ, 2026-09-19: "actual
-        // controls for editing the css properties, not just a custom
-        // CSS text box") — a list of {selector, state, declarations}
-        // rows, each declaration a real typed control (css_property_
-        // registry()'s type), rather than free-typed CSS text. Stored
-        // structured (not pre-flattened to a CSS string) so both editors
-        // (this admin page's form, and BHY_Customizer's own copy of this
-        // same editor — "both sides should be able to have access to
-        // the rule builder", AJ) can re-render real controls with the
-        // current values on load. Shared sanitizer: sanitize_custom_css_
-        // rules() below, since the Customizer posts a JSON-decoded PHP
-        // array of the same shape, not a $_POST-style flat form.
+        // Visual rule editor rows, stored structured so both editors (admin page
+        // and Customizer) can re-render real controls.
         $data['custom_css_rules'] = self::sanitize_custom_css_rules(
             is_array($incoming['custom_css_rules'] ?? null) ? $incoming['custom_css_rules'] : []
         );
 
-        // The raw-text escape hatch for anything the visual editor above
-        // doesn't cover — same trust model as WP core's own Additional
-        // CSS Customizer control (this page already requires the same
-        // capability as every other style token here; sanitization
-        // happens at emission time in inline_css(), not by mangling
-        // what the admin typed).
+        // Raw CSS escape hatch; same trust model as core's Additional CSS.
+        // Sanitized at emission time in inline_css().
         $data['custom_css'] = isset($incoming['custom_css']) ? substr((string) $incoming['custom_css'], 0, 20000) : '';
 
         return $data;
@@ -1226,11 +839,8 @@ class BHY_Style {
     }
 
     /**
-     * A 'toggle' component token's 'on'/'off' definition is a bare CSS
-     * keyword (display: none/flex/block/grid/inline-flex/inline/…), not
-     * an arbitrary string — restricted to a fixed allowlist rather than
-     * css_safe_string()'s quote-and-escape treatment, since this value is
-     * never quoted in the emitted custom property.
+     * Toggle token 'on'/'off' values are unquoted CSS keywords, so they are
+     * restricted to an allowlist.
      */
     public static function css_safe_string_keyword($val): string {
         $val = strtolower(trim((string) $val));
@@ -1239,13 +849,8 @@ class BHY_Style {
     }
 
     /**
-     * A CSS selector typed/pasted by an admin (the visual Custom CSS
-     * rule editor's "selector" field — usually filled from the
-     * Customizer's "Copy CSS selector" action). Whitelist rather than
-     * blacklist: only characters that ever legitimately appear in a
-     * real selector survive, which as a side effect makes breaking out
-     * of the generated CSS block (or the <style> tag it lives in)
-     * structurally impossible rather than merely filtered.
+     * Admin-entered CSS selector. Character allowlist makes breaking out of the
+     * generated CSS block or <style> tag structurally impossible.
      */
     public static function sanitize_css_selector($val): string {
         $val = preg_replace('/[^a-zA-Z0-9 \.\#\-\_\>\+\~\:\[\]\=\"\047,\*]/', '', (string) $val);
@@ -1270,10 +875,8 @@ class BHY_Style {
         if (strcasecmp($val, 'transparent') === 0) return 'transparent';
         if (preg_match('/^#[0-9a-fA-F]{3,8}$/', $val)) return $val;
         if (preg_match('/^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*(0|1|0?\.\d+)\s*)?\)$/', $val)) return $val;
-        // okl(ch|ab) and a plain sRGB color-mix() — the shapes BHY_Contrast
-        // and the Design Suite now emit. Character class is deliberately
-        // tight (no nested parens beyond one color-mix level, no ; or {})
-        // so this stays a value sanitiser, not an expression evaluator.
+        // okl(ch|ab) and one-level sRGB color-mix(). Character class stays tight
+        // so this remains a value sanitizer, not an expression evaluator.
         if (preg_match('/^okl(ch|ab)\(\s*[0-9%.\s\/-]+\)$/i', $val)) return $val;
         if (preg_match('/^color-mix\(in srgb,\s*[#a-z0-9()%.,\s-]+\)$/i', $val)) return $val;
         return '#000000';
@@ -1285,9 +888,6 @@ class BHY_Style {
         $params = [];
         foreach (['display', 'body'] as $slot) {
             $picked = $s['font_' . $slot];
-            // PHPStan-confirmed redundant: FONT_OPTIONS' values are all
-            // non-empty string constants, so once isset() confirms the
-            // key exists the value is always truthy already.
             if (isset(self::FONT_OPTIONS[$picked])) {
                 $params[self::FONT_OPTIONS[$picked]] = true;
             }
@@ -1296,37 +896,18 @@ class BHY_Style {
         return 'https://fonts.googleapis.com/css2?' . implode('&', array_map(fn($p) => 'family=' . $p, array_keys($params))) . '&display=swap';
     }
 
-    // Every curated font at once — only used inside the gallery preview,
-    // which is never seen by a site visitor, so the extra weight is a
-    // non-issue and buys instant switching in the font dropdown.
+    // All curated fonts at once; gallery preview only, never seen by visitors.
     public static function preview_all_fonts_url(): string {
         $params = array_filter(self::FONT_OPTIONS);
         return 'https://fonts.googleapis.com/css2?' . implode('&', array_map(fn($p) => 'family=' . $p, array_values($params))) . '&display=swap';
     }
 
     /* =================================================================
-     * §2.3/§2.6 (DESIGN-SUITE-UNIFICATION-PLAN.md) — per-instance style
-     * overrides. scoped_inline_style() is the ONE new formatter this
-     * phase adds: it resolves a placement's config.style map into an
-     * inline `style="..."` attribute value for that placement's own
-     * wrapper element (BH_Element::render_placement() is the call site).
-     *
-     * Two key shapes coexist in one map, per §2.6's convention:
-     *   - a BARE key (e.g. "color_accent") is §2.3's original mechanic,
-     *     UNCHANGED: emits a scoped --bh-* custom property, so the
-     *     type's own stylesheet (which already reads var(--bh-*))
-     *     inherits every token it does NOT override from :root.
-     *   - a NAMESPACED "group.property" key (e.g. "spacing.padding",
-     *     "bg.color") is new this phase: resolves a preset-scale step,
-     *     an "@token:*" reference to an existing BHY_Style color/scale
-     *     token, or a "custom:*" escape hatch, straight to a direct CSS
-     *     declaration on the same wrapper.
-     *
-     * Every preset step below is anchored to this install's REAL
-     * existing scale values (DEFAULTS' radius=12/radius_sm=8, the
-     * font_scale 0.75-1.6 / space_scale 0.6-1.8 multipliers already
-     * read via --bh-font-scale/--bh-space-scale elsewhere in this
-     * class) — no invented numbers.
+     * Per-instance style overrides. scoped_inline_style() turns a placement's
+     * config.style map into an inline style="" value. Two key shapes:
+     *   - bare key ("color_accent"): emits a scoped --bh-* custom property.
+     *   - "group.property" ("spacing.padding"): a preset step, "@token:*"
+     *     ref, or "custom:*" value, emitted as a direct CSS declaration.
      * ================================================================= */
 
     const SPACE_SCALE_STEPS = [
@@ -1338,11 +919,8 @@ class BHY_Style {
         'xl' => 'calc(40px * var(--bh-space-scale, 1))',
     ];
 
-    // Sizing has no pre-existing site-wide token to anchor to (unlike
-    // spacing/typography/radius) — these are plain, self-contained rem
-    // steps, Tailwind-scale-inspired per §2.6's own framing. 'screen'
-    // resolves to 100vw or 100vh depending on which CSS property it's
-    // applied to — see resolve_size_step().
+    // Self-contained rem steps (no site-wide token to anchor to). 'screen' is
+    // 100vw or 100vh depending on the property; see resolve_size_step().
     const SIZE_STEPS = [
         'auto'   => 'auto',
         '0'      => '0',
@@ -1396,24 +974,17 @@ class BHY_Style {
     const BG_REPEAT_ENUM       = ['repeat', 'no-repeat', 'repeat-x', 'repeat-y', 'space', 'round'];
 
     /**
-     * "group.property" => [css property, resolver 'kind']. This IS
-     * §2.6's property-groups table, translated into code — every group
-     * in the doc (sizing, spacing, background, typography, border,
-     * display/flex/grid, position, effects/transforms, overflow/
-     * visibility) ships here in one pass, per AJ's explicit "I don't
-     * want suggestions deferred" instruction — nothing held back to a
-     * later phase.
-     *
-     * 'kind' selects which branch of resolve_style_value() runs:
-     *   'space'            — SPACE_SCALE_STEPS preset, or 'custom:'/'@token:' n/a (space has no token form)
-     *   'size'              — SIZE_STEPS preset (width/height-shaped)
-     *   'scale'             — a named scale table (see 'scale' sub-key)
-     *   'enum'              — a fixed allowlist (see 'enum' sub-key)
-     *   'enum-scale'        — a named table used as a fixed set of presets (no scale relationship, just a lookup)
-     *   'token-only'        — colors: MUST be "@token:<BHY_Style field>", never a raw/custom value (§2.6: "colors are always token refs, never raw hex")
-     *   'custom-only'       — no preset table exists for this property; only "custom:<value>" is accepted
-     *   'custom-or-number'  — a bare unitless number (line-height) or "custom:<value>"
-     *   'percent-0-100'     — a 0-100 integer/float, stored as a 0-1 CSS opacity fraction
+     * "group.property" => [css property, resolver 'kind']. 'kind' selects the
+     * branch of resolve_style_value():
+     *   'space'            SPACE_SCALE_STEPS preset
+     *   'size'             SIZE_STEPS preset (width/height-shaped)
+     *   'scale'            a named scale table (see 'scale' sub-key)
+     *   'enum'             a fixed allowlist (see 'enum' sub-key)
+     *   'enum-scale'       a named table used as a fixed preset lookup
+     *   'token-only'       colors: MUST be "@token:<field>", never a raw value
+     *   'custom-only'      no preset table; only "custom:<value>"
+     *   'custom-or-number' a bare unitless number (line-height) or "custom:<value>"
+     *   'percent-0-100'    0-100, stored as a 0-1 opacity fraction
      */
     const PROPERTY_MAP = [
         // Sizing
@@ -1477,7 +1048,7 @@ class BHY_Style {
         'overflow.visibility' => ['css' => 'visibility', 'kind' => 'enum', 'enum' => 'VISIBILITY_ENUM'],
     ];
 
-    /** Bare-token key => --bh-* custom property name, the exact map entity_style_payload() already used for colors, extended here with the non-color overridable tokens (radius/radius_sm/space_scale/font_scale) so scoped_inline_style() can reuse one lookup for both. */
+    /** Bare-token key => --bh-* custom property name, shared by entity_style_payload() and scoped_inline_style(). */
     /** @return array<string, string> */
     private static function style_var_map(): array {
         $map = [
@@ -1491,7 +1062,7 @@ class BHY_Style {
         return $map;
     }
 
-    /** Sanitizes a bare-token value by field name, reusing the EXISTING safe_color()/safe_number() validators — never a new sanitizer for the §2.3 mechanic. */
+    /** Sanitizes a bare-token value by field name using the existing validators. */
     /** @param mixed $value */
     private static function safe_style_token_value(string $field, $value): ?string {
         if (strpos($field, 'color') !== false) return self::safe_color($value);
@@ -1502,13 +1073,7 @@ class BHY_Style {
         return self::safe_length($value); // any other bare key a plugin invents: run through the general CSS-value sanitizer, fail-safe to null (dropped) rather than guessing
     }
 
-    // Audit fix (2026-07-25): scale_table()/enum_table() used to be two
-    // separate hand-maintained switch statements mapping a constant NAME
-    // string to its own value — every new scale/enum constant needed a
-    // matching case added here too, a second place to remember. Both
-    // collapse to one generic lookup via constant(); a name that isn't a
-    // real class constant fails safe to [] rather than a fatal, same as
-    // the switches' own default branches did.
+    // Constant name -> value; an unknown name fails safe to [].
     /** @return array<mixed> */
     private static function const_table(string $name): array {
         $fqcn = self::class . '::' . $name;
@@ -1520,26 +1085,17 @@ class BHY_Style {
     /** @return array<mixed> */
     private static function enum_table(string $name): array { return self::const_table($name); }
 
-    /** 'screen' means "the full viewport in whichever axis this property moves in" — height-shaped properties get 100vh, everything else gets 100vw. Every other step is a flat SIZE_STEPS lookup. */
+    /** 'screen' is 100vh for height-shaped properties, 100vw otherwise; other steps are a SIZE_STEPS lookup. */
     private static function resolve_size_step(string $step, string $css_prop): ?string {
         if ($step === 'screen') return (strpos($css_prop, 'height') !== false) ? '100vh' : '100vw';
         return self::SIZE_STEPS[$step] ?? null;
     }
 
     /**
-     * General-purpose CSS *value* sanitizer for every 'custom:'/free-
-     * form length (safe_length(), §2.6's "new validators as needed
-     * alongside safe_color/safe_number"). Hard-
-     * blocks anything that could break out of a `style="..."` attribute
-     * or smuggle a second declaration (semicolons/quotes/angle
-     * brackets/braces), plus the legacy expression()/javascript: CSS
-     * injection vectors, THEN allowlists a conservative charset for
-     * everything else (numbers, units, %, #hex, calc()/var() nesting,
-     * commas, spaces, and the arithmetic symbols plus, minus, times,
-     * divide). Returns null (dropped, never emitted)
-     * on anything that doesn't clear both checks — fail-closed, matching
-     * safe_color()'s own "unknown input -> safe fallback, never pass
-     * through" posture.
+     * Sanitizer for every free-form CSS length/value. Blocks anything that could
+     * break out of style="" or add a declaration (; quotes <> {}), plus
+     * expression()/javascript:, then allowlists a conservative charset.
+     * Fail-closed: returns null (dropped) otherwise.
      */
     /** @param mixed $val */
     public static function safe_length($val): ?string {
@@ -1551,7 +1107,7 @@ class BHY_Style {
         return $val;
     }
 
-    /** Enum-membership validator — the other §2.6-promised new validator, alongside safe_length(). A thin, explicit wrapper (rather than inlining in_array() everywhere) so every enum check in this file goes through one named, greppable choke point. */
+    /** Enum-membership validator; one greppable choke point for every enum check. */
     /**
      * @param mixed $val
      * @param array<int, mixed> $allowed
@@ -1562,11 +1118,8 @@ class BHY_Style {
     }
 
     /**
-     * Resolves ONE "group.property" style value (a preset step, an
-     * "@token:*" ref, or a "custom:*" escape hatch) against $map (one
-     * PROPERTY_MAP entry) into a concrete CSS value, or null if it
-     * can't be resolved safely — the caller (scoped_inline_style())
-     * simply omits that one declaration on null, never throwing.
+     * Resolves one "group.property" value against its PROPERTY_MAP entry into
+     * a CSS value, or null if it cannot be resolved safely.
      */
     /**
      * @param mixed $raw
@@ -1578,10 +1131,7 @@ class BHY_Style {
         $css  = $map['css'];
 
         if (strpos($raw, '@token:') === 0) {
-            // Only color-shaped properties ('token-only') accept a
-            // token reference — §2.6: "colors are always token refs,
-            // never raw hex", and no other group has a token vocabulary
-            // to reference in the first place.
+            // Only color properties accept token refs; colors are never raw hex.
             if ($kind !== 'token-only') return null;
             $field = substr($raw, 7);
             $var_map = self::style_var_map();
@@ -1598,8 +1148,7 @@ class BHY_Style {
             return self::safe_length($val);
         }
 
-        // A bare preset-step name (or, for a couple of kinds, a raw
-        // number) — never a token/custom prefix at all.
+        // A bare preset-step name (or, for some kinds, a raw number).
         switch ($kind) {
             case 'space':  return self::SPACE_SCALE_STEPS[$raw] ?? null;
             case 'size':   return self::resolve_size_step($raw, $css);
@@ -1618,17 +1167,9 @@ class BHY_Style {
     }
 
     /**
-     * Resolves a placement's config.style map (§2.3/§2.6) into a
-     * `style="..."` attribute VALUE (the declarations only, no
-     * surrounding style="" wrapper or quoting — the caller,
-     * BH_Element::render_placement(), esc_attr()'s the whole thing when
-     * it assembles the final HTML string). See this section's docblock
-     * above for the bare-key vs. group.property key contract.
-     *
-     * Every declaration is resolved and sanitized independently; one
-     * bad/unknown entry is silently skipped (never emitted, never
-     * fatal) rather than aborting the whole map — same fail-closed-per-
-     * entry posture as render_placement()'s attr coercion loop.
+     * Resolves a placement's config.style map into a style attribute VALUE
+     * (declarations only; the caller esc_attr()s it). Each entry is resolved
+     * independently; a bad entry is skipped, never fatal.
      */
     /** @param array<string, mixed> $style_map */
     public static function scoped_inline_style(array $style_map): string {
@@ -1640,7 +1181,7 @@ class BHY_Style {
             if ($key === '' || !is_scalar($value)) continue;
 
             if (strpos($key, '.') === false) {
-                // Bare token key — §2.3's original, UNCHANGED mechanic.
+                // Bare token key: scoped --bh-* custom property.
                 $css_var = $var_map[$key] ?? ('--bh-' . str_replace('_', '-', sanitize_key($key)));
                 $safe = self::safe_style_token_value($key, $value);
                 if ($safe !== null) $decls .= $css_var . ':' . $safe . ';';
@@ -1657,23 +1198,10 @@ class BHY_Style {
     }
 
     /**
-     * 3.4.27 — JSON-shaped export of PROPERTY_MAP (§2.6), with every
-     * 'scale'/'enum'/'enum-scale' table already resolved to a plain
-     * {value: label} map, so the element-builder inspector JS can build
-     * every property-group's preset picker WITHOUT hardcoding a single
-     * one of §2.6's property groups or their preset tables client-side —
-     * this is the one export point the GUI reads to stay dynamic even as
-     * PROPERTY_MAP grows. Grouped by the "group" half of each
-     * "group.property" key (sizing/spacing/background/typography/border/
-     * display/flex/grid/position/effects/overflow) purely for inspector
-     * layout — the group boundary has no server-side meaning beyond that.
-     *
-     * 'colorTokens' is the token vocabulary 'token-only' kinds are
-     * allowed to reference (style_var_map()'s keys) — token-only
-     * properties NEVER get a free-text custom option in the inspector,
-     * mirroring resolve_style_value()'s "colors are always token refs,
-     * never raw hex" rule exactly. Only reads/reshapes PROPERTY_MAP/
-     * resolve_style_value() above — adds no new resolution behavior.
+     * PROPERTY_MAP exported for the inspector JS, with every scale/enum table
+     * resolved to {value: label} and grouped by the "group" half of the key.
+     * 'colorTokens' is the vocabulary token-only properties may reference;
+     * those never get a free-text custom option.
      */
     /** @return array<string, mixed> */
     public static function style_schema_for_js(): array {
@@ -1723,16 +1251,8 @@ class BHY_Style {
             ];
         }
 
-        // 3.4.49 follow-up — value changed from the field's own name
-        // (`$color_tokens[$field] = $field`) to its REAL CSS custom
-        // property name (`--bh-accent` etc.), direct response to AJ's
-        // own ask: "would be cool if the color and font selectors could
-        // preview what they look like... with like swatches in the
-        // dropdown." Nothing previously read this map's VALUES (every
-        // client-side consumer only ever iterated its KEYS), so this is
-        // a safe, non-breaking payload shape change — the client can now
-        // build `var(--bh-accent)` directly instead of hardcoding a
-        // second copy of style_var_map()'s naming convention in JS.
+        // Values are real CSS custom property names (--bh-accent etc.) so the
+        // client can build var(...) swatches without duplicating the naming rule.
         $color_tokens = [];
         foreach (self::style_var_map() as $field => $css_var) {
             if (strpos($field, 'color') !== false) $color_tokens[$field] = $css_var;
@@ -1745,54 +1265,9 @@ class BHY_Style {
     }
 
     /**
-     * The one shared "nothing to show" component for front-end list/
-     * catalog surfaces — UX-AUDIT-2026-07.md's own top recommendation:
-     * the exact same bare "No courses found yet." / "No tracks match."
-     * pattern showed up independently in bh-courses' catalog and
-     * bh-streaming's library, with no explanation and no next step,
-     * while WooCommerce's own default empty state (one plugin away,
-     * "try clearing any filters or head to our store's home") already
-     * solves this correctly. One reusable piece here, retrofit onto
-     * both existing call sites, rather than fixing the same gap twice
-     * (and however many more times it would otherwise recur later).
-     *
-     * $args:
-     *   'reason'      — 'zero' (nothing exists yet at all) or
-     *                    'filtered' (a search/filter matched nothing) —
-     *                    changes both the default message and whether a
-     *                    "clear filters" affordance makes sense at all.
-     *   'title'       — required, short. Own the specific cause instead
-     *                    of a generic "No items found" ("No courses
-     *                    published yet" beats "No results").
-     *   'description' — optional, one more sentence of context.
-     *   'cta_label'/'cta_url' — optional single next-step link/button.
-     *   'clear_url'   — optional; only rendered when reason='filtered',
-     *                    a plain "Clear filters" link.
-     *   'icon'        — optional dashicon name (no 'dashicons-' prefix),
-     *                    defaults to 'search' for filtered, 'info' for zero.
-     *
-     * Self-contained: ships its own <style> block (guarded by a static
-     * flag so it only prints once per request even if this is called
-     * more than once on the same page) rather than requiring every
-     * consumer to remember a separate enqueue — same posture
-     * BH_Studio's own inline <style> blocks already use elsewhere in
-     * this codebase. Mobile-first sizing throughout (the icon/padding
-     * shrink under 480px rather than a separate breakpoint-gated
-     * layout, since the component's shape doesn't actually change on a
-     * narrow viewport, only its scale).
+     * Shared front-end empty state. Thin delegate kept for existing callers;
+     * new code should call BHY_UI::empty_state_html() directly.
      */
-    // Two tiny (~200 byte) inline SVGs, not dashicons — dashicons is an
-    // admin-only stylesheet WordPress doesn't enqueue on the front end
-    // by default, and this component is meant to be genuinely portable
-    // (drop into any front-end template, the-self-hosted-self loaded or not,
-    // with zero extra enqueue to remember). currentColor so it inherits
-    // the surrounding text color automatically.
-    // Audit fix (2026-07-25): moved to BHY_UI (the-self-hosted-self/includes/
-    // class-ui.php) — a more cohesive home for a front-end list/catalog
-    // UI component than the style-tokens class. Kept here as a thin
-    // delegate so the ~12 existing call sites across the ecosystem
-    // don't all need updating in the same pass; new callers should
-    // prefer BHY_UI::empty_state_html() directly.
     /** @param array<string, mixed> $args */
     public static function empty_state_html(array $args): string {
         return BHY_UI::empty_state_html($args);

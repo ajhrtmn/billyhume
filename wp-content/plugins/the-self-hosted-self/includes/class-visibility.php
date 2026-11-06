@@ -2,32 +2,14 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_Visibility — a shared "does this require a logged-in account to
- * view" contract, the same shared-service shape as Notifications/Jobs/
- * Roles/Events. Built in response to a real product decision: an
- * ungated (no required tier) bh-courses course was fully viewable by a
- * logged-OUT visitor, because BHM_Gate's tier check only ever asks "is
- * the tier requirement satisfied" — for a course with no tier set at
- * all, that's vacuously true regardless of login state. Login and tier
- * are two genuinely different questions this ecosystem was conflating:
- * "can anyone with an account see this" vs. "does seeing it cost
- * something."
- *
- * Deliberately NOT applied ecosystem-wide by default — bh-contest's
- * whole design depends on a contest being publicly viewable/shareable
- * (that's how voting/engagement actually works; login is required to
- * VOTE, not to see the contest), so this is opt-in per plugin/CPT, not
- * a global "everything requires login" switch. bh-courses is the first
- * (and, as of this pass, only) adopter — real content behind a login
- * wall by default, with an explicit per-post "Public" override for a
- * course an artist genuinely wants open to anyone.
+ * OUS_Visibility: shared "requires a logged-in account to view" contract,
+ * separate from tier gating (login and paying are different questions).
+ * Opt-in per plugin: bh-courses defaults closed, bh-contest defaults open.
  */
 class OUS_Visibility {
     const META_KEY = '_ous_public_access';
 
-    // A post marked explicitly public is viewable with no account at
-    // all — the artist's own deliberate choice (a free/preview course,
-    // for example), not a default.
+    // An explicitly public post is viewable without an account.
     public static function is_public(int $post_id): bool {
         return (bool) get_post_meta($post_id, self::META_KEY, true);
     }
@@ -37,10 +19,8 @@ class OUS_Visibility {
         return is_user_logged_in() || self::is_public($post_id);
     }
 
-    // Reusable "log in to view this" notice — routes through the
-    // portal's own branded login screen when installed (BHI_Portal,
-    // class-portal.php), falling back to core's own wp_login_url() so
-    // this still works standalone if the portal isn't active.
+    // "Log in to view this" notice, using the portal login when available,
+    // else wp_login_url().
     public static function render_login_notice(string $message = ''): string {
         // The portal validates redirect_to against this site before using it (BHI_Portal::post_login_redirect()).
         // Built from home_url()'s own origin, never the client-supplied Host header.
@@ -54,37 +34,22 @@ class OUS_Visibility {
         return '<div class="ous-login-required"><p>' . esc_html($message) . '</p><p><a class="button ous-login-required-cta" href="' . esc_url($login_url) . '">' . esc_html__('Log In', 'the-self-hosted-self') . '</a></p></div>';
     }
 
-    // Reusable admin checkbox markup — a contributing plugin's own
-    // metabox echoes this and handles its own save (same META_KEY),
-    // rather than this class owning a metabox on a CPT it knows
-    // nothing about.
+    // Checkbox markup for a contributing plugin's own metabox (same META_KEY).
     public static function checkbox_field(int $post_id, string $label = ''): string {
         $checked = self::is_public($post_id) ? 'checked' : '';
         $label = $label ?: __('Public — no login required to view', 'the-self-hosted-self');
         return '<label><input type="checkbox" name="' . esc_attr(self::META_KEY) . '" value="1" ' . $checked . '> ' . esc_html($label) . '</label>';
     }
 
-    // A contributing plugin's own save handler calls this after its own
-    // nonce/capability checks — kept here only so the meta key itself
-    // stays a single source of truth.
+    // Called by the plugin's save handler after its own nonce/capability checks.
     public static function save_from_request(int $post_id): void {
         update_post_meta($post_id, self::META_KEY, !empty($_POST[self::META_KEY]) ? '1' : '');
     }
 
     /* ---------------- inverted polarity: default-open, opt-in-closed ---------------- */
 
-    // bh-courses (above) defaults CLOSED — a course requires login
-    // unless explicitly marked public. bh-contest is the opposite: a
-    // contest defaults OPEN (its whole design depends on being publicly
-    // viewable/shareable — that's how voting/engagement works), with an
-    // explicit per-contest opt-IN for the ones an artist genuinely wants
-    // restricted to logged-in members only. Deliberately a SEPARATE meta
-    // key/method pair rather than reusing is_public()/can_view() with
-    // inverted logic at each call site — "is this open" and "is this
-    // closed" read backwards from each other if only one boolean flag
-    // is doing double duty, and a future contest-side bug from flipped
-    // polarity is exactly the kind of subtle mistake worth a few extra
-    // lines to rule out entirely.
+    // Default-open counterpart (bh-contest): opt-in members-only. WHY: a separate
+    // meta key, not inverted is_public() logic, to rule out flipped-polarity bugs.
     const MEMBERS_ONLY_META_KEY = '_ous_members_only';
 
     public static function is_members_only(int $post_id): bool {

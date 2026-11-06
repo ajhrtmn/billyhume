@@ -2,24 +2,16 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Split out of class-admin.php (DRY/SOLID audit Phase 3b) — the
- * wp-admin list-table columns for the bh_contest and bh_submission post
- * lists (status pills, shortcode, page links, quick stats, contest
- * filter dropdown). No settings or moderation logic here.
+ * List-table columns and the contest filter for the bh_contest and bh_submission lists.
  */
 class BH_AdminListTables {
     public static function init(): void {
-        // Contest list table: status pill, copyable shortcode, quick
-        // stats. DRY/SOLID audit Phase 4: migrated to the shared
-        // OUS_ListTable helper (the-self-hosted-self/includes/class-list-table.php)
-        // — same column set/position/render logic as before.
+        // Contest list: status pill, shortcode, quick stats (via OUS_ListTable).
         OUS_ListTable::register('bh_contest', [
             'bh_status' => 'Status', 'bh_shortcode' => 'Shortcode', 'bh_page' => 'Page', 'bh_stats' => 'Submissions / Votes',
         ], [self::class, 'contest_column_content']);
 
-        // Submissions list: which contest each one belongs to, plus a filter
-        // dropdown — the flat approval queue is unreadable once more than
-        // one contest has submissions in it.
+        // Submissions list: contest column plus a contest filter dropdown.
         OUS_ListTable::register('bh_submission', [
             'bh_contest' => 'Contest', 'bh_notes' => 'Notes',
         ], [self::class, 'submission_column_content']);
@@ -31,10 +23,7 @@ class BH_AdminListTables {
 
     public static function contest_column_content(string $col, int $post_id): void {
         if ($col === 'bh_status') {
-            // Submissions pill — "unscheduled" here genuinely means
-            // "always open" (see BH_Helpers::is_submission_open), so it's
-            // shown as green "Open", not the gray/ambiguous label voting
-            // uses for the same raw status string.
+            // For submissions, "unscheduled" means always open, so it shows as "Open".
             $sub = BH_Helpers::submission_status($post_id);
             $sub_map   = ['open' => '#1DB954', 'unscheduled' => '#1DB954', 'upcoming' => '#8a8a8a', 'closed' => '#b3261e'];
             $sub_label = ['open' => 'Open', 'unscheduled' => 'Open', 'upcoming' => 'Upcoming', 'closed' => 'Closed'];
@@ -47,11 +36,7 @@ class BH_AdminListTables {
             echo '<div style="white-space:nowrap;"><span style="display:inline-block;width:62px;font-size:10px;color:#787c82;text-transform:uppercase;">Vote</span> '
                . '<span style="display:inline-block;padding:2px 10px;border-radius:999px;background:' . $map[$s] . ';color:#fff;font-size:11px;font-weight:600;white-space:nowrap;">' . esc_html($label[$s]) . '</span>';
 
-            // One-click override so switching a contest's phase doesn't
-            // require opening the edit screen and hand-editing date pickers.
-            // Plain links, not forms — this cell sits inside the list
-            // table's own <form>, and nested <form> elements are invalid
-            // HTML that browsers "fix" by hijacking the outer submit.
+            // Start/End now links. WHY: links, not forms, since this cell is inside the list-table <form>.
             $quick = function ($which, $text) use ($post_id) {
                 $url = wp_nonce_url(
                     admin_url('admin-post.php?action=bh_quick_schedule&contest_id=' . (int) $post_id . '&which=' . $which),
@@ -90,8 +75,7 @@ class BH_AdminListTables {
         if ($col === 'bh_notes') {
             $note = get_post_meta($post_id, '_bh_admin_note', true);
             if ($note === '') { echo '<em>—</em>'; return; }
-            // Full text on hover via title attribute — no need to open the
-            // submission just to read a note during a live contest stream.
+            // Full note text on hover.
             echo '<span title="' . esc_attr($note) . '">' . esc_html(wp_html_excerpt($note, 60, '…')) . '</span>';
         }
     }

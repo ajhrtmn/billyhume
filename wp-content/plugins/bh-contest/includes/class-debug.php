@@ -1,30 +1,11 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// BH_VER 3.1.6 — register() now sets 'group' => OUS_Debug::GROUP_SEED_RESET
-// (the-self-hosted-self's Debug Tools reorganization pass — see that plugin's
-// class-debug.php docblock), filing this section under "Seed & Reset
-// Tools" instead of the default bucket. No other change.
-
 /**
- * Registers this plugin's dev-only data seeding into the shared Debug
- * Tools page (see OUS_Debug) instead of running its own separate menu
- * page — same seeding logic as before, just reached through one shared
- * page rather than a plugin-specific one.
- *
- * Everything this creates is tagged with _bh_is_test = 1 (posts) so
- * reset() can find and remove exactly the fake data and nothing real.
- * Fake user accounts are created via the shared
- * OUS_Debug::get_or_create_test_user() helper (tagged bhcore_is_test)
- * rather than this plugin creating its own separately-tagged users —
- * one shared convention means "Reset Everything" on the shared page
- * correctly cleans up test accounts regardless of which plugin created
- * them.
- *
- * All seeding/close/publish/login-as-voter actions target ONE contest at
- * a time, picked via the dropdown at the top of this section — this lets
- * you build out several test contests side by side to exercise the
- * multi-contest flows (different windows, different shortcodes, etc).
+ * Dev-only contest seeding, as a Debug Tools section (OUS_Debug).
+ * Test posts are tagged _bh_is_test and test users come from
+ * OUS_Debug::get_or_create_test_user(), so reset() removes only fake data.
+ * Every action targets the contest picked in the section's dropdown.
  */
 class BH_Debug {
     const FAKE_ARTISTS = ['The Night Owls', 'Static Bloom', 'Copper Wire', 'Low Tide Motel', 'Radio Silo', 'Paper Kites Union', 'Glass Harbor', 'Velvet Static', 'Dry County', 'The Understudies'];
@@ -121,10 +102,7 @@ class BH_Debug {
             'This will log you out of your admin account in this browser and switch to a fresh test voter. Continue?');
     }
 
-    // OUS_Debug::button() covers the common case; this adds the
-    // target-contest hidden field and disables the button when no
-    // contest is selected, which every action here except seed_contest
-    // itself needs.
+    // OUS_Debug::button(), disabled until a target contest is selected.
     private static function button_with_contest(string $key, string $action, string $label, string $cidField, int $cid, string $confirm = ''): void {
         if (!$cid) {
             echo '<button class="button" disabled title="Select a target contest first">' . esc_html($label) . '</button> ';
@@ -135,9 +113,7 @@ class BH_Debug {
 
     /* ---------------- dispatch ---------------- */
 
-    // See OUS_Debug's class docblock: login_as_voter is the one action
-    // here that needs to do its own redirect+exit rather than return a
-    // message, since it switches the browser's session.
+    // login_as_voter redirects and exits itself, since it switches the session.
     /** @param array<string, mixed> $post */
     public static function handle_action(string $action, $post): string {
         $cid = (int) ($post['contest_id'] ?? 0);
@@ -237,9 +213,7 @@ class BH_Debug {
             $uid = OUS_Debug::get_or_create_test_user('voter');
             $limit = BH_Helpers::vote_limit($uid, $cid); // some test users will "have submitted" if reused
 
-            // Each category gets its own independent picks — a track can
-            // win in more than one category, same as a real voter choosing
-            // different favorites per category.
+            // Independent picks per category, like a real voter.
             foreach ($cat_slugs as $cat) {
                 $picks = (array) array_rand(array_flip($tracks), min($limit, count($tracks)));
                 foreach ($picks as $track_id) {
@@ -263,10 +237,8 @@ class BH_Debug {
         return ($on ? 'Results published' : 'Results hidden') . ' for "' . get_the_title($cid) . '".';
     }
 
-    // Creates a brand-new, always-clean test voter (never reused, so it has
-    // zero prior votes) and switches this browser's auth cookie to it —
-    // effectively "log in as a spoofed voter" for interactive UI testing.
-    // Returns the front-end URL for the TARGET contest specifically.
+    // Logs this browser in as a brand-new test voter (zero prior votes) and
+    // returns the target contest's front-end URL.
     private static function login_as_voter(int $cid): string {
         $n = wp_rand(1000, 999999);
         $id = wp_insert_user([
@@ -305,13 +277,8 @@ class BH_Debug {
         return $fallback ?: home_url('/');
     }
 
-    // Wipes only THIS plugin's own tagged test data — posts tagged
-    // _bh_is_test, and any user tagged bhcore_is_test with a role tag
-    // this plugin uses ('submitter' or 'voter'). Shared "Reset
-    // Everything" calls this alongside every other registered plugin's
-    // own reset(); a person can also trigger just this one from this
-    // section — see OUS_Debug's dispatcher for how a plugin-specific
-    // reset would be wired if this plugin adds one later.
+    // Removes only this plugin's tagged test posts and 'submitter'/'voter' test
+    // users. Also called by the shared "Reset Everything".
     public static function reset(): string {
         $posts = get_posts(['post_type' => ['bh_contest', 'bh_submission'], 'meta_key' => '_bh_is_test', 'meta_value' => '1', 'posts_per_page' => -1, 'post_status' => 'any', 'fields' => 'ids']);
         foreach ($posts as $pid) wp_delete_post($pid, true);

@@ -2,13 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The Test Runner (see the-self-hosted-self's class-test-runner.php) version of
- * tests/QuizScoringTest.php and tests/StepsSanitizationTest.php — same
- * cases and reasoning, runnable straight from Debug Tools on this
- * site's own PHP with no CLI/PHPUnit needed. class_exists()-guarded
- * registration below means an older core without OUS_TestRunner just
- * never sees this suite offered — harmless no-op, same as every other
- * optional integration in this ecosystem.
+ * Test Runner version of tests/QuizScoringTest.php and tests/StepsSanitizationTest.php,
+ * runnable from Debug Tools without PHPUnit. Registration is skipped without OUS_TestRunner.
  */
 class BHC_TestSuite {
     public static function init(): void {
@@ -81,7 +76,7 @@ class BHC_TestSuite {
         $rows[] = OUS_TestRunner::assert_same([], BHC_Steps::save(1, [['type' => 'video', 'source' => 'url', 'video_url' => '']]), 'Video URL step with empty URL is dropped');
         $rows[] = OUS_TestRunner::assert_same([], BHC_Steps::save(1, [['type' => 'video', 'source' => 'url', 'video_url' => 'not a url']]), 'Video URL step with invalid URL is dropped');
 
-        /* ---------- video annotations (ROADMAP-lms-v3.md Section 1) ---------- */
+        /* ---------- video annotations ---------- */
 
         $video_step = ['type' => 'video', 'source' => 'upload', 'attachment_id' => 5, 'annotations' => [
             ['time' => 30, 'type' => 'note', 'payload' => ['text' => 'Watch the meter here']],
@@ -133,91 +128,47 @@ class BHC_TestSuite {
         $rows[] = OUS_TestRunner::assert_same(['text', 'image', 'text'], array_column($result, 'type'), 'Multistep lesson preserves authored order');
 
         /* ---------- quiz answer storage (BHC_Progress) ----------
-         * No coverage existed for this before — mark_step_complete()'s
-         * answers-JSON persistence and stored_answers()'s round-trip
-         * were added this session (the quiz-review UX feature) and had
-         * zero test coverage until now. Runs against a real, tagged
-         * fake user + real bhc_progress rows, cleaned up afterward. */
+         * Real tagged fake user + bhc_progress rows, cleaned up afterward. */
         if (class_exists('BHC_Progress') && class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_progress_tests());
             $rows = array_merge($rows, self::run_quiz_average_tests());
         }
 
         /* ---------- catalog search/sort (BHC_Render::render_catalog()) ----------
-         * No coverage existed for this before — the whole search/filter/
-         * sort/pagination rebuild this session had zero test coverage.
-         * render_catalog() reads $_GET directly and queries real
-         * bh_course posts, so this is a real integration test against
-         * two tagged fixture courses rather than a pure-logic unit test
-         * — there's no smaller seam to test this through without
-         * duplicating WP_Query's own behavior in a mock. */
+         * Integration test against two tagged fixture courses; render_catalog()
+         * reads $_GET and queries real posts, so there's no smaller seam. */
         if (class_exists('BHC_Render')) {
             $rows = array_merge($rows, self::run_catalog_tests());
         }
 
         /* ---------- gate/drip/progress-matrix interaction ----------
-         * The plugin's own audit flagged this as the highest-blast-
-         * radius, least-tested surface: BHC_Gate::lesson_is_open()'s
-         * two drip shapes (relative delay vs. fixed date), the "no
-         * enrollment yet = fails open" rule, and the batched
-         * course_progress_matrix()/completed_user_ids()/
-         * enrolled_user_ids() queries added for the Student Progress
-         * admin page's N+1 fix — none of it had any test coverage
-         * before this. Runs against a real, tagged fixture course +
-         * two fixture lessons + a real enrollment row, cleaned up
-         * afterward. */
+         * Both drip shapes, the "no enrollment = fails open" rule, and the batched
+         * Student Progress queries. Real fixture course/lessons/enrollment, cleaned up. */
         if (class_exists('BHC_Gate') && class_exists('BHC_Progress') && class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_gate_drip_tests());
         }
 
-        /* ---------- reviews (BHC_Reviews) ----------
-         * New this pass — course reviews/ratings, previously explicitly
-         * deferred with no data model at all. Runs against a real,
-         * tagged fixture course + a real enrollment row, cleaned up
-         * afterward. */
+        /* ---------- reviews (BHC_Reviews) ---------- */
         if (class_exists('BHC_Reviews') && class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_review_tests());
         }
 
         /* ---------- achievements (BHC_Achievements) ----------
-         * LMS depth-of-magic Phase 3 — the first genuinely new schema
-         * this plugin's added all session (bhc_achievements). Runs
-         * directly against the class's own award()/count()/
-         * on_course_completed() methods (not through the real AJAX/
-         * action-firing path) — same isolated-unit-test posture
-         * run_quiz_average_tests() already uses for course_quiz_average(),
-         * to avoid dragging in course_percent()/BH_Event/notification
-         * side effects unrelated to what's actually being tested here.
-         * Real, tagged fixture user + real bhc_achievements rows,
-         * cleaned up afterward. */
+         * Calls award()/count()/on_course_completed() directly to avoid unrelated
+         * course_percent()/BH_Event/notification side effects. */
         if (class_exists('BHC_Achievements') && class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_achievement_tests());
         }
 
         /* ---------- leaderboard (BHC_Leaderboard) ----------
-         * LMS depth-of-magic Phase 4 — the tie-handling competition-rank
-         * logic (1, 1, 3 — not 1, 1, 2) is the one piece of this feature
-         * worth real test coverage; the enrollment/quiz-average plumbing
-         * around it is already covered by run_quiz_average_tests() and
-         * run_gate_drip_tests(). Real, tagged fixture users + a real
-         * fixture course, cleaned up afterward. */
+         * Competition-rank tie handling (1, 1, 3 — not 1, 1, 2). */
         if (class_exists('BHC_Leaderboard') && class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_leaderboard_tests());
         }
 
-        /* ---------- is_course_completed() vs a course whose content changed after completion ----------
-         * Bug found via live walkthrough (2026-07-26): a bhc_completions
-         * row is permanent once written, so adding a new lesson to an
-         * already-completed course left is_course_completed() (and
-         * every one of its 7 callers — certificate download, share
-         * cards, the completion-screen banner, etc.) still reporting
-         * "done" against content the student never saw. Fixed by
-         * requiring course_percent() === 100 too, not just the row's
-         * existence. Real fixture course + real lesson posts (course_
-         * percent() needs BHC_Steps::count() to read real _bhc_steps
-         * postmeta, unlike run_quiz_average_tests()'s fake lesson IDs
-         * further up this file, which only ever exercise bhc_progress
-         * directly). */
+        /* ---------- is_course_completed() after course content changes ----------
+         * A lesson added after completion must make the course incomplete again.
+         * Needs real lesson posts, since course_percent() reads real _bhc_steps. */
         if (class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_completion_consistency_tests());
         }
@@ -242,8 +193,7 @@ class BHC_TestSuite {
         $rows[] = OUS_TestRunner::assert_same(100, BHC_Progress::course_percent($uid, $course_id), 'course_percent(): 100 once the only lesson\'s only step is complete');
         $rows[] = OUS_TestRunner::assert_true(BHC_Progress::is_course_completed($uid, $course_id), 'is_course_completed(): true once course_percent() genuinely reads 100 and a completions row exists');
 
-        // The bug scenario: a new lesson gets added to the course AFTER
-        // this student already completed it.
+        // A lesson added after the student completed the course.
         $lesson_b = wp_insert_post(['post_type' => 'bhc_lesson', 'post_status' => 'publish', 'post_title' => 'Fixture Lesson B (added later)', 'meta_input' => ['_bhc_course_id' => $course_id]], true);
         BHC_Steps::save($lesson_b, [['type' => 'text', 'content' => 'Step one of the new lesson']]);
         update_post_meta($course_id, '_bhc_lesson_order', [$lesson_a, $lesson_b]);
@@ -287,14 +237,11 @@ class BHC_TestSuite {
         $reviews_table = BHC_Tables::reviews();
         $wpdb->delete($reviews_table, ['user_id' => $uid, 'course_id' => $course_id]);
 
-        // Not enrolled yet — eligibility is enrollment, not completion,
-        // but SOME real access is still required (not a free-for-all).
+        // Not enrolled yet: some real access is still required.
         $result = BHC_Reviews::submit_review($uid, $course_id, 5, 'Great course!');
         $rows[] = OUS_TestRunner::assert_true(is_wp_error($result), 'submit_review() rejects a user with no enrollment at all');
 
-        // Enroll (not completing the course) and submit — should
-        // succeed, land as 'pending', and record completed_at_review=0
-        // since this user has not finished the course.
+        // Enrolled but not completed: lands as 'pending' with completed_at_review = 0.
         $wpdb->insert($enroll_table, ['user_id' => $uid, 'course_id' => $course_id, 'enrolled_at' => current_time('mysql', true)]);
         $result = BHC_Reviews::submit_review($uid, $course_id, 5, 'Great course, still working through it.');
         $rows[] = OUS_TestRunner::assert_true($result === true, 'submit_review() succeeds for an enrolled (not yet completed) user');
@@ -308,34 +255,26 @@ class BHC_TestSuite {
         $clamped = BHC_Reviews::user_review($uid, $course_id);
         $rows[] = OUS_TestRunner::assert_same(5, (int) ($clamped['rating'] ?? 0), 'An out-of-range rating clamps to 5, not rejected or stored raw');
 
-        // A review isn't publicly visible (average/reviews_for_course)
-        // until approved — the moderation gate is real, not cosmetic.
+        // Not publicly counted until approved.
         $avg_before = BHC_Reviews::average_rating($course_id);
         $rows[] = OUS_TestRunner::assert_same(0, $avg_before['count'], 'A pending review does not count toward the public average rating');
         $visible = BHC_Reviews::reviews_for_course($course_id, 'approved');
         $rows[] = OUS_TestRunner::assert_same(0, count($visible), 'A pending review does not appear in the public (approved-only) review list');
 
-        // Approve it (simulating the admin moderation action) — now it
-        // should count, and completed_at_review should NOT retroactively
-        // change even if the user completes the course afterward
-        // (it's a snapshot at submission time, not a live recompute).
+        // Approved now counts; completed_at_review is a submission-time snapshot.
         $wpdb->update($reviews_table, ['status' => 'approved'], ['user_id' => $uid, 'course_id' => $course_id]);
         $avg_after = BHC_Reviews::average_rating($course_id);
         $rows[] = OUS_TestRunner::assert_same(1, $avg_after['count'], 'An approved review counts toward the public average rating');
         $rows[] = OUS_TestRunner::assert_same(5.0, $avg_after['average'], 'average_rating() reflects the single approved review\'s rating');
 
-        // Editing/resubmitting an already-approved review resets it back
-        // to pending (re-moderation), and UPDATEs the same row rather
-        // than creating a second one (UNIQUE KEY user_course).
+        // Resubmitting resets to pending and updates the same row (UNIQUE KEY user_course).
         BHC_Reviews::submit_review($uid, $course_id, 3, 'Revised opinion after finishing.');
         $after_edit = BHC_Reviews::user_review($uid, $course_id);
         $rows[] = OUS_TestRunner::assert_same('pending', $after_edit['status'] ?? null, 'Editing an approved review resets its status back to pending, not grandfathered in');
         $row_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $reviews_table WHERE user_id = %d AND course_id = %d", $uid, $course_id));
         $rows[] = OUS_TestRunner::assert_same(1, $row_count, 'Editing a review UPDATEs the existing row rather than inserting a second one');
 
-        // average_ratings() — the bulk sibling used by the catalog's
-        // "Highest rated" sort — must agree with the single-course
-        // average_rating() once the edited review above is re-approved.
+        // Bulk average_ratings() must agree with average_rating().
         $wpdb->update($reviews_table, ['status' => 'approved'], ['user_id' => $uid, 'course_id' => $course_id]);
         $bulk = BHC_Reviews::average_ratings();
         $rows[] = OUS_TestRunner::assert_true(isset($bulk[$course_id]) && (float) $bulk[$course_id]['average'] === 3.0, 'average_ratings() bulk helper agrees with average_rating() for the same course');
@@ -388,10 +327,7 @@ class BHC_TestSuite {
 
         $uid = OUS_Debug::get_or_create_test_user('bhc_gate_drip_suite', false);
 
-        // No enrollment recorded yet — a relative-delay lesson must fail
-        // OPEN (not locked), per lesson_is_open()'s own documented
-        // reasoning: nothing to count the delay from yet, so it must
-        // not permanently lock someone the system never enrolled.
+        // No enrollment yet: a relative-delay lesson fails open.
         $enroll_table = BHC_Tables::enrollments();
         $wpdb->delete($enroll_table, ['user_id' => $uid, 'course_id' => $course_id]);
 
@@ -402,8 +338,7 @@ class BHC_TestSuite {
         $wpdb->insert($enroll_table, ['user_id' => $uid, 'course_id' => $course_id, 'enrolled_at' => current_time('mysql', true)]);
         $rows[] = OUS_TestRunner::assert_false(BHC_Gate::lesson_is_open($uid, $delay_lesson), 'A 7-day-delay lesson is locked immediately after enrollment');
 
-        // Backdate the enrollment past the delay window — same row,
-        // same UNIQUE KEY (user_id, course_id), so this is an UPDATE.
+        // Backdate the enrollment past the delay window (an UPDATE on the same row).
         $wpdb->update($enroll_table, ['enrolled_at' => gmdate('Y-m-d H:i:s', time() - 8 * DAY_IN_SECONDS)], ['user_id' => $uid, 'course_id' => $course_id]);
         $rows[] = OUS_TestRunner::assert_true(BHC_Gate::lesson_is_open($uid, $delay_lesson), 'A 7-day-delay lesson opens once 8 days have passed since enrollment');
 
@@ -413,19 +348,12 @@ class BHC_TestSuite {
         update_post_meta($date_lesson, '_bhc_available_on_date', gmdate('Y-m-d', strtotime('-1 day')));
         $rows[] = OUS_TestRunner::assert_true(BHC_Gate::lesson_is_open($uid, $date_lesson), 'A fixed-date lesson set to yesterday is open');
 
-        // enrolled_user_ids() — the helper added for BHC_DripNudges/the
-        // Student Progress N+1 fix — must include this fixture user and
-        // must NOT include an arbitrary user who was never enrolled.
+        // enrolled_user_ids() includes the fixture user and excludes a non-enrolled one.
         $enrolled_ids = BHC_Progress::enrolled_user_ids($course_id);
         $rows[] = OUS_TestRunner::assert_true(in_array((int) $uid, $enrolled_ids, true), 'enrolled_user_ids() includes a user with a real enrollment row');
         $rows[] = OUS_TestRunner::assert_false(in_array(999999999, $enrolled_ids, true), 'enrolled_user_ids() does not include an arbitrary non-enrolled user ID');
 
-        // course_progress_matrix() — mark one step complete on the
-        // undripped lesson (a quiz-shaped write, since that's the only
-        // way this table records a score) and confirm the matrix's
-        // three views (completed/last_activity/quiz_scores) all agree
-        // with what was just written, matching what the per-user
-        // methods (completed_steps()/course_percent()) would report.
+        // course_progress_matrix(): its three views must agree with a quiz-shaped write.
         BHC_Progress::mark_step_complete($uid, $undripped_lesson, 0, 80, true);
         $matrix = BHC_Progress::course_progress_matrix($course_id);
         $rows[] = OUS_TestRunner::assert_true(in_array((int) $uid, $matrix['user_ids'], true), 'course_progress_matrix() includes a user with a real progress row');
@@ -433,14 +361,11 @@ class BHC_TestSuite {
         $rows[] = OUS_TestRunner::assert_same([80.0], $matrix['quiz_scores'][$undripped_lesson][0] ?? null, 'course_progress_matrix() records the quiz score for the right lesson/step');
         $rows[] = OUS_TestRunner::assert_true(!empty($matrix['last_activity'][$uid]), 'course_progress_matrix() records a last-activity timestamp for the user');
 
-        // completed_user_ids() — course not actually completed yet, so
-        // this user must NOT show up as completed.
+        // Course not completed yet, so the user must not appear.
         $completed_ids = BHC_Progress::completed_user_ids($course_id, [$uid]);
         $rows[] = OUS_TestRunner::assert_false(isset($completed_ids[$uid]), 'completed_user_ids() does not mark a user complete who has not finished the course');
 
-        // Cleanup — real posts/rows, not just meta tags, since these
-        // are published posts that would otherwise appear in the real
-        // catalog/course list.
+        // Cleanup: these are published posts that would otherwise show in the catalog.
         $progress_table = BHC_Tables::progress();
         $wpdb->delete($progress_table, ['user_id' => $uid, 'lesson_id' => $undripped_lesson]);
         $wpdb->delete($enroll_table, ['user_id' => $uid, 'course_id' => $course_id]);
@@ -470,11 +395,7 @@ class BHC_TestSuite {
             return [['name' => 'Catalog test fixture creation failed', 'pass' => false, 'message' => 'Could not create fixture bh_course posts — skipping catalog tests.']];
         }
 
-        // Alphabetical sort: 'Aardvark...' must render before 'Zebra...'
-        // in the returned HTML string, regardless of which was created
-        // first (post ID order would put Zebra first, since it was
-        // inserted first above — this specifically catches a sort that
-        // silently fell back to date/ID order instead of title).
+        // Title sort must beat insertion/ID order (Zebra was inserted first).
         $_GET = ['bhc_sort' => 'alpha'];
         $html = BHC_Render::render_catalog();
         $pos_a = strpos($html, 'Aardvark Mastering Basics');
@@ -484,25 +405,13 @@ class BHC_TestSuite {
             'sort=alpha renders "Aardvark..." before "Zebra..." (real A-Z title order, not creation/ID order)'
         );
 
-        // Search: a keyword matching only one fixture's title should
-        // exclude the other from the rendered output entirely.
+        // A keyword matching only one fixture excludes the other.
         $_GET = ['bhc_s' => 'Zebra'];
         $html_search = BHC_Render::render_catalog();
         $rows[] = OUS_TestRunner::assert_true(strpos($html_search, 'Zebra Mixing Fundamentals') !== false, 'search "Zebra" includes the matching course');
         $rows[] = OUS_TestRunner::assert_false(strpos($html_search, 'Aardvark Mastering Basics') !== false, 'search "Zebra" excludes the non-matching course');
 
-        // A search matching nothing at all should render the empty-state
-        // message, not a fatal or an unfiltered full list. Stale test,
-        // caught by this exact assertion actually failing in a real
-        // environment: render_catalog()'s empty branch was upgraded to
-        // the shared BHY_Style::empty_state_html() component a while
-        // back (real title/description/CTA, not a bare message) —
-        // BHY_Style is always loaded in a real environment (the-self-hosted-self
-        // is a hard dependency), so the fallback '<p class="bhc-empty">'
-        // markup this assertion was still checking for never actually
-        // renders anymore. Checks the real component's class now,
-        // rather than reverting working, better production code to
-        // satisfy a stale check.
+        // No matches renders the shared BHY_Style::empty_state_html() component.
         $_GET = ['bhc_s' => 'ThisStringMatchesNoFixtureCourseTitleAtAll12345'];
         $html_empty = BHC_Render::render_catalog();
         $has_empty_state = strpos($html_empty, 'bhy-empty-state') !== false || strpos($html_empty, 'bhc-empty') !== false;
@@ -510,9 +419,7 @@ class BHC_TestSuite {
 
         $_GET = $saved_get;
 
-        // Cleanup — real wp_delete_post(), not just a meta tag, since
-        // these are real published posts that would otherwise show up
-        // in the actual site catalog.
+        // Cleanup: real published posts.
         wp_delete_post($course_a, true);
         wp_delete_post($course_b, true);
 
@@ -546,11 +453,7 @@ class BHC_TestSuite {
         $rows[] = OUS_TestRunner::assert_same(0, $stored['questions'][0]['chosen_index'] ?? null, 'stored_answers() round-trip preserves the exact chosen_index recorded at submission time');
         $rows[] = OUS_TestRunner::assert_same(100, $stored['score'] ?? null, 'stored_answers() round-trip preserves the score');
 
-        // A plain (non-quiz) step — score/passed/answers all null — must
-        // still correctly write real SQL NULLs (see mark_step_complete()'s
-        // own docblock re: the %d/%s NULL-passthrough bug this exact
-        // shape was written to catch) and stored_answers() must degrade
-        // to null, not throw or return a malformed array.
+        // A plain step must store real SQL NULLs, and stored_answers() returns null.
         BHC_Progress::mark_step_complete($uid, $lesson_id, 1, null, null, null);
         $plain_passed = $wpdb->get_var($wpdb->prepare(
             "SELECT passed FROM $table WHERE user_id = %d AND lesson_id = %d AND step_index = %d", $uid, $lesson_id, 1
@@ -558,10 +461,7 @@ class BHC_TestSuite {
         $rows[] = OUS_TestRunner::assert_same(null, $plain_passed, 'A plain (non-quiz) step writes a real SQL NULL for passed, not 0');
         $rows[] = OUS_TestRunner::assert_same(null, BHC_Progress::stored_answers($uid, $lesson_id, 1), 'stored_answers() on a plain step with no answers column returns null, not an error');
 
-        // A retry (same user/lesson/step) should UPDATE in place (latest-
-        // attempt-only semantics — see the answers column's own docblock
-        // in class-activator.php for why this is deliberately NOT an
-        // append-only log), not create a second row.
+        // A retry updates in place (latest-attempt-only), not a second row.
         BHC_Progress::mark_step_complete($uid, $lesson_id, 0, 50, false, wp_json_encode(['score' => 50, 'passed' => false, 'questions' => []]));
         $row_count_after_retry = (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM $table WHERE user_id = %d AND lesson_id = %d AND step_index = %d", $uid, $lesson_id, 0
@@ -576,12 +476,8 @@ class BHC_TestSuite {
         return $rows;
     }
 
-    // course_quiz_average() (the "Depth of Magic" certificate-distinction
-    // / mastery-signal feature) — fake lesson IDs same as
-    // run_progress_tests() above (bhc_progress has no FK to bh_lesson),
-    // but this method reads lesson IDs from a real course's own
-    // _bhc_lesson_order postmeta (BHC_PostTypes::lesson_order()), so a
-    // real fixture bh_course post is needed to point at them.
+    // course_quiz_average() reads lesson IDs from a real course's _bhc_lesson_order,
+    // so a real fixture course points at the fake lesson IDs.
     /** @return array<int, array<string, mixed>> */
     private static function run_quiz_average_tests(): array {
         $rows = [];
@@ -605,9 +501,7 @@ class BHC_TestSuite {
             'course_quiz_average(): a student with zero quiz attempts in this course returns null, never a bare 0%'
         );
 
-        // A quiz step (real score) and a plain step (score stays NULL —
-        // see mark_step_complete()'s own NULL-passthrough fix) in the
-        // same course: only the quiz step should count toward the average.
+        // Only the quiz step (non-NULL score) counts toward the average.
         BHC_Progress::mark_step_complete($uid, $lesson_a, 0, 80, true, wp_json_encode(['score' => 80, 'passed' => true, 'questions' => []]));
         BHC_Progress::mark_step_complete($uid, $lesson_a, 1, null, null, null);
         $rows[] = OUS_TestRunner::assert_same(
@@ -621,9 +515,7 @@ class BHC_TestSuite {
             'course_quiz_average(): averages across every quiz step in the course (80 + 100) / 2 = 90, catching an int-division or wrong-scope regression'
         );
 
-        // A retry overwrites the same row (latest-attempt-only semantics,
-        // same rule run_progress_tests() above already covers) — the
-        // average must reflect the NEW score, not double-count the old one.
+        // A retry overwrites the same row; the average reflects the new score.
         BHC_Progress::mark_step_complete($uid, $lesson_a, 0, 60, false, wp_json_encode(['score' => 60, 'passed' => false, 'questions' => []]));
         $rows[] = OUS_TestRunner::assert_same(
             80, BHC_Progress::course_quiz_average($uid, $course_id),
@@ -672,14 +564,8 @@ class BHC_TestSuite {
             'maybe_award_quiz_aced(): a 100% score awards first_quiz_aced'
         );
 
-        // on_course_completed() — distinction per course, then the
-        // rolled-up "3 courses mastered" once a 3rd distinct course
-        // clears the same bar. Four real, tagged fixture courses: one
-        // deliberately below the threshold (proves distinction isn't
-        // handed out for free), three above it (the actual countdown to
-        // the rollup) — since course_quiz_average() (which this method
-        // calls) reads real bhc_progress rows scoped by the course's own
-        // lesson order.
+        // on_course_completed(): per-course distinction, then "3 courses mastered" on the
+        // third. One fixture course is deliberately below the threshold.
         $progress_table = BHC_Tables::progress();
         $course_ids = [];
         $lesson_ids = [999999201, 999999202, 999999203, 999999204];
@@ -701,8 +587,7 @@ class BHC_TestSuite {
             'on_course_completed(): an 80% quiz average (below the 90% default threshold) does not earn course_distinction'
         );
 
-        // Courses 1 and 2: at/above threshold — distinction earned, but
-        // "3 mastered" should not fire until the THIRD one lands.
+        // Distinction earned, but "3 mastered" waits for the third.
         BHC_Progress::mark_step_complete($uid, $lesson_ids[1], 0, 95, true, wp_json_encode(['score' => 95, 'passed' => true, 'questions' => []]));
         BHC_Achievements::on_course_completed($uid, $course_ids[1]);
         $rows[] = OUS_TestRunner::assert_true(
@@ -773,8 +658,7 @@ class BHC_TestSuite {
             'is_enabled(): reads back the opt-in checkbox once set'
         );
 
-        // A scores 100 (rank 1), B and C tie at 80 (both rank 2 — a real
-        // tie must NOT skip to rank 3 for the second one).
+        // A=100 (rank 1); B and C tie at 80 (both rank 2).
         $wpdb->insert($enroll_table, ['user_id' => $uid_a, 'course_id' => $course_id]);
         $wpdb->insert($enroll_table, ['user_id' => $uid_b, 'course_id' => $course_id]);
         $wpdb->insert($enroll_table, ['user_id' => $uid_c, 'course_id' => $course_id]);
@@ -790,8 +674,7 @@ class BHC_TestSuite {
         $rows[] = OUS_TestRunner::assert_same(2, $ranks_by_user[$uid_b] ?? null, 'top_scorers(): a tied 80% score is rank 2, not 3');
         $rows[] = OUS_TestRunner::assert_same(2, $ranks_by_user[$uid_c] ?? null, 'top_scorers(): both tied students share rank 2');
 
-        // A 4th, lower score after a 2-way tie must land on rank 4, not
-        // rank 3 — the tie above consumed both the "2" and "3" positions.
+        // A lower score after a 2-way tie lands on rank 4.
         $uid_d = OUS_Debug::get_or_create_test_user('bhc_leaderboard_d', false);
         $wpdb->delete($progress_table, ['user_id' => $uid_d, 'lesson_id' => $lesson_id]);
         $wpdb->insert($enroll_table, ['user_id' => $uid_d, 'course_id' => $course_id]);
@@ -801,8 +684,7 @@ class BHC_TestSuite {
         foreach ($scores as $s) $ranks_by_user[$s['user_id']] = $s['rank'];
         $rows[] = OUS_TestRunner::assert_same(4, $ranks_by_user[$uid_d] ?? null, 'top_scorers(): the next distinct score after a 2-way tie is rank 4, correctly accounting for both tied positions above it');
 
-        // A student who never attempted a quiz doesn't occupy a slot —
-        // enroll a 5th student, don't score them at all.
+        // A student with no quiz attempts doesn't occupy a slot.
         $uid_e = OUS_Debug::get_or_create_test_user('bhc_leaderboard_e', false);
         $wpdb->delete($progress_table, ['user_id' => $uid_e, 'lesson_id' => $lesson_id]);
         $wpdb->insert($enroll_table, ['user_id' => $uid_e, 'course_id' => $course_id]);

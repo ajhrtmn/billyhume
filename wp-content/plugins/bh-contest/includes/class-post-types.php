@@ -2,39 +2,17 @@
 if (!defined('ABSPATH')) exit;
 
 class BH_PostTypes {
-    // Both CPTs live under one top-level admin menu, anchored on bh_contest,
-    // so the whole plugin reads as a single tab: Contests / Submissions /
-    // Results / Debug Tools, instead of two separate top-level menu items.
+    // Both CPTs share one top-level admin menu, anchored on bh_contest.
     const MENU_PARENT = 'edit.php?post_type=bh_contest';
 
     public static function register(): void {
         register_post_type('bh_contest', [
-            // menu_name used to carry an "OUS ·" text prefix so this
-            // top-level menu read as part of the Self-Hosted Self ecosystem
-            // even though it has to stay its own top-level item (see
-            // class-registry.php's docblock on why CPT list-tables
-            // aren't relocated). That job now belongs to the shared
-            // icon (OUS_MenuIcons::contests() — same rounded-square
-            // badge frame every OUS-owned top-level menu carries), so
-            // the label goes back to being plain "Contests" — name/
-            // singular_name/all_items already stayed plain since those
-            // show up in body text ("Add New Contest," "All Contests"),
-            // where a prefix would have read oddly anyway.
-            // QA fix: 'edit_item'/'add_new_item' were never set, so
-            // every real edit screen showed the generic WP core
-            // fallback "Edit Post"/"Add Post" instead of "Edit
-            // Contest"/"Add Contest".
             'labels'       => ['name' => 'Contests', 'menu_name' => 'Contests', 'singular_name' => 'Contest', 'all_items' => 'Contests', 'edit_item' => 'Edit Contest', 'add_new_item' => 'Add New Contest', 'new_item' => 'New Contest', 'view_item' => 'View Contest'],
             'public'       => false,
             'show_ui'      => true,
             'show_in_menu' => true, // this CPT IS the top-level anchor
             'menu_icon'    => OUS_MenuIcons::contests(),
-            // No 'editor' — a contest has no free-text body content of
-            // its own; everything that actually matters (dates, contact
-            // fields, categories, shortcode, branding) already lives in
-            // this CPT's dedicated meta boxes (see BH_AdminMetaboxes::
-            // add_meta_boxes() in class-admin-metaboxes.php). Keeping the default block editor around
-            // just added an empty, unused content area above those boxes.
+            // No 'editor': all contest config lives in its meta boxes.
             'supports'     => ['title'],
         ]);
 
@@ -46,28 +24,9 @@ class BH_PostTypes {
             'supports'     => ['title', 'author'],
         ]);
 
-        // Real 'rejected' status, replacing the previous non-existent
-        // one (an admin's only prior option was to leave a submission
-        // stuck at 'pending' forever, or trash it, with zero
-        // notification to the contestant either way).
-        // 'publicly_queryable' => false / 'exclude_from_search' =>
-        // true, same posture as 'pending' itself for this CPT (public
-        // => false on the post type already blocks direct access, this
-        // just keeps the status consistent with that).
-        // QA fix: 'exclude_from_search' => true made
-        // WordPress's post_status => 'any' query expansion (used in
-        // SIX places across this plugin — has_submitted()'s duplicate
-        // check, the portal's own submissions list, the CRM
-        // integration's activity summary, etc.) silently EXCLUDE
-        // rejected submissions entirely — confirmed live: a rejected
-        // submission vanished from the contestant's own portal list.
-        // WP_Query only respects exclude_from_search for CUSTOM
-        // statuses during 'any' expansion (core statuses like
-        // 'pending' are hardcoded exceptions), so this one flag was
-        // silently breaking every 'any' query in the plugin. false is
-        // still safe here — bh_submission itself is 'public' => false
-        // on the post type, so this can never actually surface in a
-        // real front-end search regardless of this flag.
+        // WHY: exclude_from_search must stay false: for custom statuses it also drops
+        // them from post_status => 'any' queries, which this plugin relies on.
+        // Safe, since bh_submission itself is not public.
         register_post_status('rejected', [
             'label'                     => 'Rejected',
             'internal'                  => false,

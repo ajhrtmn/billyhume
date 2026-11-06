@@ -2,45 +2,23 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Closes the "no way back in" gap the LMS audit flagged: previously the
- * only lifecycle notification anywhere in this plugin was on course
- * completion (see class-crm-integration.php) — a student who enrolled,
- * did one lesson, and quietly vanished got nothing, ever, pulling them
- * back. This is a daily job (the-self-hosted-self's shared OUS_Jobs queue —
- * see that class's docblock for why: no new cron/queue infrastructure
- * of this plugin's own) that finds students stalled 14+ days on an
- * unfinished course and sends exactly one nudge, throttled so the same
- * student never gets nagged more than once per stall window.
- *
- * Deliberately self-rescheduling (each run enqueues the next one) —
- * same pattern as this ecosystem has zero prior examples of, but it's
- * the simplest way to get a recurring OUS_Jobs job without a second
- * piece of cron-schedule-registration plumbing bh-crm's reminder job
- * (class-notes.php) didn't need since that one is a genuine one-shot
- * delayed job, not a recurring sweep.
+ * Daily OUS_Jobs sweep that sends one nudge to students stalled 14+ days on an unfinished
+ * course, throttled per course. Self-rescheduling (each run enqueues the next).
  */
 class BHC_Nudges {
     const JOB_HOOK = 'bhc_check_stalled_students';
     const INTERVAL = DAY_IN_SECONDS;
     const STALLED_DAYS = 14;
-    // A user is only nudged again after this many days since their last
-    // nudge for the SAME course — independent of whether they're still
-    // stalled, so a student who ignores one nudge doesn't get a fresh
-    // one every single day this job runs.
+    // Re-nudge only after this many days since the last nudge for the same course.
     const RENUDGE_DAYS = 14;
 
     public static function init(): void {
-        if (!class_exists('OUS_Jobs')) return; // no queue infra, no job — same guard bh-crm/bh-streaming's job registrations use
+        if (!class_exists('OUS_Jobs')) return; // no queue infra, no job
         OUS_Jobs::register(self::JOB_HOOK, [self::class, 'run']);
         add_action('init', [self::class, 'maybe_schedule_first_run']);
     }
 
-    // Runs once ever per site (guarded by an option flag, not a
-    // wp_next_scheduled() check — OUS_Jobs' queue isn't real WP-Cron,
-    // it's Action Scheduler or a fallback table, see that class) —
-    // avoids re-enqueueing a duplicate first run on every single
-    // request before the job has had a chance to run once and
-    // reschedule itself.
+    // Enqueues the first run once, guarded by an option (OUS_Jobs isn't WP-Cron).
     public static function maybe_schedule_first_run(): void {
         if (get_option('bhc_nudge_job_scheduled')) return;
         update_option('bhc_nudge_job_scheduled', time());
@@ -49,8 +27,7 @@ class BHC_Nudges {
 
     /** @param array<string, mixed> $args */
     public static function run($args = []): void {
-        // Reschedule first — a fatal error partway through the sweep
-        // below shouldn't silently kill the recurring job forever.
+        // Reschedule first so a fatal mid-sweep can't kill the recurring job.
         OUS_Jobs::enqueue(self::JOB_HOOK, [], self::INTERVAL);
 
         if (!class_exists('OUS_Notifications')) return;

@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 class BH_Activator {
-    const DB_VERSION = '1.7'; // 1.5 added bh_judge_scores (ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a, judge/rubric scoring mode) — see that table's own comment below. 1.6 added bh_votes.ip_address/voter_fp (2c, in-house IP+cookie fraud signal) — see the ALTER below. 1.7 added a `round` column to both bh_votes and bh_judge_scores (2b, multi-round/elimination format) — each round's votes/scores are tracked and tallied independently.
+    const DB_VERSION = '1.7';
 
     public static function activate(): void {
         if (self::create_or_update_schema()) {
@@ -12,18 +12,8 @@ class BH_Activator {
         flush_rewrite_rules();
     }
 
-    // Runs on every page load (cheap early-return via version check) rather
-    // than only on activation — AJ's workflow is replacing plugin files
-    // directly over FTP without deactivating/reactivating, so a schema
-    // change can't rely on the activation hook firing again.
-    //
-    // Only persists bh_db_version if the migration actually succeeded
-    // (checked via $wpdb->last_error at each step) — marking it "done"
-    // unconditionally would mean a migration that fails partway through
-    // a flaky/cold database connection gets silently recorded as
-    // complete and never retried, leaving the schema stuck half-updated
-    // with nothing to surface that until something downstream breaks on
-    // a missing column or table much later.
+    // WHY: runs on every load because FTP deploys never re-fire the activation hook.
+    // The version is stamped only on real success so a failed migration retries.
     public static function maybe_upgrade(): void {
         if (version_compare(get_option('bh_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
@@ -31,15 +21,8 @@ class BH_Activator {
         }
     }
 
-    // Per-contest style overrides used to live under _bh_style_override/
-    // _bh_style_json; bh-style's generic entity_overrides() reads
-    // _bhy_style_override/_bhy_style_json instead (bhy_-prefixed since
-    // it's not contest-specific vocabulary anymore). Post meta, not a
-    // table, so this is a straightforward per-post copy rather than a
-    // dbDelta migration — versioned and idempotent the same way
-    // everything else in this project is, via its own "done" flag
-    // rather than piggybacking on DB_VERSION above (that one's
-    // specifically for table schema, this isn't).
+    // One-time copy of _bh_style_* meta to the _bhy_style_* keys BHY_Style reads.
+    // Has its own done flag; DB_VERSION is for table schema only.
     public static function maybe_migrate_style_meta_keys(): void {
         if (get_option('bh_style_meta_migrated') === '1') return;
 
@@ -57,69 +40,31 @@ class BH_Activator {
         update_option('bh_style_meta_migrated', '1');
     }
 
-    // Same idea as DB_VERSION above: rather than re-checking both page
-    // options on literally every wp-admin load forever, one version flag
-    // gates the whole thing. After the pages exist, every subsequent
-    // admin_init pays for exactly one get_option() string comparison and
-    // returns — not two separate lookups that never had a reason to run
-    // again. Bump this only if the page-creation logic itself changes
-    // (e.g. a third singleton page gets added) and needs to re-run once;
-    // maybe_create_singleton_page() stays individually idempotent either
-    // way, so re-running only ever creates what's actually missing.
-    const PAGES_VERSION = '3'; // 3: added the standalone Contest Library page
+    // Bump when the singleton page list changes; creation stays idempotent.
+    const PAGES_VERSION = '3';
 
-    // Reveal Party ([bh_results_reveal]) and Archive ([bh_archive]) are
-    // singleton, site-wide pages — unlike the per-contest player page,
-    // there's only ever one of each, so the "has it already been
-    // created" check is a simple stored option rather than per-contest
-    // post meta.
-    //
-    // Hooked to admin_init (see bh-contest.php), not the
-    // plugins_loaded-based maybe_upgrade() above — schema migrations
-    // genuinely need to run on every request (a front-end visitor could
-    // hit a broken query before an admin ever loads wp-admin again after
-    // a deploy), but page creation isn't blocking anything and only
-    // matters to whoever's running the site, so there's no reason to
-    // make every public page view pay for a check that's only ever
-    // useful to an admin. AJ's deploy workflow is replacing plugin files
-    // over FTP without deactivating/reactivating, so the real WordPress
-    // activation hook alone won't reach an already-installed site after
-    // a version bump — admin_init reliably fires the next time he's in
-    // wp-admin after a deploy, which he will be.
+    // Creates the site-wide singleton pages. Runs on admin_init (not every
+    // request like the schema check) because nothing public depends on it.
     public static function maybe_create_default_pages(): void {
         $pages = [
             ['bh_reveal_page_id', 'Reveal', '[bh_results_reveal]'],
             ['bh_archive_page_id', 'Archive', '[bh_archive]'],
-            // The Contest Library is a distinct page from the Archive: the
-            // Library browses the contests themselves by lifecycle; the
-            // Archive is the flat catalog of every entry ever submitted.
+            // Library browses contests by lifecycle; Archive lists every entry.
             ['bh_contest_library_page_id', 'Contests', '[bh_contest_library]'],
         ];
 
         $version_current = get_option('bh_pages_version') === self::PAGES_VERSION;
         $all_ok = true;
         foreach ($pages as [$opt, $title, $shortcode]) {
-            // Fast path: version already stamped AND this page's option
-            // is set → nothing to do. But a page whose option was NEVER
-            // set (a create that failed once) still gets retried every
-            // admin_init until it works — the old code stamped
-            // bh_pages_version regardless of per-page success, so a
-            // single transient wp_insert_post failure meant the page
-            // never got another chance.
+            // A page whose option was never set is retried even when the version is current.
             if ($version_current && (int) get_option($opt, 0)) continue;
             $all_ok = self::maybe_create_singleton_page($opt, $title, $shortcode) && $all_ok;
         }
 
-        // Only stamp the version once every page actually exists — same
-        // "mark done on real success" discipline as the schema
-        // migration above.
         if ($all_ok) update_option('bh_pages_version', self::PAGES_VERSION);
     }
 
-    // True if the page exists (already recorded, or created now); false
-    // if a create was attempted and failed. A stored id pointing at a
-    // trashed/deleted post is treated as "gone but on purpose" — not
-    // recreated — so an owner who removed a page stays in control.
+    // False only if a create failed. A recorded page the owner removed is not recreated.
     private static function maybe_create_singleton_page(string $option_key, string $title, string $shortcode): bool {
         $existing = (int) get_option($option_key, 0);
         if ($existing) {
@@ -139,39 +84,15 @@ class BH_Activator {
         return true;
     }
 
-    // Returns true only if every step here actually succeeded — see the
-    // note on maybe_upgrade() above for why this matters. $wpdb never
-    // throws on a failed query; it returns false/null and records the
-    // problem in $wpdb->last_error, so that's what's checked at each
-    // step rather than assuming success.
+    // True only if every step succeeded; $wpdb never throws, so last_error is checked.
     private static function create_or_update_schema(): bool {
         global $wpdb;
         $table   = BHCON_Tables::votes();
         $charset = $wpdb->get_charset_collate();
 
-        // `category` defaults to '' — every vote cast before this column
-        // existed automatically becomes a vote in the implicit "general"
-        // category once contests start defining named categories. No data
-        // loss, no migration script needed for existing votes.
-        //
-        // ip_address/voter_fp (ROADMAP-ux-polish-and-feature-parity-
-        // 2026-07.md 2c): a PURELY ADDITIONAL signal for
-        // BH_Helpers::suspicious_ip_clusters() below — never read
-        // anywhere near the vote-counting/limit-enforcement logic above,
-        // same manual-review-only posture the existing timestamp-
-        // clustering check (suspicious_voters()) already has. Direct
-        // decision from the roadmap doc: no third-party CAPTCHA vendor,
-        // no automated blocking — this only ever surfaces a stronger
-        // "look at this cluster" signal for a human to review.
-        // PRIVACY NOTE (flagged per the roadmap doc's own compliance
-        // callout, not an afterthought): ip_address is real personal
-        // data under most privacy regimes (GDPR/CCPA) — if this site
-        // publishes a privacy policy, it should mention that a vote's IP
-        // is retained for anti-fraud review. This plugin does not
-        // (deliberately, out of scope here) wire a WP
-        // core privacy-export/erasure integration for it; if that's
-        // ever required, bh_votes.ip_address/voter_fp are the two
-        // columns to cover.
+        // category '' is the implicit single category. ip_address/voter_fp feed only
+        // the manual-review fraud signal, never vote counting.
+        // PRIVACY: ip_address is personal data with no privacy export/erasure hook yet.
         $sql = "CREATE TABLE $table (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             user_id bigint(20) unsigned NOT NULL,
@@ -188,30 +109,13 @@ class BH_Activator {
             KEY user_contest_idx (user_id, contest_id),
             KEY ip_idx (ip_address)
         ) $charset;";
-        // round (ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b,
-        // multi-round/elimination format): 0 for every contest that
-        // never configures rounds — the exact same single "general"
-        // bucket every vote has always landed in, so a non-round contest
-        // is byte-for-byte unaffected. Added to the UNIQUE KEY (not just
-        // as a plain column) so a voter can cast a fresh vote once a new
-        // round opens without it silently colliding with their round-1
-        // vote for the same submission — each round's votes are
-        // genuinely independent rows.
+        // round is 0 for single-round contests; it's in the UNIQUE KEY so each
+        // round's vote for the same submission is an independent row.
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        // QA fix: dbDelta() itself will attempt to add an
-        // index whose COLUMN LIST differs from what's on disk even when
-        // the NAME is already taken — it doesn't drop-then-recreate, it
-        // just tries a bare ADD, which fails with "Duplicate key name"
-        // and poisons $wpdb->last_error before this method ever reaches
-        // its own (correct) DROP+ADD rebuild below. So that rebuild has
-        // to run BEFORE dbDelta(), not after — by the time dbDelta()
-        // runs, the on-disk index already matches the CREATE TABLE SQL
-        // above and there's nothing left for it to collide with. Table-
-        // doesn't-exist-yet (fresh install) is the one case this skips
-        // itself on — SHOW TABLES first avoids trying to touch an index
-        // that has nothing to attach to.
+        // WHY: rebuild a same-named index with different columns BEFORE dbDelta(),
+        // which would otherwise try a bare ADD and fail with "Duplicate key name".
         if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table) {
             $key_columns = $wpdb->get_col($wpdb->prepare(
                 "SELECT COLUMN_NAME FROM information_schema.STATISTICS
@@ -222,10 +126,7 @@ class BH_Activator {
             if ($key_columns && $key_columns !== $target_columns) {
                 $wpdb->query("ALTER TABLE $table DROP INDEX uniq_user_track");
                 if ($wpdb->last_error !== '') return false;
-                // A column this key needs might not exist yet on a very
-                // old install (pre-category, pre-round) — add whichever
-                // of the target columns are actually missing before
-                // trying to index them.
+                // Very old installs may lack the columns this key indexes.
                 $existing_cols = $wpdb->get_col("SHOW COLUMNS FROM $table");
                 if (!in_array('category', $existing_cols, true)) $wpdb->query("ALTER TABLE $table ADD COLUMN category varchar(64) NOT NULL DEFAULT ''");
                 if (!in_array('round', $existing_cols, true)) $wpdb->query("ALTER TABLE $table ADD COLUMN round int(11) unsigned NOT NULL DEFAULT 0");
@@ -239,28 +140,15 @@ class BH_Activator {
         dbDelta($sql); // adds any still-missing columns (ip_address, voter_fp, etc.) and creates the table outright on a fresh install
         if ($wpdb->last_error !== '') return false;
 
-        // Confirm the table is actually queryable before going any
-        // further — dbDelta can report no error while still leaving the
-        // table missing/inaccessible if the connection dropped partway
-        // through on a flaky database.
+        // dbDelta can report no error yet leave the table missing on a dropped connection.
         if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) return false;
 
         if (!self::create_or_update_profiles_table($charset)) return false;
         return self::create_or_update_judge_scores_table($charset);
     }
 
-    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a: a genuinely
-    // different shape from bh_votes above, not overloaded onto it — a
-    // public vote is one binary row per (voter, category, submission); a
-    // judge score is multi-criterion and needs an editable draft-then-
-    // submit state (Devpost's own "save progress" pattern), so this is
-    // one row per (judge, submission, category) with the whole rubric's
-    // scores stored as a JSON snapshot, same "self-contained blob, not a
-    // per-criterion history table" convention bh-courses' bhc_progress.
-    // answers column already established for quiz snapshots. status
-    // distinguishes a judge's in-progress draft from a scored, counted
-    // submission — only 'submitted' rows are ever read by
-    // BH_Judging::judge_results()'s aggregate.
+    // One row per (judge, submission, category, round), rubric scores as a JSON
+    // snapshot. Only status 'submitted' rows count in BH_Judging::judge_results().
     private static function create_or_update_judge_scores_table(string $charset): bool {
         global $wpdb;
         $table = BHCON_Tables::judge_scores();
@@ -279,18 +167,10 @@ class BH_Activator {
             UNIQUE KEY uniq_judge_track (judge_id, contest_id, submission_id, category, round),
             KEY contest_idx (contest_id)
         ) $charset;";
-        // round: same meaning and same 0-default-for-a-non-round-contest
-        // convention as bh_votes.round above (1.7) — a judge's round-1
-        // score and round-2 score for the same entry are independent
-        // rows, not an overwrite.
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        // Same fix, same reason as bh_votes' identical rebuild above
-        // (create_or_update_schema()'s own comment has the full
-        // explanation of why this has to run BEFORE dbDelta(), not
-        // after) — dbDelta() itself fails trying to add a same-named,
-        // different-column index rather than leaving it alone.
+        // Index rebuild before dbDelta(), same reason as in create_or_update_schema().
         if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table) {
             $key_columns = $wpdb->get_col($wpdb->prepare(
                 "SELECT COLUMN_NAME FROM information_schema.STATISTICS
@@ -316,16 +196,8 @@ class BH_Activator {
         return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
     }
 
-    // One row per wp_users.ID — real name, platform handles, and a
-    // per-field "OK to share publicly" consent flag. Superseded by the
-    // core plugin's shared bhi_profiles table (see BHI_Profiles); this
-    // table is only ever READ once, as the source of the one-time
-    // migration in bh-contest.php's plugins_loaded callback —
-    // nothing writes to it anymore. Only maintained here for sites
-    // upgrading from a pre-core-merge install where it already has real
-    // historical data to migrate forward; a genuinely fresh install has
-    // no such data, so there's nothing to preserve and creating an
-    // empty, permanently-unused table would just be dead weight.
+    // Legacy profiles table, superseded by core's BHI_Profiles and read only by the
+    // one-time migration in bh-contest.php. Never created on a fresh install.
     private static function create_or_update_profiles_table(string $charset): bool {
         global $wpdb;
         $table = BHCON_Tables::participant_profiles();

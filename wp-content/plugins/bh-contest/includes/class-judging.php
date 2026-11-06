@@ -2,28 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a — judge/rubric
- * scoring mode. A judge is a specific user assigned to a specific
- * contest (a plain list of user IDs on the contest post, `_bh_judges`),
- * not a new WordPress capability/role — most judges are guest
- * volunteers, not site admins, and a per-contest list is both simpler to
- * manage than provisioning a real WP role and matches the roadmap doc's
- * own "or a per-contest judge list" alternative.
- *
- * A rubric (`_bh_rubric`, per contest) is an admin-defined list of named
- * criteria, each with its own max score — same free-text-one-per-line
- * authoring pattern BH_Helpers::parse_categories_input() already uses
- * for voting categories, just with an optional ":max" suffix.
- *
- * Scores live in bh_judge_scores (class-activator.php) — one row per
- * (judge, submission, category), holding the WHOLE rubric's per-
- * criterion scores as a JSON snapshot with an explicit draft/submitted
- * status, deliberately NOT reusing bh_votes (see that table's own
- * comment for why the shapes are genuinely different). Only 'submitted'
- * rows ever count toward judge_results() — a judge can save a draft,
- * come back later, and it never affects the leaderboard until they
- * explicitly submit, matching Devpost's own "save progress" convention
- * the roadmap doc calls out directly.
+ * Judge/rubric scoring. Judges are a per-contest list of user IDs (`_bh_judges`),
+ * not a WP role; the rubric (`_bh_rubric`) is named criteria with a max score each.
+ * Scores live in bh_judge_scores; only 'submitted' rows count toward results.
  */
 class BH_Judging {
     public static function init(): void {
@@ -48,12 +29,7 @@ class BH_Judging {
         return $uid && in_array((int) $uid, self::judge_ids($cid), true);
     }
 
-    // One rubric criterion per line: "Originality" (defaults to a max of
-    // 10) or "Originality:20" for a custom max. Same
-    // parse-free-text-into-a-slug+shape pattern as
-    // BH_Helpers::parse_categories_input(), deliberately not reusing
-    // that method directly since criteria carry a max score categories
-    // don't.
+    // One criterion per line: "Originality" (max 10) or "Originality:20".
     /**
      * @param mixed $text
      * @return array<int, array{slug:string,name:string,max:int}>
@@ -101,10 +77,7 @@ class BH_Judging {
         return ['scores' => is_array($decoded) ? $decoded : [], 'status' => $row['status']];
     }
 
-    // Saves one submission's rubric scores for one judge — either a
-    // draft (can be resubmitted/overwritten freely) or a final submit
-    // (still overwritable, same as re-voting is in bh_votes — a judge
-    // correcting a misclick shouldn't need a support ticket).
+    // Upserts one judge's scores as draft or submitted; both stay overwritable.
     /** @param array<string, mixed> $scores */
     public static function save_score(int $judge_id, int $cid, int $sid, string $category, array $scores, string $status, int $round = 0): bool {
         global $wpdb;
@@ -129,22 +102,9 @@ class BH_Judging {
         return $result !== false;
     }
 
-    // Same ranked-results shape BH_API::category_results()/BH_Reveal::
-    // overall_results() already return (rank/id/title/artist/votes) so
-    // every existing consumer (medal_slice(), the reveal sequence
-    // builder, the display shortcode's rendering) works unmodified — the
-    // 'votes' key just holds a normalized 0-100 score here instead of a
-    // raw vote count. Per-judge score = each scored criterion normalized
-    // to a percentage of its own max, averaged across criteria (so a
-    // 5-criterion and a 3-criterion rubric both land on the same 0-100
-    // scale); per-submission score = the average of every judge who
-    // actually SUBMITTED (drafts never count) for that submission/
-    // category. A submission no judge has scored yet is omitted
-    // entirely, same "nothing to rank" omission category_results()
-    // already does for a zero-vote submission.
-    // $round: see BH_API::category_results()'s own docblock on this same
-    // parameter — identical meaning and identical null-means-"every
-    // round" default here.
+    // Same shape as BH_API::category_results(), but 'votes' holds a 0-100 score:
+    // criteria normalized to % of max and averaged, then averaged over submitted judges.
+    // Unscored submissions are omitted. $round null = every round.
     /** @return array<int, array<string, mixed>> */
     public static function judge_results(int $cid, string $category, ?int $round = null): array {
         global $wpdb;
@@ -194,7 +154,7 @@ class BH_Judging {
                 'id'     => $p->ID,
                 'title'  => $p->post_title,
                 'artist' => BH_Helpers::artist_for($p),
-                'votes'  => $v['score'], // see method docblock — a normalized 0-100 score, keyed 'votes' for shape compatibility
+                'votes'  => $v['score'], // 0-100 score, keyed 'votes' for shape compatibility
             ];
         }
         return $out;
@@ -230,12 +190,7 @@ class BH_Judging {
         if (!BH_Helpers::is_valid_category($cid, $category)) {
             return new WP_Error('bad_category', 'That category does not exist.', ['status' => 400]);
         }
-        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: a
-        // submission that's already been cut out of the running (didn't
-        // survive a prior round) can't collect new scores against the
-        // CURRENT round — its round-N history stays exactly as scored,
-        // untouched. No-op for a single-round contest (every submission
-        // is always eligible for round 0).
+        // Entries cut in a prior round can't be scored in the current one.
         $round = class_exists('BH_Rounds') ? BH_Rounds::active_round_index($cid) : 0;
         if (class_exists('BH_Rounds') && !BH_Rounds::is_eligible($sid, $cid)) {
             return new WP_Error('eliminated', 'This entry did not advance to the current round.', ['status' => 403]);
@@ -249,14 +204,8 @@ class BH_Judging {
 
     /* ---------------- front-end panel ---------------- */
 
-    // [bh_judge_panel contest="..."] — a private, judge-only scoring
-    // view. Deliberately a front-end shortcode rather than a wp-admin
-    // screen (the roadmap doc's own suggested precedent, class-reveal.
-    // php's admin-controller pattern, assumes a manage_options user —
-    // most judges here are guest volunteers with no wp-admin access at
-    // all, so gating this the same way the rest of this plugin's
-    // logged-in-only front-end surfaces do (BH_Auth's session, not a WP
-    // capability) is the right fit, not a deviation from precedent).
+    // [bh_judge_panel contest="..."]: front-end, not wp-admin, because most
+    // judges are guest volunteers without wp-admin access.
     /** @param mixed $atts */
     public static function render_judge_panel($atts): string {
         if (!is_user_logged_in()) {
@@ -281,21 +230,12 @@ class BH_Judging {
             'meta_key' => '_bh_contest_id', 'meta_value' => (string) $cid,
         ]);
 
-        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: a
-        // multi-round contest only ever asks a judge to score whoever is
-        // still IN the running for the round currently active — an
-        // eliminated entry simply disappears from the panel rather than
-        // inviting a now-pointless score against it. round_reached()
-        // defaults to 0 for every submission, so a single-round contest
-        // (active round always 0) keeps every submission listed exactly
-        // as before this existed.
+        // List only entries still eligible in the active round.
         $round = class_exists('BH_Rounds') ? BH_Rounds::active_round_index($cid) : 0;
         if (class_exists('BH_Rounds')) {
             $subs = array_values(array_filter($subs, fn($s) => BH_Rounds::is_eligible($s->ID, $cid)));
         }
 
-        // Reuses the main player's design-token stylesheet plus a small
-        // panel-only stylesheet for entry-card/slider layout.
         wp_enqueue_style('bh-player', BH_URL . 'assets/css/player.css', [], BH_VER);
         wp_enqueue_style('bh-judging', BH_URL . 'assets/css/judging.css', ['bh-player'], BH_VER);
         wp_enqueue_script('bh-judging', BH_URL . 'assets/js/bh-judging.js', [], BH_VER, true);
@@ -306,10 +246,7 @@ class BH_Judging {
         ]);
 
         ob_start();
-        // bh-container: opts into player.css's whole design-token system
-        // (dark theme, --bh-* custom properties, .bh-btn family) — the
-        // panel is a sibling surface of the contest player, not a
-        // separately-invented look.
+        // bh-container opts into player.css's design tokens.
         echo '<div class="bh-judge-panel bh-container">';
         echo '<h2 class="bh-judge-title">Judging: ' . esc_html(get_the_title($cid)) . ($round > 0 ? ' — Round ' . ((int) $round + 1) : '') . '</h2>';
         foreach ($cats as $cat) {

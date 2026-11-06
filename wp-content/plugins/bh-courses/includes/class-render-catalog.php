@@ -2,31 +2,14 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Extracted from the old monolithic class-render.php (SRP QA pass,
- * bh-courses 0.4.8) — that one file was handling catalog browse/search/
- * sort, a course detail page, AND the lesson step-walker/quiz UI all in
- * one 589-line class, three genuinely separate concerns with no overlap
- * beyond a couple of shared helpers. This class owns exactly one of
- * them: the [bh_courses] catalog shortcode and the bh_course post-type
- * archive template's real content (browse/search/filter/sort,
- * QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 2.4/2.5).
- *
- * Pure move, not a rewrite — every method here is byte-for-byte the same
- * logic that used to live in BHC_Render, just relocated. BHC_Render
- * itself (class-render.php) still owns the shortcode/hook registration
- * and still exposes a public render_catalog() that delegates straight
- * here — every existing external call site (class-test-suite.php,
- * templates/archive-bh_course.php) keeps working with ZERO changes.
+ * The [bh_courses] catalog shortcode and bh_course archive content: browse, search,
+ * filter, sort. BHC_Render::render_catalog() delegates here.
  */
 class BHC_Render_Catalog {
     const PER_PAGE = 12;
 
-    // Real browse/search/filter/sort (QUIZ-AND-CATALOG-DESIGN-PLAN.md
-    // Part 2.4/2.5), replacing the old unfiltered get_posts() dump. Own
-    // GET params (bhc_s/bhc_category/bhc_topic/bhc_sort/bhc_paged)
-    // rather than WP's own 's'/'paged' — this can be embedded via
-    // shortcode on any page, possibly alongside other content/queries,
-    // so it needs params that can't collide with the main query's own.
+    // Own GET params (bhc_s/bhc_category/bhc_topic/bhc_sort/bhc_paged), not WP's 's'/'paged',
+    // so an embedded catalog can't collide with the main query.
     public static function render_catalog(): string {
         $search = isset($_GET['bhc_s']) ? sanitize_text_field(wp_unslash($_GET['bhc_s'])) : '';
         $category = isset($_GET['bhc_category']) ? sanitize_title(wp_unslash($_GET['bhc_category'])) : '';
@@ -43,12 +26,8 @@ class BHC_Render_Catalog {
         if ($tax_query) $base_args['tax_query'] = $tax_query;
 
         if ($sort === 'popular' || $sort === 'top_rated') {
-            // Same "resolve IDs, sort in PHP, re-query with post__in" shape
-            // as the popular-sort branch below — a rating average lives in
-            // bhc_reviews, not postmeta, so WP_Query has no native orderby
-            // for it either. Courses with zero approved reviews sort last
-            // (average 0), never excluded — a course simply not yet
-            // reviewed shouldn't vanish from a "highest rated" browse.
+            // Rating lives in bhc_reviews, so resolve IDs, sort in PHP, re-query with post__in.
+            // Unreviewed courses sort last rather than being excluded.
             $all_ids = get_posts(array_merge($base_args, ['fields' => 'ids', 'posts_per_page' => -1]));
             if ($sort === 'popular') {
                 $counts = BHC_Progress::enrollment_counts();
@@ -76,11 +55,7 @@ class BHC_Render_Catalog {
             $max_pages = (int) $query->max_num_pages;
         }
 
-        // Ecosystem depth-pass Tier 2 — SEO coverage: the catalog page
-        // itself had no page-level SEO data at all (only single course
-        // pages did), leaving the one page most likely to be a search
-        // entry point invisible to it. CollectionPage/ItemList, not
-        // Course — this page lists courses, it isn't one.
+        // Catalog-level SEO: CollectionPage/ItemList, since this page lists courses.
         if (class_exists('BH_SEO')) {
             BH_SEO::set_page_data([
                 'title' => 'Courses — ' . get_bloginfo('name'),
@@ -102,14 +77,7 @@ class BHC_Render_Catalog {
         $uid = get_current_user_id();
         ob_start();
 
-        // The kicker + title + accent rule the old
-        // templates/archive-bh_course.php printed above the grid. Now
-        // that /courses/ is the real catalog Page (rendered through the
-        // theme via the_content) instead of a CPT-archive template,
-        // this has to come from the render itself — but ONLY on the
-        // designated catalog page, never on some other page that
-        // happens to embed [bh_courses]/bhc:catalog inside its own
-        // prose (which already has its own <h1>).
+        // Kicker + title only on the designated catalog page; an embedding page has its own <h1>.
         $catalog_page_id = (int) get_option('bhc_catalog_page_id', 0);
         if ($catalog_page_id && get_queried_object_id() === $catalog_page_id && is_main_query()) {
             echo '<header class="bhc-archive-header">'
@@ -123,19 +91,9 @@ class BHC_Render_Catalog {
         echo self::render_catalog_filters($search, $category, $topic, $sort);
 
         if (!$query->have_posts()) {
-            // UX-AUDIT-2026-07.md's top recommendation — the shared
-            // BHY_Style::empty_state_html() component instead of a bare
-            // one-line message with no next step. The filtered/zero
-            // distinction already existed here (this file's own prior
-            // ternary); this just gives that distinction a real CTA on
-            // each side of it, matching what WooCommerce's own default
-            // empty state (one plugin away) already does correctly.
+            // Shared empty-state component, with a different CTA for filtered vs. empty.
             $is_filtered = (bool) ($search || $category || $topic);
-            // Audit fix (2026-07-25): the zero (non-filtered) branch never
-            // passed cta_label/cta_url even though the component supports
-            // it — an admin looking at a genuinely empty catalog got no
-            // "create your first course" prompt. current_user_can() gate
-            // so a regular visitor doesn't see an admin-only action.
+            // "Create your first course" CTA only for users who can.
             $zero_args = [
                 'reason' => 'zero',
                 'title' => 'No courses published yet',
@@ -172,42 +130,9 @@ class BHC_Render_Catalog {
 
         ob_start();
         echo '<div class="bhc-course-card ous-catalog-card' . ($locked ? ' bhc-locked' : '') . '">';
-        // Real live-caught issue: only some courses have a featured
-        // image, so cards with one and cards without one had a visibly
-        // different internal skeleton — even with align-items:start
-        // (each card sizing to its own content, not stretched to match
-        // its tallest row sibling) the row still read as jagged/uneven
-        // rather than elegant, because the cards themselves weren't the
-        // same *shape*. Every card now gets the same fixed-aspect-ratio
-        // image slot — the real thumbnail if one exists, otherwise a
-        // gradient built from the site's own --bh-accent tokens (no new
-        // color invented) so a course with no artwork yet still reads
-        // as a deliberate, finished-looking card instead of a gap.
-        // bh-clamp-2 (the-self-hosted-self's shared front-end text-overflow
-        // utility, class-style.php) handles the common case, but live
-        // testing against a deliberately extreme title (100+ characters)
-        // found -webkit-line-clamp's CSS-only truncation unreliable in
-        // this exact overlay context — the box's own computed geometry
-        // measured correctly clipped (confirmed via getBoundingClientRect
-        // + getComputedStyle), yet overflow text still visibly painted
-        // past that boundary. Rather than keep chasing what may be a
-        // browser-specific paint quirk with no reliable local repro tool,
-        // this adds a guaranteed server-side backstop: the raw TEXT
-        // itself is capped at a fixed character count (word-boundary
-        // aware) before it ever reaches the DOM, so no CSS technique's
-        // reliability is load-bearing for correctness — .bh-clamp-2
-        // still applies too, for the normal case where wrapping alone
-        // (not truncation) is all that's needed.
-        // 45 chars is deliberately conservative — confirmed live that
-        // even after a first truncation attempt at 70 chars, a partial
-        // 3rd line was STILL visibly painted past the clip boundary
-        // (same failure, just less of it), meaning the CSS clip cannot
-        // be trusted to reliably prevent overflow in this environment
-        // at all, not just for unusually long titles. 45 chars keeps
-        // real-world titles ("Mastering for Bedroom Producers") fully
-        // untouched while guaranteeing even a maximally long line at
-        // this card's ~17px bold font physically fits within 2 lines
-        // regardless of whether the CSS-level clip engages.
+        // Every card gets the same fixed-ratio image slot (thumbnail or accent gradient).
+        // WHY: titles are also capped at 45 chars server-side, since line-clamp proved
+        // unreliable in this overlay and still painted past the clip.
         $course_title = get_the_title($course->ID);
         $title_display = $course_title;
         if (mb_strlen($course_title) > 45) {
@@ -218,33 +143,15 @@ class BHC_Render_Catalog {
         }
         $title_html = '<h3 class="bh-clamp-2 bhc-card-thumb-title"><a href="' . esc_url(get_permalink($course->ID)) . '" title="' . esc_attr($course_title) . '">' . esc_html($title_display) . '</a>' . ($locked ? ' <span class="bhc-lock">&#128274;</span>' : '') . '</h3>';
 
-        // "Buy once" price hint — direct request: "Billy also would
-        // prefer a one time purchase for access to the courses." A
-        // locked card previously gave a browsing fan zero information
-        // about whether/how to unlock it; this is the minimum real
-        // signal (price + that it's a one-time option, not a
-        // subscription) at the point they'd actually decide to click
-        // in. The real "Buy now" checkout button itself belongs on the
-        // course's own detail page (where BHC_Gate::user_can_access_
-        // course() is already checked for the full paywall notice) —
-        // this catalog card's job is discovery, not checkout.
+        // "Buy once" price hint on locked cards; checkout itself lives on the course page.
         $buy_once_badge = '';
         if ($locked && class_exists('BHC_Gate') && BHC_Gate::has_purchase_option($course->ID)) {
-            // wc_price(), not BHM_Money::price() — same real bug found
-            // and fixed in BHC_Gate::render_paywall_notice(): BHM_Money
-            // ::price() deliberately has no currency symbol (built for
-            // a labeled form input's value=""), so this badge was
-            // rendering "Buy once — 29.00" with no "$". wc_price() is
-            // WooCommerce's real formatter and is safe to echo
-            // unescaped (the standard WC convention).
+            // wc_price(), not BHM_Money::price(), which has no currency symbol. Safe to echo.
             $price_display = function_exists('wc_price') ? wc_price(BHC_Gate::purchase_price_cents($course->ID) / 100) : '$' . number_format(BHC_Gate::purchase_price_cents($course->ID) / 100, 2);
             $buy_once_badge = '<span class="bhc-buy-once-badge">Buy once — ' . $price_display . '</span>';
         }
 
-        // Title now overlays the thumbnail itself (poster-card style)
-        // instead of sitting in plain text below it — the scrim div is
-        // a bottom-anchored gradient purely for text legibility over
-        // whatever's in the image, real or placeholder.
+        // Title overlays the thumbnail; the scrim is a gradient for legibility.
         if (has_post_thumbnail($course->ID)) {
             echo '<div class="bhc-card-thumb">' . get_the_post_thumbnail($course->ID, 'medium')
                 . '<div class="bhc-card-thumb-scrim" aria-hidden="true"></div>' . $title_html . '</div>';
@@ -267,26 +174,9 @@ class BHC_Render_Catalog {
 
         if ($instructor) echo '<div class="bhc-card-instructor">' . get_avatar($instructor->ID, 20) . ' <span>' . esc_html($instructor->display_name ?: $instructor->user_login) . '</span></div>';
 
-        // rich_excerpt(), not get_the_excerpt(): bh_course has no
-        // 'excerpt' support (class-post-types.php), so get_the_excerpt()
-        // always took the auto-generated path, which unconditionally
-        // strips ALL markup (wp_trim_words() calls wp_strip_all_tags())
-        // — a course description written with bold text or a list in
-        // the block editor always showed as a flat sentence on the
-        // card. bhc-step-text reuses the exact same diamond-bullet/
-        // numeral/quote-mark typography the lesson body and caption
-        // text use (courses.css), so a card's excerpt now looks like
-        // the same "product," not a plainer preview of it.
+        // rich_excerpt(): bh_course has no excerpt support, and the auto excerpt strips all markup.
         echo '<div class="bhc-excerpt bhc-step-text">' . self::rich_excerpt($course->ID) . '</div>';
-        // Real live-caught issue: cards without a logged-in progress
-        // footer (no $uid, or locked) or without an excerpt were still
-        // visibly shorter than their siblings even after the image/
-        // clamp fixes, because the excerpt collapses to zero height
-        // when empty and this footer simply doesn't render at all —
-        // pushing bhc-footer-spacer's margin-top:auto (below) pins
-        // whatever footer content DOES exist to the bottom of the card
-        // consistently, and .bhc-excerpt's min-height (courses.css)
-        // keeps a short/empty excerpt from collapsing the gap above it.
+        // The spacer's margin-top:auto pins footer content to the card bottom so cards match.
         echo '<div class="bhc-footer-spacer">';
         if ($uid && !$locked) {
             echo '<div class="bhc-progress-bar"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label">' . (int) $percent . '% complete</p>';
@@ -298,13 +188,8 @@ class BHC_Render_Catalog {
     }
 
     /**
-     * A truncated preview of the course description that PRESERVES
-     * basic rich-text formatting (bold/italic/lists/blockquote) instead
-     * of always collapsing to a flat sentence. Restricted to a small,
-     * safe tag allowlist via wp_kses(), then walked node-by-node via
-     * DOMDocument so truncation always lands on a text boundary and
-     * every open tag gets force-closed — never a dangling `<ul>` or an
-     * orphaned `</li>` from a naive substr() on markup.
+     * Truncated description preview that keeps basic formatting: wp_kses() allowlist, then a
+     * DOMDocument walk so truncation lands on text and every open tag gets closed.
      */
     private static function rich_excerpt(int $course_id, int $max_chars = 170): string {
         $raw = get_post_field('post_content', $course_id);
@@ -315,10 +200,7 @@ class BHC_Render_Catalog {
         $html = wp_kses($html, $allowed);
         if (mb_strlen(wp_strip_all_tags($html)) <= $max_chars) return $html;
 
-        // DOMDocument ships with PHP's standard ext-dom, present on any
-        // realistic host — but this is a display nicety, not something
-        // worth a fatal over, so fall back to the old plain-text trim
-        // if it's somehow unavailable.
+        // Display nicety: fall back to a plain trim without ext-dom.
         if (!class_exists('DOMDocument')) return wp_trim_words(wp_strip_all_tags($html), 26);
 
         $doc = new DOMDocument();
@@ -355,20 +237,14 @@ class BHC_Render_Catalog {
         return $out;
     }
 
-    // A plain GET form (works with zero JS — courses.js progressively
-    // enhances it with auto-submit-on-change, see that file) — search
-    // box, category/topic dropdowns sourced from the real taxonomies
-    // (class-post-types.php), and the three sorts Part 2.5 settled on.
-    // Preserves whichever filters are already active as hidden fields so
-    // changing one doesn't clear the others.
+    // Plain GET form (courses.js auto-submits selects). Active filters are kept as hidden fields.
     private static function render_catalog_filters(string $search, string $category, string $topic, string $sort): string {
         $categories = get_terms(['taxonomy' => 'bhc_course_category', 'hide_empty' => true]);
         $topics = get_terms(['taxonomy' => 'bhc_course_topic', 'hide_empty' => true]);
 
         ob_start();
         echo '<form class="bhc-catalog-filters" method="get">';
-        // Preserve any non-bhc_ query args already on the URL (e.g. a
-        // page builder's own ?preview=true) rather than dropping them.
+        // Preserve non-bhc_ query args already on the URL.
         foreach ($_GET as $key => $value) {
             if (strpos($key, 'bhc_') === 0 || !is_scalar($value)) continue;
             echo '<input type="hidden" name="' . esc_attr($key) . '" value="' . esc_attr($value) . '">';
@@ -409,12 +285,7 @@ class BHC_Render_Catalog {
         if ($page > 1) {
             echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(add_query_arg('bhc_paged', $page - 1, $base)) . '">&larr; Previous</a>';
         }
-        // Audit fix (2026-07-25): a deep catalog (more than a handful of
-        // pages) used to be prev/next-only, "Page 3 of 40" with no way
-        // to jump ahead except clicking Next 37 times. A windowed set of
-        // numbered links (current ±2, first/last always shown) appears
-        // once there's actually enough depth to need it; small catalogs
-        // keep the plain "Page X of Y" status text unchanged.
+        // Windowed page links (current ±2, first/last) once there are more than 5 pages.
         if ($max_pages > 5) {
             echo '<span class="bhc-pagination-numbers">';
             $window = 2;

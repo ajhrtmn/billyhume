@@ -2,21 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Gift memberships — the one item ROADMAP-platform-evolution.md Section 4
- * left genuinely open besides promo/discount codes (which already work
- * today via WooCommerce's own native checkout coupon field, nothing here
- * disables it). "Buy a tier on someone else's behalf" is a real product
- * flow, not a WooCommerce-native feature: recipient email capture at
- * add-to-cart, a redemption code instead of an immediate grant, and a
- * claim flow the recipient completes on their own account (signing up
- * first if they don't have one).
- *
- * Deliberately does NOT touch BHM_Tiers' own product/entitlement model —
- * a gift purchase still buys the SAME tier product every other purchase
- * does (so pricing/tax/subscription behavior stay identical), it just
- * gets intercepted at the entitlement-granting step (class-products.php's
- * on_order_completed()) and redirected into a redemption code instead of
- * granting the buyer immediate access.
+ * Gift memberships: the buyer purchases the normal tier product with a recipient email; at
+ * fulfilment the grant becomes a redemption code the recipient claims on their own account.
  */
 class BHM_Gifts {
 
@@ -29,11 +16,7 @@ class BHM_Gifts {
         add_action('admin_post_nopriv_bhm_redeem_gift', [self::class, 'handle_redeem']);
     }
 
-    // The tier picker's "Gift this" link appends these two query args to
-    // the ordinary add-to-cart URL (see class-frontend.php's
-    // render_tiers()) — captured here into the cart item's own data
-    // array, the standard WooCommerce extension point for exactly this
-    // ("carry custom data alongside a cart line item").
+    // Captures the tier picker's gift form fields into cart item data.
     /**
      * @param array<string, mixed> $cart_item_data
      * @return array<string, mixed>
@@ -43,11 +26,7 @@ class BHM_Gifts {
             $email = sanitize_email(wp_unslash($_REQUEST['bhm_gift_email']));
             if (is_email($email)) {
                 $cart_item_data['bhm_gift_email'] = $email;
-                // WooCommerce merges identical cart items (same product,
-                // same data) into one line with a quantity — without a
-                // unique-ish key here, gifting the SAME tier to two
-                // different people in one cart would silently merge into
-                // a single line item carrying only the last email typed.
+                // WHY: unique key stops WooCommerce merging two gifts of the same tier into one line.
                 $cart_item_data['unique_key'] = md5(microtime() . wp_rand());
             }
         }
@@ -75,10 +54,7 @@ class BHM_Gifts {
         }
     }
 
-    // Called from class-products.php's on_order_completed() INSTEAD of
-    // grant_entitlement() when the paid line item carries a gift email —
-    // the buyer never gets the entitlement themselves, only the
-    // recipient does, once they claim it.
+    // Called instead of a grant when a paid line item carries a gift email.
     public static function create_redemption(int $tier_id, int $buyer_user_id, int $order_id, string $recipient_email): string {
         global $wpdb;
         $code = wp_generate_password(20, false, false);
@@ -116,11 +92,7 @@ class BHM_Gifts {
         return $code;
     }
 
-    // Same "an admin can dedicate a real page to this" pattern
-    // BHM_Tiers::tiers_page_url() already uses — falls back to the
-    // homepage (with the shortcode nowhere to render it, admittedly a
-    // dead end) only until an admin actually creates a page containing
-    // [bhm_redeem_gift] and points this option at it.
+    // Falls back to the homepage until a [bhm_redeem_gift] page exists.
     public static function redeem_page_url(): string {
         $page_id = (int) get_option('bhm_gift_redeem_page_id', 0);
         return $page_id ? get_permalink($page_id) : home_url('/');
@@ -176,11 +148,7 @@ class BHM_Gifts {
         }
 
         $user_id = get_current_user_id();
-        // Same grant shape a real tier purchase gets (class-products.php's
-        // on_order_completed()) — streaming_tier, 30-day expiry, since a
-        // gift is a one-time purchase, never a recurring subscription
-        // (recurring billing would need the RECIPIENT's own payment
-        // method, which this flow was never designed to collect).
+        // One-time streaming_tier grant; a gift is never recurring.
         BHM_Products::grant_gift_entitlement($user_id, (int) $row['tier_id'], (int) $row['wc_order_id']);
 
         $wpdb->update($t, [

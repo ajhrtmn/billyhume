@@ -2,12 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Narrowed scope as of the identity migration: this class now only
- * renders the [bh_contest_player] shortcode. Registration, login,
- * logout, session, profile, and email verification all live in the
- * The Self-Hosted Self core plugin now — see BHI_Auth. Kept the class name to
- * avoid a larger renaming cascade across every file that still
- * legitimately references "the thing that renders the player."
+ * Renders the [bh_contest_player] shortcode. Auth itself lives in core (BHI_Auth).
  */
 class BH_Auth {
     public static function init(): void {
@@ -16,16 +11,7 @@ class BH_Auth {
     }
 
     /**
-     * Real bug, production-readiness sweep 2026-08-16: set_page_data()
-     * below (inside render()) only ever runs during the_content(),
-     * which is always after wp_head — where BH_SEO actually echoes its
-     * tags — has already fired. Confirmed the exact same bug on
-     * bh-courses first (a real course page had zero meta/OG tags
-     * despite the code "setting" them every render) and fixed it with
-     * this same template_redirect-early-lookup pattern there. Uses
-     * BH_SEO::shortcode_atts_on_current_page() (the-self-hosted-self) instead of
-     * re-parsing the shortcode regex here, since bh-streaming/
-     * bh-registry need the identical lookup.
+     * WHY: SEO data must be set before wp_head; render() runs in the_content(), too late.
      */
     public static function maybe_set_seo_data_early(): void {
         if (!class_exists('BH_SEO')) return;
@@ -35,11 +21,7 @@ class BH_Auth {
     }
 
     /**
-     * Extracted from render() below so the exact same resolve-and-set
-     * logic can also run early, from maybe_set_seo_data_early() above,
-     * before the_content() would otherwise run it too late. Private —
-     * this plugin's own render() and early hook are the only callers;
-     * no cross-class use, so no reason to widen the surface.
+     * Resolves the contest and sets BH_SEO page data.
      * @param mixed $atts
      */
     private static function set_seo_data($atts): void {
@@ -96,29 +78,12 @@ class BH_Auth {
             }
         }
 
-        // Real, deliberate product decision (not a default): unlike
-        // bh-courses (closed unless marked public), a contest defaults
-        // OPEN — that's how voting/engagement is meant to work, fans
-        // need to see and share a contest without an account. This is
-        // the explicit per-contest opt-IN for the ones an artist wants
-        // restricted to logged-in members only — see OUS_Visibility's
-        // own docblock. The same check also gates the REST endpoints
-        // the player itself fetches from (class-api.php's tracks()/
-        // results()), so this isn't just hiding the player markup —
-        // the actual submission/vote data is refused server-side too.
+        // Contests are public unless marked members-only; the REST endpoints enforce the same check.
         if ($cid && !OUS_Visibility::can_view_open_by_default($cid)) {
             return OUS_Visibility::render_login_notice(__('Log in to view this contest.', 'bh-contest'));
         }
 
-        // Real duplicate work, left in deliberately (not a bug): the
-        // template_redirect hook above already set this earlier in the
-        // SAME request whenever it could — this second call only ever
-        // does anything additional when render() is reached a way the
-        // early hook couldn't predict (e.g. embedded via a block/
-        // do_shortcode() call outside the queried post's own content).
-        // set_page_data() is idempotent (last-write-wins on the same
-        // request), so calling it twice with identical data is
-        // harmless, not a correctness risk.
+        // Repeats the early SEO call for embeds the early hook can't see; idempotent.
         self::set_seo_data($atts);
 
         static $i = 0; $i++;
@@ -131,35 +96,10 @@ class BH_Auth {
             }
         }
 
-        // bh-contest's first real BH_Element surface (class-element-
-        // surface.php's own docblock explains the scope/why). Deliberately
-        // OUTSIDE the JS-owned #bh-player-root div, not inside it — player.js
-        // rebuilds that div's entire innerHTML on load (renderSkeleton()),
-        // so anything placed inside it would be wiped the instant the
-        // script runs. These two zones are real server-rendered HTML,
-        // siblings of the player, not something player.js knows about or
-        // touches at all.
+        // WHY: $before/$after render outside #bh-player-root, because player.js
+        // rebuilds that div's innerHTML on load.
         $before = ''; $after = '';
-        // A real way for a logged-in contestant to reach
-        // their account portal (where they can now replace a wrong
-        // file, see BH_PortalPanel) from the page they'd actually be
-        // on when they realize the mistake — the contest player itself.
-        // Server-rendered, a real sibling of the JS-owned player div
-        // (never touched/rebuilt by player.js), so this survives
-        // regardless of playback state. Only shown when the current
-        // user actually has a submission for THIS contest — no reason
-        // to show it to someone who hasn't entered.
-        // A single contest was a dead end -- nothing on the page led back to
-        // the archive it belongs to. OUS_Pages resolves which page hosts
-        // [bh_archive] rather than hardcoding a slug, since that is the
-        // author's choice; bh_archive_page_id is what this plugin's own
-        // activator records when it creates the page. Omitted entirely when
-        // core is absent or no archive page exists -- never a link to nowhere.
-        // "All contests" belongs on the Contest Library (the lifecycle
-        // browser of the contests themselves), not the Archive (the flat
-        // every-entry catalog). Prefer the library page; fall back to
-        // the archive only if the library page doesn't exist yet, then
-        // to nothing — never a link to nowhere.
+        // "All contests" links to the Contest Library, else the archive, else nothing.
         $back_url = '';
         $lib_pid = (int) get_option('bh_contest_library_page_id', 0);
         if ($lib_pid && get_post_status($lib_pid) === 'publish') {
@@ -169,9 +109,7 @@ class BH_Auth {
         }
         $back_link = '';
         if ($back_url) {
-            // No inline margin — the shared .ous-back-link rule
-            // (front-nav.css) owns the spacing, including the
-            // header-clearance top margin an inline style would defeat.
+            // No inline margin: .ous-back-link (front-nav.css) owns the spacing.
             $back_link = '<p class="ous-back-link bh-back-to-archive">'
                 . '<a href="' . esc_url($back_url) . '">'
                 . '<span aria-hidden="true">&larr;</span> All contests</a></p>';
@@ -183,34 +121,12 @@ class BH_Auth {
             $submission_link = '<p style="margin:0 0 10px;font-size:13px;"><a href="' . esc_url($portal_url) . '">Manage my submission &rarr;</a></p>';
         }
         if ($cid && class_exists('BH_Element')) {
-            // QA fix: this used to unconditionally OVERWRITE $before
-            // with render_slot()'s own output, silently discarding the
-            // "Manage my submission" link assigned above every time.
-            // Now appends instead.
             $before = $back_link . $submission_link . BH_Element::render_slot('bh_contest_player', $cid, 'before_player', ['contest_id' => $cid]);
             $after  = BH_Element::render_slot('bh_contest_player', $cid, 'after_player', ['contest_id' => $cid]);
 
-            // Task #80's real, safe slice: this one DOES need to end up
-            // INSIDE the header bar player.js builds — a sibling wouldn't
-            // visually read as "part of the header" the way a real
-            // header addition should. Since player.js owns and rebuilds
-            // #bh-player-root's entire innerHTML on load, the only safe
-            // way in is to hand player.js the already-rendered HTML as
-            // data (base64, same reasoning class-style-gallery.php's own
-            // shadow-DOM data-doc attribute uses — avoids any HTML-
-            // attribute-escaping edge case a raw JSON/HTML string could
-            // hit) and let IT insert it once, into a brand-new
-            // '.bh-header-extra' div that does not exist in the header
-            // today and does not replace anything that does.
+            // Zones inside the JS-built player go to player.js as base64 data
+            // attributes, which it inserts into its own empty divs.
             self::attach_extra_zone($attrs, $cid, 'header_extra', 'header-extra');
-
-            // 3.2.2 — three more slots, same "genuinely new, empty div
-            // player.js never reads from or requires" boundary header_extra
-            // already proved out. Each corresponds to a brand-new,
-            // renderSkeleton()-only div (see player.js's own comment at
-            // each insertion point) — nothing here touches or replaces any
-            // selector auth/vote/playback logic elsewhere in that file
-            // depends on.
             self::attach_extra_zone($attrs, $cid, 'tracklist_extra', 'tracklist-extra');
             self::attach_extra_zone($attrs, $cid, 'now_playing_extra', 'now-playing-extra');
             self::attach_extra_zone($attrs, $cid, 'results_modal_intro', 'results-modal-intro');
@@ -219,30 +135,15 @@ class BH_Auth {
             $before = $back_link . $submission_link;
         }
 
-        // $before/$after render OUTSIDE the .bh-container that player.js
-        // builds inside .bh-player-root, so without their own aligned
-        // wrapper the "All contests" link and any slot content sat
-        // flush against the viewport edge while the player below was
-        // centred at 1200px. .bh-player-aside matches that width and
-        // centring (see player.css); the --before variant also carries
-        // the floating-header clearance so .bh-container can drop its
-        // own (player.css neutralises it when the aside precedes it).
+        // .bh-player-aside matches the player's centred width; --before also carries
+        // the header clearance (see player.css).
         if ($before !== '') $before = '<div class="bh-player-aside bh-player-aside--before">' . $before . '</div>';
         if ($after !== '')  $after  = '<div class="bh-player-aside bh-player-aside--after">' . $after . '</div>';
 
         return $before . '<div ' . $attrs . '></div>' . $after;
     }
 
-    // Shared by header_extra and the three newer additive zones — renders
-    // a real BH_Element slot for this contest, and (only if it actually
-    // has visible content, per slot_has_visible_content() below) appends
-    // it to $attrs as a base64-encoded data-{$attr_suffix} attribute for
-    // player.js to read once and drop into its matching empty div. Same
-    // base64-over-raw-HTML-attribute reasoning the original header_extra
-    // wiring already used (avoids any HTML-attribute-escaping edge case a
-    // raw JSON/HTML string in an attribute could hit) — extracted here
-    // once four call sites needed the identical five lines rather than
-    // left duplicated a fourth time.
+    // Renders a slot and, if it has visible content, appends it as base64 data-{$attr_suffix}.
     private static function attach_extra_zone(string &$attrs, int $cid, string $slot, string $attr_suffix): void {
         if (!class_exists('BH_Element')) return;
         $html = BH_Element::render_slot('bh_contest_player', $cid, $slot, ['contest_id' => $cid]);
@@ -251,10 +152,7 @@ class BH_Auth {
         }
     }
 
-    // render_slot()'s wrapper div is always present, even empty — this
-    // tells "genuinely empty" apart from "has real placement content"
-    // without player.js needing to know anything about BH_Element's own
-    // wrapper convention.
+    // render_slot() always emits a wrapper div, even when empty.
     private static function slot_has_visible_content(string $html): bool {
         return trim(wp_strip_all_tags($html)) !== '' || preg_match('/<(img|svg|iframe|video|audio)\b/i', $html) === 1;
     }

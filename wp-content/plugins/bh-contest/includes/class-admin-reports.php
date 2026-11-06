@@ -2,30 +2,20 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Split out of class-admin.php (DRY/SOLID audit Phase 3b) — the live
- * results dashboard, CSV export, and winner-notification send. No
- * settings/metabox rendering or submission moderation here.
+ * Live results dashboard, CSV export, and winner notifications.
  */
 class BH_AdminReports {
     public static function init(): void {
         add_action('admin_post_bh_export', [self::class, 'export_csv']);
         add_action('admin_post_bh_send_winners', [self::class, 'send_winner_notifications']);
 
-        // Audit fix (2026-07-25) — email_winners() used to send() its
-        // whole per-winner loop synchronously inside the admin-post
-        // request (real timeout risk on a large contest); each winner's
-        // email is now one OUS_Jobs job instead, same "never a synchronous
-        // wp_mail() on a request that can have many recipients" discipline
-        // OUS_Notifications already established elsewhere in this ecosystem.
+        // One queued job per winner email, so a large send can't time out the request.
         if (class_exists('OUS_Jobs')) {
             OUS_Jobs::register('bh_contest_email_winner', [self::class, 'send_one_winner_email']);
         }
     }
 
-    // A raw data export as a safety net — if a vote or a submission is
-    // ever disputed, or something needs auditing outside wp-admin
-    // entirely, this is the "pull everything" escape hatch rather than
-    // having no way to get the underlying data out at all.
+    // Raw CSV export of submissions or votes, for audits and disputes.
     public static function export_csv(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bh_export')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
@@ -59,12 +49,7 @@ class BH_AdminReports {
             global $wpdb;
             $t = BH_Helpers::table();
             $rows = $wpdb->get_results($wpdb->prepare(
-                // id ASC as a tiebreaker — created_at only has 1-second
-                // resolution and a real voting window can easily land
-                // many votes in the same second, which makes plain
-                // ORDER BY created_at ASC non-deterministic about intra-
-                // second order for this audit-trail export (same class
-                // of bug caught and fixed in bh-crm's notes feature).
+                // id ASC breaks ties: created_at has only 1-second resolution.
                 "SELECT user_id, category, submission_id, created_at FROM $t WHERE contest_id = %d ORDER BY created_at ASC, id ASC", $cid
             ));
             fputcsv($out, ['Voter', 'Category', 'Submission ID', 'Track Title', 'Voted At']);
@@ -83,14 +68,8 @@ class BH_AdminReports {
         exit;
     }
 
-    // Submission titles and artist names are submitter-controlled free
-    // text (sanitize_text_field() doesn't strip a leading =/+/-/@), so
-    // without this a crafted title could be read as a formula by
-    // Excel/Sheets/LibreOffice the moment this export is opened — the
-    // standard "CSV injection" pattern. The export action is already
-    // capability+nonce gated; this closes the separate gap of the data
-    // inside it not being safe for a spreadsheet to open. A leading
-    // apostrophe is the standard, invisible-in-the-cell fix.
+    // WHY: blocks CSV formula injection; submitter text may start with =/+/-/@,
+    // so prefix an apostrophe.
     /** @param mixed $value */
     public static function csv_safe($value): string {
         $value = (string) $value;
@@ -100,14 +79,8 @@ class BH_AdminReports {
         return $value;
     }
 
-    // Deliberately separate from the "Publish Results" checkbox — that
-    // just makes results visible on the site; this is the loud part
-    // (Discord announcement + winner emails), and an admin might want a
-    // gap between the two, e.g. to publish, sanity-check the numbers
-    // look right, and only then announce — or to hold the announcement
-    // for a specific moment regardless of when results actually went
-    // live. Tracks a sent timestamp so accidentally clicking again shows
-    // a confirmation rather than silently re-notifying everyone.
+    // Discord + winner emails, kept separate from "Publish Results" so an admin can
+    // check numbers first. The sent timestamp makes a resend need confirmation.
     public static function send_winner_notifications(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bh_send_winners')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
@@ -122,11 +95,7 @@ class BH_AdminReports {
         exit;
     }
 
-    // Sends ONE email per winning user, combining every placement they
-    // earned (a category win plus an overall win, or multiple category
-    // wins) into a single message rather than firing off a separate
-    // email per placement — nobody wants three emails because they won
-    // three categories.
+    // One email per winning user, listing all of their placements.
     private static function email_winners(int $cid): void {
         $placements = []; // uid => [ [label, rank, votes, title], ... ]
         $medal = ['🥇', '🥈', '🥉'];
@@ -148,17 +117,7 @@ class BH_AdminReports {
 
         $contest_title = get_the_title($cid);
 
-        // Audit fix (2026-07-25): this loop used to call wp_mail()
-        // synchronously for every winner, inside the same admin-post
-        // request that also fires the Discord announcement — a large
-        // contest with many category winners was a genuine timeout risk
-        // on one request. Each winner's email is now its own OUS_Jobs
-        // job (registered in init() above), same "never a synchronous
-        // per-recipient wp_mail() loop" discipline OUS_Notifications
-        // already follows elsewhere. Failure is no longer summarized
-        // synchronously here — send_one_winner_email() logs its own
-        // per-recipient failure to OUS_DebugLog, matching how
-        // OUS_Notifications::send_email_now() reports its own failures.
+        // Queued per recipient; send_one_winner_email() logs its own failures.
         $queued = 0;
         foreach ($placements as $uid => $wins) {
             $user = get_userdata($uid);
@@ -178,13 +137,8 @@ class BH_AdminReports {
                 ]);
                 $queued++;
             } else {
-                // No job queue active (shouldn't happen — same plugin,
-                // same activation) — fail toward still sending rather
-                // than silently dropping the notification. BH_Mail::send()
-                // already logs its own failure via OUS_DebugLog (see
-                // class-mail.php) — the explicit log below only covers
-                // the raw wp_mail() fallback, so a failure is never
-                // logged twice.
+                // No job queue: send inline. BH_Mail logs its own failures, so only
+                // the raw wp_mail() path is logged here.
                 $sent = class_exists('BH_Mail')
                     ? BH_Mail::send([
                         'to' => $user->user_email, 'user_id' => $uid, 'subject' => "You placed in {$contest_title}!", 'body' => $body,
@@ -203,9 +157,7 @@ class BH_AdminReports {
         }
     }
 
-    // OUS_Jobs handler, registered in init() above — one call per winner,
-    // run via Action Scheduler (or the fallback cron queue) rather than
-    // inside the admin request that triggered the bulk send.
+    // OUS_Jobs handler registered in init(); one call per winner.
     /** @param array<string, mixed> $args */
     public static function send_one_winner_email($args): void {
         $email = $args['email'] ?? '';
@@ -247,17 +199,14 @@ class BH_AdminReports {
             if (isset($_GET['bh_category']) && $_GET['bh_category'] === 'all') {
                 $all = true;
             } elseif (!BH_Helpers::is_valid_category($cid, $cat)) {
-                // No valid category chosen yet (first visit) — default to
-                // the combined view rather than picking one arbitrarily.
+                // No valid category chosen: default to the combined view.
                 $all = true;
             }
         } else {
-            $cat = ''; // single implicit category, unchanged from before categories existed
+            $cat = ''; // single implicit category
         }
 
-        // Contest (and, if it has any, category) picker — reloads the page
-        // with ?contest_id=X&bh_category=Y so every section below (stats,
-        // table, live poll) targets the same combination.
+        // Contest/category picker; every section below uses the same selection.
         echo '<form method="get" style="margin-bottom:16px;">'
            . '<input type="hidden" name="post_type" value="bh_contest">'
            . '<input type="hidden" name="page" value="bh-results">'
@@ -316,10 +265,7 @@ class BH_AdminReports {
         echo '<p><label><input type="checkbox" id="bh-autorefresh" checked> Auto-refresh every 8s</label> '
            . '&nbsp;·&nbsp; <span id="bh-updated-at" style="color:#666;">Not yet refreshed live.</span></p>';
 
-        // Pie breakdowns — votes per category, per song, and per song
-        // within each category (plus judge-score pies on a judged /
-        // hybrid contest). Independent of the category picker above:
-        // always shows every breakdown for the whole contest.
+        // Pie breakdowns always cover the whole contest, ignoring the category picker.
         if (class_exists('BH_Charts')) BH_Charts::render_section($cid, ['heading' => true]);
 
         $cat_col = $all ? '<th>Category</th>' : '';
@@ -447,8 +393,7 @@ class BH_AdminReports {
                 $cat_cell = '<td>' . esc_html($name) . '</td>';
             }
 
-            // Every dynamic value escaped on output (defends against a crafted
-            // title/artist becoming stored XSS in the dashboard).
+            // Escape every dynamic value: titles/artists are submitter-controlled.
             echo '<tr>'
                . '<td><strong>' . esc_html($p->post_title) . '</strong><br><small>' . esc_html(BH_Helpers::artist_for($p)) . '</small></td>'
                . $cat_cell

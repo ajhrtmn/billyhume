@@ -2,57 +2,31 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Split out of class-admin.php (DRY/SOLID audit Phase 3b, same playbook
- * as bh-monetization-woo's class-products.php split) — the admin
- * navigation/access-control surface: menu registration, dashboard access
- * restriction for voters, the auto-created contest page lifecycle, the
- * site-menu resync, and the search-provider hook. No metabox rendering,
- * no moderation actions, no CSV/results reporting — those live in
- * BH_AdminMetaboxes, BH_AdminModeration, and BH_AdminReports respectively.
+ * Admin navigation and access: menus, voter dashboard restriction, the
+ * auto-created contest page, site-menu resync, and the search provider.
  */
 class BH_AdminMenus {
     public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menus']);
         add_filter('views_edit-bh_contest', [self::class, 'add_catalog_view_link']);
-        // A contest leaving 'publish' (trash/delete) or coming back
-        // (untrash) also has to drop or restore its own menu entry —
-        // BH_AdminMetaboxes::save_contest_meta() alone only fires on an
-        // actual edit-screen save, not on these list-table/quick actions.
+        // Trash/untrash/delete skip save_contest_meta(), so they resync the menu here.
         add_action('wp_trash_post', [self::class, 'maybe_resync_menu_for_post']);
         add_action('untrash_post', [self::class, 'maybe_resync_menu_for_post']);
         add_action('before_delete_post', [self::class, 'maybe_resync_menu_for_post']);
         add_action('admin_post_bh_restore_contest_revision', [self::class, 'handle_restore_revision']);
-        // OUS_Search consumer, ROADMAP-search-and-revisions.md Section 1
-        // sequencing. Public-safe: a published contest's title/existence
-        // is already public information (the contest page itself is a
-        // real, publicly-viewable page) — this only searches published
-        // contests, never bh_submission (real people's contact info/
-        // audio files, correctly kept out of any public-facing lookup).
+        // Public search covers published contests only, never bh_submission (personal data).
         add_filter('ous_search_providers', [self::class, 'register_search_provider']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
         add_action('admin_post_bh_quick_schedule', [self::class, 'quick_schedule']);
         add_action('admin_post_bh_create_page', [self::class, 'create_page_action']);
 
-        // Auto-created contest pages: a small box linking back to the
-        // contest they belong to, shown only on pages that have one.
         add_action('add_meta_boxes_page', [self::class, 'add_page_backlink_meta_box']);
 
-        // "Add New" sidebar links under our menu are clutter for both CPTs:
-        // Submissions is a dead end in wp-admin (audio upload, artist name,
-        // etc. aren't editable from the bare post editor — submissions can
-        // only come in properly through the front-end flow), and Contests
-        // already has its own "Add New" button at the top of the Contests
-        // list page itself, so the sidebar link is a redundant second copy.
-        // Creating a contest still works exactly the same either way —
-        // this only removes the shortcut, not the capability. Nothing
-        // about WordPress's own Posts menu is touched.
+        // Submissions only arrive via the front end, and Contests has its own
+        // Add New button, so the sidebar "Add New" links are removed.
         add_action('admin_menu', [self::class, 'remove_add_new_links'], 999);
 
-        // Voters register as ordinary subscriber accounts (that's what
-        // gives us name/email/history for free via WP's own user system),
-        // but a subscriber can still browse into wp-admin by default and
-        // see a near-empty dashboard, which is confusing for a site
-        // that's really just a voting page. Keep wp-admin for admins only.
+        // Voters are plain subscribers; keep wp-admin and the admin bar for admins only.
         add_action('admin_init', [self::class, 'restrict_dashboard_access']);
         add_filter('show_admin_bar', [self::class, 'hide_admin_bar_for_voters']);
     }
@@ -60,18 +34,8 @@ class BH_AdminMenus {
     public static function restrict_dashboard_access(): void {
         if (!apply_filters('bh_restrict_admin_access', true)) return;
         if (wp_doing_ajax() || current_user_can('manage_options')) return;
-        // 'admin_init' fires for admin-post.php too, not just an actual
-        // wp-admin dashboard screen load — this blanket redirect was
-        // silently killing every admin-post.php action meant for a
-        // regular (non-admin) or logged-out user, before the request
-        // ever reached its real handler. Confirmed live: BHI_Auth's email-
-        // verification link (admin-post.php?action=bhi_verify_email) was
-        // bounced to the homepage on every click for any non-admin
-        // account, with the verify_email_action() callback never even
-        // entering — an artist could click their verification email
-        // forever and never actually get verified. Only the dashboard
-        // SCREEN needs to be off-limits; admin-post.php's own action
-        // dispatch already gates each handler on whatever auth it needs.
+        // WHY: admin_init also fires for admin-post.php, whose handlers (e.g. email
+        // verification) must reach non-admins. Each handler gates its own auth.
         if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'admin-post.php') return;
         wp_safe_redirect(home_url('/'));
         exit;
@@ -123,11 +87,7 @@ class BH_AdminMenus {
         exit;
     }
 
-    // View/Edit links for a contest's auto-created page, or a one-click
-    // "Create page" fallback if none exists (trashed, or the contest
-    // predates this feature). Public (not private, unlike its original
-    // class-admin.php home) — BH_AdminListTables' contest_column_content()
-    // and BH_AdminMetaboxes' shortcode metabox both call this.
+    // View/Edit links for a contest's page, or a "Create page" link if it has none.
     public static function page_links_html(int $contest_id): string {
         $page_id = (int) get_post_meta($contest_id, '_bh_page_id', true);
         $status  = $page_id ? get_post_status($page_id) : false;
@@ -136,9 +96,7 @@ class BH_AdminMenus {
             return '<a href="' . esc_url(get_permalink($page_id)) . '">View</a> · <a href="' . esc_url(get_edit_post_link($page_id)) . '">Edit</a>';
         }
 
-        // Link, not a form — this can render inside the contest edit
-        // screen's meta box, which is itself inside WordPress's post-edit
-        // <form>. A nested form there breaks the real "Update" submit.
+        // WHY: a link, not a form; this renders inside the post-edit <form>.
         $url = wp_nonce_url(
             admin_url('admin-post.php?action=bh_create_page&contest_id=' . (int) $contest_id),
             'bh_create_page'
@@ -156,15 +114,8 @@ class BH_AdminMenus {
         exit;
     }
 
-    // Creates a simple page containing this contest's shortcode the first
-    // time the contest is published, and cross-links the two. Uses the
-    // numeric contest ID (not the slug) in the shortcode so the link keeps
-    // working even if the contest's title/slug changes later. Won't
-    // duplicate: skipped if a live (non-trashed) page is already linked,
-    // unless $force is passed (the "Create page" fallback button). Public
-    // (not private, unlike its original class-admin.php home) —
-    // BH_AdminMetaboxes::save_contest_meta() calls this from a different
-    // class.
+    // Creates and cross-links a page holding this contest's shortcode on first publish.
+    // Uses the numeric ID so slug changes don't break it; never duplicates a live page.
     public static function maybe_create_contest_page(int $contest_id, bool $force = false): void {
         if (!$force && get_post_status($contest_id) !== 'publish') return;
 
@@ -184,9 +135,7 @@ class BH_AdminMenus {
         update_post_meta($new_id, '_bh_contest_ref', $contest_id);
     }
 
-    // Small backlink box on the auto-created page's own edit screen, so an
-    // admin who lands there first can jump back to the contest settings.
-    // Only added for pages that actually have the contest-ref meta.
+    // Backlink box to the contest, on its auto-created page's edit screen.
     public static function add_page_backlink_meta_box(\WP_Post $post): void {
         $cid = (int) get_post_meta($post->ID, '_bh_contest_ref', true);
         if (!$cid || !get_post($cid)) return;
@@ -220,11 +169,7 @@ class BH_AdminMenus {
         ]);
         $out = [];
         foreach ($posts as $p) {
-            // A contest has no canonical URL of its own — it only ever
-            // lives at whatever real page embeds its shortcode
-            // (ROADMAP-discoverability.md's own finding). Skip a result
-            // with nowhere real to send someone rather than link to a
-            // dead/nonexistent page.
+            // A contest has no URL of its own; skip it unless its page is published.
             $page_id = (int) get_post_meta($p->ID, '_bh_page_id', true);
             if (!$page_id || get_post_status($page_id) !== 'publish') continue;
             $out[] = [
@@ -239,11 +184,8 @@ class BH_AdminMenus {
     }
 
     /**
-     * Rebuilds the "Contests" submenu group (OUS_MenuSync) from
-     * whatever contests currently have the menu toggle on — called
-     * after any save, trash, untrash, or delete so the live menu never
-     * drifts from what's actually checked. Ordered by start date so an
-     * upcoming/current contest surfaces before older ones.
+     * Rebuilds the "Contests" menu group from contests with the menu toggle on,
+     * newest first. Called after any save, trash, untrash, or delete.
      */
     public static function resync_menu(): void {
         if (!class_exists('OUS_MenuSync')) return;
@@ -269,17 +211,7 @@ class BH_AdminMenus {
         OUS_MenuSync::sync_group('contests', 'Contests', $items, self::archive_page_url());
     }
 
-    // Real gap found live: clicking "Contests" itself (the group label,
-    // not a child contest) went nowhere ('#'). Unlike bh-courses, this
-    // CPT has no native archive URL — BH_Archive's own docblock
-    // deliberately treats [bh_archive] as a single unified library
-    // spanning every contest, placed on whatever real page an admin
-    // chooses (there's no auto-created page for it the way an
-    // individual contest gets one via _bh_page_id). Finds a real,
-    // published page actually using that shortcode and links there if
-    // one exists; leaves the parent link at '#' (no worse than before
-    // this fix) if none does, rather than guessing a URL that might not
-    // exist on this install.
+    // URL for the "Contests" group label: the first published page using [bh_archive], else '#'.
     private static function archive_page_url(): string {
         $pages = get_posts([
             'post_type' => 'page', 'post_status' => 'publish', 'numberposts' => 1,
@@ -294,14 +226,8 @@ class BH_AdminMenus {
         if (get_post_type($post_id) === 'bh_contest') self::resync_menu();
     }
 
-    // OUS_Revisions::render_history_panel()'s Restore button posts here.
-    // Writes every stored _bh_*/_bhy_style_json meta key straight back —
-    // simple direct restore rather than routing through
-    // BH_AdminMetaboxes::save_contest_meta() (that method expects real
-    // $_POST field names from the actual settings form, not a stored
-    // meta-key-shaped snapshot; re-simulating a fake $_POST would be more
-    // fragile than just writing the meta back directly, since the
-    // snapshot already IS the target shape).
+    // Restore button target: writes the snapshot's meta keys straight back, since
+    // the snapshot is already meta-shaped (save_contest_meta() expects $_POST).
     public static function handle_restore_revision(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         $post_id = (int) ($_GET['object_id'] ?? 0);
@@ -318,9 +244,7 @@ class BH_AdminMenus {
             update_post_meta($post_id, $key, $value);
         }
 
-        // The restore itself is also a real save — same "undo an
-        // accidental restore the same way" reasoning as BHM_Tiers'
-        // own restore handler.
+        // Snapshot the restore too, so it can itself be undone.
         if (class_exists('OUS_Revisions')) {
             $all_meta = get_post_meta($post_id);
             $flat = [];
@@ -337,25 +261,8 @@ class BH_AdminMenus {
         exit;
     }
 
-    // Hooked onto before_delete_post — permanent deletion only (a
-    // trashed contest is still a real, restorable post, same
-    // "nothing to clean up until it's actually gone" reasoning
-    // bh-courses' cleanup_deleted_course() already uses for lessons).
-    // Real gap this closes: this plugin had ZERO cleanup anywhere for a
-    // permanently-deleted contest — every one of its submissions and
-    // every vote row referencing it became a silent, permanent orphan
-    // with no admin warning and no way to discover the mess later (the
-    // Submissions list filters by _bh_contest_id meta pointing at a
-    // post that no longer exists). Given contests hold real contestant
-    // and voting data, this was a genuine silent-data-loss risk.
-    // Submissions are TRASHED, not hard-deleted, here — a permanently-
-    // deleted contest almost always means "this contest was a mistake/
-    // duplicate," and trashing (rather than permanently deleting) its
-    // submissions preserves a 30-day recovery window for exactly that
-    // "wait, I didn't mean to delete the WHOLE thing" case, matching
-    // how WordPress's own trash already works for everything else here.
-    // Hooked directly from bh-contest.php's own bootstrap (not this
-    // class's init()) — unchanged from before this split.
+    // On permanent contest deletion (before_delete_post, hooked in bh-contest.php):
+    // trash its submissions (keeping the recovery window) and delete its vote rows.
     /** @param mixed $post_id */
     public static function cleanup_deleted_contest($post_id): void {
         if (get_post_type($post_id) !== 'bh_contest') return;
@@ -373,15 +280,8 @@ class BH_AdminMenus {
     }
 
     /**
-     * A link from the admin list table to the live catalog a visitor sees.
-     *
-     * views_edit-<type> rather than a menu entry: this install has a
-     * documented history of standalone admin pages breaking WordPress's own
-     * page-hook resolution (see CLAUDE.md), and the status row is a native,
-     * risk-free place for a link that is not a filter view. OUS_Pages
-     * resolves which page hosts the shortcode, so nothing hardcodes a slug,
-     * and the link is omitted entirely when there is no catalog page rather
-     * than pointing nowhere.
+     * "View live archive" link in the list table's status row, omitted when no
+     * archive page exists. A views link avoids a fragile standalone admin page.
      *
      * @param array<string, string> $views
      * @return array<string, string>

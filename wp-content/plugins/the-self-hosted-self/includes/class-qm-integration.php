@@ -2,20 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Query Monitor integration. Registers a real QM_Collector that surfaces
- * THIS request's own OUS_DebugLog entries (class-debug-log.php's
- * request_buffer(), in-memory only, zero extra DB queries) directly
- * inside Query Monitor's own admin-toolbar panel — so triaging a bug
- * doesn't mean bouncing between QM's panel and Debug Tools' Console &
- * Logs screen as two separate tools.
- *
- * Entirely optional/degrading: every hook here only fires if Query
- * Monitor's own base classes exist (checked at the point QM itself loads
- * them, via the 'qm/collectors' filter — QM never fires that filter
- * unless it's active), so an install without QM installed is completely
- * unaffected — no class_exists() guard needed at add_action() time the
- * way OUS_Jobs/OUS_Notifications guard each other, since QM's own filter
- * simply never runs.
+ * Query Monitor integration: shows this request's OUS_DebugLog entries
+ * (in-memory request_buffer()) in QM's panel. Hooked via 'qm/collectors',
+ * which QM only fires when active, so no class_exists() guard is needed.
  */
 class OUS_QM_Integration {
     public static function init() {
@@ -30,12 +19,8 @@ class OUS_QM_Integration {
     }
 
     public static function register_output(array $output, $collector = null) {
-        // QM's 'qm/outputter/html' filter signature varies across
-        // versions (some pass the collector map only, some pre-keyed) —
-        // pull our collector back out of QM's own registry via its
-        // public accessor instead of assuming. If it's missing (e.g.
-        // this filter fired before ours registered), skip silently
-        // rather than fatal on a null collector.
+        // The filter signature varies across QM versions, so fetch our collector
+        // from QM's registry and skip silently if it is missing.
         if (!class_exists('QM_Collectors') || !class_exists('OUS_QM_Output')) return $output;
         $collector = QM_Collectors::get('ous');
         if (!$collector) return $output;
@@ -45,10 +30,7 @@ class OUS_QM_Integration {
 }
 
 /**
- * The collector does almost nothing — OUS_DebugLog::log() already
- * captures every error/warning/info this request into its own
- * in-memory request_buffer(). process() just copies that buffer into
- * QM's ->data shape once, when QM asks each collector to finalize.
+ * Copies OUS_DebugLog's request buffer into QM's ->data on process().
  */
 if (class_exists('QM_Collector')) {
     class OUS_QM_Collector extends QM_Collector {
@@ -65,14 +47,8 @@ if (class_exists('QM_Collector')) {
 }
 
 /**
- * Minimal HTML panel — one row per log() call this request, level/
- * source/message/file:line, same fields Debug Tools' Console & Logs
- * table already shows (see class-debug-log.php's render_table()) so
- * there's no second, differently-shaped view of the same data to learn.
- * Deliberately doesn't duplicate that table's filtering/pagination/
- * trace-expansion UI — this panel is for "what just happened on THIS
- * request, at a glance," the full table is still for real triage
- * across many requests.
+ * Minimal panel: one row per log() call this request (level/source/message/
+ * file:line). Full triage stays in Console & Logs.
  */
 if (class_exists('QM_Output_Html')) {
     class OUS_QM_Output extends QM_Output_Html {

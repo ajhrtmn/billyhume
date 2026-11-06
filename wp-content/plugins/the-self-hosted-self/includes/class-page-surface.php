@@ -2,53 +2,17 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * DESIGN-SUITE-PAGE-MANAGER-PLAN.md Phase 1 — data model + render path
- * only, no admin UX yet (that's Phase 2/3). Per that doc's own §0:
- * Option B was chosen — a real wp_posts row still exists (real
- * permalink, post_type, revisions/trash/search/Yoast/sitemaps, all
- * untouched), but its RENDERED BODY becomes 100% node-tree for any post
- * that opts in. This is a thin generalization of a pattern already
- * proven twice elsewhere in this ecosystem (bh-crm's CRM profile pages,
- * bh-courses' lesson pages) — one new surface, one postmeta flag, one
- * `the_content` filter, no new table.
- *
- * `_bh_design_suite_managed` (postmeta, '1' or absent) is the single
- * source of truth for "is this specific post's content owned by the
- * Design Suite or by WP's native editor" — per-POST, not per-post-type
- * (see the plan doc's §4 for why: a page-by-page opt-in, not a blanket
- * post-type switch).
- *
- * Surface context is per-POST (surface_context_id = the WP post ID),
- * same convention every other per-entity surface in this ecosystem
- * already uses (bh-crm's per-profile context = user_id, bh-courses'
- * per-lesson context = lesson_id).
+ * Lets an ordinary page/post opt in (postmeta `_bh_design_suite_managed` = '1')
+ * to having its rendered body come from the 'bh_page' element surface instead
+ * of post_content. The wp_posts row stays real. Context id = the post ID.
  */
 class OUS_PageSurface {
     const META_KEY = '_bh_design_suite_managed';
 
-    // Plan §4: the generic page/post mechanism is scoped to WP's own
-    // built-in types only — a plugin-owned CPT (bh_course, bh_lesson,
-    // bh_contest entries, etc.) already has, or is getting, its own
-    // purpose-built surface with its own semantics; folding it into
-    // this generic one too would create two competing systems fighting
-    // over the same post.
-    //
-    // Phase 4 (defaulting NEW pages to managed by default) — DECIDED
-    // AGAINST, 2026-07-25, specifically because of Etch (see
-    // ETCH-COMPATIBILITY-NOTES.md; Billy's dev builds the real site in
-    // Etch, a WordPress visual environment that authors real
-    // post_content via Gutenberg blocks). The managed toggle's
-    // maybe_replace_content() below DISCARDS post_content entirely at
-    // render time and substitutes render_slot() output instead — Etch
-    // has no awareness this happens. Defaulting new pages to managed
-    // would mean anything Billy's dev visually builds in Etch on that
-    // page silently never appears on the real front end, with no
-    // obvious reason why. Opt-in-only avoids that trap entirely — the
-    // NEW bh/page-content block (below) is the actually Etch-safe way
-    // to add Design-Suite-rendered content to a page, since it's a
-    // real registered block Etch passes through correctly (same
-    // "keep building new features as real blocks" posture that doc's
-    // own bottom-line recommendation #2 already calls for).
+    // Core types only; plugin CPTs have their own surfaces.
+    // WHY: opt-in only, never default. Managed mode discards post_content at
+    // render, so content built in Etch would silently vanish; the
+    // bh/page-content block is the Etch-safe alternative.
     const MANAGED_POST_TYPES = ['page', 'post'];
 
     public static function init(): void {
@@ -64,15 +28,8 @@ class OUS_PageSurface {
         add_action('before_delete_post', [self::class, 'handle_delete']);
     }
 
-    // Plan §4/Phase 5 — real delete only (before_delete_post), never
-    // trash: trash is recoverable, so a page's placements should
-    // survive a trash/restore cycle exactly the way the post row
-    // itself does. Without this, every genuinely-deleted page leaves
-    // orphaned rows in bhcore_element_placements forever — cheap
-    // individually, real hygiene debt at scale. Scoped to
-    // MANAGED_POST_TYPES only, same as everything else in this class —
-    // a plugin-owned CPT's own surface cleans up after itself
-    // separately, not through this generic hook.
+    // Real delete only (not trash, which is recoverable): removes the page's
+    // placements so they do not orphan in bhcore_element_placements.
     public static function handle_delete(int $post_id): void {
         if (!in_array(get_post_type($post_id), self::MANAGED_POST_TYPES, true)) return;
         if (!class_exists('BH_Element')) return;
@@ -91,12 +48,7 @@ class OUS_PageSurface {
                 'root' => ['label' => 'Page content'],
             ],
             'context' => ['type' => 'post', 'param' => 'post_id'],
-            // Preview context for the builder GUI's canvas — the most
-            // recently published Design-Suite-managed page stands in as
-            // a representative subject, same "no single 'the' X exists
-            // outside a real id" reasoning every other per-entity
-            // surface's own preview_ctx already uses. Falls back to 0
-            // (an empty, harmless slot) if none exist yet.
+            // Preview context: the most recent managed page, or 0 if none.
             'preview_ctx' => function () {
                 $recent = get_posts([
                     'post_type' => 'page', 'post_status' => 'publish', 'posts_per_page' => 1, 'fields' => 'ids',
@@ -108,12 +60,7 @@ class OUS_PageSurface {
         return $surfaces;
     }
 
-    // Full REPLACEMENT of $content, not an append — unlike bh-courses'
-    // own lesson-extras surface (which deliberately appends AFTER a
-    // pre-existing step-walker system it was careful not to touch), a
-    // Design-Suite-managed page has no such pre-existing system to
-    // preserve alongside; the node tree IS the page's content once
-    // opted in, per the plan doc's §1.
+    // Full replacement of $content, not an append: the node tree IS the page.
     public static function maybe_replace_content(string $content): string {
         if (!is_singular() || !in_the_loop() || !is_main_query()) return $content;
         $post_id = get_the_ID();
@@ -124,27 +71,11 @@ class OUS_PageSurface {
     }
 
     /* =================================================================
-     * Phase 2 — post-edit-screen metabox (the toggle + non-destructive
-     * opt-in wrap + hiding the native editor once managed).
+     * Post-edit-screen metabox: the managed toggle.
      * ================================================================= */
 
-    // Real, site-breaking bug caught live: WordPress core's own
-    // `add_meta_boxes` action fires with a SECOND argument that is only
-    // a \WP_Post on genuine post-edit screens. WooCommerce's HPOS order
-    // screens (Orders list "Edit" action, wc-orders admin.php page)
-    // fire this exact same action with an
-    // Automattic\WooCommerce\Admin\Overrides\Order object instead — a
-    // real WordPress-core-documented behavior of that hook (any screen
-    // can call do_action('add_meta_boxes', $screen_id, $whatever_object)
-    // per core's own add_meta_boxes() wrapper in wp-admin), not a
-    // WooCommerce bug. The old \WP_Post type hint fatal-errored on
-    // every single WooCommerce order screen the instant this method was
-    // called — before the post-type check below even got a chance to
-    // run, since PHP validates a typed parameter's class before the
-    // function body executes. Loosened to `object` + a real instanceof
-    // guard so the type check itself can't crash the page; the
-    // pre-existing MANAGED_POST_TYPES check below still does the real
-    // filtering work for legitimate post-edit screens.
+    // WHY: `object`, not \WP_Post. WooCommerce HPOS order screens fire
+    // add_meta_boxes with an Order object, and a \WP_Post type hint fatals there.
     public static function add_meta_boxes(string $post_type, object $post): void {
         if (!in_array($post_type, self::MANAGED_POST_TYPES, true)) return;
         if (!$post instanceof \WP_Post) return;
@@ -159,22 +90,8 @@ class OUS_PageSurface {
         wp_nonce_field('ous_design_suite_toggle', 'ous_design_suite_nonce');
         $managed = get_post_meta($post->ID, self::META_KEY, true) === '1';
 
-        // Revised after AJ's own call (2026-07-25): the Design Suite's
-        // visual tree/canvas builder was deliberately deleted in an
-        // earlier session in favor of WordPress's own block editor
-        // (see class-style-gallery.php's docblock) — so hiding the
-        // native editor and pointing at a separate "Open in Design
-        // Suite" screen no longer makes sense; that screen can't show
-        // or edit a placement tree, it never could after that
-        // deletion. The editor stays fully visible either way now.
-        // This toggle's only remaining job: whether the FRONT END
-        // fully replaces this page's rendered output with its
-        // bh_page/root node tree (see maybe_replace_content()) — an
-        // independent, additive "Page Content (Design Suite)" block is
-        // also insertable directly in the editor below for anyone who
-        // wants Design-Suite-rendered content INSIDE an otherwise
-        // normal page, without the full-page replacement this toggle
-        // does.
+        // The toggle only controls whether the front end replaces this page's
+        // output with its bh_page/root node tree; the editor stays visible.
         $etch_warning = '<p class="description" style="color:#b45309;">&#9888; If this page is built in Etch (or any tool that edits the block editor\'s own content), turning this on means whatever it builds here will never actually appear on the live site — the front end shows the Design Suite content instead, silently. Use the "Page Content (Design Suite)" block below instead if you just want Design-Suite content alongside an Etch-built page.</p>';
 
         if ($managed) {
@@ -201,12 +118,8 @@ class OUS_PageSurface {
         $was_managed = get_post_meta($post_id, self::META_KEY, true) === '1';
 
         if ($checked && !$was_managed) {
-            // The single most important non-destructive guarantee in
-            // the whole plan (§2): whatever was already written is
-            // never silently discarded on opt-in. Auto-wrapped as one
-            // starting bh/note placement in the new root slot — from
-            // that point on it's a real, editable/deletable/
-            // restructurable node like any other, not a frozen relic.
+            // WHY: never discard existing content on opt-in; it becomes the
+            // first bh/note placement in the root slot.
             $post = get_post($post_id);
             $existing_content = $post ? $post->post_content : '';
             if (class_exists('BH_Element')) {
@@ -218,13 +131,8 @@ class OUS_PageSurface {
             }
             update_post_meta($post_id, self::META_KEY, '1');
         } elseif (!$checked && $was_managed) {
-            // Opting back out is deliberately NOT fully symmetric (plan
-            // §2's own last bullet, §4's judgment call) — post_content
-            // stays frozen at whatever it was at opt-in time; the node
-            // tree's placements are left standing (harmless orphaned
-            // data if never re-enabled, and exactly what re-enabling
-            // shows if it is) rather than attempting a lossy
-            // reconstruction back into post_content HTML.
+            // Opting out leaves post_content as frozen at opt-in and keeps the
+            // placements, rather than a lossy reconstruction into HTML.
             delete_post_meta($post_id, self::META_KEY);
         }
 
@@ -232,29 +140,11 @@ class OUS_PageSurface {
     }
 
     /* =================================================================
-     * "Page Content (Design Suite)" block — AJ's own call (2026-07-25),
-     * once it was clear the old visual tree/canvas builder had been
-     * deleted (see class-style-gallery.php's docblock): rather than
-     * hiding the native editor and pointing at a separate screen that
-     * can no longer show a placement tree at all, this block lives
-     * INSIDE the normal block editor like any other block — insert it,
-     * type into it, move it, delete it, same as a paragraph or image
-     * block. One bridging block, not a full per-BH_Element-type block
-     * set (that's real, separate, much bigger scope than this pass —
-     * a whole future rebuild of the Structure/Library layer that was
-     * just deleted, not a Phase 3 add-on).
-     *
-     * The block's own attribute IS the authoritative content the
-     * author sees/edits in Gutenberg. On save, that content is synced
-     * out to a single bh/note placement in the SAME bh_page/root slot
-     * Phase 1/2 already render from — so the front end still renders
-     * through the existing, already-tested render_slot() call, "under
-     * the hood," exactly as originally scoped, rather than needing a
-     * second rendering path. A page can have both this block AND the
-     * full-replacement toggle above; the toggle's the_content filter
-     * simply wins when it's on (same "one clear owner" rule, not two
-     * competing renderers).
-     */
+     * "Page Content (Design Suite)" block. Its attribute is the authored
+     * content; on save it syncs to one bh/note placement in bh_page/root, so the
+     * front end renders through render_slot(). If the full-replacement toggle
+     * is also on, its the_content filter wins.
+     * ================================================================= */
     public static function register_page_content_block(): void {
         register_block_type('bh/page-content', [
             'attributes' => [
@@ -274,11 +164,8 @@ class OUS_PageSurface {
         );
     }
 
-    // Server-rendered (dynamic) — always reads the CURRENT placement
-    // state via render_slot(), not the block's own possibly-stale
-    // attribute value, so a future direct edit to the placement (via
-    // REST, Debug Tools, etc.) is reflected immediately without
-    // needing this specific post re-saved.
+    // Dynamic: reads current placement state via render_slot(), not the
+    // possibly stale block attribute.
     /** @param array<string, mixed> $attrs */
     public static function render_page_content_block($attrs): string {
         $post_id = get_the_ID();
@@ -286,13 +173,8 @@ class OUS_PageSurface {
         return BH_Element::render_slot('bh_page', $post_id, 'root');
     }
 
-    // Called from handle_save() above — parses the just-saved
-    // post_content for this block's own current attribute value and
-    // upserts ONE bh/note placement to match. A post with no
-    // bh/page-content block in it is a no-op; a post with more than
-    // one is deliberately unsupported in this v1 (last one wins) —
-    // multiple independent Design-Suite sections per ordinary page is
-    // real, plausible future scope, not assumed needed yet.
+    // Upserts one bh/note placement from this post's bh/page-content block.
+    // No block is a no-op; with several blocks, the last one wins.
     private static function sync_page_content_block(int $post_id): void {
         if (!class_exists('BH_Element')) return;
         $post = get_post($post_id);

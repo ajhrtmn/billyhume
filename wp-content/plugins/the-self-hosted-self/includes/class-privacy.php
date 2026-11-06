@@ -2,17 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Wires WordPress core's native Tools > Export/Erase Personal Data
- * screens (wp_privacy_personal_data_exporters/_erasers) for the data
- * this plugin owns directly. Site-owner-facing: this is what makes a
- * GDPR/CCPA data-subject request actually reach BHI_Profiles without
- * hand-written SQL.
- *
- * Deliberately scoped to the-self-hosted-self's own table only. Peer plugins
- * (bh-crm, bh-contest, bh-monetization-woo, etc.) register their own
- * exporters/erasers the same way, in their own class-privacy.php —
- * this class has no reach into another plugin's tables, matching the
- * ecosystem's existing "own only what you own" discipline.
+ * Hooks core's Export/Erase Personal Data tools for this plugin's own table
+ * (BHI_Profiles). Peer plugins register their own exporters/erasers.
  */
 class OUS_Privacy {
     public static function init(): void {

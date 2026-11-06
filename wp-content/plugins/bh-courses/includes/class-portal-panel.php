@@ -2,12 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * This plugin's contribution to BHI_Portal (the-self-hosted-self's `bhi_portal_panels`
- * filter — see class-portal.php over there) — access to a fan's own LMS
- * enrollment. Lists every course the current user is actually
- * enrolled in (bhc_enrollments — see BHC_Progress::enroll_if_needed()),
- * not every published course, with a real completion percent per course
- * and a direct link back into the course itself to continue.
+ * "My Courses" panel for BHI_Portal (`bhi_portal_panels`): every course the user is
+ * enrolled in, with completion percent and a link to continue.
  */
 class BHC_PortalPanel {
     public static function init(): void {
@@ -15,14 +11,8 @@ class BHC_PortalPanel {
         add_filter('bhi_user_bar_links', [self::class, 'register_user_bar_link']);
     }
 
-    // Ecosystem depth-pass Tier 1c — the front-end user bar's own
-    // "obvious or gone" rule: only contribute a quick-link when there's
-    // an ACTUAL course in progress to continue, never a placeholder
-    // "browse courses" link for someone with nothing enrolled (that's
-    // what the My Courses portal panel's own empty state already
-    // covers). Picks the most recently enrolled course that isn't
-    // already complete — the one a student most plausibly wants to
-    // pick back up right now.
+    // User-bar quick link only when there's a course in progress: the most recently
+    // enrolled, incomplete one.
     /**
      * @param array<int, array<string, mixed>> $links
      * @return array<int, array<string, mixed>>
@@ -35,17 +25,7 @@ class BHC_PortalPanel {
             $course = get_post($course_id);
             if (!$course || $course->post_status !== 'publish') continue;
             if (BHC_Progress::is_course_completed($user_id, $course_id)) continue;
-            // Real bug found by spot-checking the student experience live:
-            // enrollment is recorded independently of ongoing tier access
-            // (a supporter tier can lapse, or this enrollment could predate
-            // a course that later became paid), so a course a student was
-            // once enrolled in isn't necessarily one they can still open.
-            // Without this check, this link sent a student with real
-            // recorded progress straight into a paywall the moment they
-            // clicked "Continue" from their own account/portal — the exact
-            // kind of confusing dead end BHC_Render_Lesson::
-            // render_lesson_steps() already avoids by checking access
-            // before rendering lesson content.
+            // WHY: enrollment outlives tier access, so check access before linking into a paywall.
             if (!class_exists('BHC_Gate') || !BHC_Gate::user_can_access_course($user_id, $course_id)) continue;
 
             $percent = BHC_Progress::course_percent($user_id, $course_id);
@@ -55,7 +35,7 @@ class BHC_PortalPanel {
                 'url' => $next_lesson ? get_permalink($next_lesson) : get_permalink($course_id),
                 'meta' => $percent . '%',
             ];
-            break; // one link, the single most relevant course — not a whole list
+            break; // one link only
         }
         return $links;
     }
@@ -75,19 +55,12 @@ class BHC_PortalPanel {
         return $panels;
     }
 
-    // LMS depth-of-magic Phase 3 — real cross-course mastery badges
-    // (BHC_Achievements). Obvious-or-gone: a student with none earned yet
-    // sees nothing here at all, not a row of greyed-out locked badges —
-    // this section only exists once there's something real to show.
+    // Achievement badges; nothing rendered until one is earned.
     private static function render_achievements(int $user_id): void {
         if (!class_exists('BHC_Achievements')) return;
         $earned = BHC_Achievements::all_for_user($user_id);
         if (!$earned) return;
 
-        // Audit fix (2026-07-25): the badge row had no heading — its
-        // meaning lived entirely in a `title` tooltip attribute, invisible
-        // on touch devices (no hover). A visible label makes the section
-        // legible without depending on tooltip support at all.
         echo '<h3 class="bhi-portal-achievements-heading">Achievements</h3>';
         echo '<div class="bhi-portal-achievements">';
         foreach ($earned as $row) {
@@ -135,37 +108,20 @@ class BHC_PortalPanel {
             $course = get_post($course_id);
             if (!$course || $course->post_status !== 'publish') continue;
 
-            // Audit fix (2026-07-25): the line above already calls
-            // BHC_Progress::course_percent() with no guard at all — this
-            // is a same-plugin class, always loaded, so the
-            // class_exists()/method_exists() fallback here was
-            // inconsistent with that and dead in practice.
             $percent = BHC_Progress::course_percent($user_id, $course_id);
             $completed = BHC_Progress::is_course_completed($user_id, $course_id);
-            // Same real bug fixed in the quick-link above: enrollment and
-            // ongoing tier access are tracked independently, so a course
-            // this student has real recorded progress in isn't necessarily
-            // one they can still open (a lapsed tier, or a course that
-            // became paid after they enrolled). Rather than a "Continue"
-            // button that dead-ends at a paywall, show the same locked
-            // framing the drip/tier gates already use elsewhere.
+            // Enrollment outlives tier access, so show locked framing instead of a dead-end Continue.
             $accessible = !class_exists('BHC_Gate') || BHC_Gate::user_can_access_course($user_id, $course_id);
 
             echo '<div class="bhi-portal-course-card">';
-            // Same featured-image-or-placeholder pattern as the /courses/
-            // catalog card (class-render-catalog.php) — a course's
-            // Featured Image (set from the course editor's own metabox,
-            // 'thumbnail' post-type support) now shows here too, not just
-            // on the public catalog.
+            // Featured image or placeholder, same as the catalog card.
             if (has_post_thumbnail($course_id)) {
                 echo '<div class="bhi-portal-course-thumb">' . get_the_post_thumbnail($course_id, 'medium') . '</div>';
             } else {
                 echo '<div class="bhi-portal-course-thumb bhi-portal-course-thumb-placeholder" aria-hidden="true"></div>';
             }
             echo '<h3>' . esc_html($course->post_title) . '</h3>';
-            // The % is a designed figure at the end of the track (same
-            // .bhi-datum vocabulary as the Overview panels), not a plain
-            // "X% complete" sentence under the bar.
+            // The % is a designed .bhi-datum figure at the end of the track.
             echo '<div class="bhi-progress-row">';
             echo '<div class="bhi-portal-progress-bar"><div class="bhi-portal-progress-fill" style="width:' . (int) $percent . '%;"></div></div>';
             echo '<span class="bhi-datum bhi-progress-figure"><span class="bhi-datum-value">' . (int) $percent . '%</span>'
@@ -174,10 +130,7 @@ class BHC_PortalPanel {
             if (!$accessible) {
                 echo '<p class="bhi-portal-course-locked">&#128274; Access has lapsed — <a href="' . esc_url((string) get_permalink($course_id)) . '">view options</a></p>';
             } else {
-                // Audit fix (2026-07-25): this used to always link to the
-                // course page, unlike the quick-link above (line ~36) which
-                // already does the smarter thing — jump straight to the next
-                // incomplete lesson. Now consistent.
+                // Continue jumps straight to the next incomplete lesson.
                 $continue_lesson = !$completed ? BHC_Progress::first_incomplete_lesson($user_id, $course_id) : 0;
                 $continue_url = $continue_lesson ? get_permalink($continue_lesson) : get_permalink($course_id);
                 echo '<p><a class="button" href="' . esc_url($continue_url) . '">' . ($completed ? 'Review' : 'Continue') . '</a></p>';

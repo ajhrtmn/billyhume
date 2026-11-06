@@ -1,26 +1,9 @@
 "use strict";
 /**
- * "Advanced Styles" — a generic InspectorControls panel added to EVERY
- * block in the native editor, not a bespoke block or a bespoke canvas.
- * See class-block-style.php's own docblock for the full reasoning; this
- * file is that class's client half.
- *
- * wp.element.createElement throughout — no JSX, no build step at
- * runtime, enqueued directly (class-block-style.php's
- * enqueue_editor_assets()), matching this ecosystem's own no-build/
- * no-JSX convention for every other admin-side script.
- *
- * The property vocabulary rendered here comes entirely from
- * `bhyBlockStyleSchema` (wp_localize_script'd from
- * BHY_Style::style_schema_for_js(), class-style.php) — nothing about
- * which properties/presets exist is hardcoded in this file. Add a new
- * property to PROPERTY_MAP server-side and it shows up here with zero
- * JS changes.
- *
- * TypeScript pilot, compiled with plain `tsc` to assets/js/block-style-
- * panel.js. wp.* types come from the shared wp-globals.d.ts; the
- * bhyBlockStyleSchema shape below is this file's own, since it's not a
- * wp.* API.
+ * "Advanced Styles": a generic InspectorControls panel on every block; the
+ * client half of class-block-style.php. The property vocabulary comes entirely
+ * from `bhyBlockStyleSchema` (BHY_Style::style_schema_for_js()), so new
+ * PROPERTY_MAP entries need no JS changes.
  */
 (function () {
     var wp = window.wp;
@@ -38,10 +21,7 @@
     var schema = window.bhyBlockStyleSchema || { groups: {}, colorTokens: {} };
     var NONE = '';
     var CUSTOM_SENTINEL = '__bhy_custom__';
-    // Flat "group.property" => prop-definition lookup, built once from
-    // the same schema the panel itself renders from — the one place a
-    // stored bhStyle key gets resolved back to its PROPERTY_MAP entry
-    // for the live-preview resolver below.
+    // Flat "group.property" => definition lookup for the preview resolver.
     var propsByKey = {};
     Object.keys(schema.groups || {}).forEach(function (gk) {
         var props = schema.groups[gk].properties || {};
@@ -51,17 +31,9 @@
         });
     });
     /**
-     * Client-side mirror of BHY_Style::resolve_style_value()
-     * (class-style.php) — resolves ONE stored bhStyle value against its
-     * PROPERTY_MAP entry into a real CSS value, for the editor-canvas
-     * live preview only. Deliberately NOT a security boundary (unlike
-     * its PHP counterpart): this only ever feeds a React inline `style`
-     * object in the logged-in editor, `scoped_inline_style()` server-
-     * side remains the one place that sanitizes what actually reaches a
-     * real page's HTML. A value this resolver gets wrong or skips just
-     * means the canvas preview is momentarily off — the front end,
-     * rendered from the same stored bhStyle map through the real PHP
-     * resolver, is unaffected.
+     * Client mirror of BHY_Style::resolve_style_value() for the editor preview
+     * only. Not a security boundary: scoped_inline_style() server-side sanitizes
+     * what reaches real pages.
      */
     function resolvePreviewValue(raw, prop) {
         var rawStr = String(raw || '');
@@ -103,11 +75,11 @@
                 return null; // token-only/custom-only kinds only accept the @token:/custom: forms above
         }
     }
-    /** kebab-case CSS property name -> camelCase, for a React inline `style` object (`background-color` -> `backgroundColor`). */
+    /** kebab-case CSS property -> camelCase for a React `style` object. */
     function toCamelCase(cssProp) {
         return cssProp.replace(/-([a-z])/g, function (_, c) { return c.toUpperCase(); });
     }
-    /** A block's bhStyle map -> a React inline `style` object for the editor canvas — the live-preview counterpart of BHY_Style::scoped_inline_style()'s decl-string output. */
+    /** A block's bhStyle map -> React inline `style` for the canvas preview. */
     function bhStyleToPreviewStyle(bhStyle) {
         var style = null;
         Object.keys(bhStyle || {}).forEach(function (key) {
@@ -123,20 +95,14 @@
         return style;
     }
     /**
-     * One property row. `value` is always the raw stored string this
-     * block's bhStyle[prop.key] currently holds (or '' if unset) — the
-     * exact same string BHY_Style::resolve_style_value() consumes
-     * server-side, so there is never a second, JS-only value shape to
-     * keep in sync with PHP.
+     * One property row. `value` is the raw stored bhStyle string (or ''), the
+     * same string the PHP resolver consumes.
      */
     function PropertyRow(props) {
         var prop = props.prop;
         var value = props.value || '';
         var onChange = props.onChange;
-        // Token-only (colors): the value is ALWAYS "@token:<field>" or
-        // unset — never a raw hex, never a custom escape. Mirrors
-        // resolve_style_value()'s own "colors are always token refs"
-        // rule exactly (class-style.php).
+        // Token-only (colors): always "@token:<field>" or unset, never raw hex.
         if (prop.kind === 'token-only') {
             var tokenOptions = [{ label: __('— Inherit —', 'the-self-hosted-self'), value: NONE }];
             Object.keys(schema.colorTokens || {}).forEach(function (field) {
@@ -149,9 +115,7 @@
                 onChange: onChange,
             });
         }
-        // A property with a real preset table (space/size/scale/enum/
-        // enum-scale kinds) — a dropdown of every preset step, plus a
-        // "Custom…" escape hatch when the property allows one.
+        // Preset table: dropdown of steps, plus "Custom…" when allowed.
         if (prop.options) {
             var isCustom = value.indexOf('custom:') === 0;
             var selectValue = isCustom ? CUSTOM_SENTINEL : value;
@@ -188,13 +152,8 @@
             }
             return el(Fragment, {}, children);
         }
-        // No preset table at all — custom-only / custom-or-number /
-        // percent-0-100. One free-text field; custom-only kinds are
-        // silently prefixed with 'custom:' on write (that's the only
-        // form resolve_style_value() accepts for them — a bare value
-        // always resolves to null for this kind, by design), the
-        // numeric kinds are written bare, matching how a plain number
-        // is already the accepted bare form server-side.
+        // No preset table: one text field. custom-only values are written with
+        // the 'custom:' prefix (the only form the server accepts); numeric kinds bare.
         var isCustomOnly = prop.kind === 'custom-only';
         var displayValue = isCustomOnly && value.indexOf('custom:') === 0 ? value.slice(7) : value;
         return el(TextControl, {
@@ -243,15 +202,8 @@
             return el(PanelBody, { key: gk, title: __('Style', 'the-self-hosted-self') + ': ' + group.label, initialOpen: false }, rows);
         }));
     }
-    // Blocks this generic layout/style panel should NOT attach to.
-    // Content-primitive "app" blocks (a lesson video step, a quiz
-    // question) are authored for their content, not tuned for grid /
-    // flex / typography — the panel is pure noise in that inspector and
-    // was the top "authoring feels cluttered" complaint. A prefix
-    // ending in "/" matches a whole namespace; anything else is an
-    // exact block name. Filterable so any plugin can opt its own blocks
-    // out (or back in) — bhc/* (bh-courses lesson steps) is excluded by
-    // default.
+    // Blocks the panel skips (content-primitive blocks like bhc/* lesson steps).
+    // A prefix ending in "/" matches a namespace. Filterable.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     var hooksAny = wp.hooks;
     var excludedBlocks = (typeof hooksAny.applyFilters === 'function'
@@ -278,15 +230,8 @@
         };
     }, 'withAdvancedStyles');
     addFilter('editor.BlockEdit', 'bhy/advanced-styles', withAdvancedStyles);
-    // Server-side register_block_type_args (class-block-style.php) only
-    // reserves `bhStyle` for REST/render-time validation — it has no
-    // effect on the client's own block type registry, which is what
-    // Gutenberg's serializer actually consults when writing the saved
-    // block comment. Without this mirror, setAttributes({ bhStyle })
-    // above appears to work in the editor's data store but is silently
-    // dropped on save because the client-side block type never declared
-    // the attribute. Must match the PHP side's shape exactly (type
-    // object, default {}).
+    // WHY: the client block registry must declare bhStyle too, or the serializer
+    // silently drops it on save. Must match the PHP shape (object, default {}).
     addFilter('blocks.registerBlockType', 'bhy/advanced-styles-attribute', function (settingsArg) {
         var settings = settingsArg;
         settings.attributes = settings.attributes || {};
@@ -295,30 +240,9 @@
         }
         return settings;
     });
-    // The panel + the render_block/serialization fix above only ever
-    // made bhStyle round-trip correctly and render on the real front
-    // end — the editor canvas itself stayed unstyled, so a value that
-    // silently failed to resolve (a bad token, a stale preset key) was
-    // invisible until you actually checked the front end. This filter
-    // (the same 'editor.BlockListBlock' wrapperProps extension point
-    // core itself uses for e.g. alignment classes) merges the resolved
-    // preview style onto the block's own wrapper element in the canvas,
-    // so what you set in the panel is what you see while editing —
-    // approximate for a handful of block types whose own root element
-    // isn't the wrapper WordPress renders here, but correct for the
-    // overwhelming majority (paragraphs, headings, groups, images, …).
-    //
-    // Deliberately NOT gated on `wp.blockEditor.BlockListBlock` existing
-    // — that component stopped being part of the package's public
-    // export surface in current WordPress (confirmed live on this
-    // install: `wp.blockEditor.BlockListBlock` is undefined here), but
-    // 'editor.BlockListBlock' is still a real filter Gutenberg's own
-    // internal, non-exported block-list renderer applies against
-    // whatever its actual (private) component is — addFilter() doesn't
-    // need a reference to that component, only the filter NAME. Gating
-    // on the public export silently no-opped this entire feature; an
-    // earlier version of this file did exactly that and the filter
-    // never fired.
+    // Applies the resolved preview style to the block wrapper in the canvas.
+    // WHY: not gated on wp.blockEditor.BlockListBlock, which is no longer
+    // exported; the 'editor.BlockListBlock' filter still fires by name.
     var withStylePreview = createHigherOrderComponent(function (OriginalBlockListBlock) {
         return function (props) {
             var bhStyle = props.block && props.block.attributes && props.block.attributes.bhStyle;

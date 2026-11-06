@@ -2,26 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The gap called out after v1 shipped: Debug Tools only ever shows ONE
- * seeded student's progress, which isn't a real teaching workflow.
- * This is a plain custom admin page — not a CPT list-table — added as
- * a submenu under bh_course's own top-level menu (same as bh-streaming
- * hangs Releases/Playlists/Feed Sources off its own MENU_PARENT), not
- * routed through the core's admin_menus/OUS_Registry relocation
- * mechanism, since it's naturally a sibling of "Courses"/"Lessons" in
- * the sidebar rather than a core-hub concern.
- *
- * Gated on `bhcore_manage_students` (see the core's OUS_Roles) rather
- * than the generic `edit_posts` this originally shipped with — real
- * student data (progress, quiz scores) is a meaningfully different
- * sensitivity level than "can edit some post somewhere," and the whole
- * point of that capability existing is so a course instructor account
- * that ISN'T a full site admin can be granted exactly this and nothing
- * more. Falls back to `edit_posts` if the core is old enough not to
- * have registered the capability yet (a capability that was never
- * granted to anyone simply means current_user_can() is always false
- * for it, which would silently lock EVERYONE out on an old core —
- * checking class_exists() first avoids that trap).
+ * Student Progress admin page, a submenu under the Courses menu.
+ * WHY: gated on `bhcore_manage_students` (so instructors needn't be admins), falling back to
+ * `edit_posts` on an older core; an unregistered cap would lock everyone out.
  */
 class BHC_ProgressAdmin {
     const CAP = 'bhcore_manage_students';
@@ -43,14 +26,11 @@ class BHC_ProgressAdmin {
 
     public static function render(): void {
         if (!current_user_can(self::required_cap())) wp_die('Not allowed.', '', ['back_link' => true]);
-        self::maybe_handle_override(); // processes + queues a settings_errors() notice before any output below
+        self::maybe_handle_override(); // queues a settings_errors() notice before any output
 
         $courses = get_posts(['post_type' => 'bh_course', 'numberposts' => -1, 'post_status' => ['publish', 'draft']]);
         $selected_id = isset($_GET['course_id']) ? (int) $_GET['course_id'] : ($courses[0]->ID ?? 0);
-        // The override form POSTs its own course_id (see render_override_form()),
-        // so a submission stays on the same course afterward rather than
-        // silently jumping back to whichever one is first alphabetically —
-        // matches the GET-based selection precedence above it.
+        // The override form posts its course_id so a submission stays on the same course.
         if (isset($_POST['course_id'])) $selected_id = (int) $_POST['course_id'];
 
         echo '<div class="wrap"><h1>Student Progress</h1>';
@@ -66,10 +46,7 @@ class BHC_ProgressAdmin {
         echo '</select></form>';
 
         if (!$selected_id) { echo '</div>'; return; }
-        // One batched query for the whole page (see BHC_Progress::
-        // course_progress_matrix()'s own docblock) instead of the
-        // lessons × students individual queries every section below
-        // used to run independently.
+        // One batched query for the whole page.
         $matrix = BHC_Progress::course_progress_matrix($selected_id);
         $completed_user_ids = BHC_Progress::completed_user_ids($selected_id, $matrix['user_ids']);
         self::render_override_form($selected_id, $matrix['user_ids']);
@@ -78,21 +55,12 @@ class BHC_ProgressAdmin {
         echo '</div>';
     }
 
-    // Stalled = has recorded activity but hasn't touched this course in
-    // this many days and hasn't finished it — the raw "last activity"
-    // column already on the per-student table told you WHEN someone was
-    // last active, but never flagged that as a problem; an instructor
-    // with more than a handful of students had to eyeball every row
-    // themselves to notice who'd gone quiet.
+    // Stalled = has activity, hasn't finished, and idle for this many days.
     const STALLED_DAYS = 14;
 
-    /* ---------------- aggregate summary (per-lesson completion rate,
-       avg quiz score, stalled-student count) ----------------
-       The per-student table below already has all the per-step raw
-       data this rolls up — deliberately NOT a new report page/data
-       source, just a different aggregation of the same bhc_progress
-       rows, same relationship BHC_PostTypes::step_count() already has
-       to lesson_order()/BHC_Steps::count(). */
+    /* ---------------- aggregate summary ----------------
+       Per-lesson completion rate, avg quiz score, stalled-student count, rolled up
+       from the same matrix as the per-student table. */
     /**
      * @param array<string, mixed> $matrix
      * @param array<int, int> $completed_user_ids
@@ -136,14 +104,8 @@ class BHC_ProgressAdmin {
         echo '</tbody></table></div></div>';
     }
 
-    // Averages every quiz step's mean score, then averages those means —
-    // deliberately not a single flat AVG(score) across all quiz rows in
-    // the lesson, which would let a lesson with one easy 2-question quiz
-    // and one hard 10-question quiz have the easy one dominate just
-    // because more students reached it. Null if the lesson has no quiz
-    // steps at all, so the table can show "—" instead of a misleading 0%.
-    // Reads $matrix['quiz_scores'] (already fetched in one query for the
-    // whole page) instead of running its own AVG() query per quiz step.
+    // Mean of per-quiz-step means, so a heavily attempted easy quiz can't dominate.
+    // Null when the lesson has no quizzes.
     /** @param array<string, mixed> $matrix */
     private static function lesson_avg_quiz_score(int $lesson_id, array $matrix): ?float {
         $steps = BHC_Steps::get($lesson_id);
@@ -161,22 +123,9 @@ class BHC_ProgressAdmin {
 
     /* ---------------- manual override ---------------- */
 
-    // The real, ordinary support-request gap: a student's AJAX call
-    // failed, or an instructor just wants to comp someone past a step —
-    // there was previously no way to do either without a database
-    // console. Deliberately scoped to "mark complete," not a general
-    // progress editor: it force-completes every not-yet-done step in
-    // either one lesson or the whole course, going through
-    // BHC_Progress::mark_step_complete() itself (never a raw $wpdb
-    // write) so bhc_course_completed still fires normally and a course
-    // that reaches 100% this way behaves identically to one reached by
-    // actually taking it.
-    //
-    // Deliberately NOT a general enrollment/access tool: the student
-    // dropdown only lists people who already have at least one progress
-    // row for this course (see students_for_course()) — granting access
-    // to someone with zero activity is BHM_Gate's/an entitlement's job,
-    // not this page's.
+    // Force-completes a student's remaining steps (one lesson or the whole course) via
+    // mark_step_complete(), so completion fires normally. Only lists students who already
+    // have progress; granting access is an entitlement's job.
     private static function maybe_handle_override(): void {
         if (!isset($_POST['bhc_override_action'])) return;
         if (!current_user_can(self::required_cap())) return;
@@ -204,11 +153,7 @@ class BHC_ProgressAdmin {
             'success');
     }
 
-    // Returns how many previously-incomplete steps got force-marked.
-    // Quiz steps get scored 100/passed=1 rather than left un-scored —
-    // is_step_complete()'s own rule is that a quiz row only reads "done"
-    // once passed, so anything less would silently fail to actually
-    // unblock the student this was meant to unblock.
+    // Returns how many steps were force-marked. Quiz steps get 100/passed so they read as done.
     private static function force_complete_lesson(int $user_id, int $lesson_id): int {
         $steps = BHC_Steps::get($lesson_id);
         $count = 0;
@@ -266,8 +211,7 @@ class BHC_ProgressAdmin {
     private static function render_course_table(int $course_id, array $matrix, array $completed_user_ids): void {
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
         $lesson_titles = array_map('get_the_title', $lesson_ids);
-        // Step counts computed once here, not per-student inside the row
-        // loop below (previously recomputed for every student × lesson).
+        // Step counts computed once, not per student.
         $step_counts = [];
         foreach ($lesson_ids as $lesson_id) $step_counts[$lesson_id] = BHC_Steps::count($lesson_id);
         $total_steps = array_sum($step_counts);
@@ -279,18 +223,8 @@ class BHC_ProgressAdmin {
             return;
         }
 
-        // .bhy-table-wrap (core's shared design system — see BHY_UI) —
-        // this table gets a real column PER LESSON, which is exactly
-        // the "genuinely wide, not just wide because nobody trimmed it"
-        // case that wrapper exists for. A course with a dozen lessons
-        // would otherwise either overflow the admin viewport with no
-        // way to see the rest, or get crushed illegibly on anything
-        // narrower than a desktop — the wrapper's horizontal scroll (and
-        // denser padding once it's genuinely tight) is a real fix here,
-        // not a cosmetic one.
-        // --tall: this page's whole purpose is this one table (a course
-        // selector above it, nothing else) — same "the table IS the
-        // page" reasoning as Reports/Registry Submissions/CRM People.
+        // .bhy-table-wrap: one column per lesson makes this genuinely wide; --tall since the
+        // table is the page.
         echo '<div class="bhy-table-wrap bhy-table-wrap--tall"><table class="widefat striped"><thead><tr><th>Student</th><th>Progress</th><th>Completed</th><th>Last activity</th>';
         foreach ($lesson_titles as $title) echo '<th>' . esc_html($title) . '</th>';
         echo '</tr></thead><tbody>';

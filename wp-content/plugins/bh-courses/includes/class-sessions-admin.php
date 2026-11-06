@@ -1,7 +1,7 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/** Staff-facing "Sessions" screen — plain submenu under BHC_PostTypes::MENU_PARENT, same sibling-of-Courses/Lessons placement class-progress-admin.php already uses. */
+/** Staff-facing "Sessions" screen, a submenu under BHC_PostTypes::MENU_PARENT. */
 class BHC_SessionsAdmin {
     const CAP = 'bhcore_manage_students';
 
@@ -25,10 +25,8 @@ class BHC_SessionsAdmin {
 
     public static function maybe_enqueue(string $hook): void {
         if (strpos($hook, 'bhc-sessions') === false) return;
-        // WHY: FullCalendar 7 ships NO CSS inside its JS bundle -- the vendored
-        // script contains zero style rules. Without these the calendar renders
-        // as unstyled DOM, every weekday and date stacked in one column.
-        // skeleton = structure (required), classic = look, then our token map.
+        // WHY: FullCalendar 7's JS bundle ships no CSS. skeleton = structure (required),
+        // classic = look, then our token map.
         wp_enqueue_style('bhc-fullcalendar-skeleton', BHC_URL . 'assets/css/vendor/fullcalendar/skeleton.css', [], '7.0.2');
         wp_enqueue_style('bhc-fullcalendar-palette', BHC_URL . 'assets/css/vendor/fullcalendar/palette.css', ['bhc-fullcalendar-skeleton'], '7.0.2');
         wp_enqueue_style('bhc-fullcalendar-theme', BHC_URL . 'assets/css/vendor/fullcalendar/theme.css', ['bhc-fullcalendar-palette'], '7.0.2');

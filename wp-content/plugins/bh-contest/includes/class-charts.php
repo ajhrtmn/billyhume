@@ -2,21 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Admin-side vote/score visualisation for a contest — pie (donut) charts
- * of where the votes went, rendered as plain inline SVG (no chart
- * library: the ecosystem ships nothing at runtime it doesn't own).
- *
- * Three breakdowns, per Billy's ask:
- *   - whole contest, slices = categories   (which category drew engagement)
- *   - whole contest, slices = songs        (the "Overall" vote share)
- *   - one pie per category, slices = songs (the split within each category)
- * plus, on a judged / hybrid contest, the same shapes sized by summed
- * rubric score instead of raw votes.
- *
- * render_section() is shared by the Contest Results page
- * (BH_AdminReports) and a metabox on the contest editor
- * (BH_AdminMetaboxes). Server-rendered snapshot — reload to refresh;
- * the Results page's own live table already covers second-by-second.
+ * Admin donut charts as plain inline SVG (no chart library): votes by category,
+ * by song, and by song within each category, plus judge-score versions on
+ * judged/hybrid contests. Server-rendered snapshot; reload to refresh.
  */
 class BH_Charts {
 

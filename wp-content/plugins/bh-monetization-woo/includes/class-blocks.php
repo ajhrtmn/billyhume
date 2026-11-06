@@ -2,51 +2,19 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a (the "WYSIWYG:
- * shortcodes → real blocks" follow-up) — direct AJ feedback after
- * seeing `[bhm_buy id="109"]` render as raw bracket text in the real
- * post editor: "how plausible is that shortcode preview... as much as
- * we can make the page builder wysiwyg with stuff like that along with
- * Gutenberg the better."
- *
- * The mechanism is WordPress core's own `wp.serverSideRender` — no new
- * dependency, no npm, no build step (same "plain core globals" posture
- * the-self-hosted-self's class-gutenberg-block.php already established as this
- * ecosystem's first real block). A ServerSideRender-backed block calls
- * a REST endpoint that runs the SAME PHP render_callback a real visitor
- * sees, and drops the actual output into the editor canvas — not a
- * mimic, the real thing, live, debounced on attribute change.
- *
- * 'bhm/buy' is the FIRST block converted (per the roadmap doc's own
- * sequencing: prove the pattern here, cheaply, before expanding to
- * bhm_tip_jar/bhm_tiers/bhm_wallet and the other plugins' shortcodes).
- * The old [bhm_buy] SHORTCODE is intentionally left registered and
- * untouched (BHM_Frontend::init()) — existing content using it keeps
- * working exactly as before; this block is a new, better authoring
- * path alongside it, not a breaking replacement.
+ * Server-rendered blocks (wp.serverSideRender) for buy button, tip jar and tiers, so the
+ * editor shows the real output. The matching shortcodes stay registered for existing content.
  */
 class BHM_Blocks {
-    // QA fix: BHM_Blocks::init() is itself only ever called
-    // FROM an 'init' callback (bh-monetization-woo.php's plugins_loaded
-    // handler does add_action('init', ['BHM_Blocks', 'init'])) — a
-    // second, nested add_action('init', ...) registered from inside an
-    // 'init' callback that's already executing never actually fires in
-    // that same request (confirmed directly against WP_Hook's real
-    // iteration behavior, not assumed): WordPress's hook system doesn't
-    // re-visit a priority bucket it has already passed while iterating
-    // it, so the callback silently never runs and the block never
-    // registers, request after request, with no error anywhere. Calling
-    // register_block() directly here (we're ALREADY inside 'init' by
-    // the time this runs) sidesteps the whole footgun — there's nothing
-    // register_block_type() needs from a later point in 'init' that
-    // isn't already available the moment this executes.
+    // WHY: init() already runs inside 'init', so register directly; a nested
+    // add_action('init', ...) at the same priority would never fire this request.
     public static function init(): void {
         self::register_block();
         add_action('rest_api_init', [self::class, 'register_routes']);
     }
 
     public static function register_block(): void {
-        if (!function_exists('register_block_type')) return; // WP too old — harmless no-op, same posture every optional integration in this ecosystem uses
+        if (!function_exists('register_block_type')) return;
 
         wp_register_script(
             'bhm-buy-block',
@@ -64,32 +32,19 @@ class BHM_Blocks {
             ],
         ]);
 
-        // 'bhm/tip-jar' — the second block converted (roadmap doc's own
-        // sequencing list, right after bhm/buy). Zero attributes: unlike
-        // a purchase button, the tip jar is site-wide, always the one
-        // shared Tip product ([bhm_tip_jar]'s own shortcode signature
-        // takes no atts either) — no Inspector picker needed, so this
-        // block's edit() renders ServerSideRender unconditionally with
-        // no configuration step.
+        // Tip jar and tiers are site-wide, so they take no attributes.
         register_block_type('bhm/tip-jar', [
             'editor_script'   => 'bhm-buy-block',
             'render_callback' => [self::class, 'render_tip_jar'],
         ]);
 
-        // 'bhm/tiers' — the third block converted. Same zero-attribute
-        // shape as bhm/tip-jar: BHM_Frontend::render_tiers() itself
-        // takes no $atts either (it's always every configured tier,
-        // site-wide, same as the [bhm_tiers] shortcode).
         register_block_type('bhm/tiers', [
             'editor_script'   => 'bhm-buy-block',
             'render_callback' => [self::class, 'render_tiers'],
         ]);
     }
 
-    // render_callback runs for every real visitor too, not just the
-    // editor's ServerSideRender call — this IS the front end, the block
-    // has no separate saved markup of its own (see bhm-blocks.js's
-    // save(): return null).
+    // Also the front-end render: the block saves no markup (save() returns null).
     /** @param array<string, mixed> $attributes */
     public static function render_buy($attributes): string {
         $id = (int) ($attributes['id'] ?? 0);
@@ -111,19 +66,11 @@ class BHM_Blocks {
         register_rest_route('bhm/v1', '/purchasable-objects', [
             'methods' => 'GET',
             'callback' => [self::class, 'rest_purchasable_objects'],
-            // Editor-only listing (which track/release has a purchase
-            // price configured) — not public post content, gated the
-            // same way the-self-hosted-self's element-prefab picker gates its own
-            // REST listing endpoint.
             'permission_callback' => fn() => current_user_can('edit_posts'),
         ]);
     }
 
-    // Populates the block's Inspector picker — every bhs_track/
-    // bhs_release with a real purchase price configured (the same
-    // _bhm_purchase_price_cents gate render_purchase_button() itself
-    // already checks), so an author can never pick an object that would
-    // just render blank.
+    // Inspector picker: only tracks/releases with a purchase price, so nothing renders blank.
     /** @return \WP_REST_Response */
     public static function rest_purchasable_objects(\WP_REST_Request $req) {
         $q = new WP_Query([
@@ -136,7 +83,7 @@ class BHM_Blocks {
         $out = [];
         foreach ($q->posts as $p) {
             $cents = (int) get_post_meta($p->ID, '_bhm_purchase_price_cents', true);
-            if (!$cents) continue; // meta key exists but is 0/blank — nothing purchasable to pick
+            if (!$cents) continue;
             $out[] = [
                 'id' => $p->ID,
                 'title' => $p->post_title,

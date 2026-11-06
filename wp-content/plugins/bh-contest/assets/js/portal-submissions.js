@@ -1,12 +1,7 @@
 "use strict";
 /**
- * portal-submissions.js — BH_PortalPanel's "Replace file" and "Edit
- * details" forms (class-portal-panel.php). Vanilla JS, no build step,
- * same convention as this ecosystem's other front-end widgets.
+ * BH_PortalPanel's "Replace file" and "Edit details" forms.
  * bhContestPortalConfig (wp_localize_script) carries restUrl + nonce.
- *
- * TypeScript pilot conversion — same posture as this plugin's other
- * converted files.
  */
 (function () {
     'use strict';
@@ -37,13 +32,7 @@
                     btn.disabled = false;
                     btn.textContent = originalLabel;
                     if (r.ok) {
-                        // Was a plain-text status line next to the button —
-                        // every sibling flow in this ecosystem (voting,
-                        // judging, registry) confirms through BHCoreToast;
-                        // this was the one holdout still feeling flatter
-                        // than the rest of the site. Falls back to the
-                        // original inline text if the shared toast script
-                        // hasn't loaded for any reason.
+                        // Toast via BHCoreToast, falling back to inline text.
                         const msg = r.body.message || 'Saved.';
                         if (typeof BHCoreToast !== 'undefined') {
                             BHCoreToast.show(msg, 'success');

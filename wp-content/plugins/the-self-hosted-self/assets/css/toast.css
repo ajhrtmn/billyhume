@@ -1,19 +1,10 @@
 /**
- * BHCoreToast styles — loaded on both wp-admin and the front end (see
- * class-toast.php). Colors default to the same success/warning/danger
- * palette BHY_UI's shared admin design system already uses
- * (class-ui.php's design_system_css(): --bhy-success/#1a7f37,
- * --bhy-warning/#8a5a00, --bhy-danger/#b3261e, --bhy-accent/#2271b1) via
- * var(--bhy-*, <fallback>) — on an ecosystem admin screen where those
- * custom properties are already printed, toasts automatically pick up
- * the exact same tones; everywhere else (front end, or any admin screen
- * BHY_UI doesn't print on) they fall back to the identical hardcoded
- * values, so the look never depends on load order or which screen this
- * happens to render on.
+ * BHCoreToast styles, admin and front end. Colors use var(--bhy-*, <fallback>)
+ * with the admin design-system values as fallbacks, so the look never depends
+ * on which screen this renders on.
  */
-/* Body scroll-lock while any ecosystem modal is open — see toast.js's
-   MutationObserver-based syncScrollLock(). Locking on <html> (not <body>)
-   avoids fighting any plugin that sets its own body margin/padding. */
+/* Scroll-lock while a modal is open (toast.ts syncScrollLock()). On <html>,
+   not <body>, to avoid fighting plugins that style body margin/padding. */
 html.bhcore-scroll-locked {
     overflow: hidden;
 }
@@ -86,10 +77,7 @@ html.bhcore-scroll-locked {
     color: #1d2327;
 }
 
-/* Users who've asked their OS/browser to reduce motion get an instant
-   show/hide instead of the slide+fade — same accessibility posture as
-   every other animated affordance should have, even though nothing else
-   in this ecosystem's existing CSS happens to animate yet. */
+/* Reduced motion: instant show/hide instead of slide+fade. */
 @media (prefers-reduced-motion: reduce) {
     .bhcore-toast {
         transition: none;
