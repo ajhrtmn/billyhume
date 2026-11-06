@@ -128,7 +128,7 @@ class BH_Storybook_Panel {
 
     public static function handle_run(): void {
         check_admin_referer('bh_storybook_run');
-        if (!current_user_can('manage_options')) wp_die('Insufficient permissions.', 403);
+        if (!current_user_can('manage_options')) wp_die('Insufficient permissions.', '', ['response' => 403]);
 
         if (class_exists('OUS_Debug') && OUS_Debug::is_locked()) {
             self::redirect('Blocked: this looks like a production environment.');
@@ -167,7 +167,7 @@ class BH_Storybook_Panel {
     // it does no local work, and the fine-grained token is the access control.
     public static function handle_gha_trigger(): void {
         check_admin_referer('bh_storybook_gha_trigger');
-        if (!current_user_can('manage_options')) wp_die('Insufficient permissions.', 403);
+        if (!current_user_can('manage_options')) wp_die('Insufficient permissions.', '', ['response' => 403]);
 
         if (!defined('OUS_GITHUB_ACTIONS_TOKEN') || OUS_GITHUB_ACTIONS_TOKEN === '') {
             self::redirect('No GitHub Actions token configured — see the setup note below.');

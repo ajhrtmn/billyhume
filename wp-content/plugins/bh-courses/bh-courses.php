@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.16.37
+ * Version:     0.16.38
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.16.37');
+define('BHC_VER',  '0.16.38');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -141,14 +141,14 @@ add_action('plugins_loaded', function () {
     // own the_content pass, which otherwise strips the step wrappers' classes.
     add_filter('the_content', function ($content) {
         if (get_post_type() === 'bh_lesson' && is_singular('bh_lesson') && in_the_loop() && is_main_query()) {
-            return $content . BHC_Render::render_lesson_steps(get_the_ID());
+            return $content . BHC_Render_Lesson::render_lesson_steps(get_the_ID());
         }
         // Course permalink renders the full course view. WHY: static reentrancy guard,
         // since render_course_header() applies the_content to the description.
         static $rendering_course = false;
         if (!$rendering_course && get_post_type() === 'bh_course' && is_singular('bh_course') && in_the_loop() && is_main_query()) {
             $rendering_course = true;
-            $out = BHC_Render::render_course(['id' => get_the_ID()]);
+            $out = BHC_Render_Course::render_course(['id' => get_the_ID()]);
             $rendering_course = false;
             return $out;
         }

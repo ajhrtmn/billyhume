@@ -232,11 +232,9 @@ class OUS_Campaigns {
         $rows = [];
 
         $recipient = OUS_Debug::get_or_create_test_user('ous_campaign_suite_recipient', false);
-        delete_user_meta($recipient, 'bcore_notifications_email_optout');
         delete_user_meta($recipient, 'bhcore_notifications_email_optout');
 
         // Test-only segment, proving the filter extension point end to end.
-        $capture = ['sent' => 0];
         $add_segment = function ($segments) use ($recipient) {
             $segments['ous_campaign_suite_segment'] = [
                 'label' => 'Test segment',

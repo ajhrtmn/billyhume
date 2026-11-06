@@ -799,7 +799,7 @@ window.BHCLessonStepDom = {
                 nextBlock.style.display = 'none';
             showStep(targetIndex);
         });
-        // Mirrors BHC_Render::render_quiz_review()'s markup so the post-submit and later
+        // Mirrors BHC_Render_Lesson::render_quiz_review()'s markup so the post-submit and later
         // review views match. Only shown after the whole quiz is submitted.
         function renderQuestionBreakdown(questions) {
             if (!questions || !questions.length)

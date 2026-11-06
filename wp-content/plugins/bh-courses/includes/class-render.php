@@ -147,25 +147,4 @@ class BHC_Render {
         }
         return false;
     }
-
-    /* ---------------- delegates ---------------- */
-
-    public static function render_catalog(): string {
-        return BHC_Render_Catalog::render_catalog();
-    }
-
-    /** @param mixed $atts */
-    public static function render_course($atts): string {
-        return BHC_Render_Course::render_course($atts);
-    }
-
-    public static function render_lesson_steps(int $lesson_id): string {
-        return BHC_Render_Lesson::render_lesson_steps($lesson_id);
-    }
-
-    // Kept public for API compatibility; not called externally.
-    /** @param mixed $snapshot */
-    public static function render_quiz_review($snapshot): string {
-        return BHC_Render_Lesson::render_quiz_review($snapshot);
-    }
 }

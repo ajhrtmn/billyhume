@@ -121,7 +121,7 @@ class BHM_Debug {
                         update_post_meta($id, '_bhm_price_cents', $t[1]);
                         update_post_meta($id, '_bhm_benefits', 'Test tier — safe to delete.');
                         update_post_meta($id, '_bhm_benefit_keys', $t[2]);
-                        if (BH_Commerce::available()) BHM_Products::sync_tier_wc_product($id, $t[0], $t[1]);
+                        if (BH_Commerce::available()) BHM_ProductSync::sync_tier_wc_product($id, $t[0], $t[1]);
                     }
                 }
                 return '2 test tiers created (with different benefit keys each, not just different prices — see class-debug.php\'s own comment on this).';
@@ -146,7 +146,7 @@ class BHM_Debug {
                 $tiers = BHM_Tiers::all();
                 if (!$tiers) return 'No tiers exist yet — click "Create 2 test tiers" first.';
                 $top = end($tiers);
-                BHM_Products::debug_grant_tier($uid, $top['id'], 30);
+                BHM_Entitlements::debug_grant_tier($uid, $top['id'], 30);
                 return 'Granted "' . $top['name'] . '" to your account for 30 days (via the real grant path — also replaces any other active tier you were holding, exactly like a real purchase would).';
 
             case 'revoke_all_tiers':
@@ -154,13 +154,13 @@ class BHM_Debug {
                 $rows = $wpdb->get_results($wpdb->prepare(
                     "SELECT id FROM " . BHM_Tables::entitlements() . " WHERE user_id = %d AND type IN ('streaming_tier','subscription')", $uid
                 ));
-                foreach ($rows as $row) BHM_Products::revoke_entitlement_by_id($row->id, 'debug_revoke_all');
+                foreach ($rows as $row) BHM_Entitlements::revoke_entitlement_by_id($row->id, 'debug_revoke_all');
                 return count($rows) . ' tier/subscription entitlement(s) removed for your account (via the real revoke path — event fired + notification sent for each).';
 
             case 'simulate_track_purchase':
                 $track_id = (int) ($post['track_id'] ?? 0);
                 if (!$track_id || get_post_type($track_id) !== 'bhs_track') return 'Enter a real bhs_track post ID first.';
-                BHM_Products::debug_grant_purchase($uid, $track_id, 'track');
+                BHM_Entitlements::debug_grant_purchase($uid, $track_id, 'track');
                 return 'Granted a simulated purchase entitlement for track #' . $track_id . ' (via the real grant path).';
 
             case 'credit_wallet':
@@ -181,7 +181,7 @@ class BHM_Debug {
                     "SELECT * FROM " . BHM_Tables::wallet_ledger() . " WHERE user_id = %d AND delta_cents > 0 ORDER BY created_at DESC LIMIT 1", $uid
                 ));
                 if ($last_ent && (!$last_credit || strtotime($last_ent->created_at) >= strtotime($last_credit->created_at))) {
-                    BHM_Products::revoke_entitlement_by_id($last_ent->id, 'debug_simulated_refund');
+                    BHM_Entitlements::revoke_entitlement_by_id($last_ent->id, 'debug_simulated_refund');
                     return 'Revoked entitlement #' . $last_ent->id . ' (type: ' . $last_ent->type . ') — simulating a refund/chargeback via the real revoke path (event fired + notification sent).';
                 }
                 if ($last_credit) {
@@ -209,7 +209,7 @@ class BHM_Debug {
                 if (!$top['wc_product_id']) return 'That tier has no WooCommerce product yet — save it once from the Supporter Tiers screen.';
                 $fake_id = BHM_MockCommerce::create($uid, $top['wc_product_id']);
                 $fake = new BHM_FakeSubscription(BHM_MockCommerce::get($fake_id));
-                BHM_Products::on_subscription_active($fake); // the real production handler
+                BHM_Entitlements::on_subscription_active($fake); // the real production handler
                 return 'Created fake subscription #' . $fake_id . ' for "' . $top['name'] . '" and activated it via the real on_subscription_active() handler.';
 
             case 'mock_pause':

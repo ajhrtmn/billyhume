@@ -18,7 +18,7 @@ class BHM_CRMIntegration {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $entitlement_id = (int) ($_GET['entitlement_id'] ?? 0);
-        $row = $entitlement_id ? BHM_Products::revoke_entitlement_by_id($entitlement_id, 'manual_admin_revoke') : null;
+        $row = $entitlement_id ? BHM_Entitlements::revoke_entitlement_by_id($entitlement_id, 'manual_admin_revoke') : null;
         if ($row && class_exists('OUS_Toast')) OUS_Toast::queue('Access revoked — the fan has been notified.', 'success');
 
         wp_safe_redirect(wp_get_referer() ?: admin_url());

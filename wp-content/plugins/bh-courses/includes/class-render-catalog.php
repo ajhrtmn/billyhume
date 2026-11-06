@@ -3,7 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * The [bh_courses] catalog shortcode and bh_course archive content: browse, search,
- * filter, sort. BHC_Render::render_catalog() delegates here.
+ * filter, sort.
  */
 class BHC_Render_Catalog {
     const PER_PAGE = 12;

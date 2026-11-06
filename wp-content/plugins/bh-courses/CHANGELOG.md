@@ -4,6 +4,8 @@ Moved out of `bh-courses.php` on 2026-08-23. See `CONVENTIONS.md` for why versio
 
 Entries are newest-first, exactly as written in-file. Nothing reworded or dropped.
 
+0.16.38 - Removed BHC_Render's four pass-through methods (render_catalog/render_course/render_lesson_steps/render_quiz_review); callers use BHC_Render_Catalog/Course/Lesson directly. wp_die() calls in the lesson-duplicate handler passed the HTTP status as the page title, so no 403/404/500 was sent; fixed. Runtime-verified: Test Runner passes.
+
 0.16.37 - Removed the empty "below the lesson" BH_Element slot and
 BHC_LessonSurface; the element system it used was never used and has been
 retired from core. Runtime-verified: Test Runner passes.

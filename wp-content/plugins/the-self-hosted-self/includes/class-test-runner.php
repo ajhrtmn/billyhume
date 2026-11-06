@@ -119,7 +119,7 @@ class OUS_TestRunner {
         self::print_copy_script_once();
 
         // One "copy every failure" button for pasting into a ticket.
-        $all_failures_text = self::format_failures_text($report, null);
+        $all_failures_text = self::format_failures_text($report);
         $any_failures = trim($all_failures_text) !== '';
         echo '<p style="margin-top:12px;">';
         echo '<button type="button" class="button" ' . ($any_failures ? '' : 'disabled') . ' onclick="bhCopyToClipboard(\'ous-test-fails-all\', this)">'
@@ -141,7 +141,7 @@ class OUS_TestRunner {
             }
             echo '</h4>';
 
-            echo '<textarea id="' . esc_attr($textarea_id) . '" style="position:absolute;left:-9999px;">' . esc_textarea(self::format_failures_text([$key => $suite], null)) . '</textarea>';
+            echo '<textarea id="' . esc_attr($textarea_id) . '" style="position:absolute;left:-9999px;">' . esc_textarea(self::format_failures_text([$key => $suite])) . '</textarea>';
 
             echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th style="width:70px;">Result</th><th>Test</th><th>Detail</th></tr></thead><tbody>';
             foreach ($suite['rows'] as $row) {
@@ -157,9 +157,10 @@ class OUS_TestRunner {
     /**
      * Plain-text dump of failing rows grouped by suite; shared by both copy
      * buttons so they cannot drift.
+     *
+     * @param array<string, mixed> $report
      */
-    /** @param array<string, mixed> $report */
-    private static function format_failures_text(array $report, ?string $unused = null): string {
+    private static function format_failures_text(array $report): string {
         $lines = [];
         foreach ($report as $suite) {
             $fails = array_values(array_filter($suite['rows'], function ($r) { return empty($r['pass']); }));

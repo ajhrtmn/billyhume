@@ -156,7 +156,7 @@ class BHM_TestSuite {
         }
 
         /* ---------- tier exclusivity (BHM_Entitlements::grant_entitlement(), via reflection) ---------- */
-        if (class_exists('BHM_Products') && class_exists('OUS_Debug')) {
+        if (class_exists('BHM_Entitlements') && class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_tier_exclusivity_tests());
         }
 

@@ -38,14 +38,14 @@ class BHC_Blocks {
 
     /** @param array<string, mixed> $attributes */
     public static function render_catalog($attributes): string {
-        return BHC_Render::render_catalog();
+        return BHC_Render_Catalog::render_catalog();
     }
 
     /** @param array<string, mixed> $attributes */
     public static function render_course($attributes): string {
         $id = (int) ($attributes['id'] ?? 0);
         if (!$id) return '';
-        return BHC_Render::render_course(['id' => $id]);
+        return BHC_Render_Course::render_course(['id' => $id]);
     }
 
     public static function register_routes(): void {

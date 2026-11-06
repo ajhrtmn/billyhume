@@ -20,7 +20,7 @@ class BHM_Frontend {
         add_action('woocommerce_before_calculate_totals', [self::class, 'apply_tip_price']);
         add_filter('woocommerce_add_cart_item_data', [self::class, 'apply_tip_amount'], 10, 2);
         // Pay-what-you-want purchases: same price-override shape as the tip jar,
-        // keyed to _bhm_purchase_pwyw/_bhm_purchase_price_cents (BHM_Products::save_object()).
+        // keyed to _bhm_purchase_pwyw/_bhm_purchase_price_cents (BHM_MonetizationUI::save_object()).
         add_action('woocommerce_before_calculate_totals', [self::class, 'apply_purchase_price']);
         add_filter('woocommerce_add_cart_item_data', [self::class, 'apply_purchase_amount'], 10, 2);
 
@@ -256,7 +256,7 @@ class BHM_Frontend {
         $user_id = get_current_user_id();
 
         if (!$user_id || !$sub_id || !wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhm_manage_subscription_' . $sub_id)) {
-            wp_die('Invalid request.', 400);
+            wp_die('Invalid request.', '', ['response' => 400]);
         }
         if (!class_exists('BH_Commerce') || !BH_Commerce::has_subscriptions()) {
             wp_die('Subscriptions aren\'t available.', 400);

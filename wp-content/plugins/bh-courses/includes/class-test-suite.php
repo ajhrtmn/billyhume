@@ -134,7 +134,7 @@ class BHC_TestSuite {
             $rows = array_merge($rows, self::run_quiz_average_tests());
         }
 
-        /* ---------- catalog search/sort (BHC_Render::render_catalog()) ----------
+        /* ---------- catalog search/sort (BHC_Render_Catalog::render_catalog()) ----------
          * Integration test against two tagged fixture courses; render_catalog()
          * reads $_GET and queries real posts, so there's no smaller seam. */
         if (class_exists('BHC_Render')) {
@@ -397,7 +397,7 @@ class BHC_TestSuite {
 
         // Title sort must beat insertion/ID order (Zebra was inserted first).
         $_GET = ['bhc_sort' => 'alpha'];
-        $html = BHC_Render::render_catalog();
+        $html = BHC_Render_Catalog::render_catalog();
         $pos_a = strpos($html, 'Aardvark Mastering Basics');
         $pos_z = strpos($html, 'Zebra Mixing Fundamentals');
         $rows[] = OUS_TestRunner::assert_true(
@@ -407,13 +407,13 @@ class BHC_TestSuite {
 
         // A keyword matching only one fixture excludes the other.
         $_GET = ['bhc_s' => 'Zebra'];
-        $html_search = BHC_Render::render_catalog();
+        $html_search = BHC_Render_Catalog::render_catalog();
         $rows[] = OUS_TestRunner::assert_true(strpos($html_search, 'Zebra Mixing Fundamentals') !== false, 'search "Zebra" includes the matching course');
         $rows[] = OUS_TestRunner::assert_false(strpos($html_search, 'Aardvark Mastering Basics') !== false, 'search "Zebra" excludes the non-matching course');
 
         // No matches renders the shared BHY_Style::empty_state_html() component.
         $_GET = ['bhc_s' => 'ThisStringMatchesNoFixtureCourseTitleAtAll12345'];
-        $html_empty = BHC_Render::render_catalog();
+        $html_empty = BHC_Render_Catalog::render_catalog();
         $has_empty_state = strpos($html_empty, 'bhy-empty-state') !== false || strpos($html_empty, 'bhc-empty') !== false;
         $rows[] = OUS_TestRunner::assert_true($has_empty_state, 'a search matching nothing renders the empty-state message, not a fatal or the full unfiltered list');
 

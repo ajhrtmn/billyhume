@@ -714,10 +714,10 @@ class BHC_Admin {
 
     public static function handle_duplicate_lesson(): void {
         $lesson_id = (int) ($_GET['lesson_id'] ?? 0);
-        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bhc_duplicate_lesson_' . $lesson_id)) wp_die('Security check failed.', 403);
-        if (!current_user_can('edit_post', $lesson_id)) wp_die('Not allowed.', 403);
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bhc_duplicate_lesson_' . $lesson_id)) wp_die('Security check failed.', '', ['response' => 403]);
+        if (!current_user_can('edit_post', $lesson_id)) wp_die('Not allowed.', '', ['response' => 403]);
         $original = get_post($lesson_id);
-        if (!$original || $original->post_type !== 'bh_lesson') wp_die('Lesson not found.', 404);
+        if (!$original || $original->post_type !== 'bh_lesson') wp_die('Lesson not found.', '', ['response' => 404]);
 
         // _bhc_steps is regenerated from post_content on next save; copying it too lets
         // the clone render correctly before then.
@@ -728,7 +728,7 @@ class BHC_Admin {
             'post_content' => $original->post_content,
             'post_author' => get_current_user_id(),
         ], true);
-        if (is_wp_error($new_id)) wp_die('Could not duplicate this lesson.', 500);
+        if (is_wp_error($new_id)) wp_die('Could not duplicate this lesson.', '', ['response' => 500]);
 
         $course_id = (int) get_post_meta($lesson_id, '_bhc_course_id', true);
         if ($course_id) {

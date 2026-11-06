@@ -3,7 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * Supporter tiers as a bhm_tier CPT, ranked by price; each tier's WooCommerce product is kept in sync
- * (BHM_Products::sync_tier_wc_product()). Without WC Subscriptions a tier sells as a one-time purchase.
+ * (BHM_ProductSync::sync_tier_wc_product()). Without WC Subscriptions a tier sells as a one-time purchase.
  */
 class BHM_Tiers {
     const CPT = 'bhm_tier';
@@ -194,7 +194,7 @@ class BHM_Tiers {
         update_post_meta($post_id, '_bhm_benefit_keys', $clean_keys);
 
         if (BH_Commerce::available()) {
-            BHM_Products::sync_tier_wc_product($post_id, get_the_title($post_id), $price_cents, $annual_price_cents, $trial_days);
+            BHM_ProductSync::sync_tier_wc_product($post_id, get_the_title($post_id), $price_cents, $annual_price_cents, $trial_days);
         }
 
         if (class_exists('OUS_Audit')) {
@@ -232,7 +232,7 @@ class BHM_Tiers {
         update_post_meta($post_id, '_bhm_benefit_keys', (array) ($data['benefit_keys'] ?? []));
 
         if (BH_Commerce::available()) {
-            BHM_Products::sync_tier_wc_product($post_id, get_the_title($post_id), (int) ($data['price_cents'] ?? 0), (int) ($data['annual_price_cents'] ?? 0), (int) ($data['trial_days'] ?? 0));
+            BHM_ProductSync::sync_tier_wc_product($post_id, get_the_title($post_id), (int) ($data['price_cents'] ?? 0), (int) ($data['annual_price_cents'] ?? 0), (int) ($data['trial_days'] ?? 0));
         }
 
         // Snapshot the restore too, so it can itself be undone.

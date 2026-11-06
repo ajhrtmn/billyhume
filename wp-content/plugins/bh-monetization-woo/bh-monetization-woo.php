@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.6.8
+ * Version:     0.6.9
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  * Ecosystem: The Self-Hosted Self
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHM_VER',  '0.6.8');
+define('BHM_VER',  '0.6.9');
 
 define('BHM_PATH', plugin_dir_path(__FILE__));
 define('BHM_URL',  plugin_dir_url(__FILE__));
@@ -21,7 +21,7 @@ define('BHM_URL',  plugin_dir_url(__FILE__));
  * needed only once a monetization option is used, and WC Subscriptions is optional (tiers fall back
  * to one-time 30-day access).
  */
-foreach (['tables', 'money', 'activator', 'tiers', 'gate', 'post-gate', 'wallet', 'fraud', 'admin', 'product-sync', 'monetization-ui', 'play-gating', 'entitlements', 'products', 'gifts', 'referrals', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks', 'anchoring', 'purchase-ledger', 'ledger-crm-integration', 'auctions', 'auction-admin', 'auction-frontend'] as $f) {
+foreach (['tables', 'money', 'activator', 'tiers', 'gate', 'post-gate', 'wallet', 'fraud', 'admin', 'product-sync', 'monetization-ui', 'play-gating', 'entitlements', 'gifts', 'referrals', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks', 'anchoring', 'purchase-ledger', 'ledger-crm-integration', 'auctions', 'auction-admin', 'auction-frontend'] as $f) {
     require_once BHM_PATH . "includes/class-$f.php";
 }
 
@@ -50,7 +50,9 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHM_PostGate', 'init']);
     add_action('init',          ['BHM_Wallet', 'init']);
     add_action('init',          ['BHM_Admin', 'init']);
-    add_action('init',          ['BHM_Products', 'init']);
+    add_action('init',          ['BHM_MonetizationUI', 'init']);
+    add_action('init',          ['BHM_PlayGating', 'init']);
+    add_action('init',          ['BHM_Entitlements', 'init']);
     add_action('init',          ['BHM_Gifts', 'init']);
     add_action('init',          ['BHM_Referrals', 'init']);
     add_action('init',          ['BHM_Downloads', 'init']);

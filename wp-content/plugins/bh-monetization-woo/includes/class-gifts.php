@@ -159,7 +159,7 @@ class BHM_Gifts {
         }
 
         // One-time streaming_tier grant; a gift is never recurring.
-        BHM_Products::grant_gift_entitlement($user_id, (int) $row['tier_id'], (int) $row['wc_order_id']);
+        BHM_Entitlements::grant_gift_entitlement($user_id, (int) $row['tier_id'], (int) $row['wc_order_id']);
 
         wp_safe_redirect(class_exists('BHM_Tiers') ? BHM_Tiers::tiers_page_url() : home_url('/'));
         exit;

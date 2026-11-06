@@ -450,12 +450,10 @@ class BHY_Contrast {
         echo '<h3 style="margin-top:2em">Built-in theme presets</h3>';
         echo '<p>Worst-failing role if you switched the whole site to each preset.</p>';
         $matrix = [];
-        if (defined('BHY_Style::THEME_GROUPS') || property_exists('BHY_Style', 'THEME_GROUPS') || true) {
-            foreach (self::preset_seed_sets() as $preset => $seeds) {
-                $fails = array_filter(self::audit_rows($seeds), fn($r) => !$r['pass']);
-                usort($fails, fn($a, $b) => ($a['apca'] - $a['target_apca']) <=> ($b['apca'] - $b['target_apca']));
-                $matrix[$preset] = $fails;
-            }
+        foreach (self::preset_seed_sets() as $preset => $seeds) {
+            $fails = array_filter(self::audit_rows($seeds), fn($r) => !$r['pass']);
+            usort($fails, fn($a, $b) => ($a['apca'] - $a['target_apca']) <=> ($b['apca'] - $b['target_apca']));
+            $matrix[$preset] = $fails;
         }
         echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr>'
             . '<th>Preset</th><th># failing</th><th>Worst role</th><th>APCA / target</th></tr></thead><tbody>';

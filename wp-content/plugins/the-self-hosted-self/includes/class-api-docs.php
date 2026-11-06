@@ -145,10 +145,14 @@ class OUS_ApiDocs {
     private static function render_content(): void {
         $spec = self::generate_spec();
 
-        echo '<p class="description" id="bhy-openapi-url-line">Generated live from this site\'s own registered REST routes — always in sync with the actual code, never hand-maintained separately. '
-           . 'Raw OpenAPI 3.0 JSON (importable into Postman/Insomnia/Swagger UI elsewhere): '
-           . '<code id="bhy-openapi-url">' . esc_html(rest_url('ous/v1/openapi.json')) . '</code> '
-           . '<button type="button" class="button bhy-copy-btn" data-copy-target="#bhy-openapi-url">Copy</button></p>';
+        echo '<p class="description" id="bhy-openapi-url-line">Generated live from this site\'s own registered REST routes — always in sync with the actual code, never hand-maintained separately.';
+        // The JSON route can be switched off in init(); only advertise it when it exists.
+        if (array_key_exists('/ous/v1/openapi.json', rest_get_server()->get_routes())) {
+            echo ' Raw OpenAPI 3.0 JSON (importable into Postman/Insomnia/Swagger UI elsewhere): '
+               . '<code id="bhy-openapi-url">' . esc_html(rest_url('ous/v1/openapi.json')) . '</code> '
+               . '<button type="button" class="button bhy-copy-btn" data-copy-target="#bhy-openapi-url">Copy</button>';
+        }
+        echo '</p>';
 
         if (!$spec['paths']) {
             echo '<p class="description">No ecosystem REST routes registered yet.</p>';

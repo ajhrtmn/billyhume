@@ -99,11 +99,11 @@ class BHM_FakeSubscription {
         BHM_MockCommerce::set_status($this->data['id'], $status);
         $this->data['status'] = $status;
         if ($status === 'on-hold') {
-            BHM_Products::on_subscription_paused($this);
+            BHM_Entitlements::on_subscription_paused($this);
         } elseif (in_array($status, ['cancelled', 'expired'], true)) {
-            BHM_Products::on_subscription_ended($this);
+            BHM_Entitlements::on_subscription_ended($this);
         } elseif ($status === 'active') {
-            BHM_Products::on_subscription_active($this);
+            BHM_Entitlements::on_subscription_active($this);
         }
     }
 }
