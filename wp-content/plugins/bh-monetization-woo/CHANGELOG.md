@@ -6,6 +6,8 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.8 - Security: gift redemption read the status, granted, then marked it redeemed, so two simultaneous claims could both redeem one gift. The claim is now a single conditional UPDATE (WHERE status <> 'redeemed') and only the request that flips the row grants the entitlement. Also fixed wp_die() calls that passed the HTTP status as the title, so 400/409 are now actually sent. Runtime-verified: a second claim is refused, exactly one entitlement is granted, and the conditional update wins only once.
+
 0.6.7 - Registered 'selector' ('.bhm-tier-card', '.bhm-btn') on both
 component_tokens() groups for core's new click-to-select/right-click
 Customizer feature.

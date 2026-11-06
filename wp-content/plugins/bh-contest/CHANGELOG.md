@@ -6,6 +6,8 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.15 - Security: share cards (?bh_share_entered= / ?bh_share_vote=) rendered for any submission ID, so the title and artist of pending, draft or rejected entries could be read by guessing IDs. Unpublished entries now only render for their author or an editor, with the same 404 otherwise. Integrity: a failed vote insert used to COMMIT and tell the voter their vote counted, and a failed removal reported success; both now return an error (the insert also rolls back). Runtime-verified: a pending entry's card is 404 to a logged-out visitor and a published one still serves image/png. The DB-failure path was not exercised (it needs a forced DB error).
+
 3.15.14 - Removed the contest player's BH_Element slots (before/after the
 player and the four in-player zones) and BH_ElementSurface's data sources:
 the element system they fed was never used and has been retired from core.

@@ -188,9 +188,9 @@ class OUS_CodebaseDocs {
         $root = self::plugins_root();
         $full = realpath($root . '/' . $rel);
 
-        // WHY: realpath() resolves ../ first, then the resolved path must
-        // still be inside the plugins root; this is the security boundary.
-        if (!$full || !$root || strpos($full, $root) !== 0 || !is_readable($full)) {
+        // WHY: realpath() resolves ../ first, then the resolved path must still be inside the plugins
+        // root; this is the security boundary. The trailing separator stops a sibling like plugins-old/.
+        if (!$full || !$root || strpos($full, rtrim($root, '/\\') . DIRECTORY_SEPARATOR) !== 0 || !is_readable($full)) {
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('warning', 'Codebase Docs snippet request rejected — resolved path outside plugins root or unreadable.', [
                     'requested' => $rel, 'resolved' => $full ?: '(failed to resolve)',

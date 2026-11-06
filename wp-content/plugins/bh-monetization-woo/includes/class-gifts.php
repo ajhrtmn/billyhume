@@ -133,7 +133,7 @@ class BHM_Gifts {
     public static function handle_redeem(): void {
         $code = isset($_POST['gift_code']) ? sanitize_text_field(wp_unslash($_POST['gift_code'])) : '';
         if (!$code || !isset($_POST['bhm_redeem_nonce']) || !wp_verify_nonce($_POST['bhm_redeem_nonce'], 'bhm_redeem_gift_' . $code)) {
-            wp_die('Invalid request.', 400);
+            wp_die('Invalid request.', '', ['response' => 400]);
         }
         if (!is_user_logged_in()) {
             wp_safe_redirect(wp_login_url(add_query_arg('gift_code', $code, self::redeem_page_url())));
@@ -144,16 +144,22 @@ class BHM_Gifts {
         $t = BHM_Tables::gift_redemptions();
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE code = %s", $code), ARRAY_A);
         if (!$row || $row['status'] === 'redeemed') {
-            wp_die('That gift is no longer available to claim.', 400);
+            wp_die('That gift is no longer available to claim.', '', ['response' => 400]);
         }
 
         $user_id = get_current_user_id();
+        // WHY: claim first with one conditional UPDATE, so two simultaneous claims can't both win;
+        // only the request that actually flipped the row grants the entitlement.
+        $claimed = $wpdb->query($wpdb->prepare(
+            "UPDATE $t SET status = 'redeemed', redeemed_by_user_id = %d, redeemed_at = %s WHERE id = %d AND status <> 'redeemed'",
+            $user_id, current_time('mysql'), (int) $row['id']
+        ));
+        if ($claimed !== 1) {
+            wp_die('That gift is no longer available to claim.', '', ['response' => 409]);
+        }
+
         // One-time streaming_tier grant; a gift is never recurring.
         BHM_Products::grant_gift_entitlement($user_id, (int) $row['tier_id'], (int) $row['wc_order_id']);
-
-        $wpdb->update($t, [
-            'status' => 'redeemed', 'redeemed_by_user_id' => $user_id, 'redeemed_at' => current_time('mysql'),
-        ], ['id' => $row['id']]);
 
         wp_safe_redirect(class_exists('BHM_Tiers') ? BHM_Tiers::tiers_page_url() : home_url('/'));
         exit;

@@ -7,6 +7,8 @@ why version history lives here and in git rather than in source.
 Entries are newest-first, exactly as they were written in-file. Nothing
 has been reworded or dropped.
 
+3.21.47 - Security: Codebase Docs' snippet endpoint (admin-only, nonce-checked) compared the resolved path against the plugins root without a trailing separator, so a sibling folder such as plugins-old/ passed. It now requires the root plus a separator. Runtime-verified: a .md file in a temporary sibling folder is refused, and a real plugins/ file still loads. Also corrected the ProductionLockTest note: an unknown WP_ENVIRONMENT_TYPE locks Debug Tools on a real site, because WordPress normalizes it to 'production'; only the test's stub returns it verbatim.
+
 3.21.46 - Retired the unused parts of the element system. Confirmed on the
 live site first: zero element placements, zero Design-Suite-managed pages,
 zero posts using the element-prefab or bh/page-content blocks.

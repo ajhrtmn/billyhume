@@ -7,9 +7,10 @@ use PHPUnit\Framework\TestCase;
  * Debug Tools section relies on. Pure logic: environment type, home_url() and
  * $wpdb are stubbed globals.
  *
- * NOTE: an unrecognized environment string currently reads as UNLOCKED; these
- * tests assert that real behavior. The function-missing branch (which does
- * lock) cannot be covered here, since the stub must exist for the other tests.
+ * NOTE: the stub returns environment strings verbatim, so an unrecognized one reads
+ * as unlocked here. Real WordPress normalizes any unknown WP_ENVIRONMENT_TYPE to
+ * 'production' (wp-includes/load.php), which locks. The function-missing branch
+ * (which also locks) can't be covered, since the stub must exist for the other tests.
  */
 
 $GLOBALS['__ous_test_env_type'] = 'production';

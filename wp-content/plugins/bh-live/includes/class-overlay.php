@@ -78,14 +78,16 @@ class BHL_Overlay {
         (function () {
             var el = document.getElementById("bhl-overlay-votes");
             var url = ' . wp_json_encode(esc_url_raw(rest_url('bh/v1/results'))) . ' + "?contest=" + encodeURIComponent(' . wp_json_encode($contest) . ');
+            // Entry titles and category names are user-supplied: escape before building HTML.
+            function esc(v) { return String(v == null ? "" : v).replace(/[&<>"\x27]/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
             function poll() {
                 fetch(url).then(function (r) { return r.json(); }).then(function (res) {
                     if (!res || !res.success) { el.innerHTML = "<p>Results not published yet.</p>"; return; }
                     var html = "";
                     (res.categories || []).forEach(function (cat) {
-                        html += "<h4>" + (cat.name || "Results") + "</h4><ol>";
+                        html += "<h4>" + esc(cat.name || "Results") + "</h4><ol>";
                         (cat.results || []).slice(0, 5).forEach(function (row) {
-                            html += "<li>" + (row.title || "") + " — " + row.votes + "</li>";
+                            html += "<li>" + esc(row.title) + " — " + esc(row.votes) + "</li>";
                         });
                         html += "</ol>";
                     });

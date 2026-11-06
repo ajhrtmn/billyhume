@@ -38,7 +38,13 @@ class BH_ShareCards {
     private static function serve($raw_id, string $eyebrow): void {
         $submission_id = (int) $raw_id;
         $submission = get_post($submission_id);
-        if (!$submission || $submission->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['response' => 404, 'back_link' => true]);
+        // WHY: pending/draft/rejected entries are private; only their author (who sees their card right
+        // after submitting) or an editor may render one. Same 404 either way, so IDs can't be probed.
+        $visible = $submission && $submission->post_type === 'bh_submission' && (
+            $submission->post_status === 'publish'
+            || (is_user_logged_in() && ((int) $submission->post_author === get_current_user_id() || current_user_can('edit_post', $submission_id)))
+        );
+        if (!$visible) wp_die('Submission not found.', '', ['response' => 404, 'back_link' => true]);
 
         $contest_id = (int) get_post_meta($submission_id, '_bh_contest_id', true);
         $contest = $contest_id ? get_post($contest_id) : null;

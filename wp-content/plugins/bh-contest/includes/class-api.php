@@ -204,10 +204,13 @@ class BH_API {
         // Toggle off.
         if ($existing) {
             $deleted = $wpdb->delete($t, ['id' => $existing], ['%d']);
-            if ($deleted === false && class_exists('OUS_DebugLog')) {
-                OUS_DebugLog::log('error', 'Vote removal DB delete failed.', [
-                    'user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'vote_row_id' => $existing, 'db_error' => $wpdb->last_error,
-                ], 'BH Contest Voting');
+            if ($deleted === false) {
+                if (class_exists('OUS_DebugLog')) {
+                    OUS_DebugLog::log('error', 'Vote removal DB delete failed.', [
+                        'user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'vote_row_id' => $existing, 'db_error' => $wpdb->last_error,
+                    ], 'BH Contest Voting');
+                }
+                return self::err('vote_failed', 'Your vote could not be removed. Please try again.', 500);
             }
             // Fire-and-forget activity event; never affects the tally.
             if (class_exists('BH_Event')) {
@@ -246,10 +249,15 @@ class BH_API {
             ['user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'submission_id' => $sid, 'ip_address' => self::client_ip(), 'voter_fp' => self::voter_fingerprint(), 'round' => $round],
             ['%d', '%d', '%s', '%d', '%s', '%s', '%d']
         );
-        if ($inserted === false && class_exists('OUS_DebugLog')) {
-            OUS_DebugLog::log('error', 'Vote insert DB write failed — COMMIT proceeded anyway, response will incorrectly report success.', [
-                'user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'submission_id' => $sid, 'db_error' => $wpdb->last_error,
-            ], 'BH Contest Voting');
+        if ($inserted === false) {
+            $db_error = $wpdb->last_error;
+            $wpdb->query('ROLLBACK');
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('error', 'Vote insert DB write failed; rolled back.', [
+                    'user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'submission_id' => $sid, 'db_error' => $db_error,
+                ], 'BH Contest Voting');
+            }
+            return self::err('vote_failed', 'Your vote could not be saved. Please try again.', 500);
         }
         $wpdb->query('COMMIT');
 
