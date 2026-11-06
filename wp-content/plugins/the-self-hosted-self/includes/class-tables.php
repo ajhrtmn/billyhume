@@ -19,8 +19,6 @@ final class OUS_Tables {
         'debug_log'          => 'bhcore_debug_log',
         'dmca_notices'       => 'bhcore_dmca_notices',
         'element_placements' => 'bhcore_element_placements',
-        'element_prefabs'    => 'bhcore_element_prefabs',
-        'element_states'     => 'bhcore_element_states',
         'events'             => 'bhcore_events',
         'jobs'               => 'bhcore_jobs',
         'notifications'      => 'bhcore_notifications',
@@ -41,8 +39,6 @@ final class OUS_Tables {
     public static function debug_log(): string { return self::name('debug_log'); }
     public static function dmca_notices(): string { return self::name('dmca_notices'); }
     public static function element_placements(): string { return self::name('element_placements'); }
-    public static function element_prefabs(): string { return self::name('element_prefabs'); }
-    public static function element_states(): string { return self::name('element_states'); }
     public static function events(): string { return self::name('events'); }
     public static function jobs(): string { return self::name('jobs'); }
     public static function notifications(): string { return self::name('notifications'); }

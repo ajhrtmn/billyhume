@@ -2,14 +2,14 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.21.45
+ * Version:     3.21.46
  * Requires PHP: 8.2
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('OUS_VER', '3.21.45');
+define('OUS_VER', '3.21.46');
 
 define('OUS_PATH', plugin_dir_path(__FILE__));
 define('OUS_URL',  plugin_dir_url(__FILE__));
@@ -31,7 +31,7 @@ if (is_readable(OUS_PATH . 'vendor/autoload.php')) {
  * dependents never race PHP's alphabetical plugin-load order. Contest and
  * Streaming stay separate plugins.
  */
-foreach (['tables', 'view', 'pages', 'registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'member-hardening', 'identity-activator', 'style', 'color', 'contrast', 'ui', 'style-gallery', 'customizer', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce-provider', 'commerce-provider-woocommerce', 'commerce-providers', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'visibility', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element-data', 'element', 'element-test-suite', 'contrast-test-suite', 'design-suite', 'storybook-panel', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'media-token', 'seo', 'metrics', 'user-bar', 'campaigns', 'page-surface', 'privacy', 'dmca', 'dmca-notices', 'mail', 'integration', 'hypermedia', 'github-updates'] as $f) {
+foreach (['tables', 'view', 'pages', 'registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'member-hardening', 'identity-activator', 'style', 'color', 'contrast', 'ui', 'style-gallery', 'customizer', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce-provider', 'commerce-provider-woocommerce', 'commerce-providers', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'visibility', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element', 'contrast-test-suite', 'design-suite', 'storybook-panel', 'block-style', 'share-card', 'media-wizard', 'media-token', 'seo', 'metrics', 'user-bar', 'campaigns', 'privacy', 'dmca', 'dmca-notices', 'mail', 'integration', 'hypermedia', 'github-updates'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -114,7 +114,6 @@ add_action('init', function () {
         ]);
     }
 }, 20);
-add_action('init',          ['OUS_PageSurface', 'init']);
 add_action('init',          ['OUS_UserBar', 'init']);
 add_action('init',          ['OUS_Audit', 'init']);
 add_action('init',          ['OUS_Revisions', 'init']);
@@ -136,8 +135,6 @@ add_action('init',          ['OUS_TestRunner', 'init']);
 add_action('init',          ['OUS_CoreTestSuite', 'init']);
 add_action('init',          ['OUS_ReliabilityTestSuite', 'init']);
 
-// if (class_exists('BH_Element')) add_action('init', ['BH_Element_TestSuite', 'init']);
-
 // Registers the default block types with BH_Content (loaded above).
 add_action('init',          ['BH_Studio', 'init']);
 add_action('init',          ['OUS_StudioTestSuite', 'init']);
@@ -149,9 +146,8 @@ BH_Identity::init();
 OUS_Toast::init();
 BH_Storybook_Panel::init();
 BHI_Auth::init();
-OUS_Gutenberg_Block::init();
 
-add_action('init',          ['BH_Element_Data', 'init']);
+// Placement storage behind the bh-crm project board.
 add_action('init',          ['BH_Element', 'init']);
 
 add_action('init',          ['BHY_BlockStyle', 'init']);
@@ -160,10 +156,6 @@ add_action('init',          ['BHY_Style', 'init']);
 // Derives dependent color roles from the seed colors and registers its audit.
 // Its init() hooks the bhy_style_settings option, so it must follow BHY_Style.
 add_action('init',          ['BHY_Contrast', 'init']);
-
-
-add_filter('bh_element_surfaces', ['OUS_Dashboard', 'register_element_surface']);
-add_filter('bh_element_surfaces', ['BHI_Portal', 'register_element_surface']);
 
 // Templates first: peers register their views/ dirs on bhy_view_namespaces,
 // and anything rendering during init must find the engine already up.

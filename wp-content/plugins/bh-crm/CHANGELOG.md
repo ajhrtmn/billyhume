@@ -6,6 +6,14 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+2.4.25 - Removed the CRM profile page's empty BH_Element slot, its surface,
+and the Design Suite "CRM profile page (live)" preview (BHCRM_StyleSurface),
+which only existed to show that slot. The sticky-card type is now plain
+data (schema only); its server-side render callback was dead (the board
+renders cards in kanban-board.ts). The project board itself is unchanged
+and still stores cards as BH_Element placements. Runtime-verified: board
+REST save/list/delete exercised end to end; Test Runner passes.
+
 2.4.24 - Design Suite pass: dropped "Project Tracker (kanban)" from the
 style gallery — a management tool, not a front-end style-token surface (AJ's
 direction: keep this page to visitor-facing GUIs only, for now). "CRM profile

@@ -133,11 +133,6 @@ class BHC_Render_Lesson {
         }
         echo '</div>';
 
-        // Optional BH_Element slot below the lesson, once per lesson (not per step).
-        if (class_exists('BH_Element')) {
-            echo BH_Element::render_slot('bh_courses_lesson', (int) $lesson_id, 'root', ['user_id' => $uid]);
-        }
-
         echo '</div>'; // .bhc-lesson
         echo '</div>'; // .bhc-lesson-main
         echo '</div>'; // .bhc-lesson-layout

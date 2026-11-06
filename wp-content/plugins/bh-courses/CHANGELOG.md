@@ -4,6 +4,10 @@ Moved out of `bh-courses.php` on 2026-08-23. See `CONVENTIONS.md` for why versio
 
 Entries are newest-first, exactly as written in-file. Nothing reworded or dropped.
 
+0.16.37 - Removed the empty "below the lesson" BH_Element slot and
+BHC_LessonSurface; the element system it used was never used and has been
+retired from core. Runtime-verified: Test Runner passes.
+
 0.16.36 - Moved the lesson Studio's block-editor CSS (two inline PHP
 strings in BHC_ContentBridge::add_studio_block_editor_styles(), ~350
 lines) into assets/css/studio-editor.css, read into the same

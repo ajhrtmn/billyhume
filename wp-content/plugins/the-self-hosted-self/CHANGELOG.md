@@ -7,6 +7,34 @@ why version history lives here and in git rather than in source.
 Entries are newest-first, exactly as they were written in-file. Nothing
 has been reworded or dropped.
 
+3.21.46 - Retired the unused parts of the element system. Confirmed on the
+live site first: zero element placements, zero Design-Suite-managed pages,
+zero posts using the element-prefab or bh/page-content blocks.
+
+- Removed: OUS_PageSurface (page manager, data layer only, never had a
+  screen), OUS_Gutenberg_Block + element-prefab block, BH_Element_Data
+  (binding sources/formatters), BH_Element_TestSuite, element-live.ts,
+  page-content-block.ts, the dashboard and portal element slots and the
+  portal "Custom" elements panel, the 8 generic element types, the
+  "__library" surface, the Element Builder Debug Tools section, and 7
+  unused REST routes (/elements/surfaces, types, sources, style-schema,
+  site-tokens, preview, resolve).
+- BH_Element (1,576 -> ~374 lines) is now just placement storage + the 3
+  REST routes the bh-crm project board uses. Card config is sanitized on
+  save (only the type's schema attrs, each coerced; html via
+  wp_kses_post); htmlAttrs/bindings/custom_js are no longer stored, since
+  nothing renders placements server-side any more.
+- The activator no longer creates bhcore_element_prefabs /
+  bhcore_element_states (classes deleted long ago) or the
+  library_component_id column. Existing (empty) tables are left in place.
+- Smaller: the activator's table-exists check is one loop.
+
+Runtime-verified on Local: Test Runner 479/479; the board's GET/POST/
+DELETE routes exercised end to end (save, list, delete, container
+content_context_id, unknown surface 404, logged-out 401, html
+sanitized); the 7 retired routes return 404; every plugin loads alone
+with core; pages load with no PHP errors.
+
 3.21.45 - Comment cleanup across core (CONVENTIONS.md: comments answer
 "why" in three lines or fewer; history lives here and in git).
 - Long narrative and changelog-style comment blocks trimmed in

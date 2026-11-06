@@ -50,66 +50,6 @@ class BHI_Portal {
         // Skip the bounce through wp-admin on login; a UX change, not a security boundary.
         add_filter('login_redirect', [self::class, 'maybe_redirect_login'], 20, 3);
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
-
-        // The 'portal_panel' element surface stays registered but is not a nav tab.
-        // add_filter('bhi_portal_panels', [self::class, 'register_elements_panel']);
-    }
-
-    /**
-     * Registers the site-wide 'portal_panel' element surface (one 'body' slot,
-     * context 0), same shape as OUS_Dashboard's surface.
-     */
-    /**
-     * @param array<string, mixed> $surfaces
-     * @return array<string, mixed>
-     */
-    public static function register_element_surface($surfaces): array {
-        $surfaces['portal_panel'] = [
-            'group'       => 'Portal',
-            'label'       => 'Portal panel (element-composed)',
-            'slots'       => [
-                'body' => ['label' => 'Panel body'],
-            ],
-            'context'     => ['type' => 'site', 'param' => null],
-            'preview_ctx' => function () { return ['user_id' => get_current_user_id()]; },
-        ];
-        return $surfaces;
-    }
-
-    /**
-     * Element-composed panel; its render callback just calls
-     * BH_Element::render_slot('portal_panel', 0, 'body').
-     */
-    /**
-     * @param array<int, array<string, mixed>> $panels
-     * @return array<int, array<string, mixed>>
-     */
-    public static function register_elements_panel($panels): array {
-        if (!class_exists('BH_Element')) return $panels;
-        $panels[] = [
-            'id'       => 'elements',
-            'label'    => 'Custom',
-            'icon'     => 'dashicons-layout',
-            'render'   => [self::class, 'render_elements_panel'],
-            'priority' => 90, // after the built-in panels (profile, etc. register lower priorities) — this is an admin-composed extra, not the primary account view
-        ];
-        return $panels;
-    }
-
-    public static function render_elements_panel(): void {
-        echo '<h2>Custom</h2>';
-        if (!class_exists('BH_Element')) {
-            echo '<p>Element Builder is unavailable.</p>';
-            return;
-        }
-        $ctx = ['user_id' => get_current_user_id()];
-        $html = BH_Element::render_slot('portal_panel', 0, 'body', $ctx);
-        if ($html === '') {
-            // No admin UI for composing placements exists, so say so honestly.
-            echo '<p>Nothing has been placed here yet (surface "portal_panel", slot "body") — no admin UI for composing placements exists in this version.</p>';
-            return;
-        }
-        echo $html; // phpcs:ignore -- BH_Element::render_slot()'s own output is already escaped/kses'd per-element at the render_placement() boundary, same trust posture render_slot()'s other call sites (dashboard, CRM) already use.
     }
 
     // Lists registered portal panels to answer "why isn't my panel showing".

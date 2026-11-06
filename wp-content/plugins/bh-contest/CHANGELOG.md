@@ -6,6 +6,14 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.14 - Removed the contest player's BH_Element slots (before/after the
+player and the four in-player zones) and BH_ElementSurface's data sources:
+the element system they fed was never used and has been retired from core.
+The "All contests" back-link now always renders when there's an archive to
+link to (previously it disappeared when the element system was off and the
+visitor had no submission). Runtime-verified: player page renders, Test
+Runner passes.
+
 3.15.13 - Registered 'selector' ('.bh-contest-badge') on the contest_badge
 component_tokens() group for core's new click-to-select/right-click
 Customizer feature.

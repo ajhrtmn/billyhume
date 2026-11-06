@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.24
+ * Version:     2.4.25
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,12 +10,12 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHCRM_VER',  '2.4.24');
+define('BHCRM_VER',  '2.4.25');
 
 define('BHCRM_PATH', plugin_dir_path(__FILE__));
 define('BHCRM_URL',  plugin_dir_url(__FILE__));
 
-foreach (['tables', 'people', 'notes', 'tags', 'segments', 'export', 'event-activity', 'links', 'projects', 'subtasks', 'card-log', 'debug', 'hub', 'style-surface', 'test-suite'] as $f) {
+foreach (['tables', 'people', 'notes', 'tags', 'segments', 'export', 'event-activity', 'links', 'projects', 'subtasks', 'card-log', 'debug', 'hub', 'test-suite'] as $f) {
     require_once BHCRM_PATH . "includes/class-$f.php";
 }
 
@@ -41,11 +41,6 @@ add_action('plugins_loaded', function () {
     add_action('admin_post_bhcrm_save_tags', ['BHCRM_Tags', 'handle_save']);
     add_action('admin_post_bhcrm_bulk_tag',  ['BHCRM_Tags', 'handle_bulk_tag']);
     add_action('admin_post_bhcrm_export',    ['BHCRM_Export', 'handle']);
-
-    if (class_exists('BH_Element')) {
-        add_filter('bh_element_surfaces', ['BHCRM_People', 'register_element_surface']);
-        BHCRM_StyleSurface::init();
-    }
 
     BHCRM_Links::init(); // must run before BHCRM_Projects::init() — projects write links on create()
     BHCRM_Projects::init();

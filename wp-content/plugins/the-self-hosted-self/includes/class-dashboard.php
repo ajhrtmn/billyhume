@@ -7,24 +7,6 @@ if (!defined('ABSPATH')) exit;
  * OUS_ActivationManager.
  */
 class OUS_Dashboard {
-    /** Registers the singleton 'dashboard' surface for BH_Element ('main' slot, viewer user_id as context). */
-    /**
-     * @param array<string, mixed> $surfaces
-     * @return array<string, mixed>
-     */
-    public static function register_element_surface($surfaces): array {
-        $surfaces['dashboard'] = [
-            'group'       => 'Core',
-            'label'       => 'Dashboard',
-            'slots'       => [
-                'main' => ['label' => 'Main'],
-            ],
-            'context'     => ['type' => 'global', 'param' => null],
-            'preview_ctx' => function () { return ['user_id' => get_current_user_id()]; },
-        ];
-        return $surfaces;
-    }
-
     public static function add_menu(): void {
         add_menu_page('The Self-Hosted Self', 'The Self-Hosted Self', 'manage_options', 'ous', [self::class, 'render'], OUS_MenuIcons::hub(), 3);
         // Relabels WP's auto-created duplicate first submenu item.
@@ -34,14 +16,6 @@ class OUS_Dashboard {
     public static function enqueue_assets(string $hook): void {
         if (strpos($hook, 'ous') === false) return;
         wp_enqueue_style('ous-admin', OUS_URL . 'assets/css/admin.css', [], OUS_VER);
-
-        // element-live.js is a no-op when no [data-bhel-live] nodes exist.
-        wp_enqueue_script('ous-element-live', OUS_URL . 'assets/js/element-live.js', [], OUS_VER, true);
-        wp_localize_script('ous-element-live', 'bhElLiveConfig', [
-            'restUrl'    => esc_url_raw(rest_url('ous/v1/')),
-            'nonce'      => wp_create_nonce('wp_rest'),
-            'intervalMs' => 20000,
-        ]);
     }
 
     private static function ecosystem_fully_active_for_banner(): bool {
@@ -119,7 +93,6 @@ class OUS_Dashboard {
 
         if (class_exists('BHI_Auth')) BHI_Auth::render_settings_card();
         self::render_status_block();
-        self::render_element_slot();
 
         echo '</div>';
     }
@@ -158,19 +131,6 @@ class OUS_Dashboard {
         echo '</div>';
 
         echo '</div>';
-    }
-
-    // Renders the 'dashboard' surface's 'main' slot; outputs nothing when empty.
-    private static function render_element_slot(): void {
-        if (!class_exists('BH_Element')) return;
-
-        $ctx = ['user_id' => get_current_user_id()];
-        $html = BH_Element::render_slot('dashboard', 0, 'main', $ctx);
-        if ($html === '') return;
-
-        echo '<h2 style="margin-top:32px;">Dashboard elements</h2>';
-        echo '<p class="description">Placed via <a href="' . esc_url(admin_url('admin.php?page=ous-debug#ous-section-bh-element')) . '">Debug Tools &rarr; Element Builder</a>.</p>';
-        echo $html; // Already escaped per attribute by BH_Element::render_placement().
     }
 
     /** @param array<string, mixed> $info */

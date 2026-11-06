@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.16.36
+ * Version:     0.16.37
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.16.36');
+define('BHC_VER',  '0.16.37');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -20,7 +20,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  * (class_exists() at init) and enables tier-gating; without it courses are open.
  * No relationship to bh-streaming.
  */
-foreach (['tables', 'post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'bunny', 'reviews', 'privacy', 'sessions', 'sessions-admin', 'sessions-portal'] as $f) {
+foreach (['tables', 'post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'bunny', 'reviews', 'privacy', 'sessions', 'sessions-admin', 'sessions-portal'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -114,10 +114,6 @@ add_action('plugins_loaded', function () {
             $catalog = (int) get_option('bhc_catalog_page_id', 0);
             return $catalog ? get_permalink($catalog) : $url;
         });
-    }
-    // BH_Element surface for lessons (see class-lesson-surface.php).
-    if (class_exists('BH_Element')) {
-        add_filter('bh_element_surfaces', ['BHC_LessonSurface', 'register_element_surface']);
     }
     add_action('init', ['BHC_CrmIntegration', 'init']);
     add_action('init', ['BHC_ProgressAdmin', 'init']);

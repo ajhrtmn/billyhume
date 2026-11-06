@@ -112,22 +112,6 @@
     height: auto;
 }
 
-/* Additive header_extra zone (player.ts injectExtraZone()). :empty removes it
- * from the flex layout so it never shifts .bh-header-actions. */
-.bh-header-extra:empty { display: none; }
-.bh-header-extra {
-    display: flex;
-    align-items: center;
-    gap: calc(10px * var(--bh-space-scale));
-}
-
-/* More additive zones, hidden by :empty when unused.
- * .bh-now-playing-extra follows a position:fixed bar, so it doesn't render
- * below it visually; not checked in a browser. */
-.bh-tracklist-extra:empty, .bh-now-playing-extra:empty, .bh-results-modal-intro:empty { display: none; }
-.bh-tracklist-extra { margin-bottom: calc(12px * var(--bh-space-scale)); }
-.bh-now-playing-extra { margin-top: calc(12px * var(--bh-space-scale)); }
-.bh-results-modal-intro { margin-bottom: calc(12px * var(--bh-space-scale)); }
 
 .bh-header-actions {
     display: flex;

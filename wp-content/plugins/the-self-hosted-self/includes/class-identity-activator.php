@@ -191,50 +191,11 @@ class BHI_Activator {
             enabled tinyint(1) NOT NULL DEFAULT 1,
             parent_placement_id bigint(20) unsigned NOT NULL DEFAULT 0,
             revision_of bigint(20) unsigned NOT NULL DEFAULT 0,
-            library_component_id bigint(20) unsigned NOT NULL DEFAULT 0,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
             KEY place (surface, surface_context_id, slot, position)
         ) $charset;";
         dbDelta($sql8);
-        // library_component_id: 0 = ordinary placement; non-zero = linked instance of that prefab id,
-        // whose 'config' holds only leaf-value overrides keyed by master node index, and which has
-        // no child rows (structure renders live from the master definition).
-
-        // Named reusable compositions (BH_Element_Prefab). WHY: separate from placements so editing
-        // a prefab never mutates live instances (instantiation deep-copies).
-        $prefabs = OUS_Tables::element_prefabs();
-        $sql9 = "CREATE TABLE $prefabs (
-            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-            slug varchar(80) NOT NULL,
-            name varchar(190) NOT NULL DEFAULT '',
-            description text,
-            definition longtext,
-            created_by bigint(20) unsigned NOT NULL DEFAULT 0,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY  (id),
-            UNIQUE KEY slug (slug)
-        ) $charset;";
-        dbDelta($sql9);
-
-        // Named fixture states (mock data) for a component (owner_kind 'component', key = prefab id)
-        // or a primitive type (owner_kind 'type', key = type slug). 'data' is the fixture bundle JSON.
-        $states = OUS_Tables::element_states();
-        $sql10 = "CREATE TABLE $states (
-            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-            owner_kind varchar(20) NOT NULL DEFAULT '',
-            owner_key varchar(190) NOT NULL DEFAULT '',
-            name varchar(190) NOT NULL DEFAULT '',
-            label varchar(190) NOT NULL DEFAULT '',
-            position int NOT NULL DEFAULT 0,
-            data longtext,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY  (id),
-            KEY owner (owner_kind, owner_key)
-        ) $charset;";
-        dbDelta($sql10);
 
         // Campaigns (class-campaigns.php): stores what was sent and to how many; the recipient list
         // is a live query at send time, never stored.
@@ -283,18 +244,9 @@ class BHI_Activator {
         dbDelta($sql12);
 
         if ($wpdb->last_error) return false;
-        $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
-        $reports_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $reports));
-        $notif_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $notifications));
-        $jobs_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $jobs));
-        $log_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $debug_log));
-        $content_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $content));
-        $events_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $events));
-        $element_placements_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $element_placements));
-        $prefabs_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $prefabs));
-        $states_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $states));
-        $campaigns_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $campaigns));
-        $dmca_notices_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $dmca_notices));
-        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content && $events_exists === $events && $element_placements_exists === $element_placements && $prefabs_exists === $prefabs && $states_exists === $states && $campaigns_exists === $campaigns && $dmca_notices_exists === $dmca_notices;
+        foreach ([$table, $reports, $notifications, $jobs, $debug_log, $content, $events, $element_placements, $campaigns, $dmca_notices] as $name) {
+            if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $name)) !== $name) return false;
+        }
+        return true;
     }
 }

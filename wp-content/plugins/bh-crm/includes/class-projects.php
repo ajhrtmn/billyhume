@@ -479,8 +479,6 @@ class BHCRM_Projects {
     private static function register_element_type(): void {
         BH_Element::register_type('bh/sticky-card', [
             'label'    => 'Sticky card',
-            'category' => 'data',
-            'icon'     => 'dashicons-index-card',
             'surfaces' => ['bhcrm_project_board'],
             'container' => true, // nested sub-tasks live in this placement's own BH_Content tree — see class docblock
             'schema' => [
@@ -490,42 +488,6 @@ class BHCRM_Projects {
                 // Plain grouping key, not a slot (see class docblock).
                 'column' => ['type' => 'string', 'default' => '',              'bindable' => false],
             ],
-            'style' => ['color_accent', 'radius'],
-            // 'data-status' is enum-validated server-side in BH_Element::build_html_attrs().
-            'tags'  => ['div', 'article'],
-            'attrs' => [
-                'id' => true, 'class' => true, 'aria-label' => true,
-                'data-status' => ['enum' => ['todo', 'in_progress', 'done']],
-            ],
-            'render' => function (array $attrs, array $ctx, array $instance) {
-                $title = esc_html((string) $attrs['title']);
-                $notes = (string) $attrs['notes']; // already wp_kses_post()-coerced by BH_Element::coerce_attr() ('html' schema type)
-                $done  = !empty($attrs['done']);
-                $column = esc_attr((string) $attrs['column']);
-
-                $rollup_html = '';
-                if (class_exists('BH_Content') && !empty($instance['id'])) {
-                    $tree = BH_Content::get('bh_element', (int) $instance['id']);
-                    [$done_count, $total] = BHCRM_Projects::rollup_counts($tree);
-                    if ($total > 0) {
-                        // WHY: inline styles, since this widget can render where kanban-board.css isn't loaded.
-                        $pct = self::progress_percent($done_count, $total);
-                        $rollup_html = '<div class="bhcrm-sticky-card-rollup">'
-                            . '<div class="bhcrm-progress-bar-track" style="height:5px;background:#dcdcde;border-radius:999px;overflow:hidden;margin-bottom:2px;">'
-                            . '<div class="bhcrm-progress-bar-fill' . ($pct >= 100 ? ' is-complete' : '') . '" style="height:100%;width:' . $pct . '%;background:' . ($pct >= 100 ? '#00a32a' : '#2271b1') . ';"></div>'
-                            . '</div>' . (int) $done_count . '/' . (int) $total . ' sub-tasks done (' . $pct . '%)</div>';
-                    }
-                }
-
-                $children_html = $instance['content'] !== '' ? '<div class="bhcrm-sticky-card-children">' . $instance['content'] . '</div>' : '';
-
-                return '<div class="bhcrm-sticky-card' . ($done ? ' is-done' : '') . '" data-column="' . $column . '" data-placement-id="' . (int) $instance['id'] . '">'
-                     . '<div class="bhcrm-sticky-card-title">' . ($done ? '&#9989; ' : '') . $title . '</div>'
-                     . ($notes !== '' ? '<div class="bhcrm-sticky-card-notes">' . $notes . '</div>' : '')
-                     . $rollup_html
-                     . $children_html
-                     . '</div>';
-            },
         ]);
     }
 

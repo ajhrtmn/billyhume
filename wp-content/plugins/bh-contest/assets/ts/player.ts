@@ -313,7 +313,6 @@ class BHPlayer {
                     <div class="bh-brand">${this.brand.logoUrl
                         ? `<img class="bh-brand-logo" src="${this.esc(this.brand.logoUrl)}" alt="${this.esc(this.brand.part1 + this.brand.part2)}">`
                         : `${this.esc(this.brand.part1)}<span>${this.esc(this.brand.part2)}</span>`}</div>
-                    <div class="bh-header-extra"></div>
                     <div class="bh-header-actions">
                         <button class="bh-results-btn bh-btn bh-btn-results" style="display:none;">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M5 4h14v2h2v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 16.9V19h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 13H7a4 4 0 0 1-4-4V6h2V4zm0 4H4.9A2 2 0 0 0 5 8.9V8zm14 0v.9a2 2 0 0 0 .1-.9H19z"/></svg>
@@ -341,11 +340,6 @@ class BHPlayer {
                      See renderVotesRemaining(). -->
                 <div class="bh-votes-remaining" style="display:none;"></div>
 
-                <!-- Task #80 follow-up, safe slice #2: a genuinely new,
-                     empty zone above the tracklist that no lookup
-                     elsewhere in this file reads from or requires — see
-                     injectExtraZone() below. -->
-                <div class="bh-tracklist-extra"></div>
 
                 <div class="bh-tracklist">Loading tracks…</div>
 
@@ -365,13 +359,6 @@ class BHPlayer {
                     </button>
                 </div>
 
-                <!-- Task #80 follow-up, safe slice #3: a new zone AFTER
-                     the now-playing bar, a sibling of it rather than
-                     nested inside — kept fully outside the bar's own flex
-                     layout/selectors (.bh-np-track/.bh-scrubber-container/
-                     .bh-play-pause) so nothing about its playback wiring
-                     is touched. -->
-                <div class="bh-now-playing-extra"></div>
 
                 <div class="bh-modal bh-auth-modal"><div class="bh-modal-content">
                     <span class="bh-close" data-close="auth">&times;</span>
@@ -473,35 +460,10 @@ class BHPlayer {
                 <div class="bh-modal bh-results-modal"><div class="bh-modal-content">
                     <span class="bh-close" data-close="results">&times;</span>
                     <h2>Results</h2>
-                    <!-- Task #80 follow-up, safe slice #4: additive only —
-                         sits between the heading and '.bh-results-body',
-                         which is the one element loadResults()-style code
-                         actually looks up and rewrites. -->
-                    <div class="bh-results-modal-intro"></div>
                     <div class="bh-results-body">Loading…</div>
                 </div></div>
             </div>`;
         this.bind();
-        this.injectExtraZone('headerExtra', '.bh-header-extra');
-        this.injectExtraZone('tracklistExtra', '.bh-tracklist-extra');
-        this.injectExtraZone('nowPlayingExtra', '.bh-now-playing-extra');
-        this.injectExtraZone('resultsModalIntro', '.bh-results-modal-intro');
-    }
-
-    // Drops a server-rendered BH_Element slot (base64 in root's data-{datasetKey},
-    // see class-auth.php render()) into its empty zone div. Zones are additive only.
-    injectExtraZone(datasetKey: string, selector: string): void {
-        const raw = this.root.dataset[datasetKey];
-        if (!raw) return;
-        const target = this.q(selector);
-        if (!target) return;
-        try {
-            // WHY: plain atob() mangles non-Latin1 text; this round-trip decodes UTF-8.
-            const decoded = decodeURIComponent(escape(atob(raw)));
-            target.innerHTML = decoded;
-        } catch (e) {
-            // Malformed attribute: leave the zone empty rather than break the player.
-        }
     }
 
     updateAuthUI(): void {

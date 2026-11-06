@@ -96,9 +96,8 @@ class BH_Auth {
             }
         }
 
-        // WHY: $before/$after render outside #bh-player-root, because player.js
+        // WHY: these links render outside #bh-player-root, because player.js
         // rebuilds that div's innerHTML on load.
-        $before = ''; $after = '';
         // "All contests" links to the Contest Library, else the archive, else nothing.
         $back_url = '';
         $lib_pid = (int) get_option('bh_contest_library_page_id', 0);
@@ -120,40 +119,11 @@ class BH_Auth {
             $portal_url = home_url('/' . BHI_Portal::REWRITE_SLUG . '/submissions/');
             $submission_link = '<p style="margin:0 0 10px;font-size:13px;"><a href="' . esc_url($portal_url) . '">Manage my submission &rarr;</a></p>';
         }
-        if ($cid && class_exists('BH_Element')) {
-            $before = $back_link . $submission_link . BH_Element::render_slot('bh_contest_player', $cid, 'before_player', ['contest_id' => $cid]);
-            $after  = BH_Element::render_slot('bh_contest_player', $cid, 'after_player', ['contest_id' => $cid]);
+        $before = $back_link . $submission_link;
 
-            // Zones inside the JS-built player go to player.js as base64 data
-            // attributes, which it inserts into its own empty divs.
-            self::attach_extra_zone($attrs, $cid, 'header_extra', 'header-extra');
-            self::attach_extra_zone($attrs, $cid, 'tracklist_extra', 'tracklist-extra');
-            self::attach_extra_zone($attrs, $cid, 'now_playing_extra', 'now-playing-extra');
-            self::attach_extra_zone($attrs, $cid, 'results_modal_intro', 'results-modal-intro');
-        } elseif ($submission_link) {
-            // BH_Element not loaded — no slot content to merge with, but the submission link still stands on its own.
-            $before = $back_link . $submission_link;
-        }
-
-        // .bh-player-aside matches the player's centred width; --before also carries
-        // the header clearance (see player.css).
+        // .bh-player-aside matches the player's centred width and carries the header clearance (see player.css).
         if ($before !== '') $before = '<div class="bh-player-aside bh-player-aside--before">' . $before . '</div>';
-        if ($after !== '')  $after  = '<div class="bh-player-aside bh-player-aside--after">' . $after . '</div>';
 
-        return $before . '<div ' . $attrs . '></div>' . $after;
-    }
-
-    // Renders a slot and, if it has visible content, appends it as base64 data-{$attr_suffix}.
-    private static function attach_extra_zone(string &$attrs, int $cid, string $slot, string $attr_suffix): void {
-        if (!class_exists('BH_Element')) return;
-        $html = BH_Element::render_slot('bh_contest_player', $cid, $slot, ['contest_id' => $cid]);
-        if (self::slot_has_visible_content($html)) {
-            $attrs .= ' data-' . $attr_suffix . '="' . esc_attr(base64_encode($html)) . '"';
-        }
-    }
-
-    // render_slot() always emits a wrapper div, even when empty.
-    private static function slot_has_visible_content(string $html): bool {
-        return trim(wp_strip_all_tags($html)) !== '' || preg_match('/<(img|svg|iframe|video|audio)\b/i', $html) === 1;
+        return $before . '<div ' . $attrs . '></div>';
     }
 }

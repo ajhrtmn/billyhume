@@ -30,25 +30,6 @@ if (!defined('ABSPATH')) exit;
  * Hooking these is harmless when bh-crm isn't installed.
  */
 class BHCRM_People {
-    /** Per-person 'bh_crm_profile' element surface (context id = user_id), one 'root' slot. */
-    /**
-     * @param array<string, mixed> $surfaces
-     * @return array<string, mixed>
-     */
-    public static function register_element_surface($surfaces): array {
-        $surfaces['bh_crm_profile'] = [
-            'group'       => 'CRM',
-            'label'       => 'CRM profile page',
-            'slots'       => [
-                'root' => ['label' => 'Page content'],
-            ],
-            'context'     => ['type' => 'user', 'param' => 'user_id'],
-            // Previews use the viewing admin as a stand-in subject.
-            'preview_ctx' => function () { return ['user_id' => get_current_user_id()]; },
-        ];
-        return $surfaces;
-    }
-
     // The menu entry is registered by core's class-registry.php ('bh-crm'), not here.
 
     /* ---------------- who's on the list ---------------- */
@@ -290,8 +271,6 @@ class BHCRM_People {
         $user = get_userdata($uid);
         if (!$user) { echo '<p>User not found.</p>'; return; }
 
-        $element_ctx = ['user_id' => $uid];
-
         echo '<p style="margin-bottom:var(--bhy-space-4,16px);"><a href="' . esc_url(remove_query_arg('user_id')) . '">&larr; All people</a></p>';
 
         // Each section sits in its own .bhy-card.
@@ -327,11 +306,6 @@ class BHCRM_People {
                 if (!empty($section['render'])) call_user_func($section['render']);
             }
             echo '</div>';
-        }
-
-        // User-built element content, appended after the fixed CRM sections.
-        if (class_exists('BH_Element')) {
-            echo BH_Element::render_slot('bh_crm_profile', $uid, 'root', $element_ctx);
         }
     }
 }
