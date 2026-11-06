@@ -6,6 +6,8 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.4.4 - Admin screen: moved static inline <style>/<script> blocks out of PHP into files (assets/css/*.css, assets/inline/*.js), printed in the same place via file_get_contents(). Page output is unchanged apart from indentation (each move was round-trip checked before writing); the CSS is now linted and accent-checked.
+
 0.4.3 — Real gap found in a functional-depth audit ("does this
 plugin actually do the job it's supposed to, not just have the
 pieces present"): unlike every sibling plugin with a public

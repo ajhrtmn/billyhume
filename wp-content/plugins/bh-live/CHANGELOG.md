@@ -6,6 +6,8 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.9.8 - Admin screen: moved static inline <style>/<script> blocks out of PHP into files (assets/css/*.css, assets/inline/*.js), printed in the same place via file_get_contents(). Page output is unchanged apart from indentation (each move was round-trip checked before writing); the CSS is now linted and accent-checked.
+
 0.9.7 - Security: the OBS contest-votes overlay escaped nothing it inserted into innerHTML, so HTML in an entry title or category name would run inside the overlay. Titles, category names and vote counts are now HTML-escaped. Verified the escape function against an <img onerror> payload.
 
 0.9.6 — Continued the live-robustness pass onto this plugin's other two

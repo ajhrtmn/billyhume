@@ -1,0 +1,22 @@
+.ous-debug-section, #ous-section-reset-all, .ous-debug-group { scroll-margin-top: 90px; }
+.ous-debug-section > summary, #ous-section-reset-all > summary, .ous-debug-group > summary.ous-debug-group-heading {
+    cursor: pointer; font-weight: 600; font-size: 1.3em; list-style: none;
+    display: flex; align-items: center; gap: 8px;
+}
+.ous-debug-section > summary::-webkit-details-marker, #ous-section-reset-all > summary::-webkit-details-marker,
+.ous-debug-group > summary.ous-debug-group-heading::-webkit-details-marker { display: none; }
+.ous-debug-section > summary::before, #ous-section-reset-all > summary::before,
+.ous-debug-group > summary.ous-debug-group-heading::before { content: "\25B6"; font-size: 0.7em; transition: transform 0.15s ease; }
+.ous-debug-section[open] > summary::before, #ous-section-reset-all[open] > summary::before,
+.ous-debug-group[open] > summary.ous-debug-group-heading::before { transform: rotate(90deg); }
+.ous-debug-section > .ous-debug-section-body, #ous-section-reset-all > .ous-debug-section-body { margin-top: 12px; }
+.ous-debug-group-heading {
+    font-size: 1.05em; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--bhy-ink-dim, #646970); margin: 28px 0 8px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--bhy-border, #dcdcde);
+}
+.ous-debug-group-heading:first-of-type { margin-top: 4px; }
+.ous-debug-group { margin: 0; }
+.ous-debug-group > .ous-debug-group-body { margin-top: 4px; }
+.ous-debug-quicknav-group { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.ous-debug-quicknav-group > strong { color: var(--bhy-ink-dim, #646970); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; margin-right: 2px; }

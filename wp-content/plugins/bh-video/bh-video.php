@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Video
  * Description: A standalone video catalog and player — its own CPT, taxonomy, and browse/playback SPA, independent of bh-streaming's audio catalog. Depends only on The Self-Hosted Self's shared identity and style tokens.
- * Version:     0.4.3
+ * Version:     0.4.4
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
 // Version history: see this plugin's CHANGELOG.md (and git log).
 define('BHV_PATH', plugin_dir_path(__FILE__));
 define('BHV_URL',  plugin_dir_url(__FILE__));
-define('BHV_VER',  '0.4.3');
+define('BHV_VER',  '0.4.4');
 
 /**
  * Peer plugin depending only on the core. Video files are plain attachments, so CDN offload

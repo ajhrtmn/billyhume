@@ -177,25 +177,7 @@ class BH_AdminMetaboxes {
         // Keep prose out of the single-quoted CSS string (an apostrophe ends it).
         // Checkboxes are left unstyled on purpose: core forms.css draws them.
         echo '<style>
-            .bhc-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; align-items: start; }
-            .bhc-settings-grid-full { grid-column: 1 / -1; }
-            .bhc-settings-grid .bhy-card, .bhc-settings-grid-full .bhy-card {
-                margin: 0;
-                height: 100%;
-                box-sizing: border-box;
-            }
-            .bhc-settings-grid .bhy-card-title, .bhc-settings-grid-full .bhy-card-title {
-                margin: 0 0 12px;
-                padding-bottom: 8px;
-                border-bottom: 1px solid var(--bhy-border, #dcdcde);
-                font-size: 12px;
-                font-weight: 600;
-                letter-spacing: .04em;
-                text-transform: uppercase;
-                color: var(--bhy-ink-dim, #646970);
-            }
-            .bhc-settings-grid label { display: flex; align-items: flex-start; gap: 6px; }
-        </style>';
+' . (string) file_get_contents(BH_PATH . 'assets/css/admin-metaboxes.css') . '</style>';
         echo '<div class="bhc-settings-grid">';
 
         // ---- Submissions ----
