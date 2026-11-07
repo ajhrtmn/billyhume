@@ -12,6 +12,11 @@ function oust_setup() {
     add_theme_support('automatic-feed-links');
     add_theme_support('html5', ['search-form', 'comment-form', 'comment-list', 'gallery', 'caption', 'style', 'script']);
     add_theme_support('customize-selective-refresh-widgets');
+    // Appearance → Customize → Header Image: a banner drawn behind the top bar.
+    add_theme_support('custom-header', [
+        'width' => 2400, 'height' => 300, 'flex-width' => true, 'flex-height' => true,
+        'header-text' => false, 'uploads' => true,
+    ]);
 
     /**
      * Block support for the_content() output. No editor-color-palette: the

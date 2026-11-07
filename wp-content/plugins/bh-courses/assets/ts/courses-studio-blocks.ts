@@ -522,6 +522,26 @@
                             onChange: function (v: any) { updatePayload(i, { correct_index: parseInt(v, 10) || 0 }); },
                         })
                     );
+                } else if (a.type === 'banner') {
+                    typeFields = el('div', {},
+                        el(wp.components.TextControl, { label: __('Text'), value: a.payload.text || '', onChange: function (v: any) { updatePayload(i, { text: v }); } }),
+                        el('div', { style: { display: 'flex', gap: '8px' } },
+                            el(wp.components.TextControl, {
+                                type: 'number', label: __('Seconds on screen'), min: 2, max: 30,
+                                value: a.payload.duration || 8,
+                                onChange: function (v: any) { updatePayload(i, { duration: Math.max(2, Math.min(30, parseInt(v, 10) || 8)) }); },
+                            }),
+                            el(wp.components.SelectControl, {
+                                label: __('Size'), value: a.payload.size || 'medium',
+                                options: [
+                                    { label: __('Small'), value: 'small' },
+                                    { label: __('Medium'), value: 'medium' },
+                                    { label: __('Large'), value: 'large' },
+                                ],
+                                onChange: function (v: any) { updatePayload(i, { size: v }); },
+                            })
+                        )
+                    );
                 } else {
                     typeFields = el(wp.components.TextControl, { label: __('Text'), value: a.payload.text || '', onChange: function (v: any) { updatePayload(i, { text: v }); } });
                 }
@@ -547,7 +567,7 @@
                                 { label: __('Question (self-check)'), value: 'question' },
                                 { label: __('Banner — non-blocking, TRL-style'), value: 'banner' },
                             ],
-                            onChange: function (v: any) { updateAnnotation(i, { type: v, payload: v === 'question' ? { question: '', choices: [], correct_index: 0 } : { text: '' } }); },
+                            onChange: function (v: any) { updateAnnotation(i, { type: v, payload: v === 'question' ? { question: '', choices: [], correct_index: 0 } : v === 'banner' ? { text: '', duration: 8, size: 'medium' } : { text: '' } }); },
                         }),
                         el('span', { style: { flex: 1 } }),
                         el(wp.components.Button, {

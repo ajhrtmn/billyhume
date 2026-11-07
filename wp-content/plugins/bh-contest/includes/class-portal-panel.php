@@ -26,6 +26,8 @@ class BH_PortalPanel {
      * @return array<int, array<string, mixed>>
      */
     public static function register_panel($panels): array {
+        // Entrants only. WHY: admin keeps it so Portal Layout can still order/hide the tab.
+        if (!is_admin() && !self::has_submissions(get_current_user_id())) return $panels;
         $panels[] = [
             'id' => 'submissions',
             'label' => 'Contest Submissions',
@@ -34,6 +36,17 @@ class BH_PortalPanel {
             'priority' => 40,
         ];
         return $panels;
+    }
+
+    private static function has_submissions(int $user_id): bool {
+        if (!$user_id) return false;
+        return (bool) get_posts([
+            'post_type' => 'bh_submission',
+            'author' => $user_id,
+            'post_status' => 'any',
+            'posts_per_page' => 1,
+            'fields' => 'ids',
+        ]);
     }
 
     private static function vote_count_for(int $submission_id): int {

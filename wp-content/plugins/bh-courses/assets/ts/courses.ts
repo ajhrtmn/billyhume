@@ -52,6 +52,8 @@ interface BHCVideoAnnotationPayload {
     question?: string;
     choices?: string[];
     correct_index?: number;
+    duration?: number;
+    size?: 'small' | 'medium' | 'large';
 }
 
 interface BHCVideoAnnotation {
@@ -243,6 +245,18 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
 
         var lessonId = lesson.dataset.lessonId ?? '';
         var stepCount = parseInt(lesson.dataset.stepCount ?? '0', 10);
+        var nextLessonUrl = lesson.dataset.nextLessonUrl ?? '';
+
+        // The last step's button goes straight to the next lesson; the "Lesson complete"
+        // screen is kept only for the end of the course. Already-finished lessons still get
+        // a working "Next Lesson" (it just navigates).
+        if (nextLessonUrl && stepCount > 0) {
+            var lastStepBtn = lesson.querySelector<HTMLButtonElement>('[data-step-index="' + (stepCount - 1) + '"] .bhc-mark-complete');
+            if (lastStepBtn) {
+                lastStepBtn.textContent = 'Next Lesson →';
+                if (lastStepBtn.disabled) { lastStepBtn.disabled = false; lastStepBtn.dataset.bhcGoNext = '1'; }
+            }
+        }
 
         // WHY: the live Etch site's hydration blanks step wrapper classes at an unpredictable
         // moment, so re-assert via an observer for a few seconds (ETCH-COMPATIBILITY-NOTES.md).
@@ -485,11 +499,16 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                             if (label) label.innerHTML = '<span class="bhc-watch-gate-pct">100%</span> watched';
                         }
                         var btn = step.querySelector('.bhc-mark-complete') as HTMLButtonElement | null;
-                        if (btn) { btn.disabled = true; btn.style.display = ''; btn.textContent = 'Completed'; }
+                        // WHY: this fires at the watch threshold, usually mid-video, so the last step
+                        // stays put and just arms "Next Lesson" instead of jumping away.
+                        var isLastWithNext = index === stepCount - 1 && nextLessonUrl !== '';
+                        if (btn && isLastWithNext) { btn.disabled = false; btn.style.display = ''; btn.textContent = 'Next Lesson →'; btn.dataset.bhcGoNext = '1'; }
+                        else if (btn) { btn.disabled = true; btn.style.display = ''; btn.textContent = 'Completed'; }
                         step.classList.add('bhc-step-done');
                         if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show('Step complete.', 'success'); }
                         markStepDone(index);
                         updateSidebarProgress(res.data);
+                        if (isLastWithNext) return;
                         advanceWithBeat(index);
                     });
             }
@@ -549,13 +568,15 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             function showBanner(a: BHCVideoAnnotation, index: number) {
                 shown[index] = true;
                 var banner = document.createElement('div');
-                banner.className = 'bhc-video-banner';
+                var size = a.payload.size === 'small' || a.payload.size === 'large' ? a.payload.size : 'medium';
+                banner.className = 'bhc-video-banner bhc-video-banner-' + size;
                 banner.innerHTML = '<p class="bhc-video-banner-text">' + escText(a.payload.text) + '</p>';
                 wrap!.appendChild(banner);
+                var seconds = Math.max(2, Math.min(30, a.payload.duration || 8));
                 setTimeout(function () {
                     banner.classList.add('bhc-video-banner-out');
                     setTimeout(function () { banner.remove(); }, 400);
-                }, 4000);
+                }, seconds * 1000);
             }
 
             function showAnnotation(a: BHCVideoAnnotation, index: number) {
@@ -773,6 +794,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 return;
             }
             if (!target.classList.contains('bhc-mark-complete')) return;
+            if (target.dataset.bhcGoNext === '1' && nextLessonUrl) { window.location.href = nextLessonUrl; return; }
             var step = target.closest('.bhc-step, [data-step-index]') as HTMLElement;
             var index = parseInt(step.dataset.stepIndex ?? '-1', 10);
 
@@ -816,6 +838,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                         if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show('Step complete.', 'success'); }
                         markStepDone(index);
                         updateSidebarProgress(res.data);
+                        if (index === stepCount - 1 && nextLessonUrl) { window.location.href = nextLessonUrl; return; }
                         advanceWithBeat(index);
                     })
                     .catch(function () {

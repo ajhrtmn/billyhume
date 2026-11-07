@@ -571,10 +571,22 @@ class BHI_Portal {
      * The portal's markup (nav rail + active panel), returned for the
      * [bhi_account_portal] shortcode so it renders inside the theme.
      */
+    /**
+     * The tab /account/ opens on: the first panel, unless a peer claims the default for this
+     * user via 'bhi_portal_default_panel' (e.g. bh-courses picks My Courses for students).
+     *
+     * @param array<int, array<string, mixed>> $panels
+     */
+    private static function default_panel_id(array $panels): string {
+        $fallback = (string) ($panels[0]['id'] ?? '');
+        $wanted = (string) apply_filters('bhi_portal_default_panel', $fallback, get_current_user_id());
+        return $wanted !== '' && self::get_panel($wanted) ? $wanted : $fallback;
+    }
+
     private static function portal_content(): string {
         $panels = self::get_panels();
         $requested = sanitize_key((string) (get_query_var('bhi_panel') ?: get_query_var('panel')));
-        $active = $requested && self::get_panel($requested) ? $requested : ($panels[0]['id'] ?? '');
+        $active = $requested && self::get_panel($requested) ? $requested : self::default_panel_id($panels);
         $unread_count = class_exists('OUS_Notifications') ? (int) OUS_Notifications::unread_count(get_current_user_id()) : 0;
         $wallet_balance_display = class_exists('BHM_Wallet') ? number_format(BHM_Wallet::balance_cents(get_current_user_id()) / 100, 2) : '';
 

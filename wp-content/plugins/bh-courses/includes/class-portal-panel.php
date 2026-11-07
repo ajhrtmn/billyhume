@@ -9,6 +9,30 @@ class BHC_PortalPanel {
     public static function init(): void {
         add_filter('bhi_portal_panels', [self::class, 'register_panel']);
         add_filter('bhi_user_bar_links', [self::class, 'register_user_bar_link']);
+        add_filter('bhi_portal_default_panel', [self::class, 'default_panel_for_students'], 10, 2);
+        // Both hooks come from bh-monetization-woo; they never fire when it's inactive.
+        add_action('bhm_entitlement_granted', [self::class, 'enroll_on_purchase'], 10, 4);
+        add_filter('bhm_post_purchase_redirect', [self::class, 'redirect_after_course_purchase'], 10, 2);
+    }
+
+    /** Anyone enrolled in a course opens /account/ on My Courses. */
+    public static function default_panel_for_students(string $default, int $user_id): string {
+        return $user_id && self::enrolled_course_ids($user_id) ? 'courses' : $default;
+    }
+
+    /**
+     * WHY: My Courses lists enrollments, which otherwise only start on a first visit, so a
+     * buyer would land on an empty tab right after paying.
+     */
+    public static function enroll_on_purchase(int $user_id, string $type, string $scope, int $object_id): void {
+        if ($type !== 'purchase' || $scope !== 'course' || get_post_type($object_id) !== 'bh_course') return;
+        if (class_exists('BHC_Progress')) BHC_Progress::enroll_if_needed($user_id, $object_id);
+    }
+
+    /** @param array<string, array<int, int>> $purchased post type => object ids */
+    public static function redirect_after_course_purchase(string $target, array $purchased): string {
+        if ($target !== '' || empty($purchased['bh_course']) || !class_exists('BHI_Portal')) return $target;
+        return home_url('/' . BHI_Portal::REWRITE_SLUG . '/courses/');
     }
 
     // User-bar quick link only when there's a course in progress: the most recently
@@ -130,10 +154,9 @@ class BHC_PortalPanel {
             if (!$accessible) {
                 echo '<p class="bhi-portal-course-locked">&#128274; Access has lapsed — <a href="' . esc_url((string) get_permalink($course_id)) . '">view options</a></p>';
             } else {
-                // Continue jumps straight to the next incomplete lesson.
-                $continue_lesson = !$completed ? BHC_Progress::first_incomplete_lesson($user_id, $course_id) : 0;
-                $continue_url = $continue_lesson ? get_permalink($continue_lesson) : get_permalink($course_id);
-                echo '<p><a class="button" href="' . esc_url($continue_url) . '">' . ($completed ? 'Review' : 'Continue') . '</a></p>';
+                // Same Start / Continue / Review rule as the catalog card.
+                $cta = class_exists('BHC_Render_Course') ? BHC_Render_Course::render_continue_cta($user_id, $course_id, (int) $percent) : '';
+                echo '<p>' . ($cta !== '' ? $cta : '<a class="bhc-btn bhc-continue-btn" href="' . esc_url((string) get_permalink($course_id)) . '">View course &rarr;</a>') . '</p>';
             }
             echo '</div>';
         }

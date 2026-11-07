@@ -42,16 +42,11 @@ class BHM_PortalPanel {
 
         echo '<h1>Membership &amp; Wallet</h1>';
 
-        echo '<div class="bhi-portal-section">';
-        echo '<h2>Active tiers</h2>';
+        // Only for people who actually hold a tier; sites that don't sell tiers never see this.
         $entitlements = self::active_entitlements($user_id);
-        if (!$entitlements) {
-            echo '<div class="bhi-portal-empty">'
-               . '<span class="dashicons dashicons-star-filled"></span>'
-               . '<p>No active supporter tier right now.</p>';
-            if (class_exists('BHM_Tiers')) echo '<a class="button" href="' . esc_url(BHM_Tiers::tiers_page_url()) . '">See supporter tiers &rarr;</a>';
-            echo '</div>';
-        } else {
+        if ($entitlements) {
+            echo '<div class="bhi-portal-section">';
+            echo '<h2>Active tiers</h2>';
             echo '<div class="bhi-tier-chip-row">';
             foreach ($entitlements as $ent) {
                 $tier = class_exists('BHM_Tiers') ? BHM_Tiers::get($ent['object_id']) : null;
@@ -63,8 +58,8 @@ class BHM_PortalPanel {
             if (class_exists('BHM_Tiers')) {
                 echo '<p><a class="button" href="' . esc_url(BHM_Tiers::tiers_page_url()) . '">Change tier</a></p>';
             }
+            echo '</div>';
         }
-        echo '</div>';
 
         if (class_exists('BHM_Wallet')) {
             $balance = BHM_Wallet::balance_cents($user_id);

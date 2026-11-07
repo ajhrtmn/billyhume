@@ -34,6 +34,35 @@ class BHM_Frontend {
 
         // Priority 5: prepended before WooCommerce's own thank-you markup, never replacing it.
         add_action('woocommerce_thankyou', [self::class, 'render_tier_thankyou_banner'], 5);
+        add_action('template_redirect', [self::class, 'maybe_redirect_after_purchase']);
+    }
+
+    /**
+     * On the order-received page, lets another plugin send the buyer somewhere more useful
+     * than WooCommerce's receipt (bh-courses → My Courses). Only for the buyer's own paid
+     * order; anything else keeps the normal receipt.
+     */
+    public static function maybe_redirect_after_purchase(): void {
+        if (!function_exists('is_order_received_page') || !is_order_received_page() || !is_user_logged_in()) return;
+        $order_id = absint(get_query_var('order-received'));
+        $order = $order_id ? wc_get_order($order_id) : null;
+        if (!$order || (int) $order->get_customer_id() !== get_current_user_id()) return;
+        if (!hash_equals((string) $order->get_order_key(), (string) wp_unslash($_GET['key'] ?? ''))) return;
+        if (!$order->is_paid()) return;
+
+        $purchased = []; // post type => [object ids]
+        foreach ($order->get_items() as $item) {
+            if (!$item instanceof \WC_Order_Item_Product) continue;
+            $object_id = (int) get_post_meta($item->get_product_id(), '_bhm_purchase_object_id', true);
+            $type = (string) get_post_meta($item->get_product_id(), '_bhm_purchase_object_type', true);
+            if ($object_id && $type !== '') $purchased[$type][] = $object_id;
+        }
+        if (!$purchased) return;
+
+        $target = (string) apply_filters('bhm_post_purchase_redirect', '', $purchased, $order_id);
+        if ($target === '') return;
+        wp_safe_redirect($target);
+        exit;
     }
 
     // Tier-specific "You're now supporting at X" banner; renders nothing for non-tier orders.

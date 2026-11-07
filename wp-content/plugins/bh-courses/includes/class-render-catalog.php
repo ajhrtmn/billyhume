@@ -164,7 +164,7 @@ class BHC_Render_Catalog {
         if ($difficulty_label) echo '<span class="bh-badge bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course->ID)) . '">' . esc_html($difficulty_label) . '</span>';
         echo '<span class="bhc-card-lesson-count">' . (int) $lesson_count . ' lesson' . ($lesson_count === 1 ? '' : 's') . '</span>';
         echo $buy_once_badge;
-        if (class_exists('BHC_Reviews')) {
+        if (class_exists('BHC_Reviews') && BHC_Reviews::enabled_for($course->ID)) {
             $rating = BHC_Reviews::average_rating($course->ID);
             if ($rating['count'] > 0) {
                 echo '<span class="bhc-card-rating">&#9733; ' . esc_html((string) $rating['average']) . ' <span class="bhc-card-rating-count">(' . (int) $rating['count'] . ')</span></span>';

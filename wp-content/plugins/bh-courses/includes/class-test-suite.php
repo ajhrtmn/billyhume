@@ -102,6 +102,12 @@ class BHC_TestSuite {
             ['time' => 8, 'type' => 'banner', 'payload' => ['text' => 'Fun fact!']],
         ]]]);
         $rows[] = OUS_TestRunner::assert_same('Fun fact!', $result[0]['annotations'][0]['payload']['text'] ?? null, 'Video annotation: banner type (TRL-style, non-blocking) sanitizes as plain text, same as note/hotspot');
+        $rows[] = OUS_TestRunner::assert_same(['duration' => 8, 'size' => 'medium'], array_intersect_key($result[0]['annotations'][0]['payload'] ?? [], ['duration' => 1, 'size' => 1]), 'Video banner without duration/size gets the 8s medium default');
+
+        $result = BHC_Steps::save(1, [['type' => 'video', 'source' => 'upload', 'attachment_id' => 5, 'annotations' => [
+            ['time' => 8, 'type' => 'banner', 'payload' => ['text' => 'x', 'duration' => 999, 'size' => '<script>']],
+        ]]]);
+        $rows[] = OUS_TestRunner::assert_same(['duration' => 30, 'size' => 'medium'], array_intersect_key($result[0]['annotations'][0]['payload'] ?? [], ['duration' => 1, 'size' => 1]), 'Video banner duration clamps to 30s and an unknown size falls back to medium');
 
         $result = BHC_Steps::save(1, [['type' => 'quiz', 'questions' => [['question' => 'Q', 'choices' => ['A', 'B', 'C'], 'correct_index' => 99]]]]);
         $rows[] = OUS_TestRunner::assert_same(2, $result[0]['questions'][0]['correct_index'] ?? null, 'Out-of-range correct_index clamps to last valid choice');
@@ -236,6 +242,13 @@ class BHC_TestSuite {
         $wpdb->delete($enroll_table, ['user_id' => $uid, 'course_id' => $course_id]);
         $reviews_table = BHC_Tables::reviews();
         $wpdb->delete($reviews_table, ['user_id' => $uid, 'course_id' => $course_id]);
+
+        // Reviews are opt-in per course.
+        BHC_Progress::enroll_if_needed($uid, $course_id);
+        $result = BHC_Reviews::submit_review($uid, $course_id, 5, 'Reviews are off here');
+        $rows[] = OUS_TestRunner::assert_same('bhc_review_disabled', is_wp_error($result) ? $result->get_error_code() : 'accepted', 'submit_review() refuses a course whose Reviews switch is off (the default)');
+        $wpdb->delete($enroll_table, ['user_id' => $uid, 'course_id' => $course_id]);
+        update_post_meta($course_id, '_bhc_reviews_enabled', 1);
 
         // Not enrolled yet: some real access is still required.
         $result = BHC_Reviews::submit_review($uid, $course_id, 5, 'Great course!');

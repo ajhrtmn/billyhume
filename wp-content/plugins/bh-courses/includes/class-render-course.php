@@ -47,7 +47,7 @@ class BHC_Render_Course {
         echo '<div class="bhc-course-meta">';
         echo '<span>' . (int) $lesson_count . ' lesson' . ($lesson_count === 1 ? '' : 's') . '</span>';
         if ($duration) echo '<span>' . esc_html($duration) . '</span>';
-        if (class_exists('BHC_Reviews')) {
+        if (class_exists('BHC_Reviews') && BHC_Reviews::enabled_for($course_id)) {
             $rating = BHC_Reviews::average_rating($course_id);
             if ($rating['count'] > 0) {
                 echo '<span class="bhc-course-rating">' . self::render_stars($rating['average']) . ' <span class="bhc-rating-number">' . esc_html((string) $rating['average']) . '</span> <span class="bhc-rating-count">(' . (int) $rating['count'] . ' review' . ($rating['count'] === 1 ? '' : 's') . ')</span></span>';
@@ -174,7 +174,7 @@ class BHC_Render_Course {
             }
         }
         if (!$locked && class_exists('BHC_Leaderboard')) echo BHC_Leaderboard::render($course_id);
-        if (!$locked && class_exists('BHC_Reviews')) echo self::render_reviews_section($course_id, $uid);
+        if (!$locked && class_exists('BHC_Reviews') && BHC_Reviews::enabled_for($course_id)) echo self::render_reviews_section($course_id, $uid);
         echo '</div>';
         return ob_get_clean();
     }
@@ -403,7 +403,7 @@ class BHC_Render_Course {
         echo '<div class="bhc-completion-next-steps">';
         $archive_url = get_post_type_archive_link('bh_course');
         if ($archive_url) echo '<a href="' . esc_url($archive_url) . '">Browse more courses</a>';
-        if (class_exists('BHC_Reviews')) echo ' &middot; <a href="#bhc-reviews">Leave a review</a>';
+        if (class_exists('BHC_Reviews') && BHC_Reviews::enabled_for($course_id)) echo ' &middot; <a href="#bhc-reviews">Leave a review</a>';
         echo '</div>';
         echo '</div>';
         return ob_get_clean();

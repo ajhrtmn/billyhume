@@ -6,6 +6,8 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.10 - Order-received page: for a logged-in buyer of a paid order (order key checked with hash_equals) the new `bhm_post_purchase_redirect` filter (target, [post type => object ids], order id) can send them somewhere better than the receipt; bh-courses uses it for course purchases. The Membership & Wallet panel only shows "Active tiers" to someone who holds a tier. Runtime-verified: buyer redirected, another user and a tampered key are not; panel HTML balanced with and without tiers.
+
 0.6.9 - Removed the BHM_Products pass-through facade: callers use BHM_ProductSync / BHM_Entitlements directly, and the three init() calls it made are now hooked directly in the main plugin file, in the same order. The tip-price handler's wp_die() now sends its 400. Runtime-verified: the monetization Test Runner suite (entitlements, gifts, tiers) passes.
 
 0.6.8 - Security: gift redemption read the status, granted, then marked it redeemed, so two simultaneous claims could both redeem one gift. The claim is now a single conditional UPDATE (WHERE status <> 'redeemed') and only the request that flips the row grants the entitlement. Also fixed wp_die() calls that passed the HTTP status as the title, so 400/409 are now actually sent. Runtime-verified: a second claim is refused, exactly one entitlement is granted, and the conditional update wins only once.

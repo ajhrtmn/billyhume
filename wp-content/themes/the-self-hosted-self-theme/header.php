@@ -10,7 +10,8 @@
 <?php wp_body_open(); ?>
 <a class="oust-skip-link screen-reader-text" href="#oust-main"><?php esc_html_e('Skip to content', 'the-self-hosted-self-theme'); ?></a>
 
-<header class="oust-site-header">
+<?php $oust_header_image = get_header_image(); ?>
+<header class="oust-site-header<?php echo $oust_header_image ? ' has-header-image' : ''; ?>"<?php echo $oust_header_image ? ' style="--oust-header-image: url(\'' . esc_url($oust_header_image) . '\');"' : ''; ?>>
     <div class="oust-site-header-inner">
         <a class="oust-site-brand" href="<?php echo esc_url(home_url('/')); ?>">
             <?php if (has_custom_logo()) : ?>

@@ -27,8 +27,14 @@ class BHC_Reviews {
 
     // Enrollment required. An edited resubmit resets status to 'pending' for re-moderation.
     /** @return true|\WP_Error */
+    /** Per-course switch (`_bhc_reviews_enabled`, off by default): hides reviews and refuses new ones. */
+    public static function enabled_for(int $course_id): bool {
+        return $course_id && (bool) get_post_meta($course_id, '_bhc_reviews_enabled', true);
+    }
+
     public static function submit_review(int $user_id, int $course_id, int $rating, string $body) {
         if (!$user_id || !$course_id) return new WP_Error('bhc_review_invalid', 'Missing user or course.');
+        if (!self::enabled_for($course_id)) return new WP_Error('bhc_review_disabled', 'Reviews are turned off for this course.');
         if (!BHC_Progress::enrolled_at($user_id, $course_id)) {
             return new WP_Error('bhc_review_not_enrolled', 'You need to be enrolled in this course to leave a review.');
         }

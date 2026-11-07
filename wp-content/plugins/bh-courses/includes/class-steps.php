@@ -155,6 +155,8 @@ class BHC_Steps {
     // Annotations pause/resume their own video step and never navigate, so the step-index
     // progress model is unchanged. 'banner' is the non-pausing, auto-dismissing type.
     const ANNOTATION_TYPES = ['note', 'hotspot', 'question', 'banner'];
+    const BANNER_SIZES = ['small', 'medium', 'large'];
+    const BANNER_DEFAULT_SECONDS = 8;
 
     /**
      * @param mixed $annotations
@@ -182,6 +184,11 @@ class BHC_Steps {
                 $text = sanitize_text_field($a['payload']['text'] ?? '');
                 if ($text === '') continue; // an empty note/hotspot has nothing to say
                 $payload = ['text' => $text];
+                if ($type === 'banner') {
+                    $payload['duration'] = max(2, min(30, (int) ($a['payload']['duration'] ?? self::BANNER_DEFAULT_SECONDS)));
+                    $size = $a['payload']['size'] ?? 'medium';
+                    $payload['size'] = in_array($size, self::BANNER_SIZES, true) ? $size : 'medium';
+                }
             }
 
             $clean[] = ['time' => $time, 'type' => $type, 'payload' => $payload];

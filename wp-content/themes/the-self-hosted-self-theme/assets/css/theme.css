@@ -123,6 +123,15 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
     -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--bh-border, #3D1B14);
 }
+/* Header Image (Customizer): full-width banner behind the bar, with a scrim so the links stay legible. */
+.oust-site-header.has-header-image {
+    background-color: var(--bh-surface, #220C0A);
+    background-image:
+        linear-gradient(color-mix(in srgb, var(--bh-bg, #000) 45%, transparent), color-mix(in srgb, var(--bh-bg, #000) 45%, transparent)),
+        var(--oust-header-image);
+    background-size: cover;
+    background-position: center;
+}
 body.admin-bar .oust-site-header { top: 32px; }
 @media screen and (max-width: 782px) {
     /* WHY top:0 here: below 782px core makes #wpadminbar position:absolute, so

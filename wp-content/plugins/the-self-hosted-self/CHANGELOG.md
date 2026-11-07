@@ -7,6 +7,8 @@ why version history lives here and in git rather than in source.
 Entries are newest-first, exactly as they were written in-file. Nothing
 has been reworded or dropped.
 
+3.21.51 - Account portal: new `bhi_portal_default_panel` filter (fallback, user id) picks which tab /account/ opens on when the URL names none; Portal Layout's first visible panel is still the fallback. bh-courses uses it to open students on My Courses. Runtime-verified: a student opens on My Courses, a non-student still opens on the layout's first panel; Test Runner passes.
+
 3.21.50 - Debug Tools, Debug Log, Reports, Test Runner, Setup Wizard, Style Gallery and the Customizer CSS-rules control: moved static inline <style>/<script> blocks out of PHP into files (assets/css/*.css, assets/inline/*.js), printed in the same place via file_get_contents(). Page output is unchanged apart from indentation (each move was round-trip checked before writing); the CSS is now linted and accent-checked.
 
 3.21.49 - Dead-code pass: BHI_Auth::init() was called directly AND hooked on init (registered everything twice); now only hooked. Removed an always-true condition in BHY_Contrast's preset matrix, an unused parameter in OUS_TestRunner::format_failures_text(), and a misspelled meta key plus an unused variable in the campaigns test. API Docs only shows the openapi.json link when that route is actually registered (it is switched off). wp_die() calls in the Storybook panel passed the HTTP status as the page title; they now send 403. Runtime-verified: Test Runner 479/479, API Docs renders, pages load.

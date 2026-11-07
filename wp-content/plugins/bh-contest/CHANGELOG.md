@@ -6,6 +6,8 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.17 - The account portal's Contest Submissions tab only appears for users who have submitted to a contest; wp-admin still sees it so Portal Layout can order or hide it. Runtime-verified with a temporary submission: tab shown for an entrant, hidden otherwise.
+
 3.15.16 - Contest wizard and admin metaboxes: moved static inline <style>/<script> blocks out of PHP into files (assets/css/*.css, assets/inline/*.js), printed in the same place via file_get_contents(). Page output is unchanged apart from indentation (each move was round-trip checked before writing); the CSS is now linted and accent-checked.
 
 3.15.15 - Security: share cards (?bh_share_entered= / ?bh_share_vote=) rendered for any submission ID, so the title and artist of pending, draft or rejected entries could be read by guessing IDs. Unpublished entries now only render for their author or an editor, with the same 404 otherwise. Integrity: a failed vote insert used to COMMIT and tell the voter their vote counted, and a failed removal reported success; both now return an error (the insert also rolls back). Runtime-verified: a pending entry's card is 404 to a logged-out visitor and a published one still serves image/png. The DB-failure path was not exercised (it needs a forced DB error).

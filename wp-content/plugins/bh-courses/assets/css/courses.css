@@ -953,6 +953,8 @@ a.bhc-pagination-number:hover {
         flex-direction: column;
         align-items: stretch;
     }
+    /* Stacked, the lesson (and its video) comes before the lesson list. */
+    .bhc-lesson-main { order: -1; }
     .bhc-course-sidebar {
         flex: 1 1 auto;
         position: static;
@@ -1238,6 +1240,17 @@ video.bhc-step-video {
 .bhc-video-banner-text {
     margin: 0;
     font-size: 14px;
+}
+.bhc-video-banner-medium { padding: 14px 20px; }
+.bhc-video-banner-medium .bhc-video-banner-text { font-size: clamp(16px, 2.4vw, 20px); }
+.bhc-video-banner-large {
+    bottom: 16px;
+    padding: 20px 24px;
+}
+.bhc-video-banner-large .bhc-video-banner-text {
+    font-size: clamp(18px, 3.4vw, 28px);
+    font-weight: 600;
+    line-height: 1.3;
 }
 .bhc-video-banner-out { animation: bhc-banner-out 0.4s ease forwards; }
 @keyframes bhc-banner-in { from {

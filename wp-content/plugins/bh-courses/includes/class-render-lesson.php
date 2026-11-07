@@ -70,7 +70,8 @@ class BHC_Render_Lesson {
         }
         echo '<div class="bhc-lesson-main">';
 
-        echo '<div class="bhc-lesson" data-lesson-id="' . (int) $lesson_id . '" data-step-count="' . count($steps) . '" data-start-index="' . (int) $start_index . '">';
+        echo '<div class="bhc-lesson" data-lesson-id="' . (int) $lesson_id . '" data-step-count="' . count($steps) . '" data-start-index="' . (int) $start_index . '"'
+            . ($next_lesson_id ? ' data-next-lesson-url="' . esc_url((string) get_permalink($next_lesson_id)) . '"' : '') . '>';
         // aria-live so the step counter change is announced.
         echo '<div class="bhc-step-progress" role="status" aria-live="polite">Step <span class="bhc-step-current">' . ($start_index + 1) . '</span> of ' . count($steps) . '</div>';
 
@@ -178,13 +179,13 @@ class BHC_Render_Lesson {
         ob_start();
         if ($step['type'] === 'text') {
             echo '<div class="bhc-step-text">' . wp_kses_post($step['content']) . '</div>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
         } elseif ($step['type'] === 'image') {
             foreach ($step['attachment_ids'] as $attachment_id) {
                 echo wp_get_attachment_image($attachment_id, 'large', false, ['class' => 'bhc-step-image']);
             }
             if (!empty($step['caption'])) echo '<div class="bhc-step-caption bhc-step-text">' . wp_kses_post($step['caption']) . '</div>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
         } elseif ($step['type'] === 'video') {
             // Only sources driven through the media adapter are $trackable.
             $trackable = false;
@@ -278,7 +279,7 @@ class BHC_Render_Lesson {
                     . '</div>';
                 echo '<button type="button" class="bhc-btn bhc-mark-complete" style="display:' . ($is_done ? '' : 'none') . ';" disabled>Completed</button>';
             } else {
-                echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
+                echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
             }
         } elseif ($step['type'] === 'quiz') {
             $uid = get_current_user_id();
@@ -334,11 +335,11 @@ class BHC_Render_Lesson {
                 echo '<p class="bhc-empty">File not found.</p>';
             }
             if (!empty($step['description'])) echo '<div class="bhc-step-caption bhc-step-text">' . wp_kses_post($step['description']) . '</div>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
         } elseif ($step['type'] === 'callout') {
             $variant = in_array($step['variant'] ?? '', BHC_Steps::CALLOUT_VARIANTS, true) ? $step['variant'] : 'tip';
             echo '<div class="bhc-step-callout bhc-callout-' . esc_attr($variant) . '">' . wp_kses_post($step['content']) . '</div>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
         } elseif ($step['type'] === 'checklist') {
             // Non-blocking self-check; items aren't persisted, only step completion.
             echo '<div class="bhc-step-checklist">';
@@ -348,12 +349,12 @@ class BHC_Render_Lesson {
                 echo '<li><label><input type="checkbox" class="bhc-checklist-check" data-item-index="' . (int) $i . '"> ' . esc_html($item) . '</label></li>';
             }
             echo '</ul></div>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
         } elseif ($step['type'] === 'chord-chart') {
             // esc_html() inside <pre>: a chord chart's alignment is the content.
             if (!empty($step['title'])) echo '<p class="bhc-chord-chart-title">' . esc_html($step['title']) . '</p>';
             echo '<pre class="bhc-chord-chart-content">' . esc_html($step['content']) . '</pre>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
         } elseif ($step['type'] === 'audio-compare') {
             $url_a = wp_get_attachment_url($step['attachment_id_a']);
             $url_b = wp_get_attachment_url($step['attachment_id_b']);
@@ -367,7 +368,7 @@ class BHC_Render_Lesson {
                 echo '<p class="bhc-empty">One or both audio files not found.</p>';
             }
             if (!empty($step['caption'])) echo '<div class="bhc-step-caption bhc-step-text">' . wp_kses_post($step['caption']) . '</div>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
         }
         return ob_get_clean();
     }
