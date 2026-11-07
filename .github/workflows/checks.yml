@@ -59,7 +59,7 @@ jobs:
       # surfaces ~1,200 pre-existing low-severity findings, and a gate that
       # fails on day one is a gate that gets disabled. This surfaces findings
       # on the PR; flip continue-on-error off once the touched-file debt is
-      # paid down. See wp-content/plugins/TOOLING-EVALUATION.md.
+      # paid down. See docs/archive/TOOLING-EVALUATION.md.
       - name: PHPCS security sniffs (changed files)
         continue-on-error: true
         run: bash tools/phpcs-changed.sh origin/${{ github.base_ref || 'master' }}
@@ -104,7 +104,7 @@ jobs:
         run: bash tools/check-changelog-drift.sh
 
   # The single highest-value gap named by this ecosystem's own docs
-  # (TOOLING-EVALUATION.md, OPEN.md): the money paths (BHM_Wallet's
+  # (docs/archive/TOOLING-EVALUATION.md, OPEN.md): the money paths (BHM_Wallet's
   # atomic debit here first, more to follow) were deliberately untested
   # because a hand-stubbed $wpdb can only confirm a query STRING looks
   # right, never that a real database actually enforces it. Real

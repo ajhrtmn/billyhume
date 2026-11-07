@@ -144,7 +144,7 @@ export async function audit(page: Page): Promise<Finding[]> {
       // flagged .bhc-excerpt (a deliberate 3-line clamp on course cards)
       // on every catalog page. Calibrating the checker, not the CSS --
       // "fixing" a deliberate clamp to satisfy a checker is exactly the
-      // failure TOOLING-EVALUATION.md already records for check-accent-on-tint.
+      // failure docs/archive/TOOLING-EVALUATION.md already records for check-accent-on-tint.
       if (clipY && (cs as any).webkitLineClamp && (cs as any).webkitLineClamp !== 'none') clipY = false;
       // Image replacement: text deliberately hidden behind a background
       // image (WP core's own login logo does exactly this -- an <a> sized

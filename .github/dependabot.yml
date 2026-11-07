@@ -23,7 +23,7 @@ updates:
 
   # Playwright, Storybook, TypeScript, Stylelint, Vitest -- all dev/CI
   # tooling. No npm runtime dependency exists anywhere in this ecosystem
-  # (module: none, no bundler -- see TOOLING-EVALUATION.md), so every
+  # (module: none, no bundler -- see docs/archive/TOOLING-EVALUATION.md), so every
   # update here is build-time-only by construction.
   - package-ecosystem: "npm"
     directory: "/"

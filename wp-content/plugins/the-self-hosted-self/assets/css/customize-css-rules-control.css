@@ -1,8 +1,4 @@
-/* The Customizer's own controls sidebar is even narrower than the
-   Design Suite admin page's ~380px column (class-style-gallery.php
-   has its own, near-identical copy of this) — everything here
-   stacks vertically (flex-direction: column) rather than trying to
-   fit a selector input + dropdown + button on one row at all. */
+/* WHY: the Customizer sidebar is too narrow for one-row rules, so controls stack vertically. */
 .bhy-cz-rules-editor .bhy-css-rule { border: 1px solid #dcdcde; border-radius: 4px; padding: 10px; margin: 10px 0; background: #fff; }
 .bhy-cz-rules-editor .bhy-css-rule-header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
 .bhy-cz-rules-editor .bhy-css-rule-header input,

@@ -1,27 +1,45 @@
-# Own Ur Shit
+# The Self-Hosted Self
 
-**Digital infrastructure you own, not rent.** Own Ur Shit is a self-hosted WordPress plugin ecosystem that gives an independent musician everything a big-tech platform normally rents them back one subscription at a time — a streaming catalog, contest tools, a learning platform, a fan CRM, monetization — as software they actually own outright, on hosting they control, with no algorithm, no account suspension, and no rented middleman standing between them and their audience.
+**Digital infrastructure you own, not rent.** A self-hosted WordPress plugin ecosystem that gives an independent musician what big platforms rent back one subscription at a time — a streaming catalog, contests, courses, a fan CRM, monetization — as software they own outright, on hosting they control. No ads, ever, and no middleman between an artist and their audience. The full philosophy is in [`VISION.md`](wp-content/plugins/VISION.md).
 
-That's the whole point, stated plainly: every rented platform this replaces makes money by inserting itself between a creator and the people who already chose to follow them, and it can change the terms, the price, or the rules at any time — or vanish. Own Ur Shit is the alternative. No ads, ever — not as a business model, not as an option a site owner could flip on. An artist sets their own terms with their own audience directly (tiers, purchases, tips — never a third-party ad network extracting value neither side asked for). It costs what hosting costs, nothing more, and it never asks anyone to trade their audience relationship for a platform's convenience. See [`VISION.md`](wp-content/plugins/VISION.md) for the full philosophy and the honest, in-progress roadmap toward becoming a genuine business-in-a-box for the same reasons.
-
-Everything lives under [`wp-content/plugins/`](wp-content/plugins/). Each plugin depends only on `own-ur-shit` (shared identity, design tokens, and admin dashboard) — never on each other — so any subset can run alone. Install just the two plugins you actually want; nothing here requires the rest.
+This repository is Billy Hume's live site (billyhume.net): a complete WordPress install. The ecosystem's own code is under [`wp-content/plugins/`](wp-content/plugins/) and [`wp-content/themes/the-self-hosted-self-theme/`](wp-content/themes/the-self-hosted-self-theme/); everything else is stock WordPress or third-party plugins.
 
 ## The plugins
 
+One required core plus optional peers. Each peer depends only on the core, never on another peer, so any subset works on its own.
+
 | Plugin | What it does |
 | --- | --- |
-| [`own-ur-shit`](wp-content/plugins/own-ur-shit/README.md) | The ecosystem core — shared accounts/login/email verification, shared design tokens with a live style gallery, and one dashboard for installing/activating every peer plugin. |
-| [`bh-streaming`](wp-content/plugins/bh-streaming/README.md) | An iTunes-like personal streaming library — catalog, playlists, likes, recommendations, and an RSS/Podcasting-2.0 feed, installable as a PWA. |
-| [`bh-contest`](wp-content/plugins/bh-contest/README.md) | Music contest voting — submissions, per-category voting, a live results-reveal system built for streaming, and Discord integration. |
-| [`bh-courses`](wp-content/plugins/bh-courses/) | An LMS — courses made of ordered, multistep lessons (text/image/video/quiz), progress tracking, and optional supporter-tier gating. |
-| [`bh-monetization-woo`](wp-content/plugins/bh-monetization-woo/README.md) | Supporter tiers, purchases, tips, and pay-per-play — backed by WooCommerce, never a parallel payments stack. |
-| [`bh-crm`](wp-content/plugins/bh-crm/) | A person list built on shared identity — profiles, notes, tags, CSV export, and a unified per-person activity timeline any other plugin can contribute to. |
-| [`bh-registry`](wp-content/plugins/bh-registry/README.md) | A global, decentralized artist-link registry — artists opt in with a public ActivityPub actor or RSS/Podcasting-2.0 feed link. Stores links only, never media. |
+| [`the-self-hosted-self`](wp-content/plugins/the-self-hosted-self/README.md) | Core: accounts, login and the fan portal; design tokens and the Design Suite; Debug Tools, jobs, logs and the Test Runner; one dashboard to install and switch on everything else. |
+| [`bh-streaming`](wp-content/plugins/bh-streaming/README.md) | Personal streaming library: catalog, playlists, likes, lyrics, an RSS/Podcasting 2.0 feed, installable as an app. |
+| [`bh-contest`](wp-content/plugins/bh-contest/README.md) | Music contests: submissions, voting, judging, and a live results reveal for streaming. |
+| `bh-courses` | Courses of multistep lessons (text, media, quizzes) with progress tracking and optional supporter-tier gating. |
+| [`bh-monetization-woo`](wp-content/plugins/bh-monetization-woo/README.md) | Supporter tiers, purchases, tips, gifts and pay-per-play, backed by WooCommerce. |
+| `bh-crm` | People list on shared identity: notes, tags, CSV export, activity timeline, and a project kanban board. |
+| [`bh-registry`](wp-content/plugins/bh-registry/README.md) | Decentralized artist-link directory (ActivityPub / RSS links only, never media). |
+| `bh-live` | Live streaming via self-hosted Owncast or Cloudflare Stream, with chat and OBS overlays. |
+| `bh-video` | Standalone video catalog and player. |
+| `bh-feedback` | Paid track feedback from reviewers, paid with wallet credit. |
+| `bh-tickets` | Support tickets opened from the fan portal. |
+| `bh-social` | Cross-posting and stats for social platforms. |
+| `bh-mailpoet` | Syncs CRM contacts into MailPoet lists (inert without MailPoet). |
 
-## Stack
+`self-hosted-self-admin-skin` is experimental and stays deactivated.
 
-Plain WordPress — no build step, no bundler. JS/CSS assets are either hand-written or vendored directly (e.g. SortableJS, FPDF) rather than pulled in through Composer/npm. PHP is checked with `php -l`, not a test framework, though a few plugins carry a lightweight `class-test-suite.php` runnable from their own Debug Tools screen.
+## How it's built
 
-## Local development
+- **Plain WordPress at runtime.** The live site is a verbatim file sync: PHP and WordPress only, no Composer install, no npm, no bundler. FPDF is the one vendored library.
+- **TypeScript at build time.** Browser code is written in `assets/ts/*.ts` and compiled with `tsc` into the committed `assets/js/*.js` (`npm run build:all`). Styles are plain CSS in `assets/css/`.
+- **Checks:** `npm run check` (TypeScript build, Stylelint, accent-contrast check, Vitest), `php -l`, and the in-admin Test Runner. See [`TESTS.md`](wp-content/plugins/TESTS.md).
 
-This repo is a full WordPress install (Local by Flywheel), not just the plugin source — `wp-content/plugins/` is where the actual ecosystem code lives; everything else (`wp-admin/`, `wp-includes/`, core files) is stock WordPress.
+## Working on it locally
+
+1. Create a site in [Local](https://localwp.com/) and replace its `app/public` folder with this repository (keep Local's own `wp-config.php`).
+2. `npm ci` for the build and check tools.
+3. Work on the `dev` branch. Pushing `dev` is what reaches the live site; see [`RUNBOOK-live-updates.md`](wp-content/plugins/RUNBOOK-live-updates.md).
+
+Rules for changing the code (for people and AI assistants alike) are in [`CLAUDE.md`](CLAUDE.md). A guided tour of the code is in [`CODEBASE-WALKTHROUGH.md`](wp-content/plugins/CODEBASE-WALKTHROUGH.md).
+
+## License
+
+AGPL-3.0: anyone who runs a modified version as a network service must publish their changes, so improvements stay with the self-hosting community. See [`wp-content/plugins/README.md`](wp-content/plugins/README.md#license).

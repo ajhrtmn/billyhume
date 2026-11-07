@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { audit, setTheme, formatFindings, WIDTHS, THEMES } from './audit';
 
 /**
- * Admin screen audit — see wp-content/plugins/UX-AUDIT-PLAN.md for the full
+ * Admin screen audit — see docs/archive/UX-AUDIT-PLAN.md for the full
  * inventory and ordering. Screens are added here as they are worked through.
  *
  * These report rather than hard-fail by default: the point is a measured,

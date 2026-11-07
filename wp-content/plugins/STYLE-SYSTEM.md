@@ -85,7 +85,7 @@ Also worth remembering: a custom `add_rewrite_rule()` does nothing until permali
 
 ## Where this doc came from
 
-Written after the 2026-08 audit pass: 579 inline `style=` sites and 17 `.css` files read in full across all 10 ecosystem plugins, which found ~600 inline styles ecosystem-wide, several live "uneven card height" / "badge text wraps" bugs (same root cause: a shared component existed but wasn't used), and — the reason this doc exists — the same badge/pill shape independently hand-rolled in at least 8 different plugin stylesheets with no shared front-end primitive to point at. See `AUDIT-inline-styles-MASTER.md` and `AUDIT-css-files-MASTER.md` (same directory) for the full findings this doc is downstream of.
+Written after the 2026-08 audit pass: 579 inline `style=` sites and 17 `.css` files read in full across all 10 ecosystem plugins, which found ~600 inline styles ecosystem-wide, several live "uneven card height" / "badge text wraps" bugs (same root cause: a shared component existed but wasn't used), and — the reason this doc exists — the same badge/pill shape independently hand-rolled in at least 8 different plugin stylesheets with no shared front-end primitive to point at.
 
 
 ## `.bh-alert` — front-end message block (added 2026-08-24)

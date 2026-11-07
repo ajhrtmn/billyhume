@@ -26,26 +26,30 @@ Every design decision in this codebase gets measured against that: **self-hosted
 | **`bh-feedback`** | Paid, wallet-charged feedback on a submitted track — quick-take or detailed written review, a self-serve reviewer claim queue. |
 | **`bh-video`** | A standalone video catalog and player, independent of the audio streaming library. |
 | **`bh-live`** | Two-way interactive live streaming — chat, a real broadcast engine (self-hosted Owncast or managed Cloudflare Stream Live), replays. |
+| **`bh-tickets`** | Support tickets a fan opens from the account portal; staff triage in wp-admin. |
+| **`bh-social`** | Cross-posting and stats for social platforms, behind one interface. |
+| **`bh-mailpoet`** | Syncs CRM contacts into MailPoet lists; inert if MailPoet is absent. |
 
 ## The architecture, in one paragraph
 
 A peer plugin depends only on the core's presence, and treats every other peer plugin as entirely optional — checked at runtime via `class_exists()`, never at file-parse time, always with a working fallback if the other plugin isn't installed. `bh-streaming` doesn't know `bh-monetization-woo` exists except through a documented filter contract; `bh-courses` doesn't know `bh-streaming` exists at all. This is what makes "install just the two plugins you actually want" a real, working claim rather than marketing copy — and it's the single most important convention to preserve as this ecosystem grows.
 
-The core provides real shared infrastructure once, centrally, so no feature plugin reinvents it: a WP-Cron-driven async job queue (`OUS_Jobs`), an aggregate error/exception console (`OUS_DebugLog`), an in-browser test runner for a hosting environment with no CLI (`OUS_TestRunner`), an auto-generated OpenAPI spec of the ecosystem's own REST surface (`OUS_ApiDocs`), a shared in-app notification/email system (`OUS_Notifications`), and — most recently — a self-hosted, GA/Segment-equivalent event-tracking layer (`BH_Event`/`BH_Identity`) that joins a contest vote, a track play, a CRM contact, and a course enrollment on one identity, without ever leaving this ecosystem's own database. Full technical detail on all of it lives in [`VISION.md`](VISION.md).
+The core provides real shared infrastructure once, centrally, so no feature plugin reinvents it: a WP-Cron-driven async job queue (`OUS_Jobs`), an aggregate error/exception console (`OUS_DebugLog`), an in-browser test runner for a hosting environment with no CLI (`OUS_TestRunner`), a live reference of the ecosystem's own REST routes in Debug Tools (`OUS_ApiDocs`), a shared in-app notification/email system (`OUS_Notifications`), and — most recently — a self-hosted, GA/Segment-equivalent event-tracking layer (`BH_Event`/`BH_Identity`) that joins a contest vote, a track play, a CRM contact, and a course enrollment on one identity, without ever leaving this ecosystem's own database. Full technical detail on all of it lives in [`VISION.md`](VISION.md).
 
 ## Getting started (self-hosted)
 
-1. A WordPress install on ordinary shared hosting (PHP 7.4+, MySQL, WP-Cron enabled — no Redis, no external queue, no special infrastructure required by design).
+1. A WordPress install on ordinary shared hosting (PHP 8.2+, MySQL, WP-Cron enabled — no Redis, no external queue, no special infrastructure required by design).
 2. Install and activate `the-self-hosted-self` first — every other plugin here requires it.
 3. From the Self-Hosted Self dashboard (`wp-admin` → The Self-Hosted Self), install and activate whichever peer plugins you actually want. Nothing here forces an all-or-nothing install.
 
 ## Documentation map
 
-- [`VISION.md`](VISION.md) — the mission, the current state of the ecosystem, and the near-term roadmap. Start here.
-- [`ROADMAP-platform-evolution.md`](ROADMAP-platform-evolution.md) — the next scale of ambition: a full storefront/merchandising layer, an auction mechanism, deeper monetization tiers, a visual content-block builder, a fully custom user-facing portal, and roadmap-only research into social/marketing platform integrations.
-- [`ROADMAP-safety-and-metrics.md`](ROADMAP-safety-and-metrics.md) — fraud/abuse detection, moderation, and long-term safety/legal items (audio fingerprinting, DMCA, GDPR/CCPA erasure, royalty-split payouts).
-- [`EVENT-TRACKING-ARCHITECTURE-PLAN.md`](EVENT-TRACKING-ARCHITECTURE-PLAN.md) — the design of the self-hosted event-tracking/identity layer described above.
-- [`STATUS.md`](STATUS.md) — the authoritative "what's actually built vs. still open" reconciliation across the whole ecosystem.
+- [`VISION.md`](VISION.md) — the mission and the big-picture pillars. Start here.
+- [`OPEN.md`](OPEN.md) — the backlog and known bugs.
+- [`CODEBASE-WALKTHROUGH.md`](CODEBASE-WALKTHROUGH.md) — a guided tour of the code (also shown in Debug Tools).
+- [`CONVENTIONS.md`](CONVENTIONS.md), [`STYLE-SYSTEM.md`](STYLE-SYSTEM.md), [`DESIGN-CRAFT.md`](DESIGN-CRAFT.md) — how code and styles are written.
+- [`TESTS.md`](TESTS.md), [`RUNBOOK-live-updates.md`](RUNBOOK-live-updates.md) — checking and shipping changes.
+- Old roadmaps and audits: `docs/archive/` at the repository root.
 
 ## License
 

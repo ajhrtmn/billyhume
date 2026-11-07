@@ -1,7 +1,4 @@
-// Guarded against double-definition: this same shared helper is
-// also printed by class-debug-log.php's own copy button (both
-// sections can render on the same Debug Tools page load), so
-// whichever one renders first wins and the second is a no-op.
+// WHY: class-debug-log.php prints the same helper; both can render on one page.
 if (typeof window.bhCopyToClipboard !== 'function') {
     window.bhCopyToClipboard = function (textareaId, btn) {
         var el = document.getElementById(textareaId);

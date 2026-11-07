@@ -1,12 +1,12 @@
 # Test suite — how to run, and what these are (and aren't)
 
-> **Corrected 2026-08-23.** This file previously opened with "I don't have a PHP runtime available… none of the suites has actually been executed BY ME." That is no longer true and had become actively harmful — it told every subsequent session that verification was impossible, which is a large part of why bugs shipped reasoned-through rather than run. A real PHP 8.5 runtime, MySQL, PHPUnit, PHPStan, and a live WordPress install are all available. **Run things.**
+A real PHP runtime, MySQL and a running WordPress install are available locally (Local by Flywheel). **Run things** rather than reasoning about them.
 
 ## The four gates, in the order to run them
 
 **1. Test Runner (the primary one).** The Self-Hosted Self → Debug Tools → **Run all tests**. Executes every registered suite on the site's own PHP — no CLI, no Composer, no PHPUnit binary — because the live WordPress install already *is* a working PHP environment. Suites register via the `bhcore_test_suites` filter.
 
-Last full run (2026-08-23): **635 tests across 19 suites — 634 passed, 1 failed.** The single failure is `bh-tickets` → `for_user() includes the requester's own ticket` (expected true, got false). Pre-existing and long-standing; unrelated to recent work, but real and worth fixing.
+From the command line (WP-CLI, in the site root): `wp eval 'echo json_encode(OUS_TestRunner::run_all());'`. Last full run (2026-11-07, plugins active on the local site): **479/479 passed**. With bh-registry active, its 10 verification tests fail because of a test bug listed in `OPEN.md`.
 
 **2. Static analysis.** Must stay at zero before any commit:
 
@@ -31,7 +31,8 @@ Do not resurrect the hand-rolled Python syntax checkers referenced in old change
 ## Gate 4 — the site actually loads (30 seconds, catches what the others miss)
 
 ```bash
-for u in / /wp-admin/ /wp-login.php; do curl -s -o /tmp/r.html -w "$u %{http_code}\n" "http://localhost:10008$u"; grep -qi "critical error" /tmp/r.html && echo "  ^ FATAL"; done
+SITE=http://billyhume.local   # your Local site's URL
+for u in / /account/ /wp-login.php; do curl -s -o /tmp/r.html -w "$u %{http_code}\n" "$SITE$u"; grep -qi "critical error" /tmp/r.html && echo "  ^ FATAL"; done
 ```
 
 Run this after any structural change. It is not redundant with `php -l`:

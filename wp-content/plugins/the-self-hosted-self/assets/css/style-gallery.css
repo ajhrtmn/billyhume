@@ -1,11 +1,5 @@
-/* Visual Custom CSS rule editor — kept out of BHY_UI::admin_page_css()'s
-   own giant single-quoted string on purpose (a stray apostrophe in a
-   comment there once took the whole file down; see CLAUDE.md).
-   Every row is flex-wrap + min-width:0 on its text inputs/selects —
-   the controls column here is only ~380px, and a plain flex row of
-   a text input + a dropdown + a button will happily force itself
-   wider than that and clip/scroll unless the input is explicitly
-   allowed to shrink below its intrinsic content width. */
+/* Visual Custom CSS rule editor. WHY: rows use flex-wrap + min-width:0 on inputs so a
+   ~380px column doesn't overflow. Kept out of BHY_UI::admin_page_css()'s PHP string. */
 .bhy-css-rule { border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius-sm, 6px); padding: 12px; margin-bottom: 10px; background: var(--bhy-surface, #fff); transition: border-color var(--bhy-transition, 150ms ease); }
 .bhy-css-rule:focus-within { border-color: var(--bhy-accent, #2271b1); }
 .bhy-css-rule-header { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; max-width: 100%; }

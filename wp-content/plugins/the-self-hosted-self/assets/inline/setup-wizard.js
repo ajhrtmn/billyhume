@@ -5,7 +5,7 @@
     if (!uploadBtn) return;
     var frame = null;
     uploadBtn.addEventListener('click', function () {
-        if (!window.wp || !window.wp.media) return; // lazily checked — see class-style-gallery.php's own fix for why this can't be checked once at setup time
+        if (!window.wp || !window.wp.media) return; // WHY: checked lazily; wp.media loads in the footer, after this runs
         if (frame) { frame.open(); return; }
         frame = wp.media({ title: 'Choose a logo', button: { text: 'Use this' }, multiple: false, library: { type: 'image' } });
         frame.on('select', function () {

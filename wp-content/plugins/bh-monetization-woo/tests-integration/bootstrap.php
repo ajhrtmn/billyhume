@@ -8,7 +8,7 @@
  * against a real concurrent-write race. A stub can only assert "the SQL
  * string looks right"; only a real database can prove the WHERE clause
  * actually prevents a negative balance. This is the first suite in this
- * ecosystem that can make that claim for real — see TOOLING-EVALUATION.md
+ * ecosystem that can make that claim for real — see docs/archive/TOOLING-EVALUATION.md
  * and OPEN.md, both of which named this exact gap.
  *
  * Runs against @wordpress/env's own tests-cli container, which already

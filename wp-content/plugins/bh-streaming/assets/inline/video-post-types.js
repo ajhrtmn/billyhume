@@ -1,8 +1,5 @@
 (function () {
-    // wp.media lives in media-editor.min.js, a footer-enqueued script that
-    // hasn't run yet when this inline block executes at body-parse time —
-    // wait for DOMContentLoaded (fires after all enqueued scripts,
-    // including footer ones) instead of checking window.wp.media here.
+    // WHY: wp.media loads in a footer script, so wait for DOMContentLoaded before checking it.
     document.addEventListener('DOMContentLoaded', function () {
     if (!window.wp || !window.wp.media) return;
     var frame = null;

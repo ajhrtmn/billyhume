@@ -45,12 +45,13 @@ pretending to offer automatic renewal it can't enforce.
 ## Externally-aggregated tracks are never monetizable
 
 A track bh-streaming pulled in from another artist's own feed
-(`_bhs_source = 'external'`) is not this site's content to sell, gate,
-or charge per-play — that would misdirect a fan's money away from
-whoever actually made it. `BHM_Products::is_external_track()` is
-checked in the UI (fields don't render), the save handler (a crafted
-POST can't set monetization meta on one either), and both gating hooks
-(`track_access_allowed`/`track_play_allowed` always pass these through).
+(`_bhs_source = 'external'`), or a local file import (no ownership
+check), is not this site's content to sell, gate, or charge per-play —
+that would misdirect a fan's money away from whoever actually made it.
+`BHM_MonetizationUI::is_non_catalog_track()` is checked in the UI
+(fields don't render), the save handler (a crafted POST can't set
+monetization meta on one either), and the play-gating hooks (these
+always pass through).
 
 ## Pay-per-play: an actual server-authoritative ledger
 
@@ -81,7 +82,7 @@ pretend to replace that. What it *does* take responsibility for:
   `TIP_MAX_CENTS` in `class-frontend.php`) and the price is actually
   applied via `woocommerce_before_calculate_totals` — not just cosmetic.
 - A refunded or cancelled WooCommerce order actually **revokes**
-  whatever it granted (`BHM_Products::on_order_reversed()`) — a
+  whatever it granted (`BHM_Entitlements::on_order_reversed()`) — a
   chargeback can't leave a fraudster with permanent access or wallet
   credit while the artist eats the loss.
 - Every grant and every wallet delta is a real, timestamped, server-

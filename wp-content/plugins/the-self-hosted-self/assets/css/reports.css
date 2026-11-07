@@ -1,30 +1,8 @@
-/* This widget can collide with bh-contest's fixed bottom
-   player bar on contest pages. Reading bh-contest's
-   --bh-bar-height CSS custom property doesn't work: that
-   property is set on :root by player.css, which also loads
-   on Archive/Results-Reveal-only pages that do NOT render
-   the actual .bh-now-playing-bar element — so the property
-   would still apply a phantom ~84px gap with nothing there
-   to justify it. Real DOM detection instead (below, in JS):
-   only apply the offset when .bh-now-playing-bar genuinely
-   exists on the page. Default bottom stays 16px; JS adds
-   the real, measured bar height via inline style only when
-   the element is actually present. */
-/* Was 99998 — above every modal in the ecosystem (bh-contest
-   10000, bh-registry 9999, bh-streaming 200/100/90), so this
-   floated on top of any open modal instead of sitting behind
-   its backdrop. 50 sits below all real modal z-indices while
-   staying above ordinary page content. */
+/* WHY: the contest player-bar offset is added by JS only when .bh-now-playing-bar exists;
+   --bh-bar-height is set on pages without the bar, so it can't be used here. */
+/* WHY: z-index sits below every ecosystem modal (lowest is 90) but above page content. */
 .bhi-tech-report { position: fixed; right: 16px; bottom: 16px; z-index: 50; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-/* This widget renders on wp_footer -- the FRONT END -- but was styled
-   entirely in the --bhy-* namespace, which is the admin token set.
-   That bridge (shsas_bridge_bhy_tokens) is hooked to admin_head
-   only, so on the front end not one --bhy-* token is defined and
-   every value here silently fell back to its light hardcoded
-   default: a white pill floating on the dark portal, reported from
-   a real phone. Front-end surfaces use --bh-*; --bhy-* is kept as a
-   second fallback so the widget still themes correctly if it is
-   ever rendered inside wp-admin. */
+/* WHY: front-end widget, so --bh-* tokens first; --bhy-* (admin-only) is a second fallback. */
 .bhi-tech-report-toggle {
     background: var(--bh-surface, var(--bhy-surface, #fff)); color: var(--bh-text-dim, var(--bhy-ink-dim, #646970));
     border: 1px solid var(--bh-border, var(--bhy-border, #dcdcde)); border-radius: 999px;

@@ -1,7 +1,7 @@
 # UX audit harness
 
 Measured, repeatable version of the audit described in
-`wp-content/plugins/UX-AUDIT-PLAN.md`. Replaces the throwaway browser
+`docs/archive/UX-AUDIT-PLAN.md`. Replaces the throwaway browser
 harness that was hand-rolled (twice) before this existed.
 
 ## Run
