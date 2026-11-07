@@ -3,13 +3,12 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * Front end: shortcode/hook registration and asset enqueueing. Rendering lives in
- * BHC_Render_Catalog, BHC_Render_Course and BHC_Render_Lesson; the render_*() methods here
- * are one-line delegates kept for existing call sites.
+ * BHC_Render_Catalog, BHC_Render_Course and BHC_Render_Lesson.
  */
 class BHC_Render {
     public static function init(): void {
-        add_shortcode('bh_courses', [self::class, 'render_catalog']);
-        add_shortcode('bh_course', [self::class, 'render_course']);
+        add_shortcode('bh_courses', ['BHC_Render_Catalog', 'render_catalog']);
+        add_shortcode('bh_course', ['BHC_Render_Course', 'render_course']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_filter('render_block', [self::class, 'suppress_generic_post_navigation'], 10, 2);
         add_filter('render_block', [self::class, 'suppress_broken_byline'], 10, 2);
