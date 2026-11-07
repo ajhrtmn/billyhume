@@ -310,6 +310,10 @@ class BHC_Admin {
         echo '<p><label><input type="checkbox" name="bhc_reviews_enabled" value="1"' . checked($reviews_enabled, true, false) . '> <strong>Show star ratings and reviews for this course</strong></label></p>';
         echo '<p class="description">Off by default. When off, the reviews section, star ratings and "Leave a review" link are hidden and no new reviews can be submitted.</p>';
 
+        echo '<h4>Credits</h4>';
+        echo '<p><textarea name="bhc_credits" rows="4" style="width:100%;" placeholder="e.g. Mixed by …, Music by …, Filmed at …">' . esc_textarea((string) get_post_meta($post->ID, '_bhc_credits', true)) . '</textarea></p>';
+        echo '<p class="description">Shown at the bottom of the course page. Links and basic formatting are allowed; leave empty to hide the section.</p>';
+
         $certificate_enabled = (bool) get_post_meta($post->ID, '_bhc_certificate_enabled', true);
         $certificate_signature = (string) get_post_meta($post->ID, '_bhc_certificate_signature', true);
         echo '<h4>Certificate of completion</h4>';
@@ -386,6 +390,7 @@ class BHC_Admin {
         }
         update_post_meta($post_id, '_bhc_comments_enabled', !empty($_POST['bhc_comments_enabled']) ? 1 : 0);
         update_post_meta($post_id, '_bhc_reviews_enabled', !empty($_POST['bhc_reviews_enabled']) ? 1 : 0);
+        if (isset($_POST['bhc_credits'])) update_post_meta($post_id, '_bhc_credits', wp_kses_post(wp_unslash($_POST['bhc_credits'])));
         update_post_meta($post_id, '_bhc_certificate_enabled', !empty($_POST['bhc_certificate_enabled']) ? 1 : 0);
         update_post_meta($post_id, '_bhc_certificate_signature', isset($_POST['bhc_certificate_signature']) ? sanitize_text_field($_POST['bhc_certificate_signature']) : '');
         $posted_style = (string) ($_POST['bhc_share_card_style'] ?? '');
@@ -648,7 +653,7 @@ class BHC_Admin {
         // Course-level settings only, never enrollment/progress data.
         foreach ([
             '_bhc_instructor_id', '_bhc_difficulty', '_bhc_duration_note',
-            '_bhc_comments_enabled', '_bhc_reviews_enabled', '_bhc_certificate_enabled', '_bhc_certificate_signature', '_bhc_share_card_style',
+            '_bhc_comments_enabled', '_bhc_reviews_enabled', '_bhc_credits','_bhc_certificate_enabled', '_bhc_certificate_signature', '_bhc_share_card_style',
             '_bhm_required_tier', '_bhm_required_benefit',
             '_bhc_leaderboard_enabled',
         ] as $key) {

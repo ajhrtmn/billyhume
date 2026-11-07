@@ -7,6 +7,8 @@ why version history lives here and in git rather than in source.
 Entries are newest-first, exactly as they were written in-file. Nothing
 has been reworded or dropped.
 
+3.21.52 - Fix: members (anyone the portal keeps out of wp-admin) were redirected to /account/ when a front-end form posted to admin-post.php, because admin-post fires admin_init too. Every member-facing admin-post form silently failed for non-staff, including bh-tickets' New ticket / Reply in the account portal. admin-post.php is now exempt from the redirect; each handler still checks its own nonce and capability, and browsing wp-admin still bounces members. Runtime-verified over HTTP as a bh_member: portal ticket and support/feedback forms submit, /wp-admin/ still redirects.
+
 3.21.51 - Account portal: new `bhi_portal_default_panel` filter (fallback, user id) picks which tab /account/ opens on when the URL names none; Portal Layout's first visible panel is still the fallback. bh-courses uses it to open students on My Courses. Runtime-verified: a student opens on My Courses, a non-student still opens on the layout's first panel; Test Runner passes.
 
 3.21.50 - Debug Tools, Debug Log, Reports, Test Runner, Setup Wizard, Style Gallery and the Customizer CSS-rules control: moved static inline <style>/<script> blocks out of PHP into files (assets/css/*.css, assets/inline/*.js), printed in the same place via file_get_contents(). Page output is unchanged apart from indentation (each move was round-trip checked before writing); the CSS is now linted and accent-checked.

@@ -109,6 +109,17 @@ class BHC_TestSuite {
         ]]]);
         $rows[] = OUS_TestRunner::assert_same(['duration' => 30, 'size' => 'medium'], array_intersect_key($result[0]['annotations'][0]['payload'] ?? [], ['duration' => 1, 'size' => 1]), 'Video banner duration clamps to 30s and an unknown size falls back to medium');
 
+        $uid = OUS_Debug::get_or_create_test_user('bhc_resume_suite', false);
+        delete_user_meta($uid, BHC_Progress::VIDEO_POSITIONS_META);
+        BHC_Progress::save_video_position($uid, 999001, 2, 125);
+        $rows[] = OUS_TestRunner::assert_same(125, BHC_Progress::video_position($uid, 999001, 2), 'Resume: a saved video position reads back for the same lesson + step');
+        $rows[] = OUS_TestRunner::assert_same(0, BHC_Progress::video_position($uid, 999001, 3), 'Resume: another step of the same lesson has no position');
+        BHC_Progress::save_video_position($uid, 999001, 2, 0);
+        $rows[] = OUS_TestRunner::assert_same(0, BHC_Progress::video_position($uid, 999001, 2), 'Resume: saving 0 (video finished) clears the position');
+        for ($i = 0; $i < BHC_Progress::VIDEO_POSITIONS_KEEP + 5; $i++) BHC_Progress::save_video_position($uid, 999100 + $i, 0, 10);
+        $rows[] = OUS_TestRunner::assert_same(BHC_Progress::VIDEO_POSITIONS_KEEP, count((array) get_user_meta($uid, BHC_Progress::VIDEO_POSITIONS_META, true)), 'Resume: the per-user position map is capped, oldest dropped first');
+        delete_user_meta($uid, BHC_Progress::VIDEO_POSITIONS_META);
+
         $result = BHC_Steps::save(1, [['type' => 'quiz', 'questions' => [['question' => 'Q', 'choices' => ['A', 'B', 'C'], 'correct_index' => 99]]]]);
         $rows[] = OUS_TestRunner::assert_same(2, $result[0]['questions'][0]['correct_index'] ?? null, 'Out-of-range correct_index clamps to last valid choice');
 

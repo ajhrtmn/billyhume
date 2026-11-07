@@ -52,7 +52,8 @@ class BHC_PostTypes {
             // 'editor' + show_in_rest: steps are authored as bhc/* blocks (BHC_ContentBridge).
             // 'revisions': steps are post_content, so native revisions cover them.
             // 'custom-fields': required for REST to expose `meta` to the Lesson sidebar panel.
-            'supports' => ['title', 'editor', 'revisions', 'custom-fields'], 'show_in_rest' => true, 'capability_type' => 'post',
+            // 'excerpt': the short description under each lesson on the course page.
+            'supports' => ['title', 'editor', 'excerpt', 'revisions', 'custom-fields'], 'show_in_rest' => true, 'capability_type' => 'post',
         ]);
     }
 

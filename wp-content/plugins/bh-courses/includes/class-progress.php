@@ -474,6 +474,42 @@ class BHC_Progress {
         ]);
     }
 
+    const VIDEO_POSITIONS_META = 'bhc_video_positions';
+    const VIDEO_POSITIONS_KEEP = 30;
+
+    /** Saved playback position in seconds for one video step, 0 when none. */
+    public static function video_position(int $user_id, int $lesson_id, int $step_index): int {
+        if (!$user_id) return 0;
+        $all = get_user_meta($user_id, self::VIDEO_POSITIONS_META, true);
+        return is_array($all) ? (int) ($all[$lesson_id . ':' . $step_index] ?? 0) : 0;
+    }
+
+    // One small map per user, most recent last, capped so it never grows with the catalog.
+    public static function save_video_position(int $user_id, int $lesson_id, int $step_index, int $seconds): void {
+        $all = get_user_meta($user_id, self::VIDEO_POSITIONS_META, true);
+        $all = is_array($all) ? $all : [];
+        $key = $lesson_id . ':' . $step_index;
+        unset($all[$key]);
+        if ($seconds > 0) $all[$key] = $seconds;
+        update_user_meta($user_id, self::VIDEO_POSITIONS_META, array_slice($all, -self::VIDEO_POSITIONS_KEEP, null, true));
+    }
+
+    // seconds = 0 clears the position (the video was finished).
+    public static function ajax_save_video_position(): void {
+        check_ajax_referer('bhc_progress', 'nonce');
+        $user_id = get_current_user_id();
+        if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
+
+        $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
+        $step_index = (int) ($_POST['step_index'] ?? -1);
+        $step = BHC_Steps::get_step($lesson_id, $step_index);
+        if (!$step || $step['type'] !== 'video') wp_send_json_error(['message' => 'Invalid video step.'], 400);
+        if (!BHC_Gate::user_can_access_lesson($user_id, $lesson_id)) wp_send_json_error(['message' => 'Access required.'], 403);
+
+        self::save_video_position($user_id, $lesson_id, $step_index, max(0, min(86400, (int) ($_POST['seconds'] ?? 0))));
+        wp_send_json_success();
+    }
+
     public static function ajax_update_watch_progress(): void {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();

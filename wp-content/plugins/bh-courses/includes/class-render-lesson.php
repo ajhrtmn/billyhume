@@ -100,7 +100,9 @@ class BHC_Render_Lesson {
             // it on load; courses.js rebuilds the class from these attributes.
             echo '<div class="bhc-step bhc-step-' . esc_attr($step['type']) . ($is_done ? ' bhc-step-done' : '')
                 . '" data-step-index="' . (int) $i . '" data-step-type="' . esc_attr($step['type']) . '"' . ($is_done ? ' data-step-done="1"' : '')
-                . ' tabindex="-1"' . $visible . '>';
+                . ' tabindex="-1"' . $visible
+                . (($step['type'] === 'video' && $uid && ($resume = BHC_Progress::video_position($uid, $lesson_id, $i))) ? ' data-resume-at="' . (int) $resume . '"' : '')
+                . '>';
             echo self::render_step($lesson_id, $i, $step, $is_done);
             // Back is client-side only; omitted on the first step.
             if ($i > 0) echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) ($i - 1) . '">&larr; Back</button>';

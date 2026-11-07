@@ -386,9 +386,16 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 var cachedDuration = 0;
                 var timeupdateCbs: Array<() => void> = [];
                 var endedCbs: Array<() => void> = [];
+                var metaCbs: Array<() => void> = [];
+                var pauseCbs: Array<() => void> = [];
+                // 'loadedmetadata' maps to ready + known duration, so resume can seek before play.
                 pjs.on('ready', function () {
-                    pjs.getDuration(function (d) { if (isFinite(d) && d > 0) cachedDuration = d; });
+                    pjs.getDuration(function (d) {
+                        if (isFinite(d) && d > 0) cachedDuration = d;
+                        for (var k = 0; k < metaCbs.length; k++) metaCbs[k]!();
+                    });
                 });
+                pjs.on('pause', function () { for (var p = 0; p < pauseCbs.length; p++) pauseCbs[p]!(); });
                 pjs.on('timeupdate', function (v) {
                     if (v && typeof v.seconds === 'number') cachedTime = v.seconds;
                     if (v && typeof v.duration === 'number' && v.duration > 0) cachedDuration = v.duration;
@@ -406,6 +413,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     on: function (evt, cb) {
                         if (evt === 'timeupdate') timeupdateCbs.push(cb);
                         else if (evt === 'ended') endedCbs.push(cb);
+                        else if (evt === 'loadedmetadata') metaCbs.push(cb);
+                        else if (evt === 'pause') pauseCbs.push(cb);
                     },
                 };
                 mediaAdapters.push({ el: el, media: bunnyMedia });
@@ -463,6 +472,61 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             }
             return null;
         }
+
+        // Resume: seek to the saved position once, then save it as playback moves on, on
+        // pause, and when the page is left. Positions near the end are cleared, not saved.
+        var positionSavers: Array<() => void> = [];
+        lesson.querySelectorAll<HTMLElement>('.bhc-step-video').forEach(function (video) {
+            var media = mediaFor(video);
+            var step = video.closest('[data-step-index]') as HTMLElement | null;
+            if (!media || !step || typeof BHCData === 'undefined') return;
+            var index = step.dataset.stepIndex ?? '-1';
+            var resumeAt = parseInt(step.dataset.resumeAt ?? '0', 10) || 0;
+            var resumed = resumeAt <= 0;
+            var lastSaved = resumeAt;
+            var lastSentAt = 0;
+
+            function tryResume() {
+                if (resumed) return;
+                var d = media!.duration();
+                if (!d) return;
+                resumed = true;
+                if (resumeAt < d - 10) {
+                    media!.seek(resumeAt);
+                    var m = Math.floor(resumeAt / 60), s = resumeAt % 60;
+                    if (typeof BHCoreToast !== 'undefined') BHCoreToast!.show('Picking up at ' + m + ':' + (s < 10 ? '0' : '') + s + '.', 'info');
+                }
+            }
+
+            function save(useBeacon: boolean) {
+                if (!resumed) return;
+                var d = media!.duration();
+                var t = Math.floor(media!.currentTime());
+                var seconds = (d && t >= d - 10) ? 0 : t;
+                if (seconds === lastSaved) return;
+                lastSaved = seconds;
+                var body = new FormData();
+                body.append('action', 'bhc_save_video_position');
+                body.append('nonce', BHCData.nonce);
+                body.append('lesson_id', lessonId);
+                body.append('step_index', index);
+                body.append('seconds', String(seconds));
+                if (useBeacon && navigator.sendBeacon) { navigator.sendBeacon(BHCData.ajaxUrl, body); return; }
+                fetch(BHCData.ajaxUrl, { method: 'POST', body: body }).catch(function () { /* next save retries */ });
+            }
+
+            media.on('loadedmetadata', tryResume);
+            media.on('timeupdate', function () {
+                tryResume();
+                var now = Date.now();
+                if (now - lastSentAt >= 15000) { lastSentAt = now; save(false); }
+            });
+            media.on('pause', function () { save(false); });
+            media.on('ended', function () { save(false); });
+            positionSavers.push(function () { save(true); });
+            tryResume(); // metadata may already be loaded
+        });
+        window.addEventListener('pagehide', function () { positionSavers.forEach(function (fn) { fn(); }); });
 
         // Video watch-progress. Only rendered with data-watch-threshold for trackable sources.
         // Sent once per whole-percent change to avoid hammering the endpoint.

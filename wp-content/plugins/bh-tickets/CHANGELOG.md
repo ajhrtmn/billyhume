@@ -6,6 +6,8 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+1.0.4 - New [bht_support] shortcode: the contact form for a Support page whose FAQ is the page's own content. Signed-in visitors' messages become tickets (category support) and notify ticket staff as usual; guests give name and email and their message notifies every bhcore_manage_tickets holder, with a honeypot, a 3-per-hour per-IP limit, the core same-origin check and a nonce. Runtime-verified over HTTP: guest and member submissions, honeypot, invalid email, foreign origin (403), bad nonce, off-site return URL, rate limit.
+
 1.0.3 — Cleared the Test Runner's one remaining red test, which had
 stood long enough that STATE.md documented it as expected:
 `for_user()` "includes the requester's own ticket." A real defect, not

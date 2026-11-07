@@ -256,6 +256,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap; /* lets a lesson description take its own line */
     gap: 12px;
     padding: 12px 14px;
     border-bottom: 1px solid var(--bh-border);
@@ -270,6 +271,47 @@
     text-decoration: none;
 }
 .bhc-lesson-list li a:hover { color: var(--bh-accent); }
+/* Lesson description: wraps onto its own line under the title row. */
+.bhc-lesson-list li > p {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--bh-text-dim);
+}
+
+/* ---- course page: downloads, feedback, credits ---- */
+.bhc-sidebar-downloads {
+    display: block;
+    margin-top: 12px;
+    font-size: 14px;
+    font-weight: 600;
+}
+.bhc-downloads h1 { margin: 12px 0 8px; }
+.bhc-downloads-lesson { margin-top: 28px; }
+.bhc-downloads-lesson h2 {
+    font-size: 18px;
+    margin: 0 0 10px;
+}
+.bhc-downloads-lesson ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+}
+.bhc-feedback,
+.bhc-course-credits {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--bh-border);
+}
+.bhc-feedback textarea {
+    width: 100%;
+    box-sizing: border-box;
+}
+.bhc-feedback-result { font-weight: 600; }
+.bhc-course-credits { color: var(--bh-text-dim); }
 /* Done: the check chip + a faint accent wash carry "completed"; the
    title only eases back a step instead of going near-invisible. */
 .bhc-lesson-list li.bhc-lesson-done {
@@ -637,7 +679,12 @@ a.bhc-pagination-number:hover {
     color: var(--bh-text);
     line-height: 1.6;
 }
-.bhc-course-header-cta { margin-top: 4px; }
+.bhc-course-header-cta {
+    margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
 .bhc-syllabus-preview { margin-top: 16px; }
 .bhc-syllabus-preview h4 {
     font-family: var(--bh-font-heading);

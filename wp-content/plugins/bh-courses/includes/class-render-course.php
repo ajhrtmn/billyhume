@@ -69,7 +69,7 @@ class BHC_Render_Course {
 
         if ($uid && !$locked) {
             $percent = BHC_Progress::course_percent($uid, $course_id);
-            $cta = self::render_continue_cta($uid, $course_id, $percent);
+            $cta = self::render_continue_cta($uid, $course_id, $percent) . BHC_Downloads::render_link($course_id);
             if ($cta) echo '<div class="bhc-course-header-cta">' . $cta . '</div>';
         }
         echo '</div>';
@@ -133,6 +133,8 @@ class BHC_Render_Course {
         $just_enrolled = false;
         if ($uid && !$locked) $just_enrolled = BHC_Progress::enroll_if_needed($uid, $course_id);
 
+        if (!$locked && BHC_Downloads::is_requested()) return BHC_Downloads::render($course_id, $uid);
+
         ob_start();
         echo '<div class="bhc-course-view">';
         // Detail-page header wraps the lesson-list output below.
@@ -148,7 +150,7 @@ class BHC_Render_Course {
                 echo '<div class="bhc-syllabus-preview"><h4>What you\'ll learn</h4><ol class="bhc-lesson-list bhc-lesson-list-preview">';
                 foreach ($lesson_ids as $lesson_id) {
                     if (get_post_status($lesson_id) !== 'publish') continue;
-                    echo '<li><span>' . esc_html(get_the_title($lesson_id)) . '</span></li>';
+                    echo '<li><span>' . esc_html(get_the_title($lesson_id)) . '</span>' . self::lesson_description($lesson_id) . '</li>';
                 }
                 echo '</ol></div>';
             }
@@ -175,6 +177,11 @@ class BHC_Render_Course {
         }
         if (!$locked && class_exists('BHC_Leaderboard')) echo BHC_Leaderboard::render($course_id);
         if (!$locked && class_exists('BHC_Reviews') && BHC_Reviews::enabled_for($course_id)) echo self::render_reviews_section($course_id, $uid);
+        if (!$locked) echo BHC_Feedback::render_form($course_id, $uid);
+        $credits = (string) get_post_meta($course_id, '_bhc_credits', true);
+        if (trim(wp_strip_all_tags($credits)) !== '') {
+            echo '<section class="bhc-course-credits"><h2>Credits</h2>' . wpautop(wp_kses_post($credits)) . '</section>';
+        }
         echo '</div>';
         return ob_get_clean();
     }
@@ -259,6 +266,7 @@ class BHC_Render_Course {
             echo '<div class="bhc-progress-bar"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label"><span class="bhc-progress-pct">' . (int) $percent . '%</span> complete</p>';
         }
         echo self::render_grouped_lesson_list($course_id, $uid, $current_lesson_id, true);
+        echo BHC_Downloads::render_link($course_id, 'bhc-sidebar-downloads');
         echo '</nav>';
         return ob_get_clean();
     }
@@ -274,6 +282,12 @@ class BHC_Render_Course {
         }
         $initial = function_exists('mb_substr') ? mb_substr(trim($name), 0, 1) : substr(trim($name), 0, 1);
         return '<span class="bhc-course-instructor-avatar bhc-instructor-monogram" aria-hidden="true">' . esc_html(mb_strtoupper($initial)) . '</span>';
+    }
+
+    // Hand-written excerpts only; WordPress's auto-excerpt would be step text.
+    private static function lesson_description(int $lesson_id): string {
+        if (!has_excerpt($lesson_id)) return '';
+        return '<p class="bhc-lesson-desc">' . esc_html(get_the_excerpt($lesson_id)) . '</p>';
     }
 
     /** @return array{html:string, complete:bool, is_current:bool} */
@@ -297,6 +311,7 @@ class BHC_Render_Course {
             $html .= ' <span class="bhc-lesson-progress"><b>' . (int) $done_count . '</b>/' . (int) $step_count . '</span>';
         }
         if ($complete) $html .= ' <span class="bhc-check" aria-label="Lesson complete">&#10003;</span>';
+        if (!$is_sidebar) $html .= self::lesson_description($lesson_id);
         $html .= '</li>';
         return ['html' => $html, 'complete' => $complete, 'is_current' => $is_current];
     }
@@ -403,7 +418,9 @@ class BHC_Render_Course {
         echo '<div class="bhc-completion-next-steps">';
         $archive_url = get_post_type_archive_link('bh_course');
         if ($archive_url) echo '<a href="' . esc_url($archive_url) . '">Browse more courses</a>';
-        if (class_exists('BHC_Reviews') && BHC_Reviews::enabled_for($course_id)) echo ' &middot; <a href="#bhc-reviews">Leave a review</a>';
+        echo (class_exists('BHC_Reviews') && BHC_Reviews::enabled_for($course_id))
+            ? ' &middot; <a href="#bhc-reviews">Leave a review</a>'
+            : ' &middot; <a href="' . esc_url((string) get_permalink($course_id)) . '#bhc-feedback">Send feedback</a>';
         echo '</div>';
         echo '</div>';
         return ob_get_clean();

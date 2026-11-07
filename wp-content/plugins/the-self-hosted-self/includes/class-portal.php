@@ -182,6 +182,9 @@ class BHI_Portal {
 
     public static function maybe_redirect_from_wp_admin(): void {
         if (wp_doing_ajax() || (defined('DOING_CRON') && DOING_CRON)) return;
+        // WHY: front-end forms post to admin-post.php, which fires admin_init too; each
+        // handler checks its own nonce and capability.
+        if (($GLOBALS['pagenow'] ?? '') === 'admin-post.php') return;
         $user = wp_get_current_user();
         if (!self::user_is_excluded($user)) return;
         wp_safe_redirect(home_url('/' . self::REWRITE_SLUG . '/'));
