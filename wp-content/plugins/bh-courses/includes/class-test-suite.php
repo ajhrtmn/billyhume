@@ -120,6 +120,17 @@ class BHC_TestSuite {
         $rows[] = OUS_TestRunner::assert_same(BHC_Progress::VIDEO_POSITIONS_KEEP, count((array) get_user_meta($uid, BHC_Progress::VIDEO_POSITIONS_META, true)), 'Resume: the per-user position map is capped, oldest dropped first');
         delete_user_meta($uid, BHC_Progress::VIDEO_POSITIONS_META);
 
+        // Access: a course sold by price only must not open for any logged-in account.
+        if (class_exists('BHM_Gate') && class_exists('BHM_Entitlements') && BHC_Gate::purchase_feature_enabled()) {
+            $paid = (int) wp_insert_post(['post_type' => 'bh_course', 'post_status' => 'publish', 'post_title' => 'Paid access test', 'meta_input' => ['bhcore_is_test' => 'bhc_paid_access', '_bhc_purchase_price_cents' => 4900]]);
+            $rows[] = OUS_TestRunner::assert_true(!BHC_Gate::user_can_access_course($uid, $paid), 'Access: a price-only course is locked for a logged-in user who has not bought it');
+            BHM_Entitlements::debug_grant_purchase($uid, $paid, 'course');
+            $rows[] = OUS_TestRunner::assert_true(BHC_Gate::user_can_access_course($uid, $paid), 'Access: buying (or being gifted) the course opens it');
+            global $wpdb;
+            $wpdb->delete(BHM_Tables::entitlements(), ['user_id' => $uid, 'object_id' => $paid]);
+            wp_delete_post($paid, true);
+        }
+
         // Private notes.
         BHC_Notes::erase_all($uid);
         $note = BHC_Notes::add($uid, 999001, 1, 83, "Bookmark <b>me</b>");

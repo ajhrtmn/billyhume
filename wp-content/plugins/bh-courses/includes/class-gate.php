@@ -65,6 +65,8 @@ class BHC_Gate {
         // early when no tier is set and never reaches its own purchase check. Checked even when
         // the kill switch is off, so paid access is never revoked by config.
         if (BHM_Gate::user_owns_object($user_id, $course_id)) return true;
+        // Staff who can edit the course always see it, so Billy can preview paid courses.
+        if ($user_id && user_can($user_id, 'edit_post', $course_id)) return true;
 
         $benefit = self::required_benefit($course_id);
         if ($benefit) {
@@ -72,6 +74,9 @@ class BHC_Gate {
         }
 
         $tier = self::required_tier($course_id);
+        // WHY: user_has_tier_access() passes when no tier is set, which left a price-only
+        // course open to any logged-in account. Sold by price alone means buying is the way in.
+        if (!$tier && self::has_purchase_option($course_id)) return false;
         return BHM_Gate::user_has_tier_access($user_id, $tier, $course_id);
     }
 
