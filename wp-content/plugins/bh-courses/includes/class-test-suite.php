@@ -120,6 +120,18 @@ class BHC_TestSuite {
         $rows[] = OUS_TestRunner::assert_same(BHC_Progress::VIDEO_POSITIONS_KEEP, count((array) get_user_meta($uid, BHC_Progress::VIDEO_POSITIONS_META, true)), 'Resume: the per-user position map is capped, oldest dropped first');
         delete_user_meta($uid, BHC_Progress::VIDEO_POSITIONS_META);
 
+        // Private notes.
+        BHC_Notes::erase_all($uid);
+        $note = BHC_Notes::add($uid, 999001, 1, 83, "Bookmark <b>me</b>");
+        $rows[] = OUS_TestRunner::assert_same(['step' => 1, 't' => 83, 'body' => 'Bookmark me'], is_array($note) ? array_intersect_key($note, ['step' => 1, 't' => 1, 'body' => 1]) : null, 'Notes: a bookmarked note keeps its step and time, with tags stripped from the text');
+        $plain = BHC_Notes::add($uid, 999001, -1, 40, 'Plain');
+        $rows[] = OUS_TestRunner::assert_same(-1, is_array($plain) ? $plain['t'] : null, 'Notes: a note without a video step stores no time');
+        $rows[] = OUS_TestRunner::assert_true(is_wp_error(BHC_Notes::add($uid, 999001, -1, -1, '   ')), 'Notes: an empty note is refused');
+        $rows[] = OUS_TestRunner::assert_true(is_array($note) && BHC_Notes::delete($uid, 999001, $note['id']) && count(BHC_Notes::get($uid, 999001)) === 1, 'Notes: delete removes only that note');
+        $rows[] = OUS_TestRunner::assert_true(!BHC_Notes::delete($uid + 1, 999001, is_array($plain) ? $plain['id'] : ''), 'Notes: another user cannot delete them');
+        BHC_Notes::erase_all($uid);
+        $rows[] = OUS_TestRunner::assert_same([], BHC_Notes::get($uid, 999001), 'Notes: erase_all() (the privacy eraser) clears every note');
+
         $result = BHC_Steps::save(1, [['type' => 'quiz', 'questions' => [['question' => 'Q', 'choices' => ['A', 'B', 'C'], 'correct_index' => 99]]]]);
         $rows[] = OUS_TestRunner::assert_same(2, $result[0]['questions'][0]['correct_index'] ?? null, 'Out-of-range correct_index clamps to last valid choice');
 

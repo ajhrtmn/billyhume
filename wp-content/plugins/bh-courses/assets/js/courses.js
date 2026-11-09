@@ -47,6 +47,13 @@ window.BHCLessonStepDom = {
                 select.addEventListener('change', function () { filterForm.submit(); });
             });
         }
+        // Sales-page background video: no looping motion for people who asked for less.
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            document.querySelectorAll('video[data-bhc-landing-video]').forEach(function (v) {
+                v.removeAttribute('autoplay');
+                v.pause();
+            });
+        }
     });
     // Course-page review form; outside the .bhc-lesson block because that early-returns on the course page.
     document.addEventListener('DOMContentLoaded', function () {
@@ -462,6 +469,120 @@ window.BHCLessonStepDom = {
             tryResume(); // metadata may already be loaded
         });
         window.addEventListener('pagehide', function () { positionSavers.forEach(function (fn) { fn(); }); });
+        // Private notes (BHC_Notes). Keyed on data-* only: Etch blanks classes here.
+        var notesRoot = lesson.querySelector('[data-bhc-notes]');
+        if (notesRoot && typeof BHCData !== 'undefined') {
+            var noteForm = notesRoot.querySelector('[data-bhc-note-form]');
+            var noteList = notesRoot.querySelector('[data-bhc-note-list]');
+            var noteError = notesRoot.querySelector('[data-bhc-note-error]');
+            function fmtTime(t) {
+                var h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+                var mm = h ? (m < 10 ? '0' : '') + m : String(m);
+                return (h ? h + ':' : '') + mm + ':' + (s < 10 ? '0' : '') + s;
+            }
+            // The video in the step currently on screen, if any.
+            function visibleVideo() {
+                var _a;
+                var steps = lesson.querySelectorAll('[data-step-index]');
+                for (var i = 0; i < steps.length; i++) {
+                    var st = steps[i];
+                    if (st.style.display === 'none')
+                        continue;
+                    var m = mediaFor(st.querySelector('.bhc-step-video'));
+                    if (m)
+                        return { index: parseInt((_a = st.dataset.stepIndex) !== null && _a !== void 0 ? _a : '-1', 10), media: m };
+                }
+                return null;
+            }
+            function noteItem(n) {
+                var li = document.createElement('li');
+                li.dataset.bhcNote = n.id;
+                if (n.step >= 0) {
+                    var seekBtn = document.createElement('button');
+                    seekBtn.type = 'button';
+                    seekBtn.dataset.bhcNoteSeek = '';
+                    seekBtn.dataset.step = String(n.step);
+                    seekBtn.dataset.t = String(n.t);
+                    seekBtn.textContent = fmtTime(n.t);
+                    li.appendChild(seekBtn);
+                }
+                var p = document.createElement('p');
+                p.textContent = n.body;
+                li.appendChild(p);
+                var del = document.createElement('button');
+                del.type = 'button';
+                del.dataset.bhcNoteDelete = '';
+                del.setAttribute('aria-label', 'Delete note');
+                del.textContent = '×';
+                li.appendChild(del);
+                return li;
+            }
+            function showNoteError(msg) {
+                if (!noteError)
+                    return;
+                noteError.textContent = msg;
+                noteError.hidden = msg === '';
+            }
+            if (noteForm && noteList) {
+                noteForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    var textarea = noteForm.querySelector('textarea');
+                    var stamp = noteForm.querySelector('input[name="stamp"]');
+                    var at = stamp && stamp.checked ? visibleVideo() : null;
+                    var body = new URLSearchParams({
+                        action: 'bhc_add_note', nonce: BHCData.nonce, lesson_id: lessonId, body: textarea.value,
+                        step_index: at ? String(at.index) : '-1',
+                        t: at ? String(Math.floor(at.media.currentTime())) : '-1',
+                    });
+                    var submit = noteForm.querySelector('button[type="submit"]');
+                    submit.disabled = true;
+                    fetch(BHCData.ajaxUrl, { method: 'POST', body: body })
+                        .then(function (r) { return r.json(); })
+                        .then(function (res) {
+                        var _a;
+                        if (!res.success || !res.data) {
+                            showNoteError(((_a = res.data) === null || _a === void 0 ? void 0 : _a.message) || 'Could not save the note.');
+                            return;
+                        }
+                        noteList.appendChild(noteItem(res.data.note));
+                        textarea.value = '';
+                        showNoteError('');
+                    })
+                        .catch(function () { showNoteError('Could not save the note. Check your connection.'); })
+                        .then(function () { submit.disabled = false; });
+                });
+                noteList.addEventListener('click', function (e) {
+                    var _a, _b, _c;
+                    var target = e.target;
+                    var li = target.closest('[data-bhc-note]');
+                    if (!li)
+                        return;
+                    if (target.closest('[data-bhc-note-seek]')) {
+                        var btn = target.closest('[data-bhc-note-seek]');
+                        var stepIndex = parseInt((_a = btn.dataset.step) !== null && _a !== void 0 ? _a : '-1', 10);
+                        var stepEl = lesson.querySelector('[data-step-index="' + stepIndex + '"]');
+                        var m = stepEl ? mediaFor(stepEl.querySelector('.bhc-step-video')) : null;
+                        if (!stepEl || !m)
+                            return;
+                        showStep(stepIndex);
+                        m.seek(parseInt((_b = btn.dataset.t) !== null && _b !== void 0 ? _b : '0', 10));
+                        m.play();
+                        stepEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        return;
+                    }
+                    if (target.closest('[data-bhc-note-delete]')) {
+                        var del = new URLSearchParams({ action: 'bhc_delete_note', nonce: BHCData.nonce, lesson_id: lessonId, note_id: (_c = li.dataset.bhcNote) !== null && _c !== void 0 ? _c : '' });
+                        fetch(BHCData.ajaxUrl, { method: 'POST', body: del })
+                            .then(function (r) { return r.json(); })
+                            .then(function (res) { if (res.success)
+                            li.remove();
+                        else
+                            showNoteError('Could not delete the note.'); })
+                            .catch(function () { showNoteError('Could not delete the note. Check your connection.'); });
+                    }
+                });
+            }
+        }
         // Video watch-progress. Only rendered with data-watch-threshold for trackable sources.
         // Sent once per whole-percent change to avoid hammering the endpoint.
         lesson.querySelectorAll('.bhc-step-video[data-watch-threshold]').forEach(function (video) {

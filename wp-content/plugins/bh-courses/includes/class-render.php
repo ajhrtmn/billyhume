@@ -9,6 +9,7 @@ class BHC_Render {
     public static function init(): void {
         add_shortcode('bh_courses', ['BHC_Render_Catalog', 'render_catalog']);
         add_shortcode('bh_course', ['BHC_Render_Course', 'render_course']);
+        add_shortcode('bh_course_landing', ['BHC_Render_Landing', 'render']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_filter('render_block', [self::class, 'suppress_generic_post_navigation'], 10, 2);
         add_filter('render_block', [self::class, 'suppress_broken_byline'], 10, 2);
@@ -67,7 +68,7 @@ class BHC_Render {
         global $post;
         // has_block() as well as has_shortcode(), and bh_course singulars (rendered directly
         // via the_content), so assets load wherever course markup appears.
-        if (!$post || !(has_shortcode($post->post_content, 'bh_courses') || has_shortcode($post->post_content, 'bh_course') || has_block('bhc/catalog', $post) || has_block('bhc/course', $post) || $post->post_type === 'bh_lesson' || $post->post_type === 'bh_course')) return;
+        if (!$post || !(has_shortcode($post->post_content, 'bh_courses') || has_shortcode($post->post_content, 'bh_course') || has_block('bhc/catalog', $post) || has_block('bhc/course', $post) || has_shortcode($post->post_content, 'bh_course_landing') || has_block('bhc/course-landing', $post) || $post->post_type === 'bh_lesson' || $post->post_type === 'bh_course')) return;
         self::enqueue_assets();
     }
 

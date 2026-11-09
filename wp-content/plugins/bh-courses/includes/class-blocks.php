@@ -34,6 +34,20 @@ class BHC_Blocks {
                 'id' => ['type' => 'number', 'default' => 0],
             ],
         ]);
+
+        register_block_type('bhc/course-landing', [
+            'editor_script'   => 'bhc-blocks',
+            'render_callback' => [self::class, 'render_landing'],
+            'attributes'      => [
+                'id' => ['type' => 'number', 'default' => 0],
+            ],
+        ]);
+    }
+
+    /** @param array<string, mixed> $attributes */
+    public static function render_landing($attributes): string {
+        $id = (int) ($attributes['id'] ?? 0);
+        return $id ? BHC_Render_Landing::render(['id' => $id]) : '';
     }
 
     /** @param array<string, mixed> $attributes */

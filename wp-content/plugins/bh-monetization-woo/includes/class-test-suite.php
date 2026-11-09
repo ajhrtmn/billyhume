@@ -169,6 +169,10 @@ class BHM_TestSuite {
             $rows = array_merge($rows, self::run_purchase_ledger_tests());
         }
 
+        if (class_exists('BHM_GiftAccess') && class_exists('OUS_Debug') && BH_Commerce::available()) {
+            $rows = array_merge($rows, self::run_gift_access_tests());
+        }
+
         // Auctions run against a plain post: BHM_Auctions never calls wc_get_product().
         if (class_exists('BHM_Wallet') && class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_wallet_hold_tests());
@@ -528,6 +532,39 @@ class BHM_TestSuite {
         if ($product_id) wp_delete_post($product_id, true);
         wp_delete_post($track_id, true);
 
+        return $rows;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private static function run_gift_access_tests(): array {
+        global $wpdb;
+        $rows = [];
+        $track_id = wp_insert_post([
+            'post_type' => 'bhs_track', 'post_status' => 'publish', 'post_title' => 'BHM Gift Access Suite Fixture Track',
+            'meta_input' => ['bhcore_is_test' => 'bhm_gift_access_suite'],
+        ], true);
+        if (is_wp_error($track_id)) return [['name' => 'Gift-access fixture creation failed', 'pass' => false, 'message' => 'Could not create fixture bhs_track post.']];
+        $product_id = BHM_ProductSync::sync_object_purchase_product($track_id, 'bhs_track', 499);
+        $recipient = get_userdata(OUS_Debug::get_or_create_test_user('bhm_gift_access_suite', false));
+        $wpdb->delete(BHM_Tables::entitlements(), ['user_id' => $recipient->ID, 'object_id' => $track_id]);
+
+        $order_id = BHM_GiftAccess::gift($track_id, $recipient->user_email, 'Enjoy', 0);
+        $order = is_wp_error($order_id) ? null : wc_get_order($order_id);
+        $rows[] = OUS_TestRunner::assert_true((bool) $order, 'Gift access creates a real WooCommerce order');
+        if ($order) {
+            $rows[] = OUS_TestRunner::assert_same('completed', $order->get_status(), 'The gift order is completed, so the normal fulfilment hooks ran');
+            $rows[] = OUS_TestRunner::assert_same(0.0, (float) $order->get_total(), 'The gift order totals $0 even though the product has a price');
+            $rows[] = OUS_TestRunner::assert_true(BHM_Gate::user_owns_object($recipient->ID, $track_id), 'The recipient owns the item after the gift');
+            $again = BHM_GiftAccess::gift($track_id, $recipient->user_email, '', 0);
+            $rows[] = OUS_TestRunner::assert_same('owned', is_wp_error($again) ? $again->get_error_code() : 'created', 'Gifting the same item twice is refused instead of making a second order');
+            $order->update_status('refunded');
+            $rows[] = OUS_TestRunner::assert_true(!BHM_Gate::user_owns_object($recipient->ID, $track_id), 'Refunding the gift order takes access back, like any purchase');
+            $wpdb->delete(BHM_Tables::purchase_ledger(), ['wc_order_id' => $order->get_id()]);
+            $order->delete(true);
+        }
+        $wpdb->delete(BHM_Tables::entitlements(), ['user_id' => $recipient->ID, 'object_id' => $track_id]);
+        if ($product_id) wp_delete_post($product_id, true);
+        wp_delete_post($track_id, true);
         return $rows;
     }
 }

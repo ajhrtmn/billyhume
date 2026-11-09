@@ -1,5 +1,5 @@
 /**
- * Editor registration for 'bhc/catalog' and 'bhc/course' (class-blocks.php). Both are fully
+ * Editor registration for 'bhc/catalog', 'bhc/course' and 'bhc/course-landing' (class-blocks.php). Both are fully
  * server-rendered, so wp.serverSideRender shows the real final HTML.
  */
 
@@ -88,57 +88,68 @@ interface BHCBlocksWindow extends Window {
         save: function () { return null; },
     });
 
-    blocks.registerBlockType('bhc/course', {
-        apiVersion: 3,
-        title: __('Single Course (BH Courses)', 'bh-courses'),
-        description: __('A single course’s detail page — the same [bh_course] shortcode, as a real block with a live preview.', 'bh-courses'),
-        icon: 'welcome-learn-more',
-        category: 'widgets',
-        attributes: { id: { type: 'number', default: 0 } },
+    // Both course-picking blocks share one editor: a course dropdown plus a live preview.
+    function registerCourseBlock(name: string, title: string, description: string, placeholderLabel: string) {
+        blocks!.registerBlockType(name, {
+            apiVersion: 3,
+            title: title,
+            description: description,
+            icon: 'welcome-learn-more',
+            category: 'widgets',
+            attributes: { id: { type: 'number', default: 0 } },
 
-        edit: function (props: { attributes: { id: number }; setAttributes: (attrs: Partial<{ id: number }>) => void }) {
-            const attributes = props.attributes;
-            const setAttributes = props.setAttributes;
-            const [courses, setCourses] = useState<BHCCourseOption[]>([]);
-            const [loading, setLoading] = useState(true);
+            edit: function (props: { attributes: { id: number }; setAttributes: (attrs: Partial<{ id: number }>) => void }) {
+                const attributes = props.attributes;
+                const setAttributes = props.setAttributes;
+                const [courses, setCourses] = useState<BHCCourseOption[]>([]);
+                const [loading, setLoading] = useState(true);
 
-            useEffect(() => {
-                apiFetch!({ path: '/bhc/v1/courses-picker' })
-                    .then((list) => {
-                        setCourses(Array.isArray(list) ? (list as BHCCourseOption[]) : []);
-                        setLoading(false);
-                    })
-                    .catch(() => { setLoading(false); });
-            }, []);
-
-            const options = [{ label: __('— Select a course —', 'bh-courses'), value: 0 }].concat(
-                courses.map((c) => ({ label: c.title, value: c.id }))
-            );
-
-            return el('div', {},
-                el(InspectorControls, {},
-                    el(PanelBody, { title: __('Course', 'bh-courses') },
-                        el(SelectControl, {
-                            label: __('Which course', 'bh-courses'),
-                            value: attributes.id,
-                            options: options,
-                            disabled: loading,
-                            onChange: function (val: string) { setAttributes({ id: parseInt(val, 10) || 0 }); },
+                useEffect(() => {
+                    apiFetch!({ path: '/bhc/v1/courses-picker' })
+                        .then((list) => {
+                            setCourses(Array.isArray(list) ? (list as BHCCourseOption[]) : []);
+                            setLoading(false);
                         })
-                    )
-                ),
-                attributes.id
-                    ? el(ServerSideRender, { block: 'bhc/course', attributes: attributes })
-                    : el(Placeholder, {
-                        icon: 'welcome-learn-more',
-                        label: __('Single Course', 'bh-courses'),
-                        instructions: __('Choose a course in the block sidebar (Inspector panel) to preview it here.', 'bh-courses'),
-                    })
-            );
-        },
+                        .catch(() => { setLoading(false); });
+                }, []);
 
-        save: function () { return null; },
-    });
+                const options = [{ label: __('— Select a course —', 'bh-courses'), value: 0 }].concat(
+                    courses.map((c) => ({ label: c.title, value: c.id }))
+                );
+
+                return el('div', {},
+                    el(InspectorControls, {},
+                        el(PanelBody, { title: __('Course', 'bh-courses') },
+                            el(SelectControl, {
+                                label: __('Which course', 'bh-courses'),
+                                value: attributes.id,
+                                options: options,
+                                disabled: loading,
+                                onChange: function (val: string) { setAttributes({ id: parseInt(val, 10) || 0 }); },
+                            })
+                        )
+                    ),
+                    attributes.id
+                        ? el(ServerSideRender, { block: name, attributes: attributes })
+                        : el(Placeholder, {
+                            icon: 'welcome-learn-more',
+                            label: placeholderLabel,
+                            instructions: __('Choose a course in the block sidebar (Inspector panel) to preview it here.', 'bh-courses'),
+                        })
+                );
+            },
+
+            save: function () { return null; },
+        });
+    }
+
+    registerCourseBlock('bhc/course', __('Single Course (BH Courses)', 'bh-courses'),
+        __('A single course’s detail page — the same [bh_course] shortcode, as a real block with a live preview.', 'bh-courses'),
+        __('Single Course', 'bh-courses'));
+    registerCourseBlock('bhc/course-landing', __('Course Sales Page (BH Courses)', 'bh-courses'),
+        __('A course’s sales page: hero, what’s inside, testimonials, FAQ and the buy button. Fill it in under the course’s Sales page fields.', 'bh-courses'),
+        __('Course Sales Page', 'bh-courses'));
+
 })(
     (window as BHCBlocksWindow).wp && (window as BHCBlocksWindow).wp!.blocks,
     (window as BHCBlocksWindow).wp && (window as BHCBlocksWindow).wp!.element,

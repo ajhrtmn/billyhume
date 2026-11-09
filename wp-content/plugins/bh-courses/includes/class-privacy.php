@@ -90,9 +90,11 @@ class BHC_Privacy {
 
         $removed_progress = $wpdb->delete(BHC_Tables::progress(), ['user_id' => $user->ID]);
         $removed_achievements = $wpdb->delete(BHC_Tables::achievements(), ['user_id' => $user->ID]);
+        $removed_notes = class_exists('BHC_Notes') ? BHC_Notes::erase_all($user->ID) : 0;
+        delete_user_meta($user->ID, BHC_Progress::VIDEO_POSITIONS_META);
 
         return [
-            'items_removed' => (bool) ($removed_progress || $removed_achievements),
+            'items_removed' => (bool) ($removed_progress || $removed_achievements || $removed_notes),
             'items_retained' => false,
             'messages' => [],
             'done' => true,

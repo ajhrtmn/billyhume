@@ -136,6 +136,10 @@ class BHC_Render_Lesson {
         }
         echo '</div>';
 
+        if (class_exists('BHC_Notes')) {
+            $has_video = (bool) array_filter($steps, fn($s) => ($s['type'] ?? '') === 'video');
+            echo BHC_Notes::render($uid, $lesson_id, $has_video);
+        }
         echo '</div>'; // .bhc-lesson
         echo '</div>'; // .bhc-lesson-main
         echo '</div>'; // .bhc-lesson-layout

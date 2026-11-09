@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.16.41
+ * Version:     0.16.42
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.16.41');
+define('BHC_VER',  '0.16.42');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -20,7 +20,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  * (class_exists() at init) and enables tier-gating; without it courses are open.
  * No relationship to bh-streaming.
  */
-foreach (['tables', 'post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'bunny', 'reviews', 'downloads', 'feedback', 'privacy', 'sessions', 'sessions-admin', 'sessions-portal'] as $f) {
+foreach (['tables', 'post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render-landing', 'render', 'style-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'bunny', 'reviews', 'downloads', 'feedback', 'notes', 'privacy', 'sessions', 'sessions-admin', 'sessions-portal'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -54,6 +54,7 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHC_Achievements', 'init']);
     add_action('init', ['BHC_Privacy', 'init']);
     add_action('init', ['BHC_Feedback', 'init']);
+    add_action('init', ['BHC_Notes', 'init']);
     add_action('init', ['BHC_Debug', 'init']);
     add_action('init', ['BHC_StyleSurface', 'init']);
     // Design Suite tokens for the lesson screen, via BHY_Style's extension points.

@@ -314,6 +314,13 @@ class BHC_Admin {
         echo '<p><textarea name="bhc_credits" rows="4" style="width:100%;" placeholder="e.g. Mixed by …, Music by …, Filmed at …">' . esc_textarea((string) get_post_meta($post->ID, '_bhc_credits', true)) . '</textarea></p>';
         echo '<p class="description">Shown at the bottom of the course page. Links and basic formatting are allowed; leave empty to hide the section.</p>';
 
+        echo '<h4>Sales page</h4>';
+        echo '<p class="description">Used by the <strong>Course Sales Page</strong> block (or <code>[bh_course_landing id="' . (int) $post->ID . '"]</code>). The course description above is its "About" section. Every field is optional.</p>';
+        echo '<p><label>Tagline<br><input type="text" name="bhc_landing_tagline" class="widefat" value="' . esc_attr((string) get_post_meta($post->ID, '_bhc_landing_tagline', true)) . '"></label></p>';
+        echo '<p><label>Background video URL <span class="description">(an MP4 from the Media Library; plays muted on a loop behind the title)</span><br><input type="url" name="bhc_landing_video" class="widefat" value="' . esc_attr((string) get_post_meta($post->ID, '_bhc_landing_video', true)) . '"></label></p>';
+        echo '<p><label>Testimonials <span class="description">(one per paragraph, separated by a blank line; end with a line like "— Name")</span><br><textarea name="bhc_landing_testimonials" rows="5" class="widefat">' . esc_textarea((string) get_post_meta($post->ID, '_bhc_landing_testimonials', true)) . '</textarea></label></p>';
+        echo '<p><label>FAQ <span class="description">(first line is the question, the lines under it the answer; a blank line between questions)</span><br><textarea name="bhc_landing_faq" rows="6" class="widefat">' . esc_textarea((string) get_post_meta($post->ID, '_bhc_landing_faq', true)) . '</textarea></label></p>';
+
         $certificate_enabled = (bool) get_post_meta($post->ID, '_bhc_certificate_enabled', true);
         $certificate_signature = (string) get_post_meta($post->ID, '_bhc_certificate_signature', true);
         echo '<h4>Certificate of completion</h4>';
@@ -391,6 +398,11 @@ class BHC_Admin {
         update_post_meta($post_id, '_bhc_comments_enabled', !empty($_POST['bhc_comments_enabled']) ? 1 : 0);
         update_post_meta($post_id, '_bhc_reviews_enabled', !empty($_POST['bhc_reviews_enabled']) ? 1 : 0);
         if (isset($_POST['bhc_credits'])) update_post_meta($post_id, '_bhc_credits', wp_kses_post(wp_unslash($_POST['bhc_credits'])));
+        if (isset($_POST['bhc_landing_tagline'])) update_post_meta($post_id, '_bhc_landing_tagline', sanitize_text_field(wp_unslash($_POST['bhc_landing_tagline'])));
+        if (isset($_POST['bhc_landing_video'])) update_post_meta($post_id, '_bhc_landing_video', esc_url_raw(wp_unslash($_POST['bhc_landing_video'])));
+        foreach (['testimonials', 'faq'] as $field) {
+            if (isset($_POST['bhc_landing_' . $field])) update_post_meta($post_id, '_bhc_landing_' . $field, sanitize_textarea_field(wp_unslash($_POST['bhc_landing_' . $field])));
+        }
         update_post_meta($post_id, '_bhc_certificate_enabled', !empty($_POST['bhc_certificate_enabled']) ? 1 : 0);
         update_post_meta($post_id, '_bhc_certificate_signature', isset($_POST['bhc_certificate_signature']) ? sanitize_text_field($_POST['bhc_certificate_signature']) : '');
         $posted_style = (string) ($_POST['bhc_share_card_style'] ?? '');
@@ -653,7 +665,7 @@ class BHC_Admin {
         // Course-level settings only, never enrollment/progress data.
         foreach ([
             '_bhc_instructor_id', '_bhc_difficulty', '_bhc_duration_note',
-            '_bhc_comments_enabled', '_bhc_reviews_enabled', '_bhc_credits','_bhc_certificate_enabled', '_bhc_certificate_signature', '_bhc_share_card_style',
+            '_bhc_comments_enabled', '_bhc_reviews_enabled', '_bhc_credits', '_bhc_landing_tagline', '_bhc_landing_video', '_bhc_landing_testimonials', '_bhc_landing_faq', '_bhc_certificate_enabled', '_bhc_certificate_signature', '_bhc_share_card_style',
             '_bhm_required_tier', '_bhm_required_benefit',
             '_bhc_leaderboard_enabled',
         ] as $key) {
