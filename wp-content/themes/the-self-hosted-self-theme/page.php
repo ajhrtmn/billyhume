@@ -2,7 +2,12 @@
 
 <div class="oust-container">
     <?php while (have_posts()) : the_post(); ?>
-        <?php get_template_part('template-parts/page-header', null, ['title' => get_the_title()]); ?>
+        <?php
+        // Plugins whose page content brings its own heading (e.g. a course sales page) turn this off.
+        if (apply_filters('oust_show_page_header', true, get_post())) {
+            get_template_part('template-parts/page-header', null, ['title' => get_the_title()]);
+        }
+        ?>
 
         <article <?php post_class('oust-page-content'); ?> id="post-<?php the_ID(); ?>">
             <?php if (has_post_thumbnail()) : ?>

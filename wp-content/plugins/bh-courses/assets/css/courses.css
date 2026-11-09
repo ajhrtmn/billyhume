@@ -342,6 +342,16 @@
     margin-top: 8px;
     font-size: 14px;
 }
+/* The lesson reset strips native control styling; this checkbox has no custom look, so restore it. */
+[data-bhc-note-actions] input[type="checkbox"] {
+    -webkit-appearance: checkbox;
+    appearance: auto;
+    width: 16px;
+    height: 16px;
+    margin: 0 6px 0 0;
+    vertical-align: -3px;
+    accent-color: var(--bh-accent);
+}
 [data-bhc-note-error] {
     margin: 8px 0 0;
     color: var(--bhc-danger, #b32d2e);
@@ -2486,3 +2496,9 @@ a.bhc-pagination-number:active,
         padding: 40px 16px;
     }
 }
+.bhc-landing-offer {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+.bhc-btn-buy-once del { opacity: .7; }

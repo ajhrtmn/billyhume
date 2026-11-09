@@ -19,6 +19,48 @@ class BHM_AutoCoupons {
         add_action('woocommerce_removed_coupon', [self::class, 'remember_removed']);
         add_action('deleted_post', [self::class, 'flush']);
         add_action('trashed_post', [self::class, 'flush']);
+        // Lets other plugins advertise the offer (e.g. a course sales page) without knowing about coupons.
+        add_filter('bhm_product_offer', [self::class, 'offer_filter'], 10, 2);
+    }
+
+    /**
+     * @param mixed $offer
+     * @return array{price: float, regular: float, remaining: ?int}|mixed
+     */
+    public static function offer_filter($offer, int $product_id) {
+        return $offer ?: self::offer_for_product($product_id);
+    }
+
+    /**
+     * The best automatic offer a lone cart of this product would get, judged by the coupon's
+     * own rules (expiry, usage left, product lists, minimum spend).
+     * @return array{price: float, regular: float, remaining: ?int}|null
+     */
+    public static function offer_for_product(int $product_id): ?array {
+        $product = function_exists('wc_get_product') ? wc_get_product($product_id) : null;
+        if (!$product) return null;
+        $regular = (float) $product->get_price();
+        $best = null;
+        foreach (self::codes() as $code) {
+            $c = new \WC_Coupon($code);
+            if (!$c->get_id()) continue;
+            $expires = $c->get_date_expires();
+            if ($expires && $expires->getTimestamp() < time()) continue;
+            $limit = (int) $c->get_usage_limit();
+            if ($limit && $c->get_usage_count() >= $limit) continue;
+            $only = array_map('intval', $c->get_product_ids());
+            if (($only && !in_array($product_id, $only, true)) || in_array($product_id, array_map('intval', $c->get_excluded_product_ids()), true)) continue;
+            if ((float) $c->get_minimum_amount() > $regular) continue;
+            $amount = (float) $c->get_amount();
+            $price = match ($c->get_discount_type()) {
+                'percent' => $regular * (1 - min(100, $amount) / 100),
+                'fixed_product', 'fixed_cart' => max(0, $regular - $amount),
+                default => null,
+            };
+            if ($price === null || ($best && $price >= $best['price'])) continue;
+            $best = ['price' => round($price, 2), 'regular' => $regular, 'remaining' => $limit ? $limit - (int) $c->get_usage_count() : null];
+        }
+        return ($best && $best['price'] < $regular) ? $best : null;
     }
 
     /** @param mixed $coupon */

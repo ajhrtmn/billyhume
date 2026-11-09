@@ -340,14 +340,17 @@ class BHM_Entitlements {
         // Integration hook for every grant type (tiers and purchases).
         do_action('bhm_entitlement_granted', $user_id, $type, $scope, $object_id);
 
-        // Skipped when replace_active_tier_entitlements() already sent a "you switched tiers" notice.
-        if (!$replaced_different_tier && class_exists('OUS_Notifications')) {
+        // Skipped when replace_active_tier_entitlements() already sent a "you switched tiers" notice,
+        // or when the plugin that owns the item sends its own (bh-courses' "Enrolled").
+        $notify = !$replaced_different_tier && apply_filters('bhm_send_entitlement_notice', true, $user_id, $type, $scope, $object_id);
+        if ($notify && class_exists('OUS_Notifications')) {
+            $is_purchase = $type === 'purchase';
             OUS_Notifications::notify(
                 $user_id,
                 'entitlement_granted',
-                'Access granted',
-                'Thanks for your support — your access is active now.',
-                '',
+                $is_purchase ? 'Yours now: ' . get_the_title($object_id) : 'Access granted',
+                $is_purchase ? 'It\'s in your account whenever you want it.' : 'Thanks for your support — your access is active now.',
+                $is_purchase ? (string) get_permalink($object_id) : '',
                 'BH Monetization',
                 false // in-app only; WooCommerce already emails an order confirmation
             );

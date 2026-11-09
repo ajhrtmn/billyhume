@@ -5,6 +5,9 @@
         <?php
         // Fallback single view for every CPT too: get_the_category() only
         // works for 'post', so use the post type's singular label otherwise.
+        // WHY: date/author and date-ordered prev/next are blog furniture; on a course or
+        // lesson they would link into unrelated content.
+        $is_blog_post = get_post_type() === 'post';
         $cats = get_the_category();
         if ($cats) {
             $kicker = esc_html($cats[0]->name);
@@ -15,7 +18,7 @@
         get_template_part('template-parts/page-header', null, [
             'kicker' => $kicker,
             'title' => get_the_title(),
-            'lede' => get_the_date() . ' &middot; ' . esc_html(get_the_author()),
+            'lede' => $is_blog_post ? get_the_date() . ' &middot; ' . esc_html(get_the_author()) : '',
         ]);
         ?>
 
@@ -42,6 +45,7 @@
             <?php endif; ?>
         </article>
 
+        <?php if ($is_blog_post) : ?>
         <nav class="oust-post-nav">
             <?php
             $prev = get_previous_post();
@@ -64,6 +68,7 @@
                 <?php endif; ?>
             </div>
         </nav>
+        <?php endif; ?>
 
         <?php if (comments_open() || get_comments_number()) : comments_template(); endif; ?>
     <?php endwhile; ?>

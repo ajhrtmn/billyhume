@@ -9,6 +9,16 @@ if (!defined('ABSPATH')) exit;
 class BHC_Render_Landing {
     private static bool $rendering = false;
 
+    public static function init(): void {
+        add_filter('oust_show_page_header', [self::class, 'hide_theme_title'], 10, 2);
+    }
+
+    /** The sales page opens with its own hero title, so the theme's page title would repeat it. */
+    public static function hide_theme_title(bool $show, $post): bool {
+        if (!$post instanceof \WP_Post) return $show;
+        return (has_block('bhc/course-landing', $post) || has_shortcode($post->post_content, 'bh_course_landing')) ? false : $show;
+    }
+
     /** @param mixed $atts */
     public static function render($atts): string {
         $course_id = (int) ((is_array($atts) ? ($atts['id'] ?? 0) : 0) ?: get_the_ID());
@@ -79,7 +89,17 @@ class BHC_Render_Landing {
         $product_id = (int) get_post_meta($course_id, '_bhm_purchase_wc_product_id', true);
         if (BHC_Gate::has_purchase_option($course_id) && $product_id && function_exists('wc_get_cart_url')) {
             $price = function_exists('wc_price') ? wc_price(BHC_Gate::purchase_price_cents($course_id) / 100) : '';
+            // An automatic launch coupon (bh-monetization-woo), if one applies; null otherwise.
+            $offer = apply_filters('bhm_product_offer', null, $product_id);
+            if (is_array($offer) && function_exists('wc_price')) {
+                $price = '<del>' . wc_price($offer['regular']) . '</del> ' . wc_price($offer['price']);
+            }
             $out .= '<a class="bhc-btn bhc-btn-buy-once" href="' . esc_url(add_query_arg('add-to-cart', $product_id, wc_get_cart_url())) . '">Get the course' . ($price ? ' &mdash; ' . $price : '') . '</a>';
+            if (is_array($offer)) {
+                $out .= '<p class="bhc-landing-offer">' . (!empty($offer['remaining'])
+                    ? 'Launch price for the next ' . (int) $offer['remaining'] . ' buyer' . ((int) $offer['remaining'] === 1 ? '' : 's') . '.'
+                    : 'Launch price, applied at checkout.') . '</p>';
+            }
         } else {
             $out .= '<a class="bhc-btn" href="' . esc_url((string) get_permalink($course_id)) . '">View the course &rarr;</a>';
         }

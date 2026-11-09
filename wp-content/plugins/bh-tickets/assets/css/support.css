@@ -1,0 +1,48 @@
+/* [bht_support] contact form: plugin-local layer, built on the site's --bh-* tokens. */
+.bht-support {
+    margin-top: 32px;
+    max-width: 640px;
+}
+.bht-support-form label {
+    display: block;
+    font-weight: 600;
+    font-size: 14px;
+}
+.bht-support-form input[type="text"],
+.bht-support-form input[type="email"],
+.bht-support-form textarea {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--bh-border, #3d1b14);
+    border-radius: 8px;
+    background: var(--bh-surface, #220c0a);
+    color: var(--bh-text, #f3e9e4);
+    font: inherit;
+    font-weight: 400;
+}
+.bht-support-form input:focus,
+.bht-support-form textarea:focus {
+    outline: 2px solid var(--bh-accent, #c9573f);
+    outline-offset: 1px;
+}
+.bht-support-form .button {
+    padding: 10px 20px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--bh-accent, #c9573f);
+    color: var(--bh-accent-contrast, #fff);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+.bht-support-form .button:hover { background: var(--bh-accent-hover, var(--bh-accent, #c9573f)); }
+.bht-support-result {
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: var(--bh-surface, #220c0a);
+    border: 1px solid var(--bh-border, #3d1b14);
+    font-weight: 600;
+}

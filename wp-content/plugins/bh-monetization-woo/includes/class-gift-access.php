@@ -58,7 +58,7 @@ class BHM_GiftAccess {
 
         $user = get_user_by('email', $email);
         if (!$user) {
-            $user_id = self::create_account($email);
+            $user_id = BHM_GuestBuyers::create_member($email);
             if (is_wp_error($user_id)) return $user_id;
             $user = get_userdata($user_id);
         }
@@ -78,18 +78,6 @@ class BHM_GiftAccess {
         $order->save();
         $order->update_status('completed'); // runs the normal fulfilment hooks
         return $order->get_id();
-    }
-
-    /** @return int|\WP_Error */
-    private static function create_account(string $email) {
-        $base = sanitize_user(strtok($email, '@'), true) ?: 'member';
-        $login = $base;
-        for ($i = 2; username_exists($login); $i++) $login = $base . $i;
-        $role = get_role('bh_member') ? 'bh_member' : get_option('default_role', 'subscriber');
-        $user_id = wp_insert_user(['user_login' => $login, 'user_email' => $email, 'user_pass' => wp_generate_password(32), 'role' => $role]);
-        if (is_wp_error($user_id)) return $user_id;
-        wp_new_user_notification($user_id, null, 'user');
-        return (int) $user_id;
     }
 
     public static function notice(): void {

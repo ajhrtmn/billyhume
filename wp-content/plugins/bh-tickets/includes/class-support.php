@@ -18,6 +18,8 @@ class BHT_Support {
 
     /** @param mixed $atts */
     public static function render($atts = []): string {
+        // Enqueued from the shortcode so it loads wherever the form appears (block, Etch, widget).
+        wp_enqueue_style('bht-support', BHT_URL . 'assets/css/support.css', [], BHT_VER);
         $logged_in = is_user_logged_in();
         $status = isset($_GET['bht_support']) ? sanitize_key(wp_unslash($_GET['bht_support'])) : '';
         $messages = [

@@ -293,6 +293,7 @@ window.BHCLessonStepDom = {
                     var endedCbs = [];
                     var metaCbs = [];
                     var pauseCbs = [];
+                    var playCbs = [];
                     // 'loadedmetadata' maps to ready + known duration, so resume can seek before play.
                     pjs.on('ready', function () {
                         pjs.getDuration(function (d) {
@@ -304,6 +305,8 @@ window.BHCLessonStepDom = {
                     });
                     pjs.on('pause', function () { for (var p = 0; p < pauseCbs.length; p++)
                         pauseCbs[p](); });
+                    pjs.on('play', function () { for (var q = 0; q < playCbs.length; q++)
+                        playCbs[q](); });
                     pjs.on('timeupdate', function (v) {
                         if (v && typeof v.seconds === 'number')
                             cachedTime = v.seconds;
@@ -331,6 +334,8 @@ window.BHCLessonStepDom = {
                                 metaCbs.push(cb);
                             else if (evt === 'pause')
                                 pauseCbs.push(cb);
+                            else if (evt === 'play')
+                                playCbs.push(cb);
                         },
                     };
                     mediaAdapters.push({ el: el, media: bunnyMedia });
@@ -418,7 +423,10 @@ window.BHCLessonStepDom = {
             var resumeAt = parseInt((_b = step.dataset.resumeAt) !== null && _b !== void 0 ? _b : '0', 10) || 0;
             var resumed = resumeAt <= 0;
             var lastSaved = resumeAt;
-            var lastSentAt = 0;
+            var lastSentAt = Date.now();
+            // WHY: before the student presses play, currentTime can still read 0 mid-seek, and
+            // saving 0 would erase their place, so nothing is saved until playback starts.
+            var played = false;
             function tryResume() {
                 if (resumed)
                     return;
@@ -434,7 +442,7 @@ window.BHCLessonStepDom = {
                 }
             }
             function save(useBeacon) {
-                if (!resumed)
+                if (!resumed || !played)
                     return;
                 var d = media.duration();
                 var t = Math.floor(media.currentTime());
@@ -455,6 +463,7 @@ window.BHCLessonStepDom = {
                 fetch(BHCData.ajaxUrl, { method: 'POST', body: body }).catch(function () { });
             }
             media.on('loadedmetadata', tryResume);
+            media.on('play', function () { tryResume(); played = true; });
             media.on('timeupdate', function () {
                 tryResume();
                 var now = Date.now();
@@ -624,19 +633,20 @@ window.BHCLessonStepDom = {
                             label.innerHTML = '<span class="bhc-watch-gate-pct">100%</span> watched';
                     }
                     var btn = step.querySelector('.bhc-mark-complete');
-                    // WHY: this fires at the watch threshold, usually mid-video, so the last step
-                    // stays put and just arms "Next Lesson" instead of jumping away.
+                    // WHY: this fires at the watch threshold, usually mid-video, so the student
+                    // stays on the video and the button is armed instead of the step jumping away.
                     var isLastWithNext = index === stepCount - 1 && nextLessonUrl !== '';
-                    if (btn && isLastWithNext) {
+                    if (btn) {
                         btn.disabled = false;
                         btn.style.display = '';
-                        btn.textContent = 'Next Lesson →';
-                        btn.dataset.bhcGoNext = '1';
-                    }
-                    else if (btn) {
-                        btn.disabled = true;
-                        btn.style.display = '';
-                        btn.textContent = 'Completed';
+                        if (isLastWithNext) {
+                            btn.textContent = 'Next Lesson →';
+                            btn.dataset.bhcGoNext = '1';
+                        }
+                        else {
+                            btn.textContent = index === stepCount - 1 ? 'Finish →' : 'Next →';
+                            btn.dataset.bhcAdvance = '1';
+                        }
                     }
                     step.classList.add('bhc-step-done');
                     if (typeof BHCoreToast !== 'undefined') {
@@ -644,25 +654,24 @@ window.BHCLessonStepDom = {
                     }
                     markStepDone(index);
                     updateSidebarProgress(res.data);
-                    if (isLastWithNext)
-                        return;
-                    advanceWithBeat(index);
                 });
             }
             var gateFill = step.querySelector('.bhc-watch-gate-fill');
             var gatePct = step.querySelector('.bhc-watch-gate-pct');
-            var lastShown = -1;
+            // Shows the furthest point reached (what the server keeps), so rewinding never
+            // looks like lost progress. Starts from the server-rendered figure.
+            var lastShown = gatePct ? parseInt(gatePct.textContent || '0', 10) || 0 : 0;
             media.on('timeupdate', function () {
                 var duration = media.duration();
                 if (!duration || step.classList.contains('bhc-step-done'))
                     return;
                 var percent = Math.floor((media.currentTime() / duration) * 100);
-                if (percent !== lastShown) {
-                    lastShown = percent;
+                if (percent > lastShown) {
+                    lastShown = Math.min(100, percent);
                     if (gateFill)
-                        gateFill.style.width = Math.min(100, Math.max(0, percent)) + '%';
+                        gateFill.style.width = lastShown + '%';
                     if (gatePct)
-                        gatePct.textContent = Math.min(100, Math.max(0, percent)) + '%';
+                        gatePct.textContent = lastShown + '%';
                 }
                 sendProgress(percent);
             });
@@ -671,7 +680,7 @@ window.BHCLessonStepDom = {
         // 'question' answers persist via bhc_mark_annotation, fire-and-forget (unlike
         // bhc_mark_complete's retries), since failing to save a self-check shouldn't block playback.
         lesson.querySelectorAll('.bhc-step-video[data-annotations]').forEach(function (video) {
-            var _a, _b;
+            var _a, _b, _c;
             var media = mediaFor(video);
             if (!media)
                 return;
@@ -782,23 +791,38 @@ window.BHCLessonStepDom = {
             media.on('timeupdate', function () {
                 if (overlay)
                     return; // already paused on one; don't stack a second
+                var now = media.currentTime();
                 for (var i = 0; i < annotations.length; i++) {
                     if (shown[i])
                         continue;
                     var a = annotations[i];
-                    if (media.currentTime() >= a.time) {
+                    if (now >= a.time) {
+                        // WHY: only fire when playback reaches it; landing well past it (a seek,
+                        // a bookmark, a resume) can beat the 'seeked' event, so judge by distance.
+                        if (now - a.time > 2) {
+                            shown[i] = true;
+                            continue;
+                        }
                         showAnnotation(a, i);
                         break;
                     }
                 }
             });
-            // Rewinding past a shown annotation re-arms it.
-            media.on('seeked', function () {
+            // Rewinding past a shown annotation re-arms it; jumping past one (scrubbing ahead,
+            // or resuming) counts it as passed, so skipped overlays don't fire one after another.
+            function syncShownTo(t) {
                 for (var i = 0; i < annotations.length; i++) {
-                    if (media.currentTime() < annotations[i].time)
+                    if (t < annotations[i].time)
                         shown[i] = false;
+                    else if (t - annotations[i].time > 1)
+                        shown[i] = true;
                 }
-            });
+            }
+            media.on('seeked', function () { syncShownTo(media.currentTime()); });
+            var stepEl = video.closest('[data-step-index]');
+            var resumeFrom = stepEl ? parseInt((_c = stepEl.dataset.resumeAt) !== null && _c !== void 0 ? _c : '0', 10) || 0 : 0;
+            if (resumeFrom > 0)
+                syncShownTo(resumeFrom);
         });
         // Chapter markers on the seek bar plus a clickable chapter list.
         // WHY: native <video controls> can't be painted on, so markers need Plyr's bar.
@@ -925,7 +949,7 @@ window.BHCLessonStepDom = {
             wrap.parentNode.insertBefore(container, wrap.nextSibling);
         });
         lesson.addEventListener('click', function (e) {
-            var _a, _b;
+            var _a, _b, _c;
             var target = e.target;
             if (target.classList.contains('bhc-step-back')) {
                 // Pure navigation; every step's markup is already in the DOM.
@@ -943,8 +967,14 @@ window.BHCLessonStepDom = {
                 window.location.href = nextLessonUrl;
                 return;
             }
+            // Already completed by the watch gate: just move on.
+            if (target.dataset.bhcAdvance === '1') {
+                var doneStep = target.closest('[data-step-index]');
+                advanceWithBeat(parseInt((_b = doneStep.dataset.stepIndex) !== null && _b !== void 0 ? _b : '-1', 10));
+                return;
+            }
             var step = target.closest('.bhc-step, [data-step-index]');
-            var index = parseInt((_b = step.dataset.stepIndex) !== null && _b !== void 0 ? _b : '-1', 10);
+            var index = parseInt((_c = step.dataset.stepIndex) !== null && _c !== void 0 ? _c : '-1', 10);
             var body = new URLSearchParams({
                 action: 'bhc_mark_complete',
                 nonce: BHCData.nonce,

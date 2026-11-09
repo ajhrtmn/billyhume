@@ -13,6 +13,12 @@ class BHC_PortalPanel {
         // Both hooks come from bh-monetization-woo; they never fire when it's inactive.
         add_action('bhm_entitlement_granted', [self::class, 'enroll_on_purchase'], 10, 4);
         add_filter('bhm_post_purchase_redirect', [self::class, 'redirect_after_course_purchase'], 10, 2);
+        add_filter('bhm_send_entitlement_notice', [self::class, 'skip_generic_purchase_notice'], 10, 4);
+    }
+
+    /** A course purchase already gets the "Enrolled" notice, so the generic one would repeat it. */
+    public static function skip_generic_purchase_notice(bool $send, int $user_id, string $type, string $scope): bool {
+        return ($type === 'purchase' && $scope === 'course') ? false : $send;
     }
 
     /** Anyone enrolled in a course opens /account/ on My Courses. */

@@ -110,6 +110,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 /* ---------------- Site header / nav ---------------- */
+/* This header is sticky (it takes up its own space), so plugin sections need no extra
+   clearance for it. The token exists for themes whose header floats over content. */
+:root { --bh-header-clearance: 0px; }
+
 /* Offset by #wpadminbar's height (32px, 46px on mobile), matching core's
    body.admin-bar margin. z-index stays below the admin bar's 99999. */
 .oust-site-header {

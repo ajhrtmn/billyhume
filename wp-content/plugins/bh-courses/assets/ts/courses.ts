@@ -396,6 +396,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 var endedCbs: Array<() => void> = [];
                 var metaCbs: Array<() => void> = [];
                 var pauseCbs: Array<() => void> = [];
+                var playCbs: Array<() => void> = [];
                 // 'loadedmetadata' maps to ready + known duration, so resume can seek before play.
                 pjs.on('ready', function () {
                     pjs.getDuration(function (d) {
@@ -404,6 +405,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     });
                 });
                 pjs.on('pause', function () { for (var p = 0; p < pauseCbs.length; p++) pauseCbs[p]!(); });
+                pjs.on('play', function () { for (var q = 0; q < playCbs.length; q++) playCbs[q]!(); });
                 pjs.on('timeupdate', function (v) {
                     if (v && typeof v.seconds === 'number') cachedTime = v.seconds;
                     if (v && typeof v.duration === 'number' && v.duration > 0) cachedDuration = v.duration;
@@ -423,6 +425,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                         else if (evt === 'ended') endedCbs.push(cb);
                         else if (evt === 'loadedmetadata') metaCbs.push(cb);
                         else if (evt === 'pause') pauseCbs.push(cb);
+                        else if (evt === 'play') playCbs.push(cb);
                     },
                 };
                 mediaAdapters.push({ el: el, media: bunnyMedia });
@@ -492,7 +495,10 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             var resumeAt = parseInt(step.dataset.resumeAt ?? '0', 10) || 0;
             var resumed = resumeAt <= 0;
             var lastSaved = resumeAt;
-            var lastSentAt = 0;
+            var lastSentAt = Date.now();
+            // WHY: before the student presses play, currentTime can still read 0 mid-seek, and
+            // saving 0 would erase their place, so nothing is saved until playback starts.
+            var played = false;
 
             function tryResume() {
                 if (resumed) return;
@@ -507,7 +513,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             }
 
             function save(useBeacon: boolean) {
-                if (!resumed) return;
+                if (!resumed || !played) return;
                 var d = media!.duration();
                 var t = Math.floor(media!.currentTime());
                 var seconds = (d && t >= d - 10) ? 0 : t;
@@ -524,6 +530,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             }
 
             media.on('loadedmetadata', tryResume);
+            media.on('play', function () { tryResume(); played = true; });
             media.on('timeupdate', function () {
                 tryResume();
                 var now = Date.now();
@@ -678,32 +685,36 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                             if (label) label.innerHTML = '<span class="bhc-watch-gate-pct">100%</span> watched';
                         }
                         var btn = step.querySelector('.bhc-mark-complete') as HTMLButtonElement | null;
-                        // WHY: this fires at the watch threshold, usually mid-video, so the last step
-                        // stays put and just arms "Next Lesson" instead of jumping away.
+                        // WHY: this fires at the watch threshold, usually mid-video, so the student
+                        // stays on the video and the button is armed instead of the step jumping away.
                         var isLastWithNext = index === stepCount - 1 && nextLessonUrl !== '';
-                        if (btn && isLastWithNext) { btn.disabled = false; btn.style.display = ''; btn.textContent = 'Next Lesson →'; btn.dataset.bhcGoNext = '1'; }
-                        else if (btn) { btn.disabled = true; btn.style.display = ''; btn.textContent = 'Completed'; }
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.style.display = '';
+                            if (isLastWithNext) { btn.textContent = 'Next Lesson →'; btn.dataset.bhcGoNext = '1'; }
+                            else { btn.textContent = index === stepCount - 1 ? 'Finish →' : 'Next →'; btn.dataset.bhcAdvance = '1'; }
+                        }
                         step.classList.add('bhc-step-done');
                         if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show('Step complete.', 'success'); }
                         markStepDone(index);
                         updateSidebarProgress(res.data);
-                        if (isLastWithNext) return;
-                        advanceWithBeat(index);
                     });
             }
 
             var gateFill = step.querySelector('.bhc-watch-gate-fill') as HTMLElement | null;
             var gatePct = step.querySelector('.bhc-watch-gate-pct') as HTMLElement | null;
-            var lastShown = -1;
+            // Shows the furthest point reached (what the server keeps), so rewinding never
+            // looks like lost progress. Starts from the server-rendered figure.
+            var lastShown = gatePct ? parseInt(gatePct.textContent || '0', 10) || 0 : 0;
 
             media.on('timeupdate', function () {
                 var duration = media!.duration();
                 if (!duration || step.classList.contains('bhc-step-done')) return;
                 var percent = Math.floor((media!.currentTime() / duration) * 100);
-                if (percent !== lastShown) {
-                    lastShown = percent;
-                    if (gateFill) gateFill.style.width = Math.min(100, Math.max(0, percent)) + '%';
-                    if (gatePct) gatePct.textContent = Math.min(100, Math.max(0, percent)) + '%';
+                if (percent > lastShown) {
+                    lastShown = Math.min(100, percent);
+                    if (gateFill) gateFill.style.width = lastShown + '%';
+                    if (gatePct) gatePct.textContent = lastShown + '%';
                 }
                 sendProgress(percent);
             });
@@ -818,21 +829,31 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
 
             media!.on('timeupdate', function () {
                 if (overlay) return; // already paused on one; don't stack a second
+                var now = media!.currentTime();
                 for (var i = 0; i < annotations.length; i++) {
                     if (shown[i]) continue;
                     var a = annotations[i]!;
-                    if (media!.currentTime() >= a.time) {
+                    if (now >= a.time) {
+                        // WHY: only fire when playback reaches it; landing well past it (a seek,
+                        // a bookmark, a resume) can beat the 'seeked' event, so judge by distance.
+                        if (now - a.time > 2) { shown[i] = true; continue; }
                         showAnnotation(a, i);
                         break;
                     }
                 }
             });
-            // Rewinding past a shown annotation re-arms it.
-            media!.on('seeked', function () {
+            // Rewinding past a shown annotation re-arms it; jumping past one (scrubbing ahead,
+            // or resuming) counts it as passed, so skipped overlays don't fire one after another.
+            function syncShownTo(t: number) {
                 for (var i = 0; i < annotations.length; i++) {
-                    if (media!.currentTime() < annotations[i]!.time) shown[i] = false;
+                    if (t < annotations[i]!.time) shown[i] = false;
+                    else if (t - annotations[i]!.time > 1) shown[i] = true;
                 }
-            });
+            }
+            media!.on('seeked', function () { syncShownTo(media!.currentTime()); });
+            var stepEl = video.closest<HTMLElement>('[data-step-index]');
+            var resumeFrom = stepEl ? parseInt(stepEl.dataset.resumeAt ?? '0', 10) || 0 : 0;
+            if (resumeFrom > 0) syncShownTo(resumeFrom);
         });
 
         // Chapter markers on the seek bar plus a clickable chapter list.
@@ -974,6 +995,12 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             }
             if (!target.classList.contains('bhc-mark-complete')) return;
             if (target.dataset.bhcGoNext === '1' && nextLessonUrl) { window.location.href = nextLessonUrl; return; }
+            // Already completed by the watch gate: just move on.
+            if (target.dataset.bhcAdvance === '1') {
+                var doneStep = target.closest('[data-step-index]') as HTMLElement;
+                advanceWithBeat(parseInt(doneStep.dataset.stepIndex ?? '-1', 10));
+                return;
+            }
             var step = target.closest('.bhc-step, [data-step-index]') as HTMLElement;
             var index = parseInt(step.dataset.stepIndex ?? '-1', 10);
 

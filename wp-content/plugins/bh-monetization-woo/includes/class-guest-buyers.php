@@ -1,0 +1,78 @@
+<?php
+if (!defined('ABSPATH')) exit;
+
+/**
+ * Access lives on an account, so a purchase must end up on one. Checkout requires an
+ * account when the cart grants access (tiers, courses, releases, tracks), and as a safety
+ * net a completed order without a customer is attached to the account with its billing
+ * email, or a new account (with a set-password email) before fulfilment runs.
+ */
+class BHM_GuestBuyers {
+    public static function init(): void {
+        add_filter('woocommerce_checkout_registration_required', [self::class, 'require_account']);
+        add_filter('woocommerce_checkout_registration_enabled', [self::class, 'enable_registration']);
+        // Priority 1: before BHM_Downloads (5) and BHM_Entitlements (10) read the customer.
+        add_action('woocommerce_order_status_completed', [self::class, 'attach_account'], 1);
+    }
+
+    public static function product_grants_access(int $product_id): bool {
+        return (bool) (get_post_meta($product_id, '_bhm_tier_id', true) || get_post_meta($product_id, '_bhm_purchase_object_id', true));
+    }
+
+    private static function cart_grants_access(): bool {
+        if (!function_exists('WC') || !WC()->cart) return false;
+        foreach (WC()->cart->get_cart() as $item) {
+            if (self::product_grants_access((int) ($item['product_id'] ?? 0))) return true;
+        }
+        return false;
+    }
+
+    /** @param mixed $required */
+    public static function require_account($required): bool {
+        return (bool) $required || (!is_user_logged_in() && self::cart_grants_access());
+    }
+
+    /** @param mixed $enabled */
+    public static function enable_registration($enabled): bool {
+        return (bool) $enabled || self::cart_grants_access();
+    }
+
+    public static function attach_account(int $order_id): void {
+        $order = wc_get_order($order_id);
+        if (!$order || $order->get_customer_id()) return;
+        $grants = false;
+        foreach ($order->get_items() as $item) {
+            if ($item instanceof \WC_Order_Item_Product && self::product_grants_access((int) $item->get_product_id())) { $grants = true; break; }
+        }
+        $email = sanitize_email($order->get_billing_email());
+        if (!$grants || !is_email($email)) return;
+
+        $user = get_user_by('email', $email);
+        $user_id = $user ? (int) $user->ID : self::create_member($email, $order->get_billing_first_name(), $order->get_billing_last_name());
+        if (is_wp_error($user_id) || !$user_id) {
+            if (class_exists('OUS_DebugLog')) OUS_DebugLog::log('error', "Guest order $order_id could not be given an account; access was not granted.", ['order_id' => $order_id], 'BH Monetization');
+            return;
+        }
+        $order->set_customer_id($user_id);
+        $order->add_order_note($user ? 'Guest purchase attached to the existing account for ' . $email . '.' : 'Guest purchase: created an account for ' . $email . ' and sent a set-password email.');
+        $order->save();
+    }
+
+    /**
+     * A member account for a buyer or gift recipient, with WordPress's set-password email.
+     * @return int|WP_Error
+     */
+    public static function create_member(string $email, string $first_name = "", string $last_name = "") {
+        $base = sanitize_user(strtok($email, "@"), true) ?: "member";
+        $login = $base;
+        for ($i = 2; username_exists($login); $i++) $login = $base . $i;
+        $user_id = wp_insert_user([
+            "user_login" => $login, "user_email" => $email, "user_pass" => wp_generate_password(32),
+            "first_name" => $first_name, "last_name" => $last_name,
+            "role" => get_role("bh_member") ? "bh_member" : get_option("default_role", "subscriber"),
+        ]);
+        if (is_wp_error($user_id)) return $user_id;
+        wp_new_user_notification($user_id, null, "user");
+        return (int) $user_id;
+    }
+}

@@ -93,7 +93,7 @@ class BHM_ProductSync {
         $existing_id = (int) get_post_meta($object_id, $meta_key, true);
         $title = get_the_title($object_id);
         $labels = ['bhs_release' => 'Album', 'bh_course' => 'Course'];
-        $name = $title . ' (' . ($labels[$post_type] ?? 'Track') . ' Purchase)';
+        $name = $title . ' (' . ($labels[$post_type] ?? 'Track') . ')';
 
         if (class_exists('BH_Commerce')) {
             $product_id = BH_Commerce::upsert_product($existing_id, [
@@ -107,6 +107,7 @@ class BHM_ProductSync {
             update_post_meta($object_id, $meta_key, $product_id);
             update_post_meta($product_id, '_bhm_purchase_object_id', $object_id);
             update_post_meta($product_id, '_bhm_purchase_object_type', $post_type);
+            self::apply_store_details($product_id, $object_id);
             return $product_id;
         }
 
@@ -122,6 +123,17 @@ class BHM_ProductSync {
         update_post_meta($object_id, $meta_key, $product->get_id());
         update_post_meta($product->get_id(), '_bhm_purchase_object_id', $object_id);
         update_post_meta($product->get_id(), '_bhm_purchase_object_type', $post_type);
+        self::apply_store_details($product->get_id(), $object_id);
         return $product->get_id();
+    }
+
+    // Owning something twice means nothing, so one per cart; the item's own art shows in cart/checkout.
+    private static function apply_store_details(int $product_id, int $object_id): void {
+        $product = function_exists('wc_get_product') ? wc_get_product($product_id) : null;
+        if (!$product) return;
+        $product->set_sold_individually(true);
+        $thumb = (int) get_post_thumbnail_id($object_id);
+        if ($thumb) $product->set_image_id($thumb);
+        $product->save();
     }
 }
