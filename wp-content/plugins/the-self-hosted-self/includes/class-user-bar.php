@@ -44,8 +44,9 @@ class OUS_UserBar {
         echo '<div class="bhi-user-bar-links">';
         foreach ($links as $link) {
             if (empty($link['label']) || empty($link['url'])) continue;
-            echo '<a class="bhi-user-bar-link" href="' . esc_url($link['url']) . '">';
-            echo esc_html($link['label']);
+            echo '<a class="bhi-user-bar-link" href="' . esc_url($link['url']) . '" title="' . esc_attr($link['label']) . '">';
+            // Own span so a long label (a course title) can ellipsize while the meta stays visible.
+            echo '<span class="bhi-user-bar-link-label">' . esc_html($link['label']) . '</span>';
             if (!empty($link['meta'])) echo '<span class="bhi-user-bar-link-meta">' . esc_html($link['meta']) . '</span>';
             echo '</a>';
         }

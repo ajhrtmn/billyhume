@@ -266,3 +266,39 @@
 @media (prefers-reduced-motion: reduce) {
     .bhc-add-step-dock.is-empty .bhc-add-step-dock-btn { animation: none; }
 }
+
+/* Course edit → Downloads box. */
+.bhc-dl-rows {
+    margin: 12px 0;
+    display: grid;
+    gap: 6px;
+}
+.bhc-dl-row {
+    display: grid;
+    grid-template-columns: auto minmax(160px, 1.2fr) minmax(160px, 1fr) minmax(140px, .8fr) auto;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 8px 10px;
+    background: var(--bhy-surface-2, #f6f7f7);
+    border: 1px solid var(--bhy-border, #dcdcde);
+    border-radius: var(--bhy-radius-sm, 6px);
+}
+.bhc-dl-row .bhc-order-drag-handle {
+    cursor: grab;
+    color: var(--bhy-ink-dim, #646970);
+}
+.bhc-dl-file {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.bhc-dl-row input[type="text"],
+.bhc-dl-row select {
+    width: 100%;
+    max-width: none;
+}
+.bhc-dl-remove { color: #b32d2e; }
+@media (max-width: 960px) {
+    .bhc-dl-row { grid-template-columns: auto 1fr; }
+    .bhc-dl-row > :nth-child(n+3) { grid-column: 2; }
+}

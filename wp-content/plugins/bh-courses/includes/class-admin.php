@@ -9,6 +9,7 @@ if (!defined('ABSPATH')) exit;
 class BHC_Admin {
     public static function add_meta_boxes(): void {
         add_meta_box('bhc_course_details', 'Course Details', [self::class, 'render_course_metabox'], 'bh_course', 'normal', 'high');
+        add_meta_box('bhc_course_downloads', 'Downloads', ['BHC_Downloads', 'render_admin_box'], 'bh_course', 'normal', 'high');
         // Course config lives in postmeta, so it needs its own OUS_Revisions history.
         add_meta_box('bhc_course_revisions', 'Version History', [self::class, 'render_course_revisions_metabox'], 'bh_course', 'side', 'low');
         add_meta_box('bhc_course_catalog', 'Catalog Details', [self::class, 'render_catalog_metabox'], 'bh_course', 'side', 'default');
@@ -397,6 +398,7 @@ class BHC_Admin {
         }
         update_post_meta($post_id, '_bhc_comments_enabled', !empty($_POST['bhc_comments_enabled']) ? 1 : 0);
         update_post_meta($post_id, '_bhc_reviews_enabled', !empty($_POST['bhc_reviews_enabled']) ? 1 : 0);
+        BHC_Downloads::save_admin($post_id);
         if (isset($_POST['bhc_credits'])) update_post_meta($post_id, '_bhc_credits', wp_kses_post(wp_unslash($_POST['bhc_credits'])));
         if (isset($_POST['bhc_landing_tagline'])) update_post_meta($post_id, '_bhc_landing_tagline', sanitize_text_field(wp_unslash($_POST['bhc_landing_tagline'])));
         if (isset($_POST['bhc_landing_video'])) update_post_meta($post_id, '_bhc_landing_video', esc_url_raw(wp_unslash($_POST['bhc_landing_video'])));
@@ -665,7 +667,7 @@ class BHC_Admin {
         // Course-level settings only, never enrollment/progress data.
         foreach ([
             '_bhc_instructor_id', '_bhc_difficulty', '_bhc_duration_note',
-            '_bhc_comments_enabled', '_bhc_reviews_enabled', '_bhc_credits', '_bhc_landing_tagline', '_bhc_landing_video', '_bhc_landing_testimonials', '_bhc_landing_faq', '_bhc_certificate_enabled', '_bhc_certificate_signature', '_bhc_share_card_style',
+            '_bhc_comments_enabled', '_bhc_reviews_enabled', '_bhc_credits', '_bhc_landing_tagline', '_bhc_landing_video', '_bhc_landing_testimonials', '_bhc_landing_faq', '_bhc_downloads', '_bhc_certificate_enabled', '_bhc_certificate_signature', '_bhc_share_card_style',
             '_bhm_required_tier', '_bhm_required_benefit',
             '_bhc_leaderboard_enabled',
         ] as $key) {

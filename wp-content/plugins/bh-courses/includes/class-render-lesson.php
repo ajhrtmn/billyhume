@@ -383,14 +383,15 @@ class BHC_Render_Lesson {
             }
         } elseif ($step['type'] === 'resource') {
             // Non-blocking: downloading isn't required to advance.
-            $url = wp_get_attachment_url($step['attachment_id']);
-            $label = $step['label'] !== '' ? $step['label'] : basename(get_attached_file($step['attachment_id']) ?: 'Download');
-            if ($url) {
-                echo '<a class="bhc-btn bhc-resource-download" href="' . esc_url($url) . '" download>&#8681; ' . esc_html($label) . '</a>';
+            $course_id = BHC_PostTypes::course_for_lesson($lesson_id);
+            if (get_post($step['attachment_id']) && $course_id) {
+                // Same row as the Downloads page, through the access-checked link.
+                $file = ['attachment_id' => (int) $step['attachment_id'], 'label' => (string) $step['label'], 'description' => (string) ($step['description'] ?? '')];
+                echo '<ul class="bhc-file-list">' . BHC_Downloads::render_file($course_id, $file, true) . '</ul>';
+                echo '<p class="bhc-file-more"><a href="' . esc_url(BHC_Downloads::url($course_id)) . '">All downloads for this course &rarr;</a></p>';
             } else {
-                echo '<p class="bhc-empty">File not found.</p>';
+                echo '<p class="bhc-empty">This file is missing. Please let us know through Support.</p>';
             }
-            if (!empty($step['description'])) echo '<div class="bhc-step-caption bhc-step-text">' . wp_kses_post($step['description']) . '</div>';
             echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
         } elseif ($step['type'] === 'callout') {
             $variant = in_array($step['variant'] ?? '', BHC_Steps::CALLOUT_VARIANTS, true) ? $step['variant'] : 'tip';

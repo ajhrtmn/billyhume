@@ -179,7 +179,8 @@ class BHC_PortalPanel {
             } else {
                 // Same Start / Continue / Review rule as the catalog card.
                 $cta = class_exists('BHC_Render_Course') ? BHC_Render_Course::render_continue_cta($user_id, $course_id, (int) $percent) : '';
-                echo '<p>' . ($cta !== '' ? $cta : '<a class="bhc-btn bhc-continue-btn" href="' . esc_url((string) get_permalink($course_id)) . '">View course &rarr;</a>') . '</p>';
+                $downloads = class_exists('BHC_Downloads') ? BHC_Downloads::render_link($course_id, 'bhi-portal-course-downloads') : '';
+                echo '<p class="bhi-portal-course-actions">' . ($cta !== '' ? $cta : '<a class="bhc-btn bhc-continue-btn" href="' . esc_url((string) get_permalink($course_id)) . '">View course &rarr;</a>') . $downloads . '</p>';
             }
             echo '</div>';
         }

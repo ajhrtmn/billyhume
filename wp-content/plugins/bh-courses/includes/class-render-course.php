@@ -64,14 +64,15 @@ class BHC_Render_Course {
             echo '</div>';
         }
 
-        $content = get_post_field('post_content', $course_id);
-        if ($content) echo '<div class="bhc-course-description">' . apply_filters('the_content', $content) . '</div>';
-
+        // The student's next action comes before the long description, so it's in view.
         if ($uid && !$locked) {
             $percent = BHC_Progress::course_percent($uid, $course_id);
             $cta = self::render_continue_cta($uid, $course_id, $percent) . BHC_Downloads::render_link($course_id);
             if ($cta) echo '<div class="bhc-course-header-cta">' . $cta . '</div>';
         }
+
+        $content = get_post_field('post_content', $course_id);
+        if ($content) echo '<div class="bhc-course-description">' . apply_filters('the_content', $content) . '</div>';
         echo '</div>';
         return ob_get_clean();
     }

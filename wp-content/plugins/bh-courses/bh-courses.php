@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.16.50
+ * Version:     0.16.55
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.16.50');
+define('BHC_VER',  '0.16.55');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -55,6 +55,7 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHC_Privacy', 'init']);
     add_action('init', ['BHC_Feedback', 'init']);
     add_action('init', ['BHC_Notes', 'init']);
+    add_action('init', ['BHC_Downloads', 'init']);
     add_action('init', ['BHC_Render_Landing', 'init']);
     add_action('init', ['BHC_Debug', 'init']);
     add_action('init', ['BHC_StyleSurface', 'init']);

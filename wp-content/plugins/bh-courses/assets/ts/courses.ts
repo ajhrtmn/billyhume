@@ -7,6 +7,7 @@ interface BHCDataGlobal {
     nonce: string;
     ajaxUrl: string;
     loggedIn?: boolean;
+    supportUrl?: string;
 }
 
 declare const BHCData: BHCDataGlobal;
@@ -125,6 +126,25 @@ function bhcStepClassName(type: string, done: boolean): string {
 function bhcReassertStepClass(el: HTMLElement): void {
     if (el.classList.contains('bhc-step')) return;
     el.className = bhcStepClassName(el.dataset.stepType || '', !!el.dataset.stepDone);
+}
+
+/** One plain message under a video that could not load (shown once per video). */
+function bhcShowVideoError(videoEl: Element): void {
+    var wrap = videoEl.closest('.bhc-video-wrap') || videoEl;
+    if (!wrap.parentElement || wrap.parentElement.querySelector('[data-bhc-video-error]')) return;
+    var box = document.createElement('div');
+    box.setAttribute('data-bhc-video-error', '');
+    box.setAttribute('role', 'alert');
+    box.className = 'bhc-video-error';
+    box.appendChild(document.createTextNode('This video couldn’t load. Check your connection and refresh the page. '));
+    var support = typeof BHCData !== 'undefined' ? BHCData.supportUrl : '';
+    if (support) {
+        var a = document.createElement('a');
+        a.href = support;
+        a.textContent = 'If it keeps happening, let us know.';
+        box.appendChild(a);
+    }
+    wrap.parentElement.insertBefore(box, wrap.nextSibling);
 }
 
 /** Shows only the step at `index`; returns that index, or -1 if none matched. */
@@ -472,6 +492,12 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 },
             };
             mediaAdapters.push({ el: el, media: media });
+            // A source that fails to load would otherwise leave a silent black box.
+            if (videoEl) {
+                videoEl.addEventListener('error', function () { bhcShowVideoError(el); });
+                videoEl.querySelectorAll('source').forEach(function (src) { src.addEventListener('error', function () { bhcShowVideoError(el); }); });
+            }
+            if (player) player.on('error', function () { bhcShowVideoError(el); });
           } catch (err) {
             if (window.console && console.warn) console.warn('bh-courses: video adapter setup failed for a step, skipping it.', err);
           }

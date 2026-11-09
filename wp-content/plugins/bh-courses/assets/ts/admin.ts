@@ -45,3 +45,79 @@ declare const Sortable: SortableApi | undefined;
         syncOrder(); // capture the server-rendered order as the hidden field's initial value
     });
 })();
+
+/* ---- Course edit → Downloads box (BHC_Downloads::render_admin_box) ---- */
+
+interface BHCMediaAttachment { id: number; filename: string; filesizeHumanReadable?: string; subtype?: string; title?: string; }
+interface BHCMediaFrame {
+    on(event: string, cb: () => void): void;
+    open(): void;
+    state(): { get(key: string): { toJSON(): BHCMediaAttachment[] } };
+}
+declare const wp: { media?: (opts: Record<string, unknown>) => BHCMediaFrame } | undefined;
+
+(function () {
+    'use strict';
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const rows = document.getElementById('bhc-dl-rows');
+        const addBtn = document.getElementById('bhc-dl-add');
+        if (!rows || !addBtn) return;
+        const count = document.getElementById('bhc-dl-count');
+        const lessons = JSON.parse(rows.dataset.lessons || '[]') as Array<{ id: number; title: string }>;
+        let next = rows.children.length + 1000; // unique input keys for new rows
+
+        function updateCount() {
+            const n = rows!.querySelectorAll('.bhc-dl-row').length;
+            if (count) count.textContent = n ? n + ' file' + (n === 1 ? '' : 's') : 'No files yet.';
+        }
+
+        function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string>, text?: string): HTMLElementTagNameMap[K] {
+            const node = document.createElement(tag);
+            Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]!); });
+            if (text !== undefined) node.textContent = text;
+            return node;
+        }
+
+        function addRow(a: BHCMediaAttachment) {
+            if (rows!.querySelector('.bhc-dl-row[data-id="' + a.id + '"]')) return; // already listed
+            const i = String(next++);
+            const li = el('li', { class: 'bhc-dl-row', 'data-id': String(a.id) });
+            li.appendChild(el('span', { class: 'bhc-order-drag-handle dashicons dashicons-menu', 'aria-hidden': 'true', title: 'Drag to reorder' }));
+            const file = el('span', { class: 'bhc-dl-file' });
+            file.appendChild(el('strong', {}, a.filename));
+            file.appendChild(document.createTextNode(' '));
+            file.appendChild(el('span', { class: 'description' }, ((a.subtype || '').toUpperCase() + ' ' + (a.filesizeHumanReadable || '')).trim()));
+            li.appendChild(file);
+            li.appendChild(el('input', { type: 'hidden', name: 'bhc_downloads[' + i + '][id]', value: String(a.id) }));
+            li.appendChild(el('input', { type: 'text', name: 'bhc_downloads[' + i + '][label]', value: a.title || '', placeholder: 'Name shown to students (optional)', 'aria-label': 'Name shown to students' }));
+            const select = el('select', { name: 'bhc_downloads[' + i + '][lesson]', 'aria-label': 'Shows with' });
+            lessons.forEach(function (o) { select.appendChild(el('option', { value: String(o.id) }, o.title)); });
+            li.appendChild(select);
+            li.appendChild(el('button', { type: 'button', class: 'button-link bhc-dl-remove', 'aria-label': 'Remove ' + a.filename }, 'Remove'));
+            rows!.appendChild(li);
+        }
+
+        addBtn.addEventListener('click', function () {
+            if (typeof wp === 'undefined' || !wp.media) return;
+            const frame = wp.media({ title: 'Add course downloads', button: { text: 'Add to Downloads' }, multiple: 'add' });
+            frame.on('select', function () {
+                frame.state().get('selection').toJSON().forEach(addRow);
+                updateCount();
+            });
+            frame.open();
+        });
+
+        rows.addEventListener('click', function (e) {
+            const btn = (e.target as HTMLElement).closest('.bhc-dl-remove');
+            if (!btn) return;
+            btn.closest('.bhc-dl-row')!.remove();
+            updateCount();
+        });
+
+        if (typeof Sortable !== 'undefined') {
+            Sortable.create(rows, { handle: '.bhc-order-drag-handle', animation: 150, ghostClass: 'is-drag-ghost', chosenClass: 'is-drag-chosen', forceFallback: true });
+        }
+        updateCount();
+    });
+})();

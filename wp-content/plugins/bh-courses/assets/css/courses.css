@@ -287,24 +287,113 @@
     font-size: 14px;
     font-weight: 600;
 }
-.bhc-downloads h1 { margin: 12px 0 8px; }
-.bhc-downloads-lesson { margin-top: 28px; }
-.bhc-downloads-lesson h2 {
+/* Downloads page: centred column, title with "Download all" beside it. */
+.bhc-downloads {
+    max-width: 880px;
+    margin-inline: auto;
+    padding-inline: 20px;
+    box-sizing: border-box;
+}
+.bhc-downloads-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 12px 0 8px;
+}
+.bhc-downloads-head h1 { margin: 0; }
+.bhc-downloads-head .bhc-btn { margin-top: 0; }
+.bhc-downloads-group { margin-top: 28px; }
+.bhc-downloads-group h2 {
     font-size: 18px;
     margin: 0 0 10px;
 }
-.bhc-downloads-lesson ul {
+.bhc-downloads-group h2 a:hover { color: var(--bh-accent); }
+
+/* One file row, shared by the Downloads page and lesson Resource steps. */
+.bhc-file-list {
     list-style: none;
     margin: 0;
     padding: 0;
     display: grid;
-    gap: 10px;
+    gap: 8px;
+}
+.bhc-file {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--bh-border);
+    border-radius: 10px;
+    background: var(--bh-surface);
+}
+.bhc-file-icon {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--bh-accent) 14%, transparent);
+    color: var(--bh-accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+}
+.bhc-file-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+.bhc-file-name {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+.bhc-file-facts {
+    font-size: 13px;
+    color: var(--bh-text-dim);
+}
+.bhc-file-desc {
+    font-size: 14px;
+    color: var(--bh-text-dim);
+}
+.bhc-file-desc p { margin: 0; }
+.bhc-file-button {
+    flex: 0 0 auto;
+    margin-top: 0;
+}
+.bhc-file-button-locked {
+    font-size: 13px;
+    color: var(--bh-text-dim);
+}
+.bhc-file-locked { opacity: .7; }
+.bhc-file-more {
+    margin: 8px 0 0;
+    font-size: 14px;
+}
+.bhc-file-more a { color: var(--bh-accent); }
+@media (max-width: 480px) {
+    .bhc-file { flex-wrap: wrap; }
+    .bhc-file-button {
+        width: 100%;
+        text-align: center;
+    }
+    .bhc-downloads { padding-inline: 16px; }
 }
 .bhc-feedback,
 .bhc-course-credits {
     margin-top: 40px;
     padding-top: 24px;
     border-top: 1px solid var(--bh-border);
+}
+/* Section headings at one modest size, so the page's weight stays on the course itself. */
+.bhc-feedback h2,
+.bhc-course-credits h2 {
+    margin: 0 0 6px;
+    font-size: 20px;
+    line-height: 1.3;
 }
 .bhc-feedback textarea {
     width: 100%;
@@ -1404,6 +1493,20 @@ video.bhc-step-video {
     font-size: clamp(18px, 3.4vw, 28px);
     font-weight: 600;
     line-height: 1.3;
+}
+/* Phones: a small player (wide films can be ~110px tall) leaves little room, so every
+   size steps down and sits closer to the edges, still keeping its relative weight. */
+@media (max-width: 480px) {
+    .bhc-video-banner {
+        left: 6px;
+        right: 6px;
+        bottom: 6px;
+        padding: 6px 10px;
+    }
+    .bhc-video-banner-text { font-size: 12px; }
+    .bhc-video-banner-medium .bhc-video-banner-text { font-size: 13px; }
+    .bhc-video-banner-large { padding: 8px 12px; }
+    .bhc-video-banner-large .bhc-video-banner-text { font-size: 15px; }
 }
 .bhc-video-banner-out { animation: bhc-banner-out 0.4s ease forwards; }
 @keyframes bhc-banner-in { from {
@@ -2532,6 +2635,20 @@ a.bhc-pagination-number:active,
     font-size: 14px;
 }
 .bhc-preview-note a {
+    color: var(--bh-accent);
+    text-decoration: underline;
+}
+
+/* A video that failed to load: [data-bhc-video-error], built by courses.js. */
+[data-bhc-video-error] {
+    margin: 10px 0 0;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--bhc-danger, #b32d2e) 50%, transparent);
+    background: color-mix(in srgb, var(--bhc-danger, #b32d2e) 10%, var(--bh-surface));
+    font-size: 14px;
+}
+[data-bhc-video-error] a {
     color: var(--bh-accent);
     text-decoration: underline;
 }

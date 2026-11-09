@@ -254,13 +254,28 @@
 }
 .bhi-portal-main .bhi-view-link { margin-left:12px; font-size:13px; }
 .bhi-portal-course-list { display:grid; gap:16px; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); margin-top:12px; }
-.bhi-portal-course-card { border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius-sm, 8px); padding:16px; background:var(--bh-surface, #fff); overflow:hidden; }
+.bhi-portal-course-card { display:flex; flex-direction:column; border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius-sm, 8px); padding:16px; background:var(--bh-surface, #fff); overflow:hidden; }
 /* Course thumbnail bleeds to the card edges like the catalog card. */
 .bhi-portal-course-thumb { aspect-ratio:16/9; margin:-16px -16px 12px; overflow:hidden; }
 .bhi-portal-course-thumb img { display:block; width:100%; height:100%; object-fit:cover; }
 .bhi-portal-course-thumb-placeholder { background:linear-gradient(135deg, var(--bh-accent, #2271b1), var(--bh-accent-soft, #6ea8e0)); }
 .bhi-portal-course-card h3 { margin:0 0 8px; font-size:15px; }
 .bhi-portal-course-locked { color:var(--bh-text-dim, #6b7280); font-size:13px; }
+/* Cards are flex columns (rule above), so actions pin to the bottom and line up across a row. */
+.bhi-portal-course-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    margin: auto 0 0;
+    padding-top: 12px;
+}
+.bhi-portal-course-actions .bhc-btn { margin-top: 0; }
+.bhi-portal-course-downloads {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--bh-accent, #2271b1);
+}
 .bhi-portal-progress-bar { height:6px; border-radius:3px; background:var(--bh-surface-2, #e2e2e2); overflow:hidden; }
 .bhi-portal-progress-fill { height:100%; background:var(--bh-accent, #2271b1); transition:width 0.5s cubic-bezier(0.22,1,0.36,1); }
 /* My Courses mastery badges; same chip treatment as the overview tier badge. */

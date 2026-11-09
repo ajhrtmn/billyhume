@@ -7,6 +7,8 @@ why version history lives here and in git rather than in source.
 Entries are newest-first, exactly as they were written in-file. Nothing
 has been reworded or dropped.
 
+3.21.55 - User bar: labels sit in their own span and the last link ("Continue: <course>") shrinks with an ellipsis, with the full title as a tooltip, instead of pushing the bar into a sideways scroll on phones. Portal course cards are flex columns with an actions row pinned to the bottom, so buttons line up across cards whatever the title length (styles for bh-courses' new Downloads link). 3.21.54 was a cache-busting step. Runtime-verified at phone width.
+
 3.21.53 - Account portal: the wallet balance chip only shows when the wallet has money in it; a "$0.00" badge at the top of the account page confused course buyers who never use the wallet. Runtime-verified as a gifted student (no chip) and with the Test Runner.
 
 3.21.52 - Fix: members (anyone the portal keeps out of wp-admin) were redirected to /account/ when a front-end form posted to admin-post.php, because admin-post fires admin_init too. Every member-facing admin-post form silently failed for non-staff, including bh-tickets' New ticket / Reply in the account portal. admin-post.php is now exempt from the redirect; each handler still checks its own nonce and capability, and browsing wp-admin still bounces members. Runtime-verified over HTTP as a bh_member: portal ticket and support/feedback forms submit, /wp-admin/ still redirects.

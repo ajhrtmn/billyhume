@@ -80,7 +80,23 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--bh-accent, #b3502e) 16%, transparent);
     outline: none;
 }
-.bhi-user-bar-link-meta { color: var(--bh-text-dim, #6b7280); margin-left: 6px; }
+.bhi-user-bar-link-meta {
+    flex: 0 0 auto;
+    color: var(--bh-text-dim, #6b7280);
+    margin-left: 6px;
+}
+/* Long labels (a course title on "Continue: …") shrink with an ellipsis instead of
+   pushing the bar into a sideways scroll on phones. */
+.bhi-user-bar-link:last-child {
+    flex: 0 1 auto;
+    min-width: 0;
+    display: inline-flex;
+}
+.bhi-user-bar-link-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 body.bhi-has-user-bar { padding-bottom: 56px; }
 /* Real bug, caught live: the rounded top corners + lift
    shadow above assume this bar sits directly over ordinary
