@@ -211,7 +211,7 @@ class BHC_Downloads {
         }
         foreach ($groups as $lesson_id => $files) {
             $open = !$lesson_id || BHC_Gate::lesson_is_open($uid, $lesson_id);
-            echo '<section class="bhc-downloads-group">';
+            echo '<div class="bhc-downloads-group">';
             if ($lesson_id) {
                 echo '<h2><a href="' . esc_url((string) get_permalink($lesson_id)) . '">' . esc_html(get_the_title($lesson_id)) . '</a></h2>';
                 if (!$open) echo '<p class="bhc-drip-notice">&#128274; ' . BHC_Gate::drip_notice($uid, $lesson_id) . '</p>'; // already escaped
@@ -220,7 +220,7 @@ class BHC_Downloads {
             }
             echo '<ul class="bhc-file-list">';
             foreach ($files as $f) echo self::render_file($course_id, $f, $open);
-            echo '</ul></section>';
+            echo '</ul></div>';
         }
         echo '</div>';
         return (string) ob_get_clean();

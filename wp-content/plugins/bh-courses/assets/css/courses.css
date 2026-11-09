@@ -263,7 +263,8 @@
 }
 .bhc-lesson-list li > a,
 .bhc-lesson-list li > span:first-child {
-    flex: 1 1 auto;
+    /* Zero basis: a long title shrinks and wraps beside the ✓ instead of pushing it to a new line. */
+    flex: 1 1 0%;
     min-width: 0;
     font-size: 15px;
     font-weight: 500;

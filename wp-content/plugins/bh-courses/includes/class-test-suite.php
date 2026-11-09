@@ -131,6 +131,23 @@ class BHC_TestSuite {
             wp_delete_post($paid, true);
         }
 
+        // Progress after Billy edits a lesson: completions for steps that no longer exist don't count.
+        $pc = (int) wp_insert_post(['post_type' => 'bh_course', 'post_status' => 'publish', 'post_title' => 'Percent test', 'meta_input' => ['bhcore_is_test' => 'bhc_percent']]);
+        $pl = (int) wp_insert_post(['post_type' => 'bh_lesson', 'post_status' => 'publish', 'post_title' => 'Percent test lesson', 'meta_input' => ['bhcore_is_test' => 'bhc_percent', '_bhc_course_id' => $pc]]);
+        update_post_meta($pc, '_bhc_lesson_order', [$pl]);
+        BHC_Steps::save($pl, [['type' => 'text', 'content' => '<p>a</p>'], ['type' => 'text', 'content' => '<p>b</p>'], ['type' => 'text', 'content' => '<p>c</p>']]);
+        foreach ([0, 1, 2] as $i) BHC_Progress::mark_step_complete($uid, $pl, $i);
+        BHC_Steps::save($pl, [['type' => 'text', 'content' => '<p>only step now</p>']]);
+        $rows[] = OUS_TestRunner::assert_same(100, BHC_Progress::course_percent($uid, $pc), 'Progress: a lesson trimmed from 3 steps to 1 reads 100%, never 300%');
+        BHC_Steps::save($pl, [['type' => 'text', 'content' => '<p>a</p>'], ['type' => 'text', 'content' => '<p>b</p>']]);
+        global $wpdb;
+        $wpdb->delete(BHC_Tables::progress(), ['user_id' => $uid, 'lesson_id' => $pl]);
+        BHC_Progress::mark_step_complete($uid, $pl, 0);
+        $rows[] = OUS_TestRunner::assert_same(50, BHC_Progress::course_percent($uid, $pc), 'Progress: adding a step to a finished lesson shows what is left');
+        $wpdb->delete(BHC_Tables::progress(), ['user_id' => $uid, 'lesson_id' => $pl]);
+        wp_delete_post($pl, true);
+        wp_delete_post($pc, true);
+
         // Private notes.
         BHC_Notes::erase_all($uid);
         $note = BHC_Notes::add($uid, 999001, 1, 83, "Bookmark <b>me</b>");

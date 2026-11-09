@@ -76,7 +76,8 @@ class BHC_Render {
         wp_enqueue_style('bhc-front', BHC_URL . 'assets/css/courses.css', [], BHC_VER);
         // Core's shared catalog styles, by handle; a no-op if core hasn't registered it.
         wp_enqueue_style('ous-catalog');
-        if (class_exists('BHY_Style')) wp_add_inline_style('bhc-front', BHY_Style::inline_css());
+        // Only when core hasn't already printed the tokens in wp_head (it does on normal pages).
+        if (class_exists('BHY_Style') && !has_action('wp_head', ['BHY_Style', 'print_global_css'])) wp_add_inline_style('bhc-front', BHY_Style::inline_css());
 
         // Plyr (vendored) supplies the custom control bar that seek-bar chapter markers need.
         // iconUrl/blankVideo point at local copies, not cdn.plyr.io.

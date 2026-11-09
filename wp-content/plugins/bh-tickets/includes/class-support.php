@@ -30,7 +30,7 @@ class BHT_Support {
         ];
 
         ob_start();
-        echo '<section class="bht-support" id="bht-support">';
+        echo '<div class="bht-support" id="bht-support">';
         echo '<h2>Contact us</h2>';
         if (isset($messages[$status])) {
             echo '<p class="bht-support-result" role="status">' . esc_html($messages[$status]) . '</p>';
@@ -52,7 +52,7 @@ class BHT_Support {
         if ($logged_in) {
             echo '<p class="bht-support-tickets"><a href="' . esc_url(add_query_arg('panel', 'tickets', home_url('/account/'))) . '">See your past messages &rarr;</a></p>';
         }
-        echo '</section>';
+        echo '</div>';
         return (string) ob_get_clean();
     }
 

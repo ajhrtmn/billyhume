@@ -183,7 +183,7 @@ class BHC_Render_Course {
         if (!$locked) echo BHC_Feedback::render_form($course_id, $uid);
         $credits = (string) get_post_meta($course_id, '_bhc_credits', true);
         if (trim(wp_strip_all_tags($credits)) !== '') {
-            echo '<section class="bhc-course-credits"><h2>Credits</h2>' . wpautop(wp_kses_post($credits)) . '</section>';
+            echo '<div class="bhc-course-credits"><h2>Credits</h2>' . wpautop(wp_kses_post($credits)) . '</div>';
         }
         echo '</div>';
         return ob_get_clean();

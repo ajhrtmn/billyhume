@@ -17,6 +17,8 @@ class BHC_Render_Landing {
     public static function hide_theme_title(bool $show, $post): bool {
         if (!$post instanceof \WP_Post) return $show;
         if ($post->post_type === 'bh_course') return false;
+        // The catalog prints its own "Course catalog / Courses" header.
+        if (has_block('bhc/catalog', $post) || has_shortcode($post->post_content, 'bh_courses')) return false;
         return (has_block('bhc/course-landing', $post) || has_shortcode($post->post_content, 'bh_course_landing')) ? false : $show;
     }
 
@@ -41,17 +43,17 @@ class BHC_Render_Landing {
 
         $content = (string) get_post_field('post_content', $course_id);
         if (trim($content) !== '') {
-            echo '<section class="bhc-landing-section bhc-landing-about"><h2>About the course</h2>' . apply_filters('the_content', $content) . '</section>';
+            echo '<div class="bhc-landing-section bhc-landing-about"><h2>About the course</h2>' . apply_filters('the_content', $content) . '</div>';
         }
         echo self::contents($course_id);
         echo self::testimonials((string) get_post_meta($course_id, '_bhc_landing_testimonials', true));
         echo self::faq((string) get_post_meta($course_id, '_bhc_landing_faq', true));
 
-        echo '<section class="bhc-landing-section bhc-landing-final">';
+        echo '<div class="bhc-landing-section bhc-landing-final">';
         echo '<h2>' . esc_html(get_the_title($course_id)) . '</h2>';
         echo self::cta($course_id, $uid);
         echo self::fine_print();
-        echo '</section>';
+        echo '</div>';
         echo '</div>';
         return (string) ob_get_clean();
     }
@@ -134,7 +136,7 @@ class BHC_Render_Landing {
                 ? '<li class="bhc-landing-module"><h3>' . esc_html($group['title']) . '</h3><ol>' . $lessons . '</ol></li>'
                 : $lessons;
         }
-        return $items === '' ? '' : '<section class="bhc-landing-section bhc-landing-contents"><h2>What&rsquo;s inside</h2><ol class="bhc-landing-lessons">' . $items . '</ol></section>';
+        return $items === '' ? '' : '<div class="bhc-landing-section bhc-landing-contents"><h2>What&rsquo;s inside</h2><ol class="bhc-landing-lessons">' . $items . '</ol></div>';
     }
 
     /** @return array<int, string[]> blank-line separated blocks, each as trimmed lines */
@@ -159,7 +161,7 @@ class BHC_Render_Landing {
             $items .= '<figure class="bhc-landing-quote"><blockquote><p>' . implode('<br>', array_map('esc_html', $lines)) . '</p></blockquote>'
                 . ($who !== '' ? '<figcaption>' . esc_html($who) . '</figcaption>' : '') . '</figure>';
         }
-        return $items === '' ? '' : '<section class="bhc-landing-section bhc-landing-testimonials"><h2>What students say</h2><div class="bhc-landing-quotes">' . $items . '</div></section>';
+        return $items === '' ? '' : '<div class="bhc-landing-section bhc-landing-testimonials"><h2>What students say</h2><div class="bhc-landing-quotes">' . $items . '</div></div>';
     }
 
     private static function faq(string $text): string {
@@ -169,7 +171,7 @@ class BHC_Render_Landing {
             $items .= '<details class="bhc-landing-faq-item"><summary>' . esc_html($question) . '</summary>'
                 . ($lines ? '<p>' . implode('<br>', array_map('esc_html', $lines)) . '</p>' : '') . '</details>';
         }
-        return $items === '' ? '' : '<section class="bhc-landing-section bhc-landing-faq"><h2>Questions</h2>' . $items . '</section>';
+        return $items === '' ? '' : '<div class="bhc-landing-section bhc-landing-faq"><h2>Questions</h2>' . $items . '</div>';
     }
 
     private static function fine_print(): string {

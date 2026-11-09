@@ -17,7 +17,7 @@ class BHC_Feedback {
     public static function render_form(int $course_id, int $uid): string {
         if (!$uid || !BHC_Progress::enrolled_at($uid, $course_id)) return '';
         ob_start();
-        echo '<section class="bhc-feedback" id="bhc-feedback">';
+        echo '<div class="bhc-feedback" id="bhc-feedback">';
         echo '<h2>Send feedback</h2>';
         if (isset($_GET['bhc_feedback'])) {
             $sent = $_GET['bhc_feedback'] === 'sent';
@@ -31,7 +31,7 @@ class BHC_Feedback {
         echo '<label for="bhc-feedback-message" class="screen-reader-text">Your feedback</label>';
         echo '<textarea id="bhc-feedback-message" name="message" rows="4" maxlength="' . self::MAX_LENGTH . '" required></textarea>';
         echo '<p><button type="submit" class="bhc-btn bhc-btn-secondary">Send feedback</button></p>';
-        echo '</form></section>';
+        echo '</form></div>';
         return (string) ob_get_clean();
     }
 

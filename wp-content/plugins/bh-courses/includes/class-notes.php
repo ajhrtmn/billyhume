@@ -107,7 +107,7 @@ class BHC_Notes {
         if (!$user_id) return '';
         $notes = self::get($user_id, $lesson_id);
         ob_start();
-        echo '<section data-bhc-notes data-lesson-id="' . (int) $lesson_id . '">';
+        echo '<div data-bhc-notes data-lesson-id="' . (int) $lesson_id . '">';
         echo '<h2>My notes</h2>';
         echo '<p data-bhc-notes-hint>Only you can see these.' . ($has_video ? ' Bookmarked notes jump back to that moment in the video.' : '') . '</p>';
         echo '<form data-bhc-note-form>';
@@ -120,7 +120,7 @@ class BHC_Notes {
         echo '<ol data-bhc-note-list>';
         foreach ($notes as $note) echo self::render_note($note);
         echo '</ol>';
-        echo '</section>';
+        echo '</div>';
         return (string) ob_get_clean();
     }
 }

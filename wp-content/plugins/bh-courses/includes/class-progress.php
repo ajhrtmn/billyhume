@@ -50,9 +50,14 @@ class BHC_Progress {
             "SELECT step_index, passed FROM " . self::table() . " WHERE user_id = %d AND lesson_id = %d AND sub_index = 0 ORDER BY step_index",
             $user_id, $lesson_id
         ), ARRAY_A);
+        // WHY: rows outlive edits. A lesson trimmed from 3 steps to 1 kept 3 rows, so progress
+        // read 300%; only steps the lesson still has count.
+        $step_count = BHC_Steps::count($lesson_id);
         $done = [];
         foreach ($rows as $row) {
-            if ($row['passed'] === null || (int) $row['passed'] === 1) $done[] = (int) $row['step_index'];
+            $index = (int) $row['step_index'];
+            if ($index >= $step_count) continue;
+            if ($row['passed'] === null || (int) $row['passed'] === 1) $done[] = $index;
         }
         return $done;
     }
@@ -176,7 +181,7 @@ class BHC_Progress {
             $total += $step_count;
             $done += count(self::completed_steps($user_id, $lesson_id));
         }
-        return $total ? (int) round(($done / $total) * 100) : 0;
+        return $total ? min(100, (int) round(($done / $total) * 100)) : 0;
     }
 
     // Average latest quiz score across attempted quiz steps (only quizzes write a score).
