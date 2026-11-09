@@ -128,6 +128,16 @@ function bhcReassertStepClass(el: HTMLElement): void {
     el.className = bhcStepClassName(el.dataset.stepType || '', !!el.dataset.stepDone);
 }
 
+/**
+ * A bare -1/0 from admin-ajax: logged out, or (for someone signed in) a security token that
+ * expired because the page was left open about a day. Say which, so nobody thinks work was lost.
+ */
+function bhcSessionMessage(action: string): string {
+    return (typeof BHCData !== 'undefined' && BHCData.loggedIn)
+        ? 'This page has been open a while, so it needs a refresh. Reload the page (everything up to now is saved) and ' + action + ' again.'
+        : 'Log in to ' + action + '. Your account keeps your place across devices.';
+}
+
 /** One plain message under a video that could not load (shown once per video). */
 function bhcShowVideoError(videoEl: Element): void {
     var wrap = videoEl.closest('.bhc-video-wrap') || videoEl;
@@ -667,6 +677,9 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                         return;
                     }
                     if (target.closest('[data-bhc-note-delete]')) {
+                        // No undo exists, so a stray tap on the small × must not lose a note.
+                        var preview = (li.querySelector('p')?.textContent || '').slice(0, 60);
+                        if (!window.confirm('Delete this note?\n\n“' + preview + '”')) return;
                         var del = new URLSearchParams({ action: 'bhc_delete_note', nonce: BHCData.nonce, lesson_id: lessonId, note_id: li.dataset.bhcNote ?? '' });
                         fetch(BHCData.ajaxUrl, { method: 'POST', body: del })
                             .then(function (r) { return r.json(); })
@@ -1063,7 +1076,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                         if (res === -1 || res === '-1' || res === 0 || res === '0') {
                             btn.disabled = false;
                             btn.textContent = originalLabel;
-                            var expiredMsg = 'You need to be logged in to save your progress — log in and try again.';
+                            var expiredMsg = bhcSessionMessage('save your progress');
                             if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show(expiredMsg, 'error'); } else { alert(expiredMsg); }
                             return;
                         }
@@ -1193,7 +1206,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                         if (quizSubmitBtn) { quizSubmitBtn.disabled = false; quizSubmitBtn.textContent = quizSubmitLabel; }
                         resultBox.style.display = '';
                         resultBox.className = 'bhc-quiz-result bhc-fail';
-                        resultBox.textContent = 'You need to be logged in to submit this quiz — log in and try again.';
+                        resultBox.textContent = bhcSessionMessage('submit this quiz');
                         return;
                     }
                     if (!res.success) {

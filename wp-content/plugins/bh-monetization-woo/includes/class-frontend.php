@@ -35,6 +35,8 @@ class BHM_Frontend {
         // Priority 5: prepended before WooCommerce's own thank-you markup, never replacing it.
         add_action('woocommerce_thankyou', [self::class, 'render_tier_thankyou_banner'], 5);
         add_action('template_redirect', [self::class, 'maybe_redirect_after_purchase']);
+        add_filter('woocommerce_login_redirect', [self::class, 'login_redirect'], 10, 2);
+        add_action('template_redirect', [self::class, 'maybe_redirect_account_dashboard']);
     }
 
     /**
@@ -42,6 +44,31 @@ class BHM_Frontend {
      * than WooCommerce's receipt (bh-courses → My Courses). Only for the buyer's own paid
      * order; anything else keeps the normal receipt.
      */
+    /** The site's own Account portal, or '' when core's portal isn't available. */
+    private static function portal_url(): string {
+        return class_exists('BHI_Portal') ? home_url('/' . BHI_Portal::REWRITE_SLUG . '/') : '';
+    }
+
+    /**
+     * WHY: members otherwise land on WooCommerce's My account dashboard (orders, addresses)
+     * after a password reset or a log-in there, which never mentions their courses.
+     * @param mixed $redirect
+     * @param mixed $user
+     */
+    public static function login_redirect($redirect, $user = null): string {
+        $portal = self::portal_url();
+        if (!$portal || ($user instanceof \WP_User && user_can($user, 'edit_posts'))) return (string) $redirect;
+        return $portal;
+    }
+
+    // Only the bare dashboard; order, download and password pages keep working for email links.
+    public static function maybe_redirect_account_dashboard(): void {
+        if (!function_exists('is_account_page') || !is_account_page() || !is_user_logged_in() || is_wc_endpoint_url()) return;
+        if (current_user_can('edit_posts') || !($portal = self::portal_url())) return;
+        wp_safe_redirect($portal);
+        exit;
+    }
+
     public static function maybe_redirect_after_purchase(): void {
         if (!function_exists('is_order_received_page') || !is_order_received_page() || !is_user_logged_in()) return;
         $order_id = absint(get_query_var('order-received'));

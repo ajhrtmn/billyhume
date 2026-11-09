@@ -13,6 +13,38 @@ class BHM_GuestBuyers {
         add_filter('woocommerce_checkout_registration_enabled', [self::class, 'enable_registration']);
         // Priority 1: before BHM_Downloads (5) and BHM_Entitlements (10) read the customer.
         add_action('woocommerce_order_status_completed', [self::class, 'attach_account'], 1);
+        // Both the classic and the block order-confirmation page print this text.
+        add_filter('woocommerce_thankyou_order_received_text', [self::class, 'receipt_next_step'], 20, 2);
+    }
+
+    /**
+     * A logged-in buyer is redirected to their account; someone who checked out signed out
+     * is told where their purchase is and how to get in, instead of a bare "thank you".
+     * @param mixed $text
+     * @param mixed $order
+     */
+    public static function receipt_next_step($text, $order = null): string {
+        $text = (string) $text;
+        if (is_user_logged_in()) return $text;
+        // WHY: once attach_account() puts the order on an account, WooCommerce hides it from a
+        // signed-out viewer and passes no order; recognise it from the receipt link's own key.
+        if (!$order instanceof \WC_Order) {
+            $order_id = absint(get_query_var('order-received'));
+            $candidate = $order_id ? wc_get_order($order_id) : null;
+            $key = isset($_GET['key']) ? wc_clean(wp_unslash($_GET['key'])) : '';
+            $order = ($candidate && $key !== '' && hash_equals($candidate->get_order_key(), $key)) ? $candidate : null;
+        }
+        if (!$order instanceof \WC_Order) return $text;
+        $grants = false;
+        foreach ($order->get_items() as $item) {
+            if ($item instanceof \WC_Order_Item_Product && self::product_grants_access((int) $item->get_product_id())) { $grants = true; break; }
+        }
+        if (!$grants) return $text;
+        $account = class_exists('BHI_Portal') ? home_url('/' . BHI_Portal::REWRITE_SLUG . '/') : wp_login_url();
+        $email = $order->get_billing_email();
+        return $text . ' <strong>Your purchase is in your account.</strong> '
+            . 'Log in as ' . esc_html($email) . ' to start. If this is your first purchase, we\'ve emailed you a link to set your password. '
+            . '<a href="' . esc_url($account) . '">Go to your account &rarr;</a>';
     }
 
     public static function product_grants_access(int $product_id): bool {
