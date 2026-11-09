@@ -320,6 +320,26 @@
     border: 1px solid var(--bh-border);
     border-radius: 10px;
 }
+/* Wide screens: notes become a sidebar beside the lesson, in view while watching. */
+@media (min-width: 1200px) {
+    .bhc-lesson-layout:has([data-bhc-notes]) { max-width: 1480px; }
+    [data-lesson-id]:has(> [data-bhc-notes]) {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 300px;
+        column-gap: 24px;
+        align-items: start;
+    }
+    [data-lesson-id]:has(> [data-bhc-notes]) > * { grid-column: 1; }
+    [data-lesson-id] > [data-bhc-notes] {
+        grid-column: 2;
+        grid-row: 1 / span 40;
+        position: sticky;
+        top: 88px;
+        margin-top: 0;
+        max-height: calc(100vh - 108px);
+        overflow-y: auto;
+    }
+}
 [data-bhc-notes] h2 {
     font-size: 18px;
     margin: 0 0 4px;
@@ -2502,3 +2522,16 @@ a.bhc-pagination-number:active,
     font-weight: 600;
 }
 .bhc-btn-buy-once del { opacity: .7; }
+
+.bhc-preview-note {
+    margin: 0 0 16px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--bh-border);
+    background: var(--bh-surface);
+    font-size: 14px;
+}
+.bhc-preview-note a {
+    color: var(--bh-accent);
+    text-decoration: underline;
+}

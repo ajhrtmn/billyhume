@@ -602,9 +602,10 @@ class BHI_Portal {
 <?php endif; ?>>
   <nav class="bhi-portal-nav">
     <div class="bhi-portal-brand"><?php echo esc_html(get_bloginfo('name')); ?></div>
-    <?php if (class_exists('BHM_Wallet')):
+    <?php if (class_exists('BHM_Wallet') && BHM_Wallet::balance_cents(get_current_user_id()) > 0):
         // Persistent wallet balance in the nav, Datastar-bound to walletBalance so
-        // purchases in another tab show up within one poll.
+        // purchases in another tab show up within one poll. Hidden at $0: it only confuses
+        // people who never use the wallet.
     ?>
       <a class="bhi-portal-wallet-chip" href="<?php echo esc_url(home_url('/' . self::REWRITE_SLUG . '/membership/')); ?>">
         <span class="dashicons dashicons-money-alt"></span> $<span data-text="$walletBalance"><?php echo esc_html($wallet_balance_display); ?></span>

@@ -113,6 +113,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 /* This header is sticky (it takes up its own space), so plugin sections need no extra
    clearance for it. The token exists for themes whose header floats over content. */
 :root { --bh-header-clearance: 0px; }
+/* Lessons lay out three columns on wide screens (lesson list, lesson, notes), so they get more room. */
+body.single-bh_lesson .oust-container { max-width: 1480px; } /* beats .oust-no-sidebar below */
 
 /* Offset by #wpadminbar's height (32px, 46px on mobile), matching core's
    body.admin-bar margin. z-index stays below the admin bar's 99999. */

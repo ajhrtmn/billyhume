@@ -13,9 +13,10 @@ class BHC_Render_Landing {
         add_filter('oust_show_page_header', [self::class, 'hide_theme_title'], 10, 2);
     }
 
-    /** The sales page opens with its own hero title, so the theme's page title would repeat it. */
+    /** Sales pages and course pages open with their own hero title, so the theme's would repeat it. */
     public static function hide_theme_title(bool $show, $post): bool {
         if (!$post instanceof \WP_Post) return $show;
+        if ($post->post_type === 'bh_course') return false;
         return (has_block('bhc/course-landing', $post) || has_shortcode($post->post_content, 'bh_course_landing')) ? false : $show;
     }
 
@@ -100,13 +101,22 @@ class BHC_Render_Landing {
                     ? 'Launch price for the next ' . (int) $offer['remaining'] . ' buyer' . ((int) $offer['remaining'] === 1 ? '' : 's') . '.'
                     : 'Launch price, applied at checkout.') . '</p>';
             }
+        } elseif (self::is_free($course_id)) {
+            $first = BHC_PostTypes::lesson_order($course_id)[0] ?? 0;
+            $out .= '<a class="bhc-btn" href="' . esc_url((string) get_permalink($first ?: $course_id)) . '">Start free &rarr;</a>';
         } else {
             $out .= '<a class="bhc-btn" href="' . esc_url((string) get_permalink($course_id)) . '">View the course &rarr;</a>';
         }
         if (!$uid) {
-            $out .= '<p class="bhc-landing-login">Already bought it? <a href="' . esc_url(wp_login_url((string) get_permalink($course_id))) . '">Log in</a> to pick up where you left off.</p>';
+            $out .= '<p class="bhc-landing-login">' . (self::is_free($course_id) ? 'Already started?' : 'Already bought it?')
+                . ' <a href="' . esc_url(wp_login_url((string) get_permalink($course_id))) . '">Log in</a> to pick up where you left off.</p>';
         }
         return $out . '</div>';
+    }
+
+    // Open to anyone: no price, no tier, and viewable logged out.
+    private static function is_free(int $course_id): bool {
+        return !BHC_Gate::has_purchase_option($course_id) && !BHC_Gate::required_tier($course_id) && OUS_Visibility::is_public($course_id);
     }
 
     private static function contents(int $course_id): string {

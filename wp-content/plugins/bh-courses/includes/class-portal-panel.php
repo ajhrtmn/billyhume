@@ -103,13 +103,30 @@ class BHC_PortalPanel {
         echo '</div>';
     }
 
-    /** @return array<int, int> */
+    /**
+     * In-progress courses first (most recently worked on), then not started, then finished,
+     * so "Continue" means the course the student was actually in.
+     * @return array<int, int>
+     */
     private static function enrolled_course_ids(int $user_id): array {
         global $wpdb;
-        return $wpdb->get_col($wpdb->prepare(
-            "SELECT course_id FROM " . BHC_Tables::enrollments() . " WHERE user_id = %d ORDER BY enrolled_at DESC",
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT e.course_id, e.enrolled_at, MAX(p.completed_at) AS last_activity
+             FROM " . BHC_Tables::enrollments() . " e
+             LEFT JOIN {$wpdb->postmeta} pm ON pm.meta_key = '_bhc_course_id' AND pm.meta_value = e.course_id
+             LEFT JOIN " . BHC_Tables::progress() . " p ON p.lesson_id = pm.post_id AND p.user_id = e.user_id
+             WHERE e.user_id = %d
+             GROUP BY e.course_id, e.enrolled_at",
             $user_id
-        ));
+        ), ARRAY_A);
+        $rank = function (array $r) use ($user_id): int {
+            if (!$r['last_activity']) return 1;
+            return class_exists('BHC_Progress') && BHC_Progress::is_course_completed($user_id, (int) $r['course_id']) ? 2 : 0;
+        };
+        usort($rows, function ($a, $b) use ($rank) {
+            return [$rank($a), $b['last_activity'] ?: $b['enrolled_at']] <=> [$rank($b), $a['last_activity'] ?: $a['enrolled_at']];
+        });
+        return array_map(fn($r) => (int) $r['course_id'], $rows);
     }
 
     public static function render(): void {

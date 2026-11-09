@@ -15,7 +15,7 @@
             $post_type_obj = get_post_type_object(get_post_type());
             $kicker = $post_type_obj ? esc_html($post_type_obj->labels->singular_name) : __('Post', 'the-self-hosted-self-theme');
         }
-        get_template_part('template-parts/page-header', null, [
+        if (apply_filters('oust_show_page_header', true, get_post())) get_template_part('template-parts/page-header', null, [
             'kicker' => $kicker,
             'title' => get_the_title(),
             'lede' => $is_blog_post ? get_the_date() . ' &middot; ' . esc_html(get_the_author()) : '',

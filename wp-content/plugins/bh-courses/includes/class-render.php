@@ -110,6 +110,7 @@ class BHC_Render {
         wp_localize_script('bhc-front', 'BHCData', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('bhc_progress'),
+            'loggedIn' => is_user_logged_in(),
         ]);
     }
 

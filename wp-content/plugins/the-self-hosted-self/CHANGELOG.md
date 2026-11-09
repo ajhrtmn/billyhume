@@ -7,6 +7,8 @@ why version history lives here and in git rather than in source.
 Entries are newest-first, exactly as they were written in-file. Nothing
 has been reworded or dropped.
 
+3.21.53 - Account portal: the wallet balance chip only shows when the wallet has money in it; a "$0.00" badge at the top of the account page confused course buyers who never use the wallet. Runtime-verified as a gifted student (no chip) and with the Test Runner.
+
 3.21.52 - Fix: members (anyone the portal keeps out of wp-admin) were redirected to /account/ when a front-end form posted to admin-post.php, because admin-post fires admin_init too. Every member-facing admin-post form silently failed for non-staff, including bh-tickets' New ticket / Reply in the account portal. admin-post.php is now exempt from the redirect; each handler still checks its own nonce and capability, and browsing wp-admin still bounces members. Runtime-verified over HTTP as a bh_member: portal ticket and support/feedback forms submit, /wp-admin/ still redirects.
 
 3.21.51 - Account portal: new `bhi_portal_default_panel` filter (fallback, user id) picks which tab /account/ opens on when the URL names none; Portal Layout's first visible panel is still the fallback. bh-courses uses it to open students on My Courses. Runtime-verified: a student opens on My Courses, a non-student still opens on the layout's first panel; Test Runner passes.

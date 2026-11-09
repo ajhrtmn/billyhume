@@ -14,6 +14,9 @@ class BHC_SessionsPortal {
      * @return array<int, array<string, mixed>>
      */
     public static function register_panel($panels): array {
+        // Only when there's something to book or already booked. WHY: admin keeps it for Portal Layout.
+        $uid = get_current_user_id();
+        if (!is_admin() && class_exists('BHC_Sessions') && !BHC_Sessions::for_student($uid) && !BHC_Sessions::open_slots()) return $panels;
         $panels[] = [
             'id' => 'sessions',
             'label' => 'Sessions',

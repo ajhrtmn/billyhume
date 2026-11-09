@@ -170,8 +170,12 @@ class BHC_Gate {
                 $price_display = function_exists('wc_price') ? wc_price(self::purchase_price_cents($course_id) / 100) : '$' . number_format(self::purchase_price_cents($course_id) / 100, 2);
                 $buy_url = function_exists('wc_get_cart_url') ? wc_get_cart_url() . '?add-to-cart=' . $product_id : '';
                 if ($buy_url) {
+                    // "Or ... no tier required" only reads right next to a tier offer.
+                    $title = $tier_notice
+                        ? 'Or buy this course outright for <strong>' . $price_display . '</strong> — yours to keep, no supporter tier required.'
+                        : 'Get this course for <strong>' . $price_display . '</strong> — buy once, yours to keep.';
                     $buy_notice = '<div class="bhc-paywall bhc-paywall-purchase">'
-                        . '<p class="bhc-paywall-title">Or buy this course outright for <strong>' . $price_display . '</strong> — yours to keep, no supporter tier required.</p>'
+                        . '<p class="bhc-paywall-title">' . $title . '</p>'
                         . '<a class="bhc-btn bhc-btn-buy-once" href="' . esc_url($buy_url) . '">Buy once — ' . $price_display . '</a>'
                         . '</div>';
                 }

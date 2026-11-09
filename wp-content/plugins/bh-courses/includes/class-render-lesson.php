@@ -23,11 +23,11 @@ class BHC_Render_Lesson {
         // Deep-linked lessons still start the drip clock.
         if ($uid && $course_id) BHC_Progress::enroll_if_needed($uid, $course_id);
         if (!BHC_Gate::lesson_is_open($uid, $lesson_id)) {
-            return '<div class="bhc-drip-locked"><p>&#128274; ' . BHC_Gate::drip_notice($uid, $lesson_id) . '</p></div>';
+            return self::stop_notice($course_id, $lesson_id, $uid, '&#128274; ' . BHC_Gate::drip_notice($uid, $lesson_id), 'bhc-drip-locked');
         }
 
         $steps = BHC_Steps::get($lesson_id);
-        if (!$steps) return '<p class="bhc-empty">This lesson has no content yet.</p>';
+        if (!$steps) return self::stop_notice($course_id, $lesson_id, $uid, 'This lesson is coming soon.', 'bhc-empty');
 
         $completed = $uid ? BHC_Progress::completed_steps($uid, $lesson_id) : [];
         // Land on the first not-yet-completed step.
@@ -69,6 +69,11 @@ class BHC_Render_Lesson {
             echo BHC_Render_Course::render_lesson_sidebar($course_id, $uid, $lesson_id);
         }
         echo '<div class="bhc-lesson-main">';
+        // Public lessons can be watched logged out; say up front that nothing is saved.
+        if (!$uid) {
+            $account = class_exists('BHI_Portal') ? home_url('/' . BHI_Portal::REWRITE_SLUG . '/') : wp_login_url((string) get_permalink($lesson_id));
+            echo '<p class="bhc-preview-note">You\'re previewing this lesson. <a href="' . esc_url($account) . '">Log in or create a free account</a> to save your progress and notes.</p>';
+        }
 
         echo '<div class="bhc-lesson" data-lesson-id="' . (int) $lesson_id . '" data-step-count="' . count($steps) . '" data-start-index="' . (int) $start_index . '"'
             . ($next_lesson_id ? ' data-next-lesson-url="' . esc_url((string) get_permalink($next_lesson_id)) . '"' : '') . '>';
@@ -144,6 +149,50 @@ class BHC_Render_Lesson {
         echo '</div>'; // .bhc-lesson-main
         echo '</div>'; // .bhc-lesson-layout
         return ob_get_clean();
+    }
+
+    /**
+     * A lesson that can't be taken yet (empty or drip-locked) still offers a way on:
+     * back to the course, and the next lesson that is open.
+     * $message is already escaped.
+     */
+    private static function stop_notice(int $course_id, int $lesson_id, int $uid, string $message, string $class): string {
+        $out = '<div class="' . esc_attr($class) . '"><p>' . $message . '</p>';
+        if ($course_id) {
+            $next = self::next_open_lesson($lesson_id, $uid);
+            $out .= '<p class="bhc-lesson-next-actions">'
+                . '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url((string) get_permalink($course_id)) . '">&larr; ' . esc_html(get_the_title($course_id)) . '</a> '
+                . ($next ? '<a class="bhc-btn" href="' . esc_url((string) get_permalink($next)) . '">Next Lesson &rarr;</a>' : '')
+                . '</p>';
+        }
+        return $out . '</div>';
+    }
+
+    /** The next lesson after this one that has steps and is open to this user, or 0. */
+    private static function next_open_lesson(int $lesson_id, int $uid): int {
+        $course_id = BHC_PostTypes::course_for_lesson($lesson_id);
+        $order = $course_id ? BHC_PostTypes::lesson_order($course_id) : [];
+        $pos = array_search($lesson_id, $order, true);
+        foreach ($pos === false ? [] : array_slice($order, $pos + 1) as $candidate) {
+            if (get_post_status($candidate) === 'publish' && BHC_Steps::count($candidate) && BHC_Gate::lesson_is_open($uid, $candidate)) return (int) $candidate;
+        }
+        return 0;
+    }
+
+    /**
+     * Shown once a limited-attempt quiz is used up, so the student isn't stranded: they can
+     * move on, or ask for help (an admin can mark the lesson done under Courses → Progress).
+     */
+    private static function attempts_help(int $lesson_id, bool $visible): string {
+        $next = self::next_open_lesson($lesson_id, get_current_user_id());
+        $support = method_exists('OUS_Pages', 'url') ? OUS_Pages::url('bht_support') : null;
+        if (!$next && !$support) return '';
+        return '<div class="bhc-attempts-help" data-bhc-attempts-help' . ($visible ? '' : ' hidden') . '>'
+            . '<p>Out of tries for this quiz. You can keep going with the course, and if you\'d like another go, ask us.</p>'
+            . '<p class="bhc-lesson-next-actions">'
+            . ($next ? '<a class="bhc-btn" href="' . esc_url((string) get_permalink($next)) . '">Next Lesson &rarr;</a> ' : '')
+            . ($support ? '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url($support) . '">Ask for help</a>' : '')
+            . '</p></div>';
     }
 
     // Converts YouTube watch/short/youtu.be and vimeo.com/ID links to embed URLs, then
@@ -330,6 +379,7 @@ class BHC_Render_Lesson {
                 // aria-live so the score is announced when courses.js fills it in.
                 echo '<div class="bhc-quiz-result" role="status" aria-live="polite" style="display:' . ($exhausted && !$already_passed ? '' : 'none') . '">' . ($exhausted && !$already_passed ? 'No attempts remaining.' : '') . '</div>';
                 echo '</form>';
+                if ($max_attempts > 0 && !$already_passed) echo self::attempts_help($lesson_id, $exhausted);
             }
         } elseif ($step['type'] === 'resource') {
             // Non-blocking: downloading isn't required to advance.

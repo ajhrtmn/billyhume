@@ -142,6 +142,8 @@ class BHC_Render_Course {
         if ($locked) {
             if ($requires_login) {
                 echo OUS_Visibility::render_login_notice(__('Log in to view this course.', 'bh-courses'));
+                // Say what it takes to get in, not just "log in", when the course is paid or tiered.
+                if (BHC_Gate::required_tier($course_id) || BHC_Gate::has_purchase_option($course_id)) echo BHC_Gate::render_paywall_notice($course_id);
             } else {
                 echo BHC_Gate::render_paywall_notice($course_id);
             }
@@ -300,7 +302,10 @@ class BHC_Render_Course {
         $classes = trim(($complete ? 'bhc-lesson-done' : '') . (!$open ? ' bhc-lesson-locked' : '') . ($is_current ? ' bhc-lesson-current' : ''));
 
         $html = '<li class="' . $classes . '">';
-        if ($open) {
+        if ($open && $step_count === 0) {
+            // Nothing to open yet: no dead-end link.
+            $html .= '<span>' . esc_html(get_the_title($lesson_id)) . '</span> <span class="bhc-drip-notice">Coming soon</span>';
+        } elseif ($open) {
             $html .= '<a href="' . esc_url(get_permalink($lesson_id)) . '"' . ($is_current ? ' aria-current="page"' : '') . '>' . esc_html(get_the_title($lesson_id)) . '</a>';
         } else {
             $html .= '<span>' . esc_html(get_the_title($lesson_id)) . '</span> <span class="bhc-drip-notice">&#128274;'

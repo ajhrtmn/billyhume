@@ -709,6 +709,10 @@ window.BHCLessonStepDom = {
                 if (overlay)
                     overlay.remove();
                 overlay = null;
+                // Hand focus back to the player so keyboard users carry on where they were.
+                var playBtn = wrap.querySelector('.plyr__control[data-plyr="play"], video');
+                if (playBtn)
+                    playBtn.focus();
                 media.play();
             }
             // Lower-third banner: auto-dismisses and never pauses playback. Kept separate
@@ -735,6 +739,11 @@ window.BHCLessonStepDom = {
                 shown[index] = true;
                 overlay = document.createElement('div');
                 overlay.className = 'bhc-video-overlay bhc-video-overlay-' + a.type;
+                // A labelled dialog, so screen readers announce why playback stopped.
+                overlay.setAttribute('role', 'dialog');
+                overlay.setAttribute('aria-label', a.type === 'question' ? 'Video paused: question' : 'Video paused: note');
+                overlay.addEventListener('keydown', function (e) { if (e.key === 'Escape')
+                    dismiss(); });
                 if (a.type === 'question') {
                     var choicesHtml = (a.payload.choices || []).map(function (choice, i) {
                         return '<button type="button" class="bhc-video-overlay-choice" data-choice-index="' + i + '">' + escText(choice) + '</button>';
@@ -775,6 +784,7 @@ window.BHCLessonStepDom = {
                             continueBtn.textContent = correct ? 'Correct — continue' : 'Continue';
                             continueBtn.addEventListener('click', dismiss);
                             overlay.querySelector('.bhc-video-overlay-card').appendChild(continueBtn);
+                            continueBtn.focus();
                         });
                     });
                 }
@@ -787,6 +797,9 @@ window.BHCLessonStepDom = {
                     overlay.querySelector('.bhc-video-overlay-continue').addEventListener('click', dismiss);
                 }
                 wrap.appendChild(overlay);
+                var firstButton = overlay.querySelector('button');
+                if (firstButton)
+                    firstButton.focus();
             }
             media.on('timeupdate', function () {
                 if (overlay)
@@ -967,8 +980,8 @@ window.BHCLessonStepDom = {
                 window.location.href = nextLessonUrl;
                 return;
             }
-            // Already completed by the watch gate: just move on.
-            if (target.dataset.bhcAdvance === '1') {
+            // Already completed by the watch gate, or a logged-out preview (nothing to save): just move on.
+            if (target.dataset.bhcAdvance === '1' || BHCData.loggedIn === false) {
                 var doneStep = target.closest('[data-step-index]');
                 advanceWithBeat(parseInt((_b = doneStep.dataset.stepIndex) !== null && _b !== void 0 ? _b : '-1', 10));
                 return;
@@ -1145,6 +1158,13 @@ window.BHCLessonStepDom = {
                 .then(function (res) {
                 var _a;
                 var resultBox = form.querySelector('.bhc-quiz-result');
+                // Out-of-tries help (BHC_Render_Lesson::attempts_help) sits right after the form.
+                function showAttemptsHelp() {
+                    var _a;
+                    var help = (_a = form.closest('[data-step-index]')) === null || _a === void 0 ? void 0 : _a.querySelector('[data-bhc-attempts-help]');
+                    if (help)
+                        help.hidden = false;
+                }
                 // Same bare 0/-1 session cases as bhc_mark_complete above.
                 if (res === -1 || res === '-1' || res === 0 || res === '0') {
                     if (quizSubmitBtn) {
@@ -1168,6 +1188,7 @@ window.BHCLessonStepDom = {
                     resultBox.textContent = data.message || 'Something went wrong.';
                     if (data.max_attempts) {
                         form.querySelectorAll('input, button[type="submit"]').forEach(function (el) { el.disabled = true; });
+                        showAttemptsHelp();
                     }
                     return;
                 }
@@ -1185,6 +1206,8 @@ window.BHCLessonStepDom = {
                     : result.correct;
                 // When retries are exhausted, name the specific missed questions.
                 var attemptsExhausted = !result.passed && result.max_attempts && result.attempts_remaining === 0;
+                if (attemptsExhausted)
+                    showAttemptsHelp();
                 if (result.passed) {
                     // Mirrors BHC_Render_Lesson::render_quiz_review(). All values are
                     // server-computed numbers, so building HTML here is safe.
