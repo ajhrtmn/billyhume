@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: BH CRM
- * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.26
+ * Description: People: everyone with an account, voted or bought something, with notes, tags, CSV export and a project board. Other plugins can add an activity section to a person.
+ * Version:     2.4.27
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,12 +10,12 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHCRM_VER',  '2.4.26');
+define('BHCRM_VER',  '2.4.27');
 
 define('BHCRM_PATH', plugin_dir_path(__FILE__));
 define('BHCRM_URL',  plugin_dir_url(__FILE__));
 
-foreach (['tables', 'people', 'notes', 'tags', 'segments', 'export', 'event-activity', 'links', 'projects', 'subtasks', 'card-log', 'debug', 'hub', 'test-suite'] as $f) {
+foreach (['words', 'tables', 'people', 'notes', 'tags', 'segments', 'export', 'event-activity', 'links', 'projects', 'subtasks', 'card-log', 'debug', 'hub', 'test-suite'] as $f) {
     require_once BHCRM_PATH . "includes/class-$f.php";
 }
 

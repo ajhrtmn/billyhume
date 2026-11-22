@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: BH Contest
- * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.16.0
+ * Description: Music contests for Billy Hume's site: song submissions, voting, judging and the live Reveal Party.
+ * Version:     3.16.1
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BH_VER',        '3.16.0');
+define('BH_VER',        '3.16.1');
 
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
@@ -154,7 +154,7 @@ add_action('plugins_loaded', function () {
 
         // bh-common carries bhEsc()/bhWord() and the wording from words.php for every contest script.
         wp_register_script('bh-common', BH_URL . 'assets/js/bh-common.js', [], BH_VER, true);
-        wp_localize_script('bh-common', 'BHWords', BHCON_Words::all());
+        wp_localize_script('bh-common', 'BHWords', BHCON_Words::for_browser());
 
         if ($has_player) {
             wp_enqueue_script('howler', 'https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js', [], '2.2.4', true);

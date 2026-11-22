@@ -54,10 +54,10 @@ class BHC_DripNudges {
                     OUS_Notifications::notify(
                         $user_id,
                         'course_lesson_unlocked',
-                        'New lesson unlocked: ' . get_the_title($lesson_id),
+                        BHC_Words::get('admin.drip_nudges.new_lesson_unlocked') . ' ' . get_the_title($lesson_id),
                         'In "' . $course->post_title . '" — ready whenever you are.',
                         get_permalink($lesson_id),
-                        'BH Courses'
+                        BHC_Words::get('admin.crm_integration.bh_courses')
                     );
                     update_user_meta($user_id, $meta_key, time());
                 }

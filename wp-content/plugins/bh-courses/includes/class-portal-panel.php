@@ -61,7 +61,7 @@ class BHC_PortalPanel {
             $percent = BHC_Progress::course_percent($user_id, $course_id);
             $next_lesson = BHC_Progress::first_incomplete_lesson($user_id, $course_id);
             $links[] = [
-                'label' => 'Continue: ' . $course->post_title,
+                'label' => BHC_Words::get('admin.portal_panel.continue') . ' ' . $course->post_title,
                 'url' => $next_lesson ? get_permalink($next_lesson) : get_permalink($course_id),
                 'meta' => $percent . '%',
             ];

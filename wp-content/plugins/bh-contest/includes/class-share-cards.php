@@ -28,9 +28,9 @@ class BH_ShareCards {
 
     public static function maybe_serve_card(): void {
         if (isset($_GET['bh_share_entered'])) {
-            self::serve(($_GET['bh_share_entered']), 'Now Entered');
+            self::serve(($_GET['bh_share_entered']), BHCON_Words::get('admin.share_cards.now_entered'));
         } elseif (isset($_GET['bh_share_vote'])) {
-            self::serve(($_GET['bh_share_vote']), 'Vote Now');
+            self::serve(($_GET['bh_share_vote']), BHCON_Words::get('admin.share_cards.vote_now'));
         }
     }
 
@@ -44,7 +44,7 @@ class BH_ShareCards {
             $submission->post_status === 'publish'
             || (is_user_logged_in() && ((int) $submission->post_author === get_current_user_id() || current_user_can('edit_post', $submission_id)))
         );
-        if (!$visible) wp_die('Submission not found.', '', ['response' => 404, 'back_link' => true]);
+        if (!$visible) wp_die(BHCON_Words::get('admin.admin_moderation.submission_not_found'), '', ['response' => 404, 'back_link' => true]);
 
         $contest_id = (int) get_post_meta($submission_id, '_bh_contest_id', true);
         $contest = $contest_id ? get_post($contest_id) : null;
@@ -54,7 +54,7 @@ class BH_ShareCards {
             $artist = $author ? ($author->display_name ?: $author->user_login) : 'An artist';
         }
 
-        if (!class_exists('BH_ShareCard')) wp_die('Share cards are unavailable right now.', '', ['response' => 501, 'back_link' => true]);
+        if (!class_exists('BH_ShareCard')) wp_die(BHCON_Words::get('admin.share_cards.share_cards_are_unavailable_right'), '', ['response' => 501, 'back_link' => true]);
 
         $stored_style = $contest_id ? get_post_meta($contest_id, '_bh_share_card_style', true) : '';
         $style = BH_ShareCard::is_valid_style($stored_style) ? $stored_style : 'brand';

@@ -17,7 +17,7 @@ class BHC_Privacy {
      */
     public static function register_exporter($exporters): array {
         $exporters['bh-courses-progress'] = [
-            'exporter_friendly_name' => __('The Self-Hosted Self — Course Progress', 'bh-courses'),
+            'exporter_friendly_name' => BHC_Words::get('admin.privacy.self_hosted_self_course_progress'),
             'callback' => [self::class, 'export'],
         ];
         return $exporters;
@@ -29,7 +29,7 @@ class BHC_Privacy {
      */
     public static function register_eraser($erasers): array {
         $erasers['bh-courses-progress'] = [
-            'eraser_friendly_name' => __('The Self-Hosted Self — Course Progress', 'bh-courses'),
+            'eraser_friendly_name' => BHC_Words::get('admin.privacy.self_hosted_self_course_progress'),
             'callback' => [self::class, 'erase'],
         ];
         return $erasers;
@@ -57,7 +57,7 @@ class BHC_Privacy {
             }
             $data[] = [
                 'group_id' => 'bh-courses-progress',
-                'group_label' => __('Course Progress', 'bh-courses'),
+                'group_label' => BHC_Words::get('admin.privacy.course_progress'),
                 'item_id' => 'progress-' . $row['lesson_id'] . '-' . $row['step_index'],
                 'data' => $props,
             ];
@@ -67,7 +67,7 @@ class BHC_Privacy {
         foreach ($achievements as $row) {
             $data[] = [
                 'group_id' => 'bh-courses-achievements',
-                'group_label' => __('Course Achievements', 'bh-courses'),
+                'group_label' => BHC_Words::get('admin.privacy.course_achievements'),
                 'item_id' => 'achievement-' . $row['achievement_key'] . '-' . $row['course_id'],
                 'data' => [
                     ['name' => 'achievement_key', 'value' => $row['achievement_key']],

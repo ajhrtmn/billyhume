@@ -1,8 +1,6 @@
 # UX audit harness
 
-Measured, repeatable version of the audit described in
-`docs/archive/UX-AUDIT-PLAN.md`. Replaces the throwaway browser
-harness that was hand-rolled (twice) before this existed.
+Measured, repeatable browser audits of public and admin screens (Playwright).
 
 ## Run
 
@@ -22,12 +20,10 @@ horizontal overflow, and <44px touch targets at ≤782.
 
 ## Two things it deliberately gets right
 
-- **Reloads per theme** rather than toggling `data-shsas-theme`. Toggling
-  and re-reading in the same task does not re-resolve `var()` references
-  and once produced 39 contrast failures that did not exist.
+- **Reloads per theme** rather than toggling the theme attribute: toggling
+  and re-reading in the same task does not re-resolve `var()` references.
 - **Composites backgrounds** up the ancestor chain, with `body` as the
-  base — `:root` is transparent in this skin, so a white base invents
-  failures on every dark screen.
+  base, so a transparent `:root` does not invent failures on dark screens.
 
 Exclusions (each earned by a real false positive): `.screen-reader-text`,
 elements clipped to ~1px, Query Monitor's chrome, `text-overflow:

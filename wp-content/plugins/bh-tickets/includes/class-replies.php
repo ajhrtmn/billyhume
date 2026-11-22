@@ -11,7 +11,7 @@ class BHT_Replies {
     public static function add(int $ticket_id, int $user_id, string $body, bool $is_staff = false) {
         global $wpdb;
         $body = wp_kses_post($body);
-        if (trim(wp_strip_all_tags($body)) === '') return new WP_Error('empty', 'A reply needs a body.');
+        if (trim(wp_strip_all_tags($body)) === '') return new WP_Error('empty', BHT_Words::get('admin.replies.reply_needs_body'));
 
         $wpdb->insert(self::table(), [
             'ticket_id' => $ticket_id,
@@ -21,7 +21,7 @@ class BHT_Replies {
             'created_at' => current_time('mysql'),
         ]);
         $reply_id = (int) $wpdb->insert_id;
-        if (!$reply_id) return new WP_Error('db_error', 'Could not save the reply.');
+        if (!$reply_id) return new WP_Error('db_error', BHT_Words::get('admin.replies.could_not_save_reply'));
 
         if (class_exists('BHT_Tickets')) BHT_Tickets::touch($ticket_id);
 
@@ -56,16 +56,16 @@ class BHT_Replies {
         if ($is_staff && (int) $ticket['user_id'] !== (int) $actor_id) {
             OUS_Notifications::notify(
                 (int) $ticket['user_id'], 'ticket_reply',
-                'New reply on your ticket: ' . $ticket['subject'],
-                'Someone replied — take a look.',
-                $url, 'BH Tickets'
+                BHT_Words::get('admin.replies.new_reply_ticket') . ' ' . $ticket['subject'],
+                BHT_Words::get('admin.replies.someone_replied_take_look'),
+                $url, BHT_Words::get('admin.replies.bh_tickets')
             );
         } elseif (!$is_staff && (int) $ticket['assigned_to'] > 0 && (int) $ticket['assigned_to'] !== (int) $actor_id) {
             OUS_Notifications::notify(
                 (int) $ticket['assigned_to'], 'ticket_reply',
-                'New reply on assigned ticket: ' . $ticket['subject'],
-                'The requester replied — take a look.',
-                admin_url('admin.php?page=bh-tickets&ticket_id=' . (int) $ticket_id), 'BH Tickets'
+                BHT_Words::get('admin.replies.new_reply_assigned_ticket') . ' ' . $ticket['subject'],
+                BHT_Words::get('admin.replies.requester_replied_take_look'),
+                admin_url('admin.php?page=bh-tickets&ticket_id=' . (int) $ticket_id), BHT_Words::get('admin.replies.bh_tickets')
             );
         }
     }

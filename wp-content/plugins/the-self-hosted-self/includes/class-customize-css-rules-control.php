@@ -2,18 +2,14 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The visual Custom CSS rule editor as a Customizer control (the Design
- * Suite page keeps its own copy).
- * WHY: no link(); the value is an array of rules, so the script uses
- * wp.customize(id).get()/.set(), which carries arrays intact to the
- * preview and to sanitize_callback.
- * Required lazily from BHY_Customizer::register() (WP_Customize_Control
- * exists only in Customizer requests).
+ * The visual Custom CSS rule editor as a Customizer control. WHY: no link(); the value is
+ * an array of rules, so the script uses wp.customize(id).get()/.set(). Required lazily
+ * because WP_Customize_Control only exists in Customizer requests.
  */
 class BHY_Customize_Css_Rules_Control extends WP_Customize_Control {
     public $type = 'bhy_css_rules';
 
-    private static $script_enqueued = false;
+    private static bool $script_enqueued = false;
 
     public function render_content() {
         ?>
@@ -27,12 +23,12 @@ class BHY_Customize_Css_Rules_Control extends WP_Customize_Control {
                 <span class="description customize-control-description"><?php echo wp_kses_post($this->description); ?></span>
             <?php endif; ?>
             <div class="bhy-cz-rules-list"></div>
-            <button type="button" class="button bhy-cz-add-rule">+ Add rule</button>
+            <button type="button" class="button bhy-cz-add-rule"><?php echo OUS_Words::get('admin.customize_css_rules_control.add_rule'); ?></button>
         </div>
         <?php
     }
 
-    public function enqueue() {
+    public function enqueue(): void {
         if (self::$script_enqueued) return;
         self::$script_enqueued = true;
         wp_enqueue_script('bhy-customizer-css-rules', OUS_URL . 'assets/js/customizer-css-rules-control.js', ['customize-controls'], OUS_VER, true);

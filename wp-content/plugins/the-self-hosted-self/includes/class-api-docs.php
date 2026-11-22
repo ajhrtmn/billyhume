@@ -33,13 +33,7 @@ class OUS_ApiDocs {
 
 
     public static function add_menu(): void {
-        // $hook = add_submenu_page('ous-debug', 'API Docs', 'API Docs', 'manage_options', 'ous-api-docs', [self::class, 'render']);
-        // if (class_exists('OUS_DebugLog')) {
-        //     OUS_DebugLog::log_throttled('info', 'api_docs_registered', 60,
-        //         'add_submenu_page() for API Docs returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'"),
-        //         ['hook_suffix' => $hook], 'API Docs'
-        //     );
-        // }
+
     }
 
     public static function register_routes(): void {
@@ -49,7 +43,7 @@ class OUS_ApiDocs {
             'callback' => function () {
                 // Route map is dev info; hidden in production unless OUS_DEBUG_TOOLS_FORCE.
                 if (class_exists('OUS_Debug') && OUS_Debug::is_locked()) {
-                    return new WP_Error('bhcore_api_docs_disabled', 'API docs are only available on non-production environments.', ['status' => 404]);
+                    return new WP_Error('bhcore_api_docs_disabled', OUS_Words::get('admin.api_docs.api_docs_are_only_available'), ['status' => 404]);
                 }
                 return new WP_REST_Response(self::generate_spec(), 200);
             },
@@ -98,7 +92,7 @@ class OUS_ApiDocs {
                     $path_item[strtolower($method)] = [
                         'summary' => $namespace . ' route',
                         'parameters' => $parameters,
-                        'responses' => ['200' => ['description' => 'Success'], '4XX' => ['description' => 'Error — see message field of the response body']],
+                        'responses' => ['200' => ['description' => OUS_Words::get('admin.api_docs.success')], '4XX' => ['description' => OUS_Words::get('admin.api_docs.error_see_message_field_response')]],
                     ];
                 }
             }
@@ -108,9 +102,9 @@ class OUS_ApiDocs {
         return [
             'openapi' => '3.0.0',
             'info' => [
-                'title' => 'The Self-Hosted Self ecosystem API',
+                'title' => OUS_Words::get('admin.api_docs.self_hosted_self_ecosystem_api'),
                 'version' => defined('OUS_VER') ? OUS_VER : '1.0.0',
-                'description' => 'Auto-generated from this site\'s live registered REST routes. Only ecosystem-owned namespaces (ous/, bhi/, bh*) are included.',
+                'description' => OUS_Words::get('admin.api_docs.auto_generated_from_site_s'),
             ],
             'servers' => [['url' => rest_url()]],
             'paths' => $paths,
@@ -145,17 +139,17 @@ class OUS_ApiDocs {
     private static function render_content(): void {
         $spec = self::generate_spec();
 
-        echo '<p class="description" id="bhy-openapi-url-line">Generated live from this site\'s own registered REST routes — always in sync with the actual code, never hand-maintained separately.';
+        echo ('<p class="description" id="bhy-openapi-url-line">' . OUS_Words::get('admin.api_docs.generated_live_from_site_s'));
         // The JSON route can be switched off in init(); only advertise it when it exists.
         if (array_key_exists('/ous/v1/openapi.json', rest_get_server()->get_routes())) {
-            echo ' Raw OpenAPI 3.0 JSON (importable into Postman/Insomnia/Swagger UI elsewhere): '
+            echo ' ' . OUS_Words::get('admin.api_docs.raw_openapi_3_0_json') . ' '
                . '<code id="bhy-openapi-url">' . esc_html(rest_url('ous/v1/openapi.json')) . '</code> '
-               . '<button type="button" class="button bhy-copy-btn" data-copy-target="#bhy-openapi-url">Copy</button>';
+               . ('<button type="button" class="button bhy-copy-btn" data-copy-target="#bhy-openapi-url">' . OUS_Words::get('admin.api_docs.copy') . '</button>');
         }
         echo '</p>';
 
         if (!$spec['paths']) {
-            echo '<p class="description">No ecosystem REST routes registered yet.</p>';
+            echo ('<p class="description">' . OUS_Words::get('admin.api_docs.no_ecosystem_rest_routes_registered') . '</p>');
             return;
         }
 
@@ -176,15 +170,15 @@ class OUS_ApiDocs {
                 echo '<span style="color:#fff;background:' . esc_attr($color) . ';padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600;">' . esc_html(strtoupper($method)) . '</span> ';
                 echo '<code>' . esc_html($path) . '</code> ';
                 echo '<span id="' . esc_attr($url_id) . '" style="display:none;">' . esc_html($full_url) . '</span>';
-                echo '<button type="button" class="button button-small bhy-copy-btn" data-copy-target="#' . esc_attr($url_id) . '" title="Copy full URL (placeholder values filled with 1)">Copy URL</button>';
+                echo '<button type="button" class="button button-small bhy-copy-btn" data-copy-target="#' . esc_attr($url_id) . ('" title="Copy full URL (placeholder values filled with 1)">' . OUS_Words::get('admin.api_docs.copy_url') . '</button>');
                 if ($op['parameters']) {
-                    echo '<div class="bhy-table-wrap" style="margin-top:6px;"><table class="widefat"><thead><tr><th>Param</th><th>In</th><th>Required</th><th>Type</th><th>Description</th></tr></thead><tbody>';
+                    echo ('<div class="bhy-table-wrap" style="margin-top:6px;"><table class="widefat"><thead><tr><th>' . OUS_Words::get('admin.api_docs.param') . '</th><th>' . OUS_Words::get('admin.api_docs.text') . '</th><th>' . OUS_Words::get('admin.api_docs.required') . '</th><th>' . OUS_Words::get('admin.api_docs.type') . '</th><th>' . OUS_Words::get('admin.api_docs.description') . '</th></tr></thead><tbody>');
                     foreach ($op['parameters'] as $p) {
                         echo '<tr><td><code>' . esc_html($p['name']) . '</code></td><td>' . esc_html($p['in']) . '</td><td>' . ($p['required'] ? 'Yes' : 'No') . '</td><td>' . esc_html($p['schema']['type']) . '</td><td>' . esc_html($p['description']) . '</td></tr>';
                     }
                     echo '</tbody></table></div>';
                 } else {
-                    echo '<p class="description" style="margin:6px 0 0;">No parameters.</p>';
+                    echo ('<p class="description" style="margin:6px 0 0;">' . OUS_Words::get('admin.api_docs.no_parameters') . '</p>');
                 }
                 echo '</div>';
             }

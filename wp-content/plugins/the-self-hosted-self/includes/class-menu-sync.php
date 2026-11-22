@@ -26,12 +26,16 @@ class OUS_MenuSync {
         add_action('wp_body_open', [self::class, 'render_eco_nav']);
     }
 
+    /** @param mixed $is */
     public static function portal_is_standalone($is): bool {
         if ($is) return true;
         return class_exists('BHI_Portal') && BHI_Portal::is_portal_context();
     }
 
-    /** @param string[] $classes @return string[] */
+    /**
+     * @param string[] $classes
+     * @return string[]
+     */
     public static function mark_standalone_body($classes): array {
         if (!is_admin() && apply_filters('bh_standalone_surface', false)) {
             $classes[] = 'bh-standalone';
@@ -69,7 +73,7 @@ class OUS_MenuSync {
         elseif (is_singular('bh_contest')) $active_match = 'Contests';
         elseif (class_exists('BHI_Portal') && BHI_Portal::is_portal_context()) $active_match = 'Account';
 
-        echo '<nav class="bh-eco-nav" aria-label="' . esc_attr__('Ecosystem', 'the-self-hosted-self') . '">';
+        echo '<nav class="bh-eco-nav" aria-label="' . esc_attr(OUS_Words::get('admin.menu_sync.ecosystem')) . '">';
         echo '<div class="bh-eco-nav-inner">';
         echo '<a class="bh-eco-nav-home" href="' . esc_url(home_url('/')) . '" rel="home">'
             . '<span class="bh-eco-nav-arrow" aria-hidden="true">&larr;</span> ' . esc_html(get_bloginfo('name')) . '</a>';
@@ -252,7 +256,7 @@ class OUS_MenuSync {
     // link when the portal is installed.
     private static function seed_default_menu_content(int $menu_id): void {
         wp_update_nav_menu_item($menu_id, 0, [
-            'menu-item-title'  => __('Home', 'the-self-hosted-self'),
+            'menu-item-title'  => OUS_Words::get('admin.menu_sync.home'),
             'menu-item-url'    => home_url('/'),
             'menu-item-status' => 'publish',
             'menu-item-type'   => 'custom',

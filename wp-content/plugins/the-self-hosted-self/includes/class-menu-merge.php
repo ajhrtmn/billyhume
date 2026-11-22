@@ -6,11 +6,9 @@ if (!defined('ABSPATH')) exit;
 // (array_key_exists, not ??) registers a hidden page via add_submenu_page(null, ...).
 
 /**
- * Re-registers each ecosystem plugin's custom admin pages (never CPT/taxonomy list
- * tables) as submenus under the core menu, at admin_menu priority 999.
- *
- * WHY: passes the real callback rather than '' — the page hook is derived from slug AND
- * parent, so an empty callback under a new parent does not dispatch to the original render.
+ * Moves each plugin custom admin page (never CPT lists) under the core menu at priority 999.
+ * WHY: passes the real callback; the page hook comes from slug + parent, so an empty
+ * callback under a new parent never dispatches.
  */
 class OUS_MenuMerge {
     public static function init(): void {

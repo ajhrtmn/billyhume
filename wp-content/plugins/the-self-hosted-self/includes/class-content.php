@@ -2,13 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Content-block interface: a document is a tree of typed blocks
- *   ['type' => 'bhc/text', 'attrs' => [...], 'children' => [...]]
- * with each type registered once by its owning plugin. Owns registration,
- * validation, storage and rendering, not any authoring UI.
- * Storage: a post-attached document lives in post_content as Gutenberg
- * block markup; any other context is JSON in bhcore_content.
- * Type names are `prefix/name`, matching Gutenberg block naming.
+ * Content blocks: a document is a tree of typed blocks (type, attrs, children), each type
+ * registered by its plugin. Post documents are stored as Gutenberg markup in post_content;
+ * anything else is JSON in bhcore_content.
  */
 class BH_Content {
     /** @var array<string, array{schema: array<string, mixed>, renderer: callable}> */

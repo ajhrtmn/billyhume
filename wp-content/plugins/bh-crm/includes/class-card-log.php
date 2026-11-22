@@ -2,12 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Per-card log for top-level kanban cards, rendered at the root of BHCRM_Subtasks::render().
- *
- * - Fixes: changes made, at an optional timestamp_seconds (e.g. a spot in a mix), resolvable.
- * - Feedback: notes from others, keyed by free-text author_name (authors often have no account).
- * - Idea Drop attachments: media uploads (older rows may link to a since-removed track library).
- * All keyed by card_placement_id (core placement id, no FK).
+ * Per-card log for top-level kanban cards: fixes (with an optional timestamp), feedback
+ * from others (free-text author) and file uploads, keyed by card_placement_id.
  */
 class BHCRM_CardLog {
     const DB_VERSION = '1.1';
@@ -193,8 +189,8 @@ class BHCRM_CardLog {
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/media.php';
 
-        if (empty($_FILES[$field]['name'])) return new WP_Error('no_file', 'No file chosen.');
-        if ($_FILES[$field]['size'] > 100 * 1024 * 1024) return new WP_Error('too_big', 'File must be smaller than 100MB.');
+        if (empty($_FILES[$field]['name'])) return new WP_Error('no_file', BHCRM_Words::get('admin.card_log.no_file_chosen'));
+        if ($_FILES[$field]['size'] > 100 * 1024 * 1024) return new WP_Error('too_big', BHCRM_Words::get('admin.card_log.file_must_smaller_than_100mb'));
 
         $grant_upload_cap = function ($allcaps) {
             $allcaps['upload_files'] = true;
@@ -225,23 +221,23 @@ class BHCRM_CardLog {
     private static function render_attachments(int $project_id, int $uid, int $card_id): void {
         $attachments = self::list_attachments($card_id);
 
-        echo '<details class="bhcrm-card-log" open><summary style="cursor:pointer;"><strong>Idea Drop</strong>' . ($attachments ? ' (' . count($attachments) . ')' : '') . '</summary>';
+        echo ('<details class="bhcrm-card-log" open><summary style="cursor:pointer;"><strong>' . BHCRM_Words::get('admin.card_log.idea_drop') . '</strong>') . ($attachments ? ' (' . count($attachments) . ')' : '') . '</summary>';
 
         if (!$attachments) {
-            echo '<p class="description">No files linked or uploaded yet.</p>';
+            echo ('<p class="description">' . BHCRM_Words::get('admin.card_log.no_files_linked_uploaded_yet') . '</p>');
         } else {
             echo '<ul class="bhcrm-card-log-list" style="list-style:none;margin:0 0 10px;padding:0;">';
             foreach ($attachments as $a) {
                 echo '<li style="border-bottom:1px solid #dcdcde;padding:8px 0;">';
                 if ($a['kind'] === 'track_link') {
                     $track = get_post((int) $a['track_post_id']);
-                    $label = $track ? $track->post_title : ('Track #' . $a['track_post_id'] . ' (deleted)');
-                    echo '&#127925; ' . esc_html($label) . ' <span class="description">(linked track)</span>';
+                    $label = $track ? $track->post_title : (BHCRM_Words::get('admin.card_log.track') . $a['track_post_id'] . ' (deleted)');
+                    echo '&#127925; ' . esc_html($label) . (' <span class="description">' . BHCRM_Words::get('admin.card_log.linked_track') . '</span>');
                 } else {
                     $url = wp_get_attachment_url((int) $a['wp_attachment_id']);
-                    $filename = $url ? basename($url) : ('Attachment #' . $a['wp_attachment_id'] . ' (deleted)');
+                    $filename = $url ? basename($url) : (BHCRM_Words::get('admin.card_log.attachment') . $a['wp_attachment_id'] . ' (deleted)');
                     echo '&#128206; ' . ($url ? '<a href="' . esc_url($url) . '" target="_blank" rel="noopener">' . esc_html($filename) . '</a>' : esc_html($filename));
-                    echo ' <span class="description">(uploaded copy)</span>';
+                    echo (' <span class="description">' . BHCRM_Words::get('admin.card_log.uploaded_copy') . '</span>');
                 }
                 echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline;margin-left:8px;" onsubmit="return confirm(\'Remove this from the card? This does not delete the underlying track/file itself.\');">';
                 wp_nonce_field('bhcrm_card_remove_attachment_' . $a['id']);
@@ -250,7 +246,7 @@ class BHCRM_CardLog {
                 echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
                 echo '<input type="hidden" name="card_id" value="' . (int) $card_id . '">';
                 echo '<input type="hidden" name="attachment_id" value="' . (int) $a['id'] . '">';
-                echo '<button class="button button-small">Remove</button>';
+                echo ('<button class="button button-small">' . BHCRM_Words::get('admin.card_log.remove') . '</button>');
                 echo '</form>';
                 echo '</li>';
             }
@@ -263,8 +259,8 @@ class BHCRM_CardLog {
         echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '">';
         echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
         echo '<input type="hidden" name="card_id" value="' . (int) $card_id . '">';
-        echo '<label>Upload a file: <input type="file" name="upload_file"></label> ';
-        echo '<button class="button">Upload</button>';
+        echo ('<label>' . BHCRM_Words::get('admin.card_log.upload_file') . ' <input type="file" name="upload_file"></label> ');
+        echo ('<button class="button">' . BHCRM_Words::get('admin.card_log.upload') . '</button>');
         echo '</form>';
 
         echo '</details>';
@@ -273,20 +269,20 @@ class BHCRM_CardLog {
     private static function render_fixes(int $project_id, int $uid, int $card_id): void {
         $fixes = self::list_fixes($card_id);
 
-        echo '<details class="bhcrm-card-log" open><summary style="cursor:pointer;"><strong>Fixes</strong>' . ($fixes ? ' (' . count($fixes) . ')' : '') . '</summary>';
+        echo ('<details class="bhcrm-card-log" open><summary style="cursor:pointer;"><strong>' . BHCRM_Words::get('admin.card_log.fixes') . '</strong>') . ($fixes ? ' (' . count($fixes) . ')' : '') . '</summary>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin:10px 0;">';
         wp_nonce_field('bhcrm_card_add_fix_' . $card_id);
         echo '<input type="hidden" name="action" value="bhcrm_card_add_fix">';
         echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '">';
         echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
         echo '<input type="hidden" name="card_id" value="' . (int) $card_id . '">';
-        echo '<label>Timestamp (mm:ss, optional) <input type="text" name="timestamp" placeholder="1:23" style="width:70px;max-width:100%;"></label> ';
+        echo ('<label>' . BHCRM_Words::get('admin.card_log.timestamp_mm_ss_optional') . ' <input type="text" name="timestamp" placeholder="1:23" style="width:70px;max-width:100%;"></label> ');
         echo '<input type="text" name="note" placeholder="What did you fix?" style="width:320px;max-width:100%;"> ';
-        echo '<button class="button">Add fix</button>';
+        echo ('<button class="button">' . BHCRM_Words::get('admin.card_log.add_fix') . '</button>');
         echo '</form>';
 
         if (!$fixes) {
-            echo '<p class="description">No fixes logged yet.</p>';
+            echo ('<p class="description">' . BHCRM_Words::get('admin.card_log.no_fixes_logged_yet') . '</p>');
         } else {
             echo '<ul class="bhcrm-card-log-list" style="list-style:none;margin:0;padding:0;">';
             foreach ($fixes as $fix) {
@@ -301,7 +297,7 @@ class BHCRM_CardLog {
                 echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
                 echo '<input type="hidden" name="card_id" value="' . (int) $card_id . '">';
                 echo '<input type="hidden" name="fix_id" value="' . (int) $fix['id'] . '">';
-                echo '<button class="button button-small">' . ($resolved ? 'Reopen' : 'Mark resolved') . '</button>';
+                echo '<button class="button button-small">' . ($resolved ? 'Reopen' : BHCRM_Words::get('admin.card_log.mark_resolved')) . '</button>';
                 echo '</form>';
                 echo '</li>';
             }
@@ -313,7 +309,7 @@ class BHCRM_CardLog {
     private static function render_feedback(int $project_id, int $uid, int $card_id): void {
         $feedback = self::list_feedback($card_id);
 
-        echo '<details class="bhcrm-card-log"><summary style="cursor:pointer;"><strong>Feedback</strong>' . ($feedback ? ' (' . count($feedback) . ')' : '') . '</summary>';
+        echo ('<details class="bhcrm-card-log"><summary style="cursor:pointer;"><strong>' . BHCRM_Words::get('admin.card_log.feedback') . '</strong>') . ($feedback ? ' (' . count($feedback) . ')' : '') . '</summary>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin:10px 0;">';
         wp_nonce_field('bhcrm_card_add_feedback_' . $card_id);
         echo '<input type="hidden" name="action" value="bhcrm_card_add_feedback">';
@@ -322,11 +318,11 @@ class BHCRM_CardLog {
         echo '<input type="hidden" name="card_id" value="' . (int) $card_id . '">';
         echo '<input type="text" name="author_name" placeholder="From (e.g. a client\'s name)" style="width:180px;max-width:100%;"> ';
         echo '<input type="text" name="note" placeholder="Feedback…" style="width:300px;max-width:100%;"> ';
-        echo '<button class="button">Add feedback</button>';
+        echo ('<button class="button">' . BHCRM_Words::get('admin.card_log.add_feedback') . '</button>');
         echo '</form>';
 
         if (!$feedback) {
-            echo '<p class="description">No feedback logged yet.</p>';
+            echo ('<p class="description">' . BHCRM_Words::get('admin.card_log.no_feedback_logged_yet') . '</p>');
         } else {
             echo '<ul class="bhcrm-card-log-list" style="list-style:none;margin:0;padding:0;">';
             foreach ($feedback as $entry) {

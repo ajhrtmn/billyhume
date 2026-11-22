@@ -45,7 +45,7 @@ class BHC_ContentBridge {
         foreach ($categories as $c) {
             if (($c['slug'] ?? '') === 'lms') return $categories; // another plugin already added it
         }
-        $categories[] = ['slug' => 'lms', 'title' => 'LMS (BH Courses)'];
+        $categories[] = ['slug' => 'lms', 'title' => BHC_Words::get('admin.content_bridge.lms_bh_courses')];
         return $categories;
     }
 
@@ -202,7 +202,7 @@ class BHC_ContentBridge {
         ], function ($attrs) {
             if (!$attrs['attachment_id']) return '';
             $url = wp_get_attachment_url((int) $attrs['attachment_id']);
-            if (!$url) return '<p class="bhc-step bhc-step-resource">File not found.</p>';
+            if (!$url) return ('<p class="bhc-step bhc-step-resource">' . BHC_Words::get('admin.content_bridge.file_not_found') . '</p>');
             $label = $attrs['label'] !== '' ? $attrs['label'] : basename(get_attached_file((int) $attrs['attachment_id']) ?: 'Download');
             $out = '<div class="bhc-step bhc-step-resource"><a href="' . esc_url($url) . '" download>&#8681; ' . esc_html($label) . '</a>';
             if ($attrs['description']) $out .= '<p class="bhc-caption">' . esc_html($attrs['description']) . '</p>';
@@ -245,7 +245,7 @@ class BHC_ContentBridge {
             if (!$attrs['attachment_id_a'] || !$attrs['attachment_id_b']) return '';
             $url_a = wp_get_attachment_url((int) $attrs['attachment_id_a']);
             $url_b = wp_get_attachment_url((int) $attrs['attachment_id_b']);
-            if (!$url_a || !$url_b) return '<p class="bhc-step bhc-step-audio-compare">One or both audio files not found.</p>';
+            if (!$url_a || !$url_b) return ('<p class="bhc-step bhc-step-audio-compare">' . BHC_Words::get('admin.content_bridge.one_both_audio_files_not') . '</p>');
             $out = '<div class="bhc-step bhc-step-audio-compare">';
             $out .= '<div class="bhc-audio-compare-clip"><p class="bhc-audio-compare-label">' . esc_html($attrs['label_a']) . '</p>' . wp_audio_shortcode(['src' => $url_a]) . '</div>';
             $out .= '<div class="bhc-audio-compare-clip"><p class="bhc-audio-compare-label">' . esc_html($attrs['label_b']) . '</p>' . wp_audio_shortcode(['src' => $url_b]) . '</div>';
@@ -345,7 +345,7 @@ class BHC_ContentBridge {
      */
     public static function register_debug_tool($tools): array {
         $tools['bhc_content_bridge'] = [
-            'label' => 'BH Courses: populate lesson content from steps',
+            'label' => BHC_Words::get('admin.content_bridge.bh_courses_populate_lesson_content'),
             // Handled inline in render() as a self-submitting form, not via the shared 'handle' redirect flow.
             'render' => function () {
                 if (isset($_POST['bhc_content_bridge_action']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['bhc_content_bridge_nonce'] ?? '')), 'bhc_content_bridge')) {
@@ -353,12 +353,12 @@ class BHC_ContentBridge {
                     foreach ($lessons as $lesson_id) {
                         self::migrate_lesson($lesson_id);
                     }
-                    echo '<div class="notice notice-success"><p>Rebuilt ' . count($lessons) . ' lesson(s).</p></div>';
+                    echo ('<div class="notice notice-success"><p>' . BHC_Words::get('admin.content_bridge.rebuilt') . ' ') . count($lessons) . ' lesson(s).</p></div>';
                 }
                 echo '<p>Populates every published lesson\'s real post_content from its current step data, so it opens correctly the first time in the real editor — needed only for a lesson that existed before this migration and hasn\'t been opened/saved in the editor yet. Safe to run any time; never touches the step data itself.</p>';
                 echo '<form method="post"><input type="hidden" name="bhc_content_bridge_action" value="1">';
                 wp_nonce_field('bhc_content_bridge', 'bhc_content_bridge_nonce');
-                submit_button('Populate all lesson content');
+                submit_button(BHC_Words::get('admin.content_bridge.populate_all_lesson_content'));
                 echo '</form>';
             },
             'group' => OUS_Debug::GROUP_SEED_RESET,

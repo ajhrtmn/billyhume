@@ -40,7 +40,7 @@ class BHM_Gifts {
      */
     public static function show_gift_email_in_cart($item_data, $cart_item): array {
         if (!empty($cart_item['bhm_gift_email'])) {
-            $item_data[] = ['name' => 'Gift for', 'value' => esc_html($cart_item['bhm_gift_email'])];
+            $item_data[] = ['name' => BHM_Words::get('admin.gifts.gift'), 'value' => esc_html($cart_item['bhm_gift_email'])];
         }
         return $item_data;
     }
@@ -73,11 +73,11 @@ class BHM_Gifts {
         $buyer_name = $buyer ? $buyer->display_name : 'Someone';
         $claim_url = add_query_arg('gift_code', $code, self::redeem_page_url());
 
-        $subject = $buyer_name . ' sent you a gift membership!';
+        $subject = $buyer_name . ' ' . BHM_Words::get('admin.gifts.sent_gift_membership');
         $body = $buyer_name . " signed you up for \"$tier_name\" — click below to claim it:\n\n$claim_url\n\nIf you don't already have an account, you'll be able to create one on that page first.";
         if (class_exists('BH_Mail')) {
             BH_Mail::send([
-                'to' => $recipient_email, 'subject' => $subject, 'body' => $body, 'source' => 'BH Monetization',
+                'to' => $recipient_email, 'subject' => $subject, 'body' => $body, 'source' => BHM_Words::get('admin.crm_integration.bh_monetization'),
                 'log_context' => ['recipient_email' => $recipient_email, 'tier_id' => $tier_id, 'order_id' => $order_id, 'code' => $code],
             ]);
         } else {
@@ -100,13 +100,13 @@ class BHM_Gifts {
 
     public static function render_redeem_form(): string {
         $code = isset($_GET['gift_code']) ? sanitize_text_field(wp_unslash($_GET['gift_code'])) : '';
-        if (!$code) return '<p>No gift code provided.</p>';
+        if (!$code) return ('<p>' . BHM_Words::get('admin.gifts.no_gift_code_provided') . '</p>');
 
         global $wpdb;
         $t = BHM_Tables::gift_redemptions();
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE code = %s", $code), ARRAY_A);
-        if (!$row) return '<p>That gift code isn\'t valid.</p>';
-        if ($row['status'] === 'redeemed') return '<p>This gift has already been claimed.</p>';
+        if (!$row) return ('<p>' . BHM_Words::get('admin.gifts.gift_code_isn_t_valid') . '</p>');
+        if ($row['status'] === 'redeemed') return ('<p>' . BHM_Words::get('admin.gifts.gift_has_already_been_claimed') . '</p>');
 
         $tier = class_exists('BHM_Tiers') ? BHM_Tiers::get($row['tier_id']) : null;
         $tier_name = $tier ? esc_html($tier['name']) : 'a supporter tier';
@@ -116,14 +116,14 @@ class BHM_Gifts {
         echo '<h2>You\'ve been gifted "' . $tier_name . '"!</h2>';
 
         if (!is_user_logged_in()) {
-            echo '<p>Log in or create an account to claim it — your gift will still be here once you do.</p>';
+            echo ('<p>' . BHM_Words::get('admin.gifts.log_create_account_claim_gift') . '</p>');
             echo '<p><a class="bhm-btn" href="' . esc_url(wp_login_url(add_query_arg('gift_code', $code, self::redeem_page_url()))) . '">Log in</a></p>';
         } else {
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
             echo '<input type="hidden" name="action" value="bhm_redeem_gift">';
             echo '<input type="hidden" name="gift_code" value="' . esc_attr($code) . '">';
             wp_nonce_field('bhm_redeem_gift_' . $code, 'bhm_redeem_nonce');
-            echo '<button type="submit" class="bhm-btn">Claim this gift</button>';
+            echo ('<button type="submit" class="bhm-btn">' . BHM_Words::get('admin.gifts.claim_gift') . '</button>');
             echo '</form>';
         }
         echo '</div>';
@@ -133,7 +133,7 @@ class BHM_Gifts {
     public static function handle_redeem(): void {
         $code = isset($_POST['gift_code']) ? sanitize_text_field(wp_unslash($_POST['gift_code'])) : '';
         if (!$code || !isset($_POST['bhm_redeem_nonce']) || !wp_verify_nonce($_POST['bhm_redeem_nonce'], 'bhm_redeem_gift_' . $code)) {
-            wp_die('Invalid request.', '', ['response' => 400]);
+            wp_die(BHM_Words::get('admin.frontend.invalid_request'), '', ['response' => 400]);
         }
         if (!is_user_logged_in()) {
             wp_safe_redirect(wp_login_url(add_query_arg('gift_code', $code, self::redeem_page_url())));
@@ -144,7 +144,7 @@ class BHM_Gifts {
         $t = BHM_Tables::gift_redemptions();
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE code = %s", $code), ARRAY_A);
         if (!$row || $row['status'] === 'redeemed') {
-            wp_die('That gift is no longer available to claim.', '', ['response' => 400]);
+            wp_die(BHM_Words::get('admin.gifts.gift_no_longer_available_claim'), '', ['response' => 400]);
         }
 
         $user_id = get_current_user_id();
@@ -155,7 +155,7 @@ class BHM_Gifts {
             $user_id, current_time('mysql'), (int) $row['id']
         ));
         if ($claimed !== 1) {
-            wp_die('That gift is no longer available to claim.', '', ['response' => 409]);
+            wp_die(BHM_Words::get('admin.gifts.gift_no_longer_available_claim'), '', ['response' => 409]);
         }
 
         // One-time streaming_tier grant; a gift is never recurring.

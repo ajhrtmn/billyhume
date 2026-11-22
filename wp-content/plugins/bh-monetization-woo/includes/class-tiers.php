@@ -13,10 +13,10 @@ class BHM_Tiers {
     /** @return array<string, string> */
     public static function benefit_registry(): array {
         return apply_filters('bhm_benefit_registry', [
-            'streaming' => 'Streaming library access',
-            'downloads' => 'Downloadable audio',
-            'courses'   => 'Course/LMS access',
-            'merch_discount' => 'Storefront discount',
+            'streaming' => BHM_Words::get('admin.tiers.streaming_library_access'),
+            'downloads' => BHM_Words::get('admin.tiers.downloadable_audio'),
+            'courses'   => BHM_Words::get('admin.tiers.course_lms_access'),
+            'merch_discount' => BHM_Words::get('admin.tiers.storefront_discount'),
         ]);
     }
 
@@ -60,8 +60,8 @@ class BHM_Tiers {
     public static function register_post_type(): void {
         register_post_type(self::CPT, [
             'labels' => [
-                'name' => 'Supporter Tiers', 'singular_name' => 'Tier', 'add_new_item' => 'Add New Tier',
-                'edit_item' => 'Edit Tier', 'all_items' => 'All Tiers',
+                'name' => BHM_Words::get('admin.frontend.supporter_tiers'), 'singular_name' => BHM_Words::get('admin.tiers.tier'), 'add_new_item' => 'Add New Tier',
+                'edit_item' => BHM_Words::get('admin.tiers.edit_tier'), 'all_items' => 'All Tiers',
             ],
             // Under WooCommerce's menu when active; top-level otherwise so the screen never vanishes.
             'public' => false, 'show_ui' => true, 'show_in_menu' => (BH_Commerce::available()) ? 'woocommerce' : true,
@@ -85,47 +85,47 @@ class BHM_Tiers {
         $has_wc = BH_Commerce::available();
 
         if (!$has_wc) {
-            echo '<p class="description">WooCommerce isn\'t active yet — this tier will start selling automatically once it is. See <strong>The Self-Hosted Self → Monetization Settings</strong> to install it.</p>';
+            echo ('<p class="description">' . BHM_Words::get('admin.tiers.woocommerce_isn_t_active_yet') . '</p>');
         }
 
         // Cover image: attachment-ID meta + wp.media picker (tier-admin.js).
-        echo '<p><strong>Cover image</strong><br>';
+        echo ('<p><strong>' . BHM_Words::get('admin.tiers.cover_image') . '</strong><br>');
         echo '<img id="bhm-tier-cover-preview" src="' . esc_url($cover_image_id ? (wp_get_attachment_image_url($cover_image_id, 'medium') ?: '') : '') . '" style="max-width:200px;max-height:120px;display:' . ($cover_image_id ? 'block' : 'none') . ';margin-bottom:6px;">';
         echo '<input type="hidden" id="bhm_cover_image_id" name="bhm_cover_image_id" value="' . esc_attr((string) $cover_image_id) . '">';
-        echo '<button type="button" class="button" id="bhm-tier-cover-choose">' . ($cover_image_id ? 'Change image' : 'Choose image') . '</button> ';
-        echo '<button type="button" class="button" id="bhm-tier-cover-remove" style="display:' . ($cover_image_id ? 'inline-block' : 'none') . ';">Remove</button></p>';
+        echo '<button type="button" class="button" id="bhm-tier-cover-choose">' . ($cover_image_id ? BHM_Words::get('admin.tiers.change_image') : BHM_Words::get('admin.tiers.choose_image')) . '</button> ';
+        echo '<button type="button" class="button" id="bhm-tier-cover-remove" style="display:' . ($cover_image_id ? 'inline-block' : 'none') . (';">' . BHM_Words::get('admin.tiers.remove') . '</button></p>');
 
         // Price is also the tier's gating rank ("this tier or higher"), so say so here.
-        $price_rank_tip = class_exists('BHY_UI') ? BHY_UI::tip('This price also sets this tier\'s rank for access gating — a supporter tier "requires" here means this price or higher, so raising or lowering it can change who already qualifies.') : '';
-        echo '<p><label><strong>Monthly price (USD)</strong>' . $price_rank_tip . '<br><input type="number" step="0.01" min="0.50" name="bhm_price" value="' . esc_attr($price ? BHM_Money::price($price) : '') . '" style="width:160px;"></label></p>';
+        $price_rank_tip = class_exists('BHY_UI') ? BHY_UI::tip(BHM_Words::get('admin.tiers.price_also_sets_tier_s')) : '';
+        echo ('<p><label><strong>' . BHM_Words::get('admin.tiers.monthly_price_usd') . '</strong>') . $price_rank_tip . '<br><input type="number" step="0.01" min="0.50" name="bhm_price" value="' . esc_attr($price ? BHM_Money::price($price) : '') . '" style="width:160px;"></label></p>';
 
         // Optional annual cadence for the same tier; blank = monthly only.
-        echo '<p><label><strong>Annual price (USD, optional)</strong> <span class="description">— leave blank to offer monthly billing only</span><br><input type="number" step="0.01" min="0.50" name="bhm_annual_price" value="' . esc_attr($annual_price ? BHM_Money::price($annual_price) : '') . '" style="width:160px;"></label>';
+        echo ('<p><label><strong>' . BHM_Words::get('admin.tiers.annual_price_usd_optional') . '</strong> <span class="description">' . BHM_Words::get('admin.tiers.leave_blank_offer_monthly_billing') . '</span><br><input type="number" step="0.01" min="0.50" name="bhm_annual_price" value="') . esc_attr($annual_price ? BHM_Money::price($annual_price) : '') . '" style="width:160px;"></label>';
         if (!$has_subs) {
-            echo '<br><span class="description">Requires WooCommerce Subscriptions to actually bill annually — without it this stores the price but the tier still sells as the one-time fallback below.</span>';
+            echo ('<br><span class="description">' . BHM_Words::get('admin.tiers.requires_woocommerce_subscriptions_actua') . '</span>');
         }
         echo '</p>';
 
         // Free trial, in days.
         $trial_days = (int) get_post_meta($post->ID, '_bhm_trial_days', true);
-        echo '<p><label><strong>Free trial (days, optional)</strong> <span class="description">— 0 = no trial</span><br><input type="number" step="1" min="0" name="bhm_trial_days" value="' . esc_attr((string) $trial_days) . '" style="width:100px;"></label>';
+        echo ('<p><label><strong>' . BHM_Words::get('admin.tiers.free_trial_days_optional') . '</strong> <span class="description">' . BHM_Words::get('admin.tiers.0_no_trial') . '</span><br><input type="number" step="1" min="0" name="bhm_trial_days" value="') . esc_attr((string) $trial_days) . '" style="width:100px;"></label>';
         if (!$has_subs) {
-            echo '<br><span class="description">Requires WooCommerce Subscriptions to actually delay the first charge — without it this stores the value but the one-time fallback purchase still charges immediately.</span>';
+            echo ('<br><span class="description">' . BHM_Words::get('admin.tiers.requires_woocommerce_subscriptions_actua_2') . '</span>');
         }
         echo '</p>';
 
         // Two sections: marketing copy vs. the benefit checkboxes BHM_Gate::user_has_benefit() actually reads.
         $granted = (array) get_post_meta($post->ID, '_bhm_benefit_keys', true);
         echo '<div style="background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:14px 16px;margin:16px 0 12px;">';
-        echo '<h4 style="margin:0 0 4px;">What fans see</h4>';
-        echo '<p class="description" style="margin:0 0 10px;">Marketing copy only — describes the tier, but grants nothing by itself.</p>';
-        echo '<p><label><strong>Benefits</strong> <span class="description">(free text — shown on the tier picker and on paywall notices)</span><br><textarea name="bhm_benefits" rows="3" style="width:100%;">' . esc_textarea($benefits) . '</textarea></label></p>';
+        echo ('<h4 style="margin:0 0 4px;">' . BHM_Words::get('admin.tiers.what_fans_see') . '</h4>');
+        echo ('<p class="description" style="margin:0 0 10px;">' . BHM_Words::get('admin.tiers.marketing_copy_only_describes_tier') . '</p>');
+        echo ('<p><label><strong>' . BHM_Words::get('admin.tiers.benefits') . '</strong> <span class="description">' . BHM_Words::get('admin.tiers.free_text_shown_tier_picker') . '</span><br><textarea name="bhm_benefits" rows="3" style="width:100%;">') . esc_textarea($benefits) . '</textarea></label></p>';
         // One bullet per line, rendered as a <ul> on the tier picker.
-        echo '<p style="margin-bottom:0;"><label><strong>Benefits list</strong> <span class="description">(one item per line — rendered as a bulleted list; separate from the free-text field above)</span><br><textarea name="bhm_benefits_list" rows="4" style="width:100%;" placeholder="Early access to new releases&#10;Monthly Q&amp;A&#10;Discord role">' . esc_textarea(implode("\n", $benefits_list)) . '</textarea></label></p>';
+        echo ('<p style="margin-bottom:0;"><label><strong>' . BHM_Words::get('admin.tiers.benefits_list') . '</strong> <span class="description">(one item per line — rendered as a bulleted list; separate from the free-text field above)</span><br><textarea name="bhm_benefits_list" rows="4" style="width:100%;" placeholder="Early access to new releases&#10;Monthly Q&amp;A&#10;Discord role">') . esc_textarea(implode("\n", $benefits_list)) . '</textarea></label></p>';
         echo '</div>';
 
         echo '<div style="background:#fcf9e8;border:1px solid #dba617;border-radius:6px;padding:14px 16px;margin-bottom:12px;">';
-        echo '<h4 style="margin:0 0 4px;">What actually gets enforced</h4>';
+        echo ('<h4 style="margin:0 0 4px;">' . BHM_Words::get('admin.tiers.what_actually_gets_enforced') . '</h4>');
         echo '<p class="description" style="margin:0 0 10px;">Machine-checked — this is what <code>BHM_Gate::user_has_benefit()</code> evaluates at gate time. If nothing here is checked, this tier charges money but unlocks nothing anywhere else in the ecosystem, regardless of what the fields above say.</p>';
         foreach (self::benefit_registry() as $key => $label) {
             echo '<label style="display:inline-block;margin:0 16px 4px 0;"><input type="checkbox" name="bhm_benefit_keys[]" value="' . esc_attr($key) . '"' . (in_array($key, $granted, true) ? ' checked' : '') . '> ' . esc_html($label) . '</label>';
@@ -136,9 +136,9 @@ class BHM_Tiers {
         echo '</div>';
 
         if ($has_subs) {
-            echo '<p class="description">Real recurring billing via WooCommerce Subscriptions.</p>';
+            echo ('<p class="description">' . BHM_Words::get('admin.tiers.real_recurring_billing_via_woocommerce') . '</p>');
         } else {
-            echo '<p class="description"><strong>WooCommerce Subscriptions isn\'t active</strong> — this tier will sell as a one-time purchase (30 days of access, no automatic renewal) until it is. Fans will see this plainly at checkout; nothing here silently promises recurring billing it can\'t enforce.</p>';
+            echo ('<p class="description"><strong>' . BHM_Words::get('admin.admin.woocommerce_subscriptions_isn_t_active') . '</strong> — this tier will sell as a one-time purchase (30 days of access, no automatic renewal) until it is. Fans will see this plainly at checkout; nothing here silently promises recurring billing it can\'t enforce.</p>');
         }
 
         $product_exists = $wc_product_id && (BH_Commerce::product_exists($wc_product_id));
@@ -148,7 +148,7 @@ class BHM_Tiers {
         }
 
         if (class_exists('OUS_Revisions')) {
-            echo '<h3 style="margin-top:24px;">Version History</h3>';
+            echo ('<h3 style="margin-top:24px;">' . BHM_Words::get('admin.tiers.version_history') . '</h3>');
             OUS_Revisions::render_history_panel('bhm_tier', $post->ID, 'bhm_restore_tier_revision', 'bhm_restore_tier_' . $post->ID);
         }
     }
@@ -215,12 +215,12 @@ class BHM_Tiers {
         $post_id = (int) ($_GET['object_id'] ?? 0);
         $version = (int) ($_GET['version'] ?? 0);
         if (!isset($_GET['ous_revisions_nonce']) || !wp_verify_nonce($_GET['ous_revisions_nonce'], 'bhm_restore_tier_' . $post_id)) {
-            wp_die('Invalid request.');
+            wp_die(BHM_Words::get('admin.frontend.invalid_request'));
         }
         if (!$post_id || get_post_type($post_id) !== self::CPT) wp_die('Not a tier.');
 
         $snapshot = class_exists('OUS_Revisions') ? OUS_Revisions::get_version('bhm_tier', $post_id, $version) : null;
-        if (!$snapshot) wp_die('That version no longer exists.');
+        if (!$snapshot) wp_die(BHM_Words::get('admin.tiers.version_no_longer_exists'));
         $data = $snapshot['data'];
 
         update_post_meta($post_id, '_bhm_price_cents', (int) ($data['price_cents'] ?? 0));
@@ -237,10 +237,10 @@ class BHM_Tiers {
 
         // Snapshot the restore too, so it can itself be undone.
         if (class_exists('OUS_Revisions')) {
-            OUS_Revisions::snapshot('bhm_tier', $post_id, self::get($post_id), 'Restored from version #' . $version);
+            OUS_Revisions::snapshot('bhm_tier', $post_id, self::get($post_id), BHM_Words::get('admin.tiers.restored_from_version') . $version);
         }
         if (class_exists('OUS_Toast')) {
-            OUS_Toast::queue('Restored version #' . $version . '.', 'success');
+            OUS_Toast::queue(BHM_Words::get('admin.tiers.restored_version') . $version . '.', 'success');
         }
 
         wp_safe_redirect(get_edit_post_link($post_id, ''));

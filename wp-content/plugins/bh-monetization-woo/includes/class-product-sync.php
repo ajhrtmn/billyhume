@@ -14,7 +14,7 @@ class BHM_ProductSync {
 
         if (class_exists('BH_Commerce')) {
             $product_id = BH_Commerce::upsert_product($existing_id, [
-                'name' => $name . ' — Supporter Tier',
+                'name' => $name . ' ' . BHM_Words::get('admin.product_sync.supporter_tier'),
                 'price_cents' => $price_cents,
                 'virtual' => true, // no shipping — this is access, not a physical good
                 'catalog_visibility' => 'hidden', // sold only via the tier picker
@@ -31,7 +31,7 @@ class BHM_ProductSync {
 
             if ($annual_price_cents > 0) {
                 $annual_id = BH_Commerce::upsert_product($existing_annual_id, [
-                    'name' => $name . ' — Supporter Tier (Annual)',
+                    'name' => $name . ' ' . BHM_Words::get('admin.product_sync.supporter_tier_annual'),
                     'price_cents' => $annual_price_cents,
                     'virtual' => true,
                     'catalog_visibility' => 'hidden',
@@ -57,7 +57,7 @@ class BHM_ProductSync {
         if (!$product) {
             $product = $has_subs ? new WC_Product_Subscription() : new WC_Product_Simple();
         }
-        $product->set_name($name . ' — Supporter Tier');
+        $product->set_name($name . ' ' . BHM_Words::get('admin.product_sync.supporter_tier'));
         $product->set_regular_price($price);
         $product->set_virtual(true);
         $product->set_catalog_visibility('hidden');
@@ -73,7 +73,7 @@ class BHM_ProductSync {
             $annual_price = BHM_Money::price($annual_price_cents);
             $annual_product = $existing_annual_id ? wc_get_product($existing_annual_id) : null;
             if (!$annual_product) $annual_product = new WC_Product_Subscription();
-            $annual_product->set_name($name . ' — Supporter Tier (Annual)');
+            $annual_product->set_name($name . ' ' . BHM_Words::get('admin.product_sync.supporter_tier_annual'));
             $annual_product->set_regular_price($annual_price);
             $annual_product->set_virtual(true);
             $annual_product->set_catalog_visibility('hidden');

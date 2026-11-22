@@ -2,11 +2,8 @@
 if (!defined('ABSPATH') ) exit;
 
 /**
- * Generic "Advanced Styles" panel on every native block: reserves a
- * `bhStyle` attribute via register_block_type_args and renders it with
- * BHY_Style::scoped_inline_style() (the same resolver BH_Element uses).
- * Stored shape is a plain `{ "group.property": "value" }` map; only the
- * attachment is WP-specific. JS half: assets/js/block-style-panel.js.
+ * "Advanced Styles" panel on every native block: a bhStyle attribute rendered with
+ * BHY_Style::scoped_inline_style(). Stored as a plain { "group.property": "value" } map.
  */
 class BHY_BlockStyle {
     public static function init(): void {

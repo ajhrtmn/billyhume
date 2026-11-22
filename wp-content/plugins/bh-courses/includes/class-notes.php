@@ -56,6 +56,7 @@ class BHC_Notes {
         return $removed;
     }
 
+    /** @return array{0:int, 1:int} */
     private static function guard(): array {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();

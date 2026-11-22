@@ -1,8 +1,5 @@
-/* Front-end navigation affordances owned by the core plugin, starting with
- * the menu's Log In / Go to Portal call to action.
- *
- * WHY in the plugin: OUS_MenuSync owns this link, and the host deploys
- * wp-content/plugins but not themes. Everything uses var(--bh-*, <fallback>). */
+/* Core-owned front-end nav pieces, starting with the menu Log In / Portal link.
+ * WHY in the plugin: OUS_MenuSync owns this link, and deploys ship plugins, not themes. */
 .oust-nav-list .ous-menu-account-cta,
 .wp-block-navigation .ous-menu-account-cta,
 li.ous-menu-account-cta {
@@ -53,10 +50,8 @@ li.ous-menu-account-cta {
     }
 }
 
-/* Back-to-catalog / back-to-archive links, shared by bh-courses and bh-contest
- * (each keeps its own class for targeting).
- * WHY a real target size: standalone nav links are not covered by WCAG 2.5.8's
- * inline-text exemption. */
+/* Back-to-catalog links shared by bh-courses and bh-contest.
+ * WHY a real target size: standalone links are not covered by the WCAG 2.5.8 inline exemption. */
 .ous-back-link,
 .ous-back-link > a {
     display: inline-flex;
@@ -154,11 +149,8 @@ li.ous-menu-account-cta {
     }
 }
 
-/* ================= Standalone ecosystem surface =================
-   body.bh-standalone (OUS_MenuSync) — a course/contest/portal page the
-   site owner wants to feel like "the other half of the site": the
-   theme's own nav and footer are hidden and the ecosystem shows its
-   own slim bar instead. Fonts and the dark background stay shared. */
+/* Standalone surface (body.bh-standalone, set by OUS_MenuSync): course, contest
+   and portal pages hide the theme nav/footer and show a slim bar of their own. */
 body.bh-standalone > header,
 body.bh-standalone > header.navigation,
 body.bh-standalone > footer,
@@ -208,7 +200,10 @@ body.admin-bar.bh-standalone .bh-eco-nav { margin-top: 32px; }
 }
 .bh-eco-nav-home:hover,
 .bh-eco-nav-home:focus-visible { color: var(--bh-text, #EDDFCB); }
-.bh-eco-nav-arrow { font-size: 15px; line-height: 1; }
+.bh-eco-nav-arrow {
+    font-size: 15px;
+    line-height: 1;
+}
 .bh-eco-nav-links {
     display: flex;
     align-items: center;
@@ -244,7 +239,13 @@ body.admin-bar.bh-standalone .bh-eco-nav { margin-top: 32px; }
     outline-offset: 2px;
 }
 @media (max-width: 600px) {
-    .bh-eco-nav-inner { gap: 12px; padding: 10px 16px; }
-    .bh-eco-nav-links { margin-left: 0; width: 100%; }
+    .bh-eco-nav-inner {
+        gap: 12px;
+        padding: 10px 16px;
+    }
+    .bh-eco-nav-links {
+        margin-left: 0;
+        width: 100%;
+    }
     .bh-eco-nav-link { padding: 6px 10px; }
 }

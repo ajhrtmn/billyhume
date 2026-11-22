@@ -36,7 +36,7 @@ class BH_Reveal {
         $steps = [['type' => 'intro', 'title' => get_the_title($cid)]];
 
         $cats = BH_Helpers::categories($cid);
-        if (!$cats) $cats = [['slug' => '', 'name' => 'Results']];
+        if (!$cats) $cats = [['slug' => '', 'name' => BHCON_Words::get('admin.admin_metaboxes.results')]];
 
         // 'judges' feeds the rubric average into the same steps; 'hybrid' runs two
         // labeled passes, never a blended score.
@@ -45,8 +45,8 @@ class BH_Reveal {
         $round = class_exists('BH_Rounds') && BH_Rounds::is_multi_round($cid) ? BH_Rounds::active_round_index($cid) : null;
 
         $passes = [];
-        if ($format === 'public' || $format === 'hybrid') $passes[] = ['source' => 'public', 'label' => $format === 'hybrid' ? "People's Choice" : null];
-        if ($format === 'judges' || $format === 'hybrid') $passes[] = ['source' => 'judges', 'label' => $format === 'hybrid' ? "Judges' Pick" : null];
+        if ($format === 'public' || $format === 'hybrid') $passes[] = ['source' => 'public', 'label' => $format === 'hybrid' ? BHCON_Words::get('admin.reveal.people_s_choice') : null];
+        if ($format === 'judges' || $format === 'hybrid') $passes[] = ['source' => 'judges', 'label' => $format === 'hybrid' ? BHCON_Words::get('admin.reveal.judges_pick') : null];
 
         foreach ($passes as $pass) {
             if ($pass['label']) $steps[] = ['type' => 'pass_intro', 'title' => $pass['label']];
@@ -197,7 +197,7 @@ class BH_Reveal {
     /** @return \WP_REST_Response|\WP_Error */
     public static function advance(\WP_REST_Request $req) {
         $cid = (int) $req->get_param('contest') ?: self::default_contest();
-        if (!$cid) return new WP_Error('no_contest', 'No contest to reveal.', ['status' => 404]);
+        if (!$cid) return new WP_Error('no_contest', BHCON_Words::get('admin.reveal.no_contest_reveal'), ['status' => 404]);
 
         $seq = self::build_sequence($cid);
         $index = (int) get_post_meta($cid, '_bh_reveal_step', true);
@@ -212,7 +212,7 @@ class BH_Reveal {
 
         // WHY: never pass the intro while voting is open, so a mis-click can't leak standings.
         if ($index > 0 && BH_Helpers::is_voting_open($cid)) {
-            return new WP_Error('voting_open', 'Voting is still open for this contest — close voting before revealing results.', ['status' => 403]);
+            return new WP_Error('voting_open', BHCON_Words::get('admin.reveal.voting_still_open_contest_close'), ['status' => 403]);
         }
 
         update_post_meta($cid, '_bh_reveal_step', $index);
@@ -234,16 +234,16 @@ class BH_Reveal {
     // Reveal preview + Next/Prev/Reset, rendered inline by BH_Console::render().
     public static function render_controls_widget(int $cid): void {
         if (BH_Helpers::is_voting_open($cid)) {
-            echo '<div class="notice notice-warning" style="margin:0 0 12px;"><p>Voting is still open — the reveal is locked to the intro slide until you close voting.</p></div>';
+            echo ('<div class="notice notice-warning" style="margin:0 0 12px;"><p>' . BHCON_Words::get('admin.reveal.voting_still_open_reveal_locked') . '</p></div>');
         }
 
         echo '<div id="bh-reveal-preview" style="background:#1a1a1a;color:#fff;border-radius:8px;padding:24px;margin-bottom:12px;min-height:120px;font-family:sans-serif;"></div>';
         echo '<p>';
         echo '<button type="button" class="button" id="bh-reveal-prev">&larr; Previous</button> ';
         echo '<button type="button" class="button button-primary" id="bh-reveal-next">Next &rarr;</button> ';
-        echo '<button type="button" class="button" id="bh-reveal-reset">Reset to start</button>';
+        echo ('<button type="button" class="button" id="bh-reveal-reset">' . BHCON_Words::get('admin.reveal.reset_start') . '</button>');
         echo '</p>';
-        echo '<p class="description">Drives <code>[bh_results_reveal]</code> wherever that\'s embedded (e.g. the "Reveal Party" page) — updates within a couple of seconds of each click.</p>';
+        echo ('<p class="description">' . BHCON_Words::get('admin.reveal.drives_bh_results_reveal_wherever') . '</p>');
         ?>
         <script>
         (function () {
@@ -279,12 +279,8 @@ class BH_Reveal {
             var busy = false;
 
             function send(action) {
-                // Guarded against overlapping requests — a fast double-click
-                // on "Next" during a live reveal used to be able to fire two
-                // advance calls at once and skip a step in front of an
-                // audience. Also previously had no .catch() at all: a
-                // dropped connection just did nothing, with no sign to the
-                // presenter that the click failed.
+                // Guard against overlapping requests (a double-click on Next skipped a step
+                // live) and show the presenter when a click fails.
                 if (busy) return;
                 busy = true;
                 revealBtns.forEach(function (b) { if (b) b.disabled = true; });
@@ -332,7 +328,7 @@ class BH_Reveal {
         <style><?php echo BHY_Style::inline_css($cid); ?></style>
         <div class="bh-reveal-wrap">
             <button type="button" class="bh-reveal-sound-toggle" id="bh-reveal-sound-toggle" aria-label="Toggle reveal sound effects" aria-pressed="true">🔊</button>
-            <span class="bh-reveal-live" id="bh-reveal-live"><span class="bh-reveal-live-dot"></span><span class="bh-reveal-live-label">LIVE</span></span>
+            <span class="bh-reveal-live" id="bh-reveal-live"><span class="bh-reveal-live-dot"></span><span class="bh-reveal-live-label"><?php echo BHCON_Words::get('admin.reveal.live'); ?></span></span>
             <div class="bh-container bh-reveal-stage" id="bh-reveal-stage" data-contest="<?php echo esc_attr((string) $cid); ?>">
                 <div class="bh-reveal-loading"><?php echo BHCON_Words::e('reveal.waiting'); ?></div>
             </div>

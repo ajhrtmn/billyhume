@@ -50,7 +50,7 @@ class BHM_PortalPanel {
             echo '<div class="bhi-tier-chip-row">';
             foreach ($entitlements as $ent) {
                 $tier = class_exists('BHM_Tiers') ? BHM_Tiers::get($ent['object_id']) : null;
-                $label = $tier ? $tier['name'] : ('Tier #' . $ent['object_id']);
+                $label = $tier ? $tier['name'] : (BHM_Words::get('admin.crm_integration.tier') . $ent['object_id']);
                 $expiry = $ent['expires_at'] ? ('renews/expires ' . esc_html(mysql2date('M j, Y', $ent['expires_at']))) : 'ongoing';
                 echo '<div class="bhi-tier-chip"><span class="bhi-overview-tier-badge">' . esc_html($label) . '</span><span class="bhi-overview-dim">' . esc_html($expiry) . '</span></div>';
             }
@@ -69,7 +69,7 @@ class BHM_PortalPanel {
 
             $ledger = BHM_Wallet::ledger_for($user_id, 20);
             if ($ledger) {
-                echo '<table class="bhi-portal-table"><thead><tr><th>When</th><th>Amount</th><th>Reason</th></tr></thead><tbody>';
+                echo ('<table class="bhi-portal-table"><thead><tr><th>' . BHM_Words::get('admin.portal_panel.when') . '</th><th>' . BHM_Words::get('admin.portal_panel.amount') . '</th><th>' . BHM_Words::get('admin.portal_panel.reason') . '</th></tr></thead><tbody>');
                 foreach ($ledger as $row) {
                     $amount = ((int) $row->delta_cents) / 100;
                     $sign = $amount >= 0 ? '+' : '';

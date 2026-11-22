@@ -36,7 +36,7 @@ The folder and class names (`the-self-hosted-self`, `OUS_*`, `BHI_*`, `BHY_*`) a
 | **Page layouts** (home page, sales pages) | Built in **Etch** (the page builder) on the live site, not in code. |
 | **Course content** (lessons, videos, quizzes, downloads) | wp-admin → **Courses**. Content, not code. |
 
-New wording goes in `words.php` too, never hard-coded: PHP uses `BHC_Words::e('key')` (courses), `BHCON_Words::e()` (contest), `BHT_Words::e()` (tickets), `BHM_Words::e()` (sales), `OUS_Words::e()` (core); JavaScript uses `bhcWord('key')` / `bhWord('key')`. Each plugin's test suite fails if code asks for a key that `words.php` doesn't have.
+Every plugin's `words.php` has the front-end wording at the top and the wp-admin screens' wording under **ADMIN SCREENS** (keys `admin.<file>.<words>`, grouped by the file that uses them). New wording goes there too, never hard-coded: PHP uses `BHC_Words` (courses), `BHCON_Words` (contest), `BHT_Words` (tickets), `BHM_Words` (sales), `BHCRM_Words` (CRM), `OUS_Words` (core), each with `get()` (plain), `e()` (escaped) and `html()` (with HTML placeholders); JavaScript uses `bhcWord('key')` / `bhWord('key')` and only receives the non-admin words (`for_browser()`). The courses and contest test suites fail if code asks for a key `words.php` doesn't have. Developer-only text (Debug Tools sections, demo seeds, log messages) stays in code.
 
 ## Rules for code changes
 
@@ -54,7 +54,7 @@ New wording goes in `words.php` too, never hard-coded: PHP uses `BHC_Words::e('k
 ## Checking your work
 
 - Browse the local copy at **http://billyhume.local** (run by the **Local** app). Look at the page you changed, at phone width too.
-- `php -l <file>` on every PHP file you changed; `npm run build:<plugin>` for TypeScript; `npm run lint:css` for CSS.
+- `php -l <file>` on every PHP file you changed; `vendor/bin/phpstan analyse --memory-limit=3G` (no errors; `composer install` once first); `npm run build:<plugin>` for TypeScript; `npm run lint:css` for CSS. These are the same warnings an editor like VS Code shows, so keep them at zero.
 - **Debug Tools → Run all tests** (wp-admin → Site Tools → Debug Tools). All tests should pass.
 - Load the home page, `/account/` and `/wp-login.php`: no errors.
 - If something wasn't actually tried in a browser, say so plainly.
@@ -68,6 +68,8 @@ The live site updates its plugins from the **`dev`** branch on GitHub, through *
 1. Commit on `dev` (version bump and CHANGELOG in the same commit).
 2. Push `dev` **only when Billy says to**.
 3. On the live site: GitHub Updates → **Check now** → **Update now**, then purge the page cache (admin bar → Caching → Purge All).
+
+If the GitHub repository is private, the live site needs a read-only GitHub token saved in GitHub Updates (see the runbook) or updates stop.
 
 Full procedure, cache traps and rollback: `wp-content/plugins/RUNBOOK-live-updates.md`.
 

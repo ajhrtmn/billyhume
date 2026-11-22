@@ -2,15 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Placement storage and REST bridge behind the bh-crm project board.
- *
- * Element TYPES are registered in code (register_type()); PLACEMENTS live in
- * bhcore_element_placements: "this type, configured this way, in this slot on this
- * surface for this context, at this position." Surfaces register via the
- * 'bh_element_surfaces' filter. Placements form a shallow tree per slot via
- * parent_placement_id (0 = root); save_placement() keeps the parent in the same
- * (surface, context, slot) and rejects cycles; delete_placement() promotes children
- * to root. The board itself renders cards client-side from REST data.
+ * Placement storage and REST behind the bh-crm project board. Types are registered in
+ * code; placements (type + config in a slot on a surface) live in bhcore_element_placements
+ * as a shallow per-slot tree (cycles rejected, children promoted on delete).
  */
 class BH_Element {
     /** @var array<string, array<string, mixed>> slug => normalized type manifest */
@@ -289,7 +283,7 @@ class BH_Element {
     public static function rest_delete_placement(\WP_REST_Request $req) {
         $id = (int) $req->get_param('id');
         if ($id <= 0) {
-            return new \WP_Error('bh_element_bad_id', 'A valid placement id is required.', ['status' => 400]);
+            return new \WP_Error('bh_element_bad_id', OUS_Words::get('admin.element.valid_placement_id_required'), ['status' => 400]);
         }
         $ok = self::delete_placement($id);
         return new \WP_REST_Response(['deleted' => $ok, 'id' => $id], 200);
@@ -316,11 +310,8 @@ class BH_Element {
     }
 
     /**
-     * POST /elements/placements/{surface}/{context_id} — upsert + order one slot in one request.
-     * Body: { "slot": "main", "placements": [ { "id": 12, "element_type": "bh/sticky-card", "config": {...},
-     *         "enabled": true, "parent_placement_id": 0 }, ... ] } in final order.
-     * Entries without 'id' are inserted; unregistered types or rejected parents are skipped.
-     * 'position' is assigned per parent group from the submitted order (sibling-scoped).
+     * POST /elements/placements/{surface}/{context_id}: upsert and order one slot.
+     * Body: { slot, placements: [ { id?, element_type, config, enabled, parent_placement_id } ] }.
      *
      * @return \WP_REST_Response|\WP_Error
      */

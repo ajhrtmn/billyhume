@@ -8,7 +8,7 @@ class BH_AdminListTables {
     public static function init(): void {
         // Contest list: status pill, shortcode, quick stats (via OUS_ListTable).
         OUS_ListTable::register('bh_contest', [
-            'bh_status' => 'Status', 'bh_shortcode' => 'Shortcode', 'bh_page' => 'Page', 'bh_stats' => 'Submissions / Votes',
+            'bh_status' => 'Status', 'bh_shortcode' => 'Shortcode', 'bh_page' => 'Page', 'bh_stats' => BHCON_Words::get('admin.admin_list_tables.submissions_votes'),
         ], [self::class, 'contest_column_content']);
 
         // Submissions list: contest column plus a contest filter dropdown.
@@ -27,13 +27,13 @@ class BH_AdminListTables {
             $sub = BH_Helpers::submission_status($post_id);
             $sub_map   = ['open' => '#1DB954', 'unscheduled' => '#1DB954', 'upcoming' => '#8a8a8a', 'closed' => '#b3261e'];
             $sub_label = ['open' => 'Open', 'unscheduled' => 'Open', 'upcoming' => 'Upcoming', 'closed' => 'Closed'];
-            echo '<div style="margin-bottom:4px;white-space:nowrap;"><span style="display:inline-block;width:62px;font-size:10px;color:#787c82;text-transform:uppercase;">Submit</span> '
+            echo ('<div style="margin-bottom:4px;white-space:nowrap;"><span style="display:inline-block;width:62px;font-size:10px;color:#787c82;text-transform:uppercase;">' . BHCON_Words::get('admin.admin_list_tables.submit') . '</span> ')
                . '<span style="display:inline-block;padding:2px 10px;border-radius:999px;background:' . $sub_map[$sub] . ';color:#fff;font-size:11px;font-weight:600;white-space:nowrap;">' . esc_html($sub_label[$sub]) . '</span></div>';
 
             $s = BH_Helpers::contest_status($post_id);
             $map   = ['open' => '#1DB954', 'upcoming' => '#8a8a8a', 'closed' => '#b3261e', 'unscheduled' => '#8a8a8a'];
-            $label = ['open' => 'Open', 'upcoming' => 'Upcoming', 'closed' => 'Closed', 'unscheduled' => 'Not scheduled'];
-            echo '<div style="white-space:nowrap;"><span style="display:inline-block;width:62px;font-size:10px;color:#787c82;text-transform:uppercase;">Vote</span> '
+            $label = ['open' => 'Open', 'upcoming' => 'Upcoming', 'closed' => 'Closed', 'unscheduled' => BHCON_Words::get('admin.admin_list_tables.not_scheduled')];
+            echo ('<div style="white-space:nowrap;"><span style="display:inline-block;width:62px;font-size:10px;color:#787c82;text-transform:uppercase;">' . BHCON_Words::get('admin.admin_list_tables.vote') . '</span> ')
                . '<span style="display:inline-block;padding:2px 10px;border-radius:999px;background:' . $map[$s] . ';color:#fff;font-size:11px;font-weight:600;white-space:nowrap;">' . esc_html($label[$s]) . '</span>';
 
             // Start/End now links. WHY: links, not forms, since this cell is inside the list-table <form>.
@@ -45,7 +45,7 @@ class BH_AdminListTables {
                 echo ' <a href="' . esc_url($url) . '" style="font-size:11px;">' . esc_html($text) . '</a>';
             };
             if ($s === 'upcoming' || $s === 'unscheduled') $quick('start', 'Start now');
-            if ($s === 'open') $quick('end', 'End now');
+            if ($s === 'open') $quick('end', BHCON_Words::get('admin.admin_list_tables.end_now'));
             echo '</div>';
         }
         if ($col === 'bh_shortcode') {
@@ -59,7 +59,7 @@ class BH_AdminListTables {
             $subs  = BH_Helpers::submission_count($post_id);
             $votes = BH_Helpers::vote_count($post_id);
             $url   = admin_url(BH_PostTypes::MENU_PARENT . '&page=bh-results&contest_id=' . $post_id);
-            echo esc_html((string) $subs) . ' subs · <a href="' . esc_url($url) . '">' . esc_html((string) $votes) . ' votes</a>';
+            echo esc_html((string) $subs) . (' ' . BHCON_Words::get('admin.admin_list_tables.subs') . ' <a href="') . esc_url($url) . '">' . esc_html((string) $votes) . ' votes</a>';
         }
     }
 

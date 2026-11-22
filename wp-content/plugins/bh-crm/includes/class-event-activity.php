@@ -43,19 +43,19 @@ class BHCRM_Event_Activity {
     /** Event type -> label; unknown types fall back to a label derived from the raw string. */
     public static function type_label(string $type): string {
         $labels = [
-            'bhs/play'            => 'Played a track',
-            'bhs/skip'            => 'Skipped a track',
-            'bh/vote'             => 'Cast a contest vote',
-            'bhc/enroll'          => 'Enrolled in a course',
-            'bhc/step_completed'  => 'Completed a lesson step',
-            'bhc/course_completed'=> 'Completed a course',
-            'bhcrm/note_saved'    => 'CRM note updated',
-            'bhcrm/tags_saved'    => 'CRM tags updated',
-            'bhcrm/link_created'  => 'Linked to a project',
-            'bh/submission_created' => 'Submitted a contest entry',
-            'bhm/wallet_credit'   => 'Wallet credited',
-            'bhm/wallet_debit'    => 'Wallet debited (play)',
-            'bhcore/email_sent'   => 'Received an email',
+            'bhs/play'            => BHCRM_Words::get('admin.event_activity.played_track'),
+            'bhs/skip'            => BHCRM_Words::get('admin.event_activity.skipped_track'),
+            'bh/vote'             => BHCRM_Words::get('admin.event_activity.cast_contest_vote'),
+            'bhc/enroll'          => BHCRM_Words::get('admin.event_activity.enrolled_course'),
+            'bhc/step_completed'  => BHCRM_Words::get('admin.event_activity.completed_lesson_step'),
+            'bhc/course_completed'=> BHCRM_Words::get('admin.event_activity.completed_course'),
+            'bhcrm/note_saved'    => BHCRM_Words::get('admin.event_activity.crm_note_updated'),
+            'bhcrm/tags_saved'    => BHCRM_Words::get('admin.event_activity.crm_tags_updated'),
+            'bhcrm/link_created'  => BHCRM_Words::get('admin.event_activity.linked_project'),
+            'bh/submission_created' => BHCRM_Words::get('admin.event_activity.submitted_contest_entry'),
+            'bhm/wallet_credit'   => BHCRM_Words::get('admin.event_activity.wallet_credited'),
+            'bhm/wallet_debit'    => BHCRM_Words::get('admin.event_activity.wallet_debited_play'),
+            'bhcore/email_sent'   => BHCRM_Words::get('admin.event_activity.received_email'),
         ];
         if (isset($labels[$type])) return $labels[$type];
 
@@ -80,8 +80,8 @@ class BHCRM_Event_Activity {
         if (!$count) return $sections;
 
         $sections[] = [
-            'plugin'  => 'Event Tracking',
-            'summary' => sprintf('%d recorded event%s', $count, $count === 1 ? '' : 's'),
+            'plugin'  => BHCRM_Words::get('admin.event_activity.event_tracking'),
+            'summary' => sprintf(BHCRM_Words::get('admin.event_activity.d_recorded_event_s'), $count, $count === 1 ? '' : 's'),
             'render'  => fn() => self::render_detail($user_id),
         ];
         return $sections;
@@ -91,7 +91,7 @@ class BHCRM_Event_Activity {
     public static function render_detail(int $user_id): void {
         $rows = self::recent_events($user_id);
         if (!$rows) {
-            echo '<p><em>No events recorded.</em></p>';
+            echo ('<p><em>' . BHCRM_Words::get('admin.event_activity.no_events_recorded') . '</em></p>');
             return;
         }
 
@@ -99,11 +99,11 @@ class BHCRM_Event_Activity {
         $has_wallet_rows = false;
         foreach ($rows as $r) { if (strpos($r['type'], 'bhm/wallet_') === 0) { $has_wallet_rows = true; break; } }
         if ($has_wallet_rows && class_exists('BHM_Wallet')) {
-            echo '<p class="description">Wallet events below are also summarized, rolled up, in this contact\'s wallet-balance section above.</p>';
+            echo ('<p class="description">' . BHCRM_Words::get('admin.event_activity.wallet_events_below_are_also') . '</p>');
         }
 
         echo '<div class="bhy-table-wrap"><table class="wp-list-table widefat striped"><thead><tr>'
-           . '<th>When</th><th>Event</th><th>Subject</th><th>Details</th>'
+           . ('<th>' . BHCRM_Words::get('admin.event_activity.when') . '</th><th>' . BHCRM_Words::get('admin.event_activity.event') . '</th><th>' . BHCRM_Words::get('admin.event_activity.subject') . '</th><th>' . BHCRM_Words::get('admin.event_activity.details') . '</th>')
            . '</tr></thead><tbody>';
         foreach ($rows as $r) {
             $payload = json_decode($r['payload'] ?? '', true);
@@ -124,7 +124,7 @@ class BHCRM_Event_Activity {
         echo '</tbody></table></div>';
 
         if (self::total_count($user_id) > self::DETAIL_LIMIT) {
-            echo '<p class="description">Showing the ' . (int) self::DETAIL_LIMIT . ' most recent events. Older events aren\'t shown here — see the Event Tracking Debug Tools section (The Self-Hosted Self) for aggregate counts.</p>';
+            echo '<p class="description">Showing the ' . (int) self::DETAIL_LIMIT . (' ' . BHCRM_Words::get('admin.event_activity.most_recent_events_older_events') . '</p>');
         }
     }
 }

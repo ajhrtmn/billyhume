@@ -2,18 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Versioned, namespaced per-event envelope stored in OUS_Tables::events(). emit() only
- * enqueues an OUS_Jobs ingest job; the insert happens off the live request.
- *
- *   BH_Event::register_event_type('bhs/play', ['track_id' => 'int']);   // on 'init'
- *
- *   BH_Event::emit('bhc/lesson_complete', [
- *       'user_id' => get_current_user_id(),
- *       'subject_type' => 'bh_lesson', 'subject_id' => $lesson_id,
- *       'payload' => ['referrer_bucket' => $bucket],
- *   ]);
- *
- * emit() also fires do_action('bh_event_emitted', $type, $job_args, $args) synchronously.
+ * Versioned per-event records. emit() queues an OUS_Jobs ingest job and fires
+ * bh_event_emitted synchronously:
+ *   BH_Event::emit('bhc/lesson_complete', ['user_id' => $id, 'subject_type' => 'bh_lesson', 'subject_id' => $lesson_id]);
  */
 class BH_Event {
     const JOB_HOOK = 'bhcore_ingest_event';
@@ -126,7 +117,7 @@ class BH_Event {
 
         // WHY: $wpdb->prepare() turns a null %s into '' (not SQL NULL), and dedup_key is UNIQUE, so a
         // null key is written as a literal NULL (plain INSERT) while a real key uses INSERT IGNORE.
-        $columns = '(type, v, user_id, client_id, subject_type, subject_id, payload, context, occurred_at, dedup_key)';
+        $columns = OUS_Words::get('admin.event.type_v_user_id_client');
         $args = [
             $data['type'], $data['v'], $data['user_id'], $data['client_id'],
             $data['subject_type'], $data['subject_id'], $data['payload'], $data['context'],
@@ -165,7 +156,7 @@ class BH_Event {
      */
     public static function register_debug_section($tools): array {
         $tools['bh-events'] = [
-            'label'  => 'Event Tracking',
+            'label'  => OUS_Words::get('admin.event.event_tracking'),
             'render' => [self::class, 'render_debug_section'],
             'group'  => OUS_Debug::GROUP_MONITORING,
         ];
@@ -174,7 +165,7 @@ class BH_Event {
 
     public static function render_debug_section(): void {
         global $wpdb;
-        echo '<p>Recent event activity, last 7 days — see <code>' . esc_html(self::table()) . '</code>. Registered types this request: <code>' . esc_html(implode(', ', array_keys(self::$types)) ?: '(none registered yet)') . '</code></p>';
+        echo ('<p>' . OUS_Words::get('admin.event.recent_event_activity_last_7') . ' <code>') . esc_html(self::table()) . '</code>. Registered types this request: <code>' . esc_html(implode(', ', array_keys(self::$types)) ?: OUS_Words::get('admin.event.none_registered_yet')) . '</code></p>';
 
         $since = gmdate('Y-m-d H:i:s', time() - 7 * DAY_IN_SECONDS);
 
@@ -184,12 +175,12 @@ class BH_Event {
         ), ARRAY_A);
 
         if (!$rows) {
-            echo '<p class="description">No events recorded in the last 7 days yet.</p>';
+            echo ('<p class="description">' . OUS_Words::get('admin.event.no_events_recorded_last_7') . '</p>');
             return;
         }
 
-        echo '<h4>By type</h4>';
-        echo '<table class="widefat striped"><thead><tr><th>Type</th><th>Count (7d)</th></tr></thead><tbody>';
+        echo ('<h4>' . OUS_Words::get('admin.event.by_type') . '</h4>');
+        echo ('<table class="widefat striped"><thead><tr><th>' . OUS_Words::get('admin.api_docs.type') . '</th><th>' . OUS_Words::get('admin.event.count_7d') . '</th></tr></thead><tbody>');
         foreach ($rows as $r) {
             echo '<tr><td>' . esc_html($r['type']) . '</td><td>' . (int) $r['c'] . '</td></tr>';
         }
@@ -219,8 +210,8 @@ class BH_Event {
         $types = array_keys($types);
         sort($types);
 
-        echo '<h4>By type, per day (7d)</h4>';
-        echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>Date</th>';
+        echo ('<h4>' . OUS_Words::get('admin.event.by_type_per_day_7d') . '</h4>');
+        echo ('<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>' . OUS_Words::get('admin.event.date') . '</th>');
         foreach ($types as $t) echo '<th>' . esc_html($t) . '</th>';
         echo '</tr></thead><tbody>';
         foreach ($by_day as $day => $counts) {
@@ -243,8 +234,8 @@ class BH_Event {
 
         if (!$rows) return;
 
-        echo '<h4>Top active users (7d)</h4>';
-        echo '<table class="widefat striped"><thead><tr><th>User</th><th>Event count (7d)</th></tr></thead><tbody>';
+        echo ('<h4>' . OUS_Words::get('admin.event.top_active_users_7d') . '</h4>');
+        echo ('<table class="widefat striped"><thead><tr><th>' . OUS_Words::get('admin.debug_log.user') . '</th><th>' . OUS_Words::get('admin.event.event_count_7d') . '</th></tr></thead><tbody>');
         foreach ($rows as $r) {
             $user = get_userdata((int) $r['user_id']);
             $label = $user ? $user->display_name . ' (#' . (int) $r['user_id'] . ')' : '#' . (int) $r['user_id'];

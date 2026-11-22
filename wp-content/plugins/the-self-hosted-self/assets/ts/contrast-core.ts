@@ -1,16 +1,7 @@
 /**
- * Browser mirror of BHY_Color + BHY_Contrast::resolve() (PHP:
- * includes/class-color.php, includes/class-contrast.php). Used ONLY by
- * the Design Suite live preview so it shows the same derived palette a
- * save would produce.
- *
- * The recipe table is NOT duplicated here — PHP localises
- * BHY_Contrast::spec() as `window.bhyContrastSpec` and this file
- * interprets it. Keep the maths in step with class-color.php; the
- * OUS_ContrastTestSuite calibration snapshot is the cross-check.
- *
- * Build: `npx tsc` in the plugin root (module: none, ES2019). Commit the
- * generated assets/js/contrast-core.js alongside this file.
+ * Browser mirror of BHY_Color + BHY_Contrast::resolve(), used only by the Design
+ * Suite live preview. The recipe comes from PHP as window.bhyContrastSpec; keep the
+ * maths in step with class-color.php (OUS_ContrastTestSuite cross-checks it).
  */
 interface BhySpecEntry {
   label?: string;

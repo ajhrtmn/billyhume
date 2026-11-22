@@ -114,7 +114,7 @@ class BHI_Profiles {
                 $taken_by = $wpdb->get_var($wpdb->prepare(
                     "SELECT user_id FROM " . self::table() . " WHERE profile_slug = %s AND user_id != %d", $slug, $user_id
                 ));
-                if ($taken_by) return new WP_Error('slug_taken', 'That profile URL is already taken.');
+                if ($taken_by) return new WP_Error('slug_taken', OUS_Words::get('admin.profiles.profile_url_already_taken'));
             }
             $row['profile_slug'] = $slug !== '' ? $slug : null;
             $formats[] = '%s';
@@ -134,7 +134,7 @@ class BHI_Profiles {
         // WHY: the pre-check above has a race; the UNIQUE KEY is the real backstop,
         // and a rejected write must not be reported as saved.
         if ($wpdb->last_error) {
-            return new WP_Error('save_failed', 'That profile URL was just taken by someone else — pick another and save again.');
+            return new WP_Error('save_failed', OUS_Words::get('admin.profiles.profile_url_was_just_taken'));
         }
     }
 
@@ -172,12 +172,8 @@ class BHI_Profiles {
     }
 
     /**
-     * Extension point for public-profile badges ['label' => string, 'url' => string|null]:
-     *
-     *     add_filter('bhi_profile_badges', function ($badges, $user_id) {
-     *         $badges[] = ['label' => 'Supporter', 'url' => null];
-     *         return $badges;
-     *     }, 10, 2);
+     * Extension point for public-profile badges: add ['label' => string, 'url' => string|null]
+     * via the bhi_profile_badges filter ($badges, $user_id).
      */
     /** @return array<int, array<string, mixed>> */
     public static function badges_for(int $user_id): array {

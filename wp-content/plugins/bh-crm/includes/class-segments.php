@@ -166,9 +166,9 @@ class BHCRM_Segments {
 
         $msg = '';
         if ($name === '') {
-            $msg = 'Name your list before saving.';
+            $msg = BHCRM_Words::get('admin.segments.name_list_before_saving');
         } elseif (!$conditions) {
-            $msg = 'Add at least one real condition before saving.';
+            $msg = BHCRM_Words::get('admin.segments.add_at_least_one_real');
         } else {
             global $wpdb;
             $wpdb->insert(self::table(), [
@@ -191,7 +191,7 @@ class BHCRM_Segments {
     public static function register_campaign_segments($segments): array {
         if (class_exists('BHCRM_People')) {
             $segments['bhcrm_active'] = [
-                'label' => 'CRM: everyone active in the CRM',
+                'label' => BHCRM_Words::get('admin.segments.crm_everyone_active_crm'),
                 'user_ids' => ['BHCRM_People', 'active_user_ids'],
             ];
         }
@@ -199,7 +199,7 @@ class BHCRM_Segments {
         foreach (self::all() as $row) {
             $conditions = $row['conditions'];
             $segments['bhcrm_segment_' . $row['id']] = [
-                'label' => 'CRM list: ' . $row['name'],
+                'label' => BHCRM_Words::get('admin.segments.crm_list') . ' ' . $row['name'],
                 'user_ids' => function () use ($conditions) {
                     $base = class_exists('BHCRM_People') ? BHCRM_People::active_user_ids() : [];
                     return self::apply($base, $conditions);
@@ -223,7 +223,7 @@ class BHCRM_Segments {
             OUS_Audit::log('segment_deleted', 'bhcrm_segment', $id, ['name' => $segment['name']]);
         }
         $wpdb->delete(self::table(), ['id' => $id], ['%d']);
-        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'bhcrm_msg' => rawurlencode('List deleted.')], admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'bhcrm_msg' => rawurlencode(BHCRM_Words::get('admin.segments.list_deleted'))], admin_url('admin.php')));
         exit;
     }
 }

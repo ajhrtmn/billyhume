@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Site Core (The Self-Hosted Self)
  * Description: The required base for Billy Hume's site: accounts and the member portal, the Design Suite (colors, fonts, spacing), Debug Tools, logs, tests, email, background jobs and GitHub Updates. The Courses, Contests, Sales, Support, People and Mailing-list plugins all build on it.
- * Version:     3.22.0
+ * Version:     3.22.1
  * Requires PHP: 8.2
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('OUS_VER', '3.22.0');
+define('OUS_VER', '3.22.1');
 
 define('OUS_PATH', plugin_dir_path(__FILE__));
 define('OUS_URL',  plugin_dir_url(__FILE__));

@@ -2,13 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Shared Debug Tools page. Any plugin adds a section via the `ous_debug_tools`
- * filter (or OUS_Debug::register()) with keys: label, render, handle, reset,
- * and optional group / safe_in_production. A 'handle' callback returns a
- * message string, or may redirect and exit itself.
- *
- * WHY: the production lock (is_locked()) is enforced here centrally, so
- * registered handle/reset callbacks never need to re-check it.
+ * Shared Debug Tools page. Plugins add sections via the ous_debug_tools filter
+ * (label, render, handle, reset, group, safe_in_production).
+ * WHY: the production lock (is_locked()) is enforced here, so callbacks never re-check it.
  */
 class OUS_Debug {
     // Display order for the optional 'group' key; unknown group names sort
@@ -87,10 +83,8 @@ class OUS_Debug {
     public static function is_locked(): bool {
         if (defined('OUS_DEBUG_TOOLS_FORCE') && OUS_DEBUG_TOOLS_FORCE) return false;
         if (!function_exists('wp_get_environment_type') || wp_get_environment_type() === 'production') {
-            // WP_ENVIRONMENT_TYPE is rarely set by local dev tools, so a
-            // local-only hostname is accepted as a second signal.
-            // WHY: home_url() can be served stale by a persistent object cache,
-            // so the raw Host header and a direct DB read are checked too.
+            // WP_ENVIRONMENT_TYPE is rarely set locally, so a local hostname counts too.
+            // WHY: home_url() can be stale in an object cache; check Host and the DB as well.
             $raw_host = isset($_SERVER['HTTP_HOST']) ? wp_parse_url('http://' . $_SERVER['HTTP_HOST'], PHP_URL_HOST) : '';
             $option_host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
             global $wpdb;

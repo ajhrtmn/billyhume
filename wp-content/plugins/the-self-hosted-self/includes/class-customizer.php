@@ -2,27 +2,26 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Design Suite controls inside WordPress's native Customizer, previewed via
- * postMessage and saved to the same bhy_style_settings option the Design
- * Suite page uses (array-syntax setting ids deep-merge on save).
- * Scope: per-component tokens, plugin sliders/fonts and custom CSS; global
- * scheme editing stays on the Design Suite page.
+ * Design Suite controls in the native Customizer, previewed via postMessage and saved to
+ * the same bhy_style_settings option. Covers component tokens, sliders, fonts and custom
+ * CSS; global scheme editing stays on the Design Suite page.
  */
 class BHY_Customizer {
-    public static function init() {
+    public static function init(): void {
         add_action('customize_register', [__CLASS__, 'register']);
         add_action('customize_preview_init', [__CLASS__, 'enqueue_preview_script']);
         add_action('customize_controls_enqueue_scripts', [__CLASS__, 'enqueue_controls_script']);
     }
 
-    public static function register($wp_customize) {
+    /** @param \WP_Customize_Manager $wp_customize */
+    public static function register($wp_customize): void {
         if (!class_exists('BHY_Style') || !class_exists('WP_Customize_Control')) return;
         require_once __DIR__ . '/class-customize-range-control.php';
 
         $wp_customize->add_panel('bhy_live_design', [
-            'title'       => 'Design Suite (Live)',
-            'description' => 'The same granular tokens as Settings & Style → Design Suite\'s "Components" section, edited here while looking at the real page. Saves to the exact same site-wide settings.'
-                . "\n\n" . 'Click any styled element in the preview to jump straight to its section below. Right-click it for a menu of every component at that point (useful when one is nested inside another, like a badge inside a card), plus "Add custom rule for this element" (starts a new rule in the Custom CSS section below, right here) and "Copy CSS selector" (for the Advanced box in that same section).',
+            'title'       => OUS_Words::get('admin.customizer.design_suite_live'),
+            'description' => OUS_Words::get('admin.customizer.same_granular_tokens_as_settings')
+                . "\n\n" . OUS_Words::get('admin.customizer.click_any_styled_element_preview'),
             'priority'    => 30,
         ]);
 
@@ -30,7 +29,7 @@ class BHY_Customizer {
         $fonts   = BHY_Style::custom_fonts();
         if ($sliders || $fonts) {
             $wp_customize->add_section('bhy_live_plugin_adjustments', [
-                'title' => 'Plugin adjustments',
+                'title' => OUS_Words::get('admin.customizer.plugin_adjustments'),
                 'panel' => 'bhy_live_design',
             ]);
             foreach ($sliders as $key => $def) {
@@ -43,27 +42,25 @@ class BHY_Customizer {
 
         // Counterpart of the Design Suite page's Custom CSS section.
         $wp_customize->add_section('bhy_live_custom_css', [
-            'title'       => 'Custom CSS',
+            'title'       => OUS_Words::get('admin.customizer.custom_css'),
             'panel'       => 'bhy_live_design',
-            'description' => 'For anything the Component sections above don\'t cover. Right-click an element in the preview for "Add custom rule for this element" (starts a rule below, prefilled) or "Copy CSS selector" (for the Advanced box).',
+            'description' => OUS_Words::get('admin.customizer.anything_component_sections_above_don'),
         ]);
 
         // Same visual rule editor as the Design Suite page; both write
         // custom_css_rules through BHY_Style::sanitize_custom_css_rules().
-        if (class_exists('BHY_Style')) {
-            require_once __DIR__ . '/class-customize-css-rules-control.php';
-            $wp_customize->add_setting('bhy_style_settings[custom_css_rules]', [
-                'type'              => 'option',
-                'default'           => BHY_Style::get()['custom_css_rules'] ?? [],
-                'sanitize_callback' => ['BHY_Style', 'sanitize_custom_css_rules'],
-                'transport'         => 'postMessage',
-            ]);
-            $wp_customize->add_control(new \BHY_Customize_Css_Rules_Control($wp_customize, 'bhy_style_settings[custom_css_rules]', [
-                'section'  => 'bhy_live_custom_css',
-                'settings' => 'bhy_style_settings[custom_css_rules]',
-                'priority' => 5,
-            ]));
-        }
+        require_once __DIR__ . '/class-customize-css-rules-control.php';
+        $wp_customize->add_setting('bhy_style_settings[custom_css_rules]', [
+            'type'              => 'option',
+            'default'           => BHY_Style::get()['custom_css_rules'] ?? [],
+            'sanitize_callback' => ['BHY_Style', 'sanitize_custom_css_rules'],
+            'transport'         => 'postMessage',
+        ]);
+        $wp_customize->add_control(new \BHY_Customize_Css_Rules_Control($wp_customize, 'bhy_style_settings[custom_css_rules]', [
+            'section'  => 'bhy_live_custom_css',
+            'settings' => 'bhy_style_settings[custom_css_rules]',
+            'priority' => 5,
+        ]));
 
         // Raw-CSS escape hatch using WP core's Code Editor control; the
         // preview script swaps the <style> tag via postMessage.
@@ -184,7 +181,7 @@ class BHY_Customizer {
         ]);
     }
 
-    public static function enqueue_preview_script() {
+    public static function enqueue_preview_script(): void {
         if (!class_exists('BHY_Style')) return;
         wp_enqueue_script('bhy-customizer-preview', OUS_URL . 'assets/js/customizer-preview.js', ['customize-preview'], OUS_VER, true);
 
@@ -235,10 +232,8 @@ class BHY_Customizer {
         }
         wp_localize_script('bhy-customizer-preview', 'bhyCustomizerSchema', $schema);
 
-        // Components that declare a 'selector' become clickable in the
-        // preview: click jumps to the nearest matching group's section,
-        // right-click lists every matching ancestor. Deliberately no
-        // inspector/overlay/instance system.
+        // Components with a selector are clickable in the preview: click opens the
+        // nearest matching section, right-click lists every matching ancestor.
         $selectors = [];
         foreach (BHY_Style::component_tokens() as $group => $def) {
             if (!empty($def['selector'])) {
@@ -248,7 +243,7 @@ class BHY_Customizer {
         wp_localize_script('bhy-customizer-preview', 'bhyCustomizerSelectors', $selectors);
     }
 
-    public static function enqueue_controls_script() {
+    public static function enqueue_controls_script(): void {
         wp_add_inline_script('customize-controls', "
             (function () {
                 wp.customize.bind('ready', function () {

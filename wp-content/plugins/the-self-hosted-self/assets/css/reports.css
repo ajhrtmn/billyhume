@@ -1,29 +1,77 @@
 /* WHY: the contest player-bar offset is added by JS only when .bh-now-playing-bar exists;
    --bh-bar-height is set on pages without the bar, so it can't be used here. */
 /* WHY: z-index sits below every ecosystem modal (lowest is 90) but above page content. */
-.bhi-tech-report { position: fixed; right: 16px; bottom: 16px; z-index: 50; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.bhi-tech-report {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 50;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
 /* WHY: front-end widget, so --bh-* tokens first; --bhy-* (admin-only) is a second fallback. */
 .bhi-tech-report-toggle {
-    background: var(--bh-surface, var(--bhy-surface, #fff)); color: var(--bh-text-dim, var(--bhy-ink-dim, #646970));
-    border: 1px solid var(--bh-border, var(--bhy-border, #dcdcde)); border-radius: 999px;
-    padding: 8px 16px; font-size: 12px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.12);
+    background: var(--bh-surface, var(--bhy-surface, #fff));
+    color: var(--bh-text-dim, var(--bhy-ink-dim, #646970));
+    border: 1px solid var(--bh-border, var(--bhy-border, #dcdcde));
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 12px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,.12);
 }
-.bhi-tech-report-toggle:hover { color: var(--bh-accent, var(--bhy-accent, #2271b1)); border-color: var(--bh-accent, var(--bhy-accent, #2271b1)); }
+.bhi-tech-report-toggle:hover {
+    color: var(--bh-accent, var(--bhy-accent, #2271b1));
+    border-color: var(--bh-accent, var(--bhy-accent, #2271b1));
+}
 .bhi-tech-report-panel {
-    position: absolute; right: 0; bottom: calc(100% + 8px); width: 280px;
-    background: var(--bh-surface, var(--bhy-surface, #fff)); border: 1px solid var(--bh-border, var(--bhy-border, #dcdcde));
-    border-radius: 8px; padding: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.16);
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    width: 280px;
+    background: var(--bh-surface, var(--bhy-surface, #fff));
+    border: 1px solid var(--bh-border, var(--bhy-border, #dcdcde));
+    border-radius: 8px;
+    padding: 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.16);
 }
-.bhi-tech-report-intro { margin: 0 0 8px; font-size: 12px; color: var(--bh-text-dim, var(--bhy-ink-dim, #646970)); }
+.bhi-tech-report-intro {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--bh-text-dim, var(--bhy-ink-dim, #646970));
+}
 .bhi-tech-report-text {
-    width: 100%; box-sizing: border-box; font-size: 13px; padding: 8px;
-    border: 1px solid var(--bh-border, var(--bhy-border, #dcdcde)); border-radius: 6px; resize: vertical;
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 13px;
+    padding: 8px;
+    border: 1px solid var(--bh-border, var(--bhy-border, #dcdcde));
+    border-radius: 6px;
+    resize: vertical;
 }
-.bhi-tech-report-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
-.bhi-tech-report-cancel { background: none; border: none; color: var(--bh-text-dim, var(--bhy-ink-dim, #646970)); cursor: pointer; font-size: 13px; }
+.bhi-tech-report-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
+}
+.bhi-tech-report-cancel {
+    background: none;
+    border: none;
+    color: var(--bh-text-dim, var(--bhy-ink-dim, #646970));
+    cursor: pointer;
+    font-size: 13px;
+}
 .bhi-tech-report-submit {
-    background: var(--bh-accent, var(--bhy-accent, #2271b1)); color: #fff; border: none; border-radius: 6px;
-    padding: 6px 14px; font-size: 13px; cursor: pointer;
+    background: var(--bh-accent, var(--bhy-accent, #2271b1));
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
 }
-.bhi-tech-report-submit:disabled { opacity: .6; cursor: default; }
+.bhi-tech-report-submit:disabled {
+    opacity: .6;
+    cursor: default;
+}
 @media (max-width: 480px) { .bhi-tech-report-panel { width: calc(100vw - 32px); } }

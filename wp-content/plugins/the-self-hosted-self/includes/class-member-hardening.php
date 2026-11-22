@@ -2,11 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Hardens self-registered fan accounts (real wp_users rows on the low-privilege `bh_member`
- * role, locked out of wp-admin): blocks user enumeration, Application Passwords, XML-RPC
- * pingback methods, and user-exists login error text.
- *
- * Every piece is filterable; staff roles and non-fan logged-in requests are never touched.
+ * Hardens self-registered fan accounts (bh_member): blocks user enumeration, Application
+ * Passwords, XML-RPC pingbacks and user-exists login errors. Each piece is filterable;
+ * staff accounts are never touched.
  */
 class BHI_MemberHardening {
 
@@ -34,7 +32,10 @@ class BHI_MemberHardening {
 
     /* ---------------- helpers ---------------- */
 
-    /** Fan roles: the same set the portal locks out of wp-admin, so the two stay in lockstep. */
+    /**
+     * Fan roles: the same set the portal locks out of wp-admin, so the two stay in lockstep.
+     * @return string[]
+     */
     private static function fan_roles(): array {
         if (class_exists('BHI_Portal') && method_exists('BHI_Portal', 'excluded_roles')) {
             return (array) BHI_Portal::excluded_roles();
@@ -87,6 +88,8 @@ class BHI_MemberHardening {
     /**
      * Removes the REST users routes for unauthenticated callers only; logged-in access stays
      * with core so editor author controls work. /wp/v2/users/me is unaffected.
+     * @param array<string, mixed> $endpoints
+     * @return array<string, mixed>
      */
     public static function filter_rest_user_endpoints(array $endpoints): array {
         if (is_user_logged_in()) return $endpoints;
@@ -98,13 +101,21 @@ class BHI_MemberHardening {
         return $endpoints;
     }
 
-    /** Drop the core users sitemap (`/wp-sitemap-users-1.xml`). */
+    /**
+     * Drop the core users sitemap (`/wp-sitemap-users-1.xml`).
+     * @param mixed $provider
+     * @return mixed
+     */
     public static function drop_users_sitemap($provider, string $name) {
         if ($name === 'users' && !apply_filters('bhi_expose_users_sitemap', false)) return false;
         return $provider;
     }
 
-    /** oEmbed responses carry author_name / author_url — strip them. */
+    /**
+     * oEmbed responses carry author_name / author_url — strip them.
+     * @param mixed $data
+     * @return mixed
+     */
     public static function strip_oembed_author($data) {
         if (!is_array($data)) return $data;
         unset($data['author_name'], $data['author_url']);
@@ -113,6 +124,10 @@ class BHI_MemberHardening {
 
     /**
      * For a non-staff account reaching a user object over REST, return only safe self-referential fields.
+     * @param mixed $response
+     * @param mixed $user
+     * @param mixed $request
+     * @return mixed
      */
     public static function trim_rest_user_fields($response, $user, $request) {
         if (!is_object($response) || !isset($response->data) || !is_array($response->data)) return $response;
@@ -129,7 +144,12 @@ class BHI_MemberHardening {
 
     /* ---------------- account surface ---------------- */
 
-    /** No Application Passwords for a read-only fan account. */
+    /**
+     * No Application Passwords for a read-only fan account.
+     * @param mixed $available
+     * @param mixed $user
+     * @return mixed
+     */
     public static function app_passwords_for_user($available, $user) {
         if ($user instanceof \WP_User && self::user_is_fan($user)
             && !apply_filters('bhi_member_app_passwords', false, $user)) {
@@ -138,7 +158,11 @@ class BHI_MemberHardening {
         return $available;
     }
 
-    /** Drop pingback/blog-list XML-RPC methods; `bhi_disable_xmlrpc` disables the rest too. */
+    /**
+     * Drop pingback/blog-list XML-RPC methods; `bhi_disable_xmlrpc` disables the rest too.
+     * @param array<string, mixed> $methods
+     * @return array<string, mixed>
+     */
     public static function filter_xmlrpc_methods(array $methods): array {
         foreach (['pingback.ping', 'pingback.extensions.getPingbacks', 'wp.getUsersBlogs', 'blogger.getUsersBlogs', 'system.multicall'] as $m) {
             unset($methods[$m]);
@@ -152,13 +176,17 @@ class BHI_MemberHardening {
 
     /* ---------------- login error text ---------------- */
 
-    /** One generic message for all credential errors so wp-login.php isn't a user-exists oracle. */
+    /**
+     * One generic message for all credential errors so wp-login.php isn't a user-exists oracle.
+     * @param mixed $error
+     * @return mixed
+     */
     public static function generic_login_errors($error) {
         if (!is_string($error) || $error === '') return $error;
         $needles = ['username', 'password', 'email address', 'incorrect', 'unknown', 'not registered'];
         foreach ($needles as $n) {
             if (stripos($error, $n) !== false) {
-                return __('The username or password you entered is incorrect.', 'the-self-hosted-self');
+                return OUS_Words::get('admin.member_hardening.username_password_entered_incorrect');
             }
         }
         return $error;

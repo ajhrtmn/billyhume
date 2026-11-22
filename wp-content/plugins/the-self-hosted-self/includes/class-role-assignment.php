@@ -37,7 +37,7 @@ class OUS_RoleAssignment {
      * @return array<string, mixed>
      */
     public static function register_test_suite($suites): array {
-        $suites['the-self-hosted-self-roles'] = ['label' => 'The Self-Hosted Self (Roles)', 'callback' => [self::class, 'run_tests']];
+        $suites['the-self-hosted-self-roles'] = ['label' => OUS_Words::get('admin.role_assignment.self_hosted_self_roles'), 'callback' => [self::class, 'run_tests']];
         return $suites;
     }
 
@@ -104,10 +104,10 @@ class OUS_RoleAssignment {
 
         $search = isset($_GET['s']) ? sanitize_text_field(wp_unslash($_GET['s'])) : '';
 
-        echo '<div class="wrap"><h1>Roles</h1>';
+        echo ('<div class="wrap"><h1>' . OUS_Words::get('admin.role_assignment.roles') . '</h1>');
         if ($message) echo '<div class="notice notice-success"><p>' . esc_html($message) . '</p></div>';
         if ($advanced_message) echo '<div class="notice notice-success"><p>' . esc_html($advanced_message) . '</p></div>';
-        echo '<p class="description">Grant a "job" to a specific person — this layers extra access on top of their existing account, it doesn\'t change their WordPress role. An Administrator already has every job below via their role, so admin accounts aren\'t listed here.</p>';
+        echo ('<p class="description">' . OUS_Words::get('admin.role_assignment.grant_job_specific_person_layers') . '</p>');
 
         self::render_search_form($search);
         self::render_jobs_table($search);
@@ -120,8 +120,8 @@ class OUS_RoleAssignment {
         echo '<form method="get" style="margin:12px 0;">';
         echo '<input type="hidden" name="page" value="ous-roles">';
         echo '<input type="search" name="s" value="' . esc_attr($search) . '" placeholder="Search by name or email">';
-        echo ' <button type="submit" class="button">Search</button>';
-        if ($search) echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=ous-roles')) . '">Clear</a>';
+        echo (' <button type="submit" class="button">' . OUS_Words::get('admin.role_assignment.search') . '</button>');
+        if ($search) echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=ous-roles')) . ('">' . OUS_Words::get('admin.role_assignment.clear') . '</a>');
         echo '</form>';
     }
 
@@ -145,7 +145,7 @@ class OUS_RoleAssignment {
         echo '<input type="hidden" name="ous_roles_action" value="1">';
         echo '<input type="hidden" name="ous_rendered_user_ids" value="' . esc_attr(implode(',', wp_list_pluck($users, 'ID'))) . '">';
 
-        echo '<table class="widefat striped"><thead><tr><th>Person</th>';
+        echo ('<table class="widefat striped"><thead><tr><th>' . OUS_Words::get('admin.role_assignment.person') . '</th>');
         foreach (self::JOBS as $job) {
             $tip = class_exists('BHY_UI') ? BHY_UI::tip($job['description']) : '';
             echo '<th>' . esc_html($job['label']) . $tip . '</th>';
@@ -153,7 +153,7 @@ class OUS_RoleAssignment {
         echo '</tr></thead><tbody>';
 
         if (!$users) {
-            echo '<tr><td colspan="' . (count(self::JOBS) + 1) . '">No matching non-admin accounts.</td></tr>';
+            echo '<tr><td colspan="' . (count(self::JOBS) + 1) . ('">' . OUS_Words::get('admin.role_assignment.no_matching_non_admin_accounts') . '</td></tr>');
         }
         foreach ($users as $user) {
             echo '<tr><td><strong>' . esc_html($user->display_name) . '</strong><br><span class="description">' . esc_html($user->user_email) . '</span></td>';
@@ -231,13 +231,13 @@ class OUS_RoleAssignment {
         $caps = self::all_registered_caps();
         if (!$caps) return;
 
-        echo '<h2>Advanced</h2>';
-        echo '<p class="description">Grant or revoke any registered capability directly, by user ID — for the handful of capabilities deliberately left out of the Jobs table above (see each one\'s own tooltip in Debug Tools/code for why), or anything a plugin registers that has no curated job yet.</p>';
+        echo ('<h2>' . OUS_Words::get('admin.role_assignment.advanced') . '</h2>');
+        echo ('<p class="description">' . OUS_Words::get('admin.role_assignment.grant_revoke_any_registered_capability') . '</p>');
         echo '<form method="post">';
         wp_nonce_field('ous_roles_advanced', 'ous_roles_advanced_nonce');
         echo '<input type="hidden" name="ous_roles_advanced_action" value="1">';
         echo '<p><label>User ID <input type="number" name="ous_advanced_user_id" min="1" required></label></p>';
-        echo '<p><label>Capability <select name="ous_advanced_cap">';
+        echo ('<p><label>' . OUS_Words::get('admin.role_assignment.capability') . ' <select name="ous_advanced_cap">');
         foreach ($caps as $cap) echo '<option value="' . esc_attr($cap) . '">' . esc_html($cap) . '</option>';
         echo '</select></label></p>';
         echo '<p>';
@@ -251,8 +251,8 @@ class OUS_RoleAssignment {
         $user_id = (int) ($_POST['ous_advanced_user_id'] ?? 0);
         $cap = sanitize_key($_POST['ous_advanced_cap'] ?? '');
         $user = $user_id ? get_userdata($user_id) : null;
-        if (!$user || !$cap || !in_array($cap, self::all_registered_caps(), true)) return 'Invalid user or capability.';
-        if (in_array('administrator', $user->roles, true)) return 'Administrators already have every registered capability.';
+        if (!$user || !$cap || !in_array($cap, self::all_registered_caps(), true)) return OUS_Words::get('admin.role_assignment.invalid_user_capability');
+        if (in_array('administrator', $user->roles, true)) return OUS_Words::get('admin.role_assignment.administrators_already_have_every_regist');
 
         $revoke = isset($_POST['ous_advanced_revoke']);
         if ($revoke) $user->remove_cap($cap);

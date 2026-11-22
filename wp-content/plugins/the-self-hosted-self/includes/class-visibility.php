@@ -30,14 +30,14 @@ class OUS_Visibility {
         $login_url = class_exists('BHI_Portal')
             ? add_query_arg('redirect_to', rawurlencode($here), home_url('/' . BHI_Portal::REWRITE_SLUG . '/'))
             : wp_login_url($here);
-        $message = $message ?: __('Log in to view this.', 'the-self-hosted-self');
+        $message = $message ?: OUS_Words::get('admin.visibility.log_view');
         return '<div class="ous-login-required"><p>' . esc_html($message) . '</p><p><a class="button ous-login-required-cta" href="' . esc_url($login_url) . '">' . esc_html__('Log In', 'the-self-hosted-self') . '</a></p></div>';
     }
 
     // Checkbox markup for a contributing plugin's own metabox (same META_KEY).
     public static function checkbox_field(int $post_id, string $label = ''): string {
         $checked = self::is_public($post_id) ? 'checked' : '';
-        $label = $label ?: __('Public — no login required to view', 'the-self-hosted-self');
+        $label = $label ?: OUS_Words::get('admin.visibility.public_no_login_required_view');
         return '<label><input type="checkbox" name="' . esc_attr(self::META_KEY) . '" value="1" ' . $checked . '> ' . esc_html($label) . '</label>';
     }
 
@@ -63,7 +63,7 @@ class OUS_Visibility {
 
     public static function members_only_checkbox_field(int $post_id, string $label = ''): string {
         $checked = self::is_members_only($post_id) ? 'checked' : '';
-        $label = $label ?: __('Members only — requires a logged-in account to view', 'the-self-hosted-self');
+        $label = $label ?: OUS_Words::get('admin.visibility.members_only_requires_logged_account');
         return '<label><input type="checkbox" name="' . esc_attr(self::MEMBERS_ONLY_META_KEY) . '" value="1" ' . $checked . '> ' . esc_html($label) . '</label>';
     }
 

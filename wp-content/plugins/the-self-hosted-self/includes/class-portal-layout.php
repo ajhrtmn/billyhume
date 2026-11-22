@@ -2,10 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_PortalLayout: admin-editable portal panel order (numeric priority) and
- * visibility, with OUS_Revisions history. Stored in BHI_Portal::LAYOUT_OPTION as
- * ['order' => [id => int], 'hidden' => [id => true]] and applied on top of the
- * bhi_portal_panels filter, which still decides which panels exist.
+ * Admin-editable account-page tab order and visibility, with revision history, applied on
+ * top of bhi_portal_panels (which still decides which tabs exist).
  */
 class OUS_PortalLayout {
     const OPTION = 'bhi_portal_layout';
@@ -67,19 +65,19 @@ class OUS_PortalLayout {
         });
         $layout = self::get();
 
-        echo '<div class="wrap"><h1>Portal Layout</h1>';
-        echo '<p class="description">Controls the order and visibility of panels in the <a href="' . esc_url(home_url('/account/')) . '">account portal</a> nav. Lower number = appears first. Panels a plugin no longer registers just disappear here on their own.</p>';
+        echo ('<div class="wrap"><h1>' . OUS_Words::get('admin.portal_layout.portal_layout') . '</h1>');
+        echo ('<p class="description">' . OUS_Words::get('admin.portal_layout.controls_order_visibility_panels') . ' <a href="') . esc_url(home_url('/account/')) . ('">account portal</a> ' . OUS_Words::get('admin.portal_layout.nav_lower_number_appears_first') . '</p>');
 
         if (isset($_GET['updated'])) {
-            echo '<div class="notice notice-success is-dismissible"><p>Portal layout saved.</p></div>';
+            echo ('<div class="notice notice-success is-dismissible"><p>' . OUS_Words::get('admin.portal_layout.portal_layout_saved') . '</p></div>');
         }
 
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="bhi_save_portal_layout">';
         wp_nonce_field('bhi_save_portal_layout', 'bhi_portal_layout_nonce');
 
-        echo '<p class="description">Tip: leave gaps between numbers (10, 20, 30 rather than 1, 2, 3) so you can slot a panel in between two others later without renumbering everything.</p>';
-        echo '<table class="widefat striped" style="max-width:600px;"><thead><tr><th>Panel</th><th style="width:100px;">Priority</th><th style="width:80px;">Hide</th></tr></thead><tbody>';
+        echo ('<p class="description">' . OUS_Words::get('admin.portal_layout.tip_leave_gaps_between_numbers') . '</p>');
+        echo ('<table class="widefat striped" style="max-width:600px;"><thead><tr><th>' . OUS_Words::get('admin.portal_layout.panel') . '</th><th style="width:100px;">' . OUS_Words::get('admin.portal_layout.priority') . '</th><th style="width:80px;">' . OUS_Words::get('admin.portal_layout.hide') . '</th></tr></thead><tbody>');
         foreach ($panels as $p) {
             $id = $p['id'];
             $priority = $layout['order'][$id] ?? ($p['priority'] ?? 10);
@@ -94,7 +92,7 @@ class OUS_PortalLayout {
         echo '<p class="submit"><button type="submit" class="button button-primary">Save Layout</button></p>';
         echo '</form>';
 
-        echo '<h2>Version History</h2>';
+        echo ('<h2>' . OUS_Words::get('admin.portal_layout.version_history') . '</h2>');
         OUS_Revisions::render_history_panel('portal_layout', 1, 'bhi_restore_portal_layout_revision', 'bhi_restore_portal_layout_revision');
 
         echo '</div>';
@@ -102,7 +100,7 @@ class OUS_PortalLayout {
 
     public static function handle_save(): void {
         if (!current_user_can('manage_options') || !check_admin_referer('bhi_save_portal_layout', 'bhi_portal_layout_nonce')) {
-            wp_die('Invalid request.');
+            wp_die(OUS_Words::get('admin.portal_layout.invalid_request'));
         }
 
         $priorities = array_map('intval', (array) ($_POST['priority'] ?? []));
@@ -118,7 +116,7 @@ class OUS_PortalLayout {
 
         $data = ['order' => $order, 'hidden' => $hidden];
         update_option(self::OPTION, $data);
-        OUS_Revisions::snapshot('portal_layout', 1, $data, 'Saved from Portal Layout admin page');
+        OUS_Revisions::snapshot('portal_layout', 1, $data, OUS_Words::get('admin.portal_layout.saved_from_portal_layout_admin'));
 
         wp_safe_redirect(add_query_arg('updated', '1', admin_url('admin.php?page=ous-portal-layout')));
         exit;
@@ -126,7 +124,7 @@ class OUS_PortalLayout {
 
     public static function handle_restore_revision(): void {
         if (!current_user_can('manage_options') || !check_admin_referer('bhi_restore_portal_layout_revision', 'ous_revisions_nonce')) {
-            wp_die('Invalid request.');
+            wp_die(OUS_Words::get('admin.portal_layout.invalid_request'));
         }
 
         $version = isset($_GET['version']) ? (int) $_GET['version'] : 0;

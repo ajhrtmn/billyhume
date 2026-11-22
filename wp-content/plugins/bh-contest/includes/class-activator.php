@@ -78,7 +78,7 @@ class BH_Activator {
             'post_status'  => 'publish',
             'post_content' => $shortcode,
         ], true);
-        if (is_wp_error($new_id) || !$new_id) return false;
+        if (is_wp_error($new_id)) return false;
 
         update_option($option_key, $new_id);
         return true;

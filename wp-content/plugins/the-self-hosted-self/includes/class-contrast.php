@@ -2,12 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Context-aware colour resolver: derives dependent roles (inks, muted text,
- * borders, UI fills, focus ring, accent states) from Design Suite seed
- * colours, each solved to an explicit perceptual-contrast target.
- * The recipe lives in self::SPEC, also localised to contrast-core.ts so the
- * live preview derives identically. Maths is in BHY_Color.
- * WHY: the four pre-existing accent roles are reproduced byte-for-byte.
+ * Derives dependent colour roles (inks, muted text, borders, focus ring, accent states) from
+ * the Design Suite seed colours, each solved to a contrast target. The recipe (SPEC) is shared
+ * with contrast-core.ts so the live preview matches. Maths is in BHY_Color.
  */
 class BHY_Contrast {
 
@@ -15,14 +12,9 @@ class BHY_Contrast {
     const CACHE_OPTION = 'bhy_contrast_palette';
 
     /**
-     * Ordered recipe map: derived var => recipe. A role may reference an
-     * earlier derived role, so order matters.
-     *
-     * derive: 'mix' (from/with/weight, emit 'color-mix'|'hex'),
-     *   'ink-on' (on/inks/metric), 'solve-min' (base/target_lc vs hardest
-     *   `against`), 'approach' (base/target_lc/chroma_mul, lands NEAR target).
-     * against: surface measured on (null = not a foreground role).
-     * target: audit pass threshold; ceiling: audit fails if contrast exceeds it.
+     * Ordered recipe map (a role may use an earlier one). derive: mix | ink-on | solve-min | approach;
+     * against: surface it is measured on (null = not a foreground role);
+     * target / ceiling: audit pass threshold and upper limit.
      */
     const SPEC = [
         // ---- reproduced from pre-resolver BHY_Style, unchanged ----
@@ -115,12 +107,15 @@ class BHY_Contrast {
         ],
     ];
 
-    /** SPEC + the eight programmatic on-cat-N rows. */
+    /**
+     * SPEC + the eight programmatic on-cat-N rows.
+     * @return array<string, array<string, mixed>>
+     */
     public static function spec(): array {
         $spec = self::SPEC;
         for ($i = 1; $i <= 8; $i++) {
             $spec['--bh-on-cat-' . $i] = [
-                'label' => 'On category ' . $i, 'intent' => 'ink on the category-' . $i . ' swatch (decorative / label)',
+                'label' => 'On category ' . $i, 'intent' => 'ink on the category-' . $i . ' ' . OUS_Words::get('admin.contrast.swatch_decorative_label'),
                 'against' => '--bh-cat-' . $i, 'derive' => 'ink-on',
                 'on' => '--bh-cat-' . $i, 'inks' => ['--bh-text', '--bh-bg', '#0b0b0b', '#ffffff'], 'emit' => 'hex',
                 'target' => ['apca' => 50, 'wcag' => 0],
@@ -155,6 +150,7 @@ class BHY_Contrast {
         return $seeds;
     }
 
+    /** @param mixed $val */
     private static function hex_or_black($val): string {
         $val = trim((string) $val);
         // Only plain hex can feed OKLCH maths; anything else fails safe to black.
@@ -193,7 +189,7 @@ class BHY_Contrast {
 
     /**
      * @param array<string, string> $seeds
-     * @return array{0: array<string,string>, 1: array<string,string>}  [cssValues, concreteHex]
+     * @return array{0: array<int|string, string>, 1: array<int|string, string>}  [cssValues, concreteHex]
      */
     private static function resolve_both(array $seeds): array {
         $concrete = [];
@@ -288,7 +284,10 @@ class BHY_Contrast {
         return $best ?? $base;
     }
 
-    /** @param callable $ref  @return array<string> */
+    /**
+     * @param array<string, mixed> $r
+     * @return array<string>
+     */
     private static function against_list(array $r, callable $ref): array {
         $raw = $r['against'] ?? [];
         $raw = is_array($raw) ? $raw : [$raw];
@@ -334,6 +333,7 @@ class BHY_Contrast {
         return self::resolve($seeds);
     }
 
+    /** @param array<string, string> $vars */
     private static function store_palette(string $sig, array $vars): void {
         // Autoload 'no': only inline_css() reads it.
         update_option(self::CACHE_OPTION, ['sig' => $sig, 'vars' => $vars], false);
@@ -360,9 +360,13 @@ class BHY_Contrast {
         }
     }
 
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
     public static function register_test_suite($suites) {
         if (class_exists('OUS_ContrastTestSuite')) {
-            $suites['bhy-contrast'] = ['label' => 'BHY Contrast (colour resolver)', 'callback' => ['OUS_ContrastTestSuite', 'run']];
+            $suites['bhy-contrast'] = ['label' => OUS_Words::get('admin.contrast.bhy_contrast_colour_resolver'), 'callback' => ['OUS_ContrastTestSuite', 'run']];
         }
         return $suites;
     }
@@ -389,7 +393,7 @@ class BHY_Contrast {
             $note = '';
             if ($pass && $ceiling && isset($ceiling['apca']) && $apca > $ceiling['apca']) {
                 $pass = false;
-                $note = 'too strong — lost its "not for you" read';
+                $note = OUS_Words::get('admin.contrast.too_strong_lost_its_not');
             }
             return [
                 'label' => $label, 'intent' => $intent,
@@ -401,12 +405,12 @@ class BHY_Contrast {
         };
 
         // Raw seed pairings, with strict targets.
-        $rows[] = $measure('Body text on surface', 'primary reading text', '--bh-text', '--bh-surface', ['apca' => 72, 'wcag' => 4.5]);
-        $rows[] = $measure('Body text on background', 'primary reading text', '--bh-text', '--bh-bg', ['apca' => 72, 'wcag' => 4.5]);
-        $rows[] = $measure('Dim text on surface', 'secondary text (seed field --bh-text-dim)', '--bh-text-dim', '--bh-surface', ['apca' => 45, 'wcag' => 3.0]);
-        $rows[] = $measure('Accent as text on surface', 'accent used directly as a text colour', '--bh-accent', '--bh-surface', ['apca' => 55, 'wcag' => 4.5]);
-        $rows[] = $measure('Accent as text on background', 'accent used directly as a text colour', '--bh-accent', '--bh-bg', ['apca' => 55, 'wcag' => 4.5]);
-        $rows[] = $measure('Border on surface', 'seed --bh-border divider visibility', '--bh-border', '--bh-surface', ['apca' => 12, 'wcag' => 1.3]);
+        $rows[] = $measure(OUS_Words::get('admin.contrast.body_text_surface'), 'primary reading text', '--bh-text', '--bh-surface', ['apca' => 72, 'wcag' => 4.5]);
+        $rows[] = $measure(OUS_Words::get('admin.contrast.body_text_background'), 'primary reading text', '--bh-text', '--bh-bg', ['apca' => 72, 'wcag' => 4.5]);
+        $rows[] = $measure(OUS_Words::get('admin.contrast.dim_text_surface'), OUS_Words::get('admin.contrast.secondary_text_seed_field_bh'), '--bh-text-dim', '--bh-surface', ['apca' => 45, 'wcag' => 3.0]);
+        $rows[] = $measure(OUS_Words::get('admin.contrast.accent_as_text_surface'), 'accent used directly as a text colour', '--bh-accent', '--bh-surface', ['apca' => 55, 'wcag' => 4.5]);
+        $rows[] = $measure(OUS_Words::get('admin.contrast.accent_as_text_background'), 'accent used directly as a text colour', '--bh-accent', '--bh-bg', ['apca' => 55, 'wcag' => 4.5]);
+        $rows[] = $measure(OUS_Words::get('admin.contrast.border_surface'), 'seed --bh-border divider visibility', '--bh-border', '--bh-surface', ['apca' => 12, 'wcag' => 1.3]);
 
         foreach (self::spec() as $name => $r) {
             if (empty($r['target'])) continue;
@@ -417,7 +421,7 @@ class BHY_Contrast {
                 $rows[] = $measure(
                     ($r['label'] ?? $name) . $suffix,
                     $r['intent'] ?? '',
-                    $name, $a,
+                    (string) $name, $a,
                     $r['target'],
                     $r['ceiling'] ?? null
                 );
@@ -427,9 +431,13 @@ class BHY_Contrast {
         return $rows;
     }
 
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
     public static function register_debug_section($tools) {
         $tools['bhy-contrast'] = [
-            'label' => 'Contrast Audit',
+            'label' => OUS_Words::get('admin.contrast.contrast_audit'),
             'render' => [self::class, 'render_debug_section'],
             'handle' => null,
             'reset' => null,
@@ -444,11 +452,11 @@ class BHY_Contrast {
 
         echo '<p>Every colour the resolver derives, plus the raw seed pairings the Design Suite never used to check, measured against the theme you have now. APCA drives the decision; WCAG&nbsp;2 is shown for compliance.</p>';
 
-        self::render_audit_table('Current theme — ' . esc_html(self::current_theme_label()), self::audit_rows($current), true);
+        self::render_audit_table(OUS_Words::get('admin.contrast.current_theme') . ' ' . esc_html(self::current_theme_label()), self::audit_rows($current), true);
 
         // Worst failing role per built-in preset.
-        echo '<h3 style="margin-top:2em">Built-in theme presets</h3>';
-        echo '<p>Worst-failing role if you switched the whole site to each preset.</p>';
+        echo ('<h3 style="margin-top:2em">' . OUS_Words::get('admin.contrast.built_theme_presets') . '</h3>');
+        echo ('<p>' . OUS_Words::get('admin.contrast.worst_failing_role_if_switched') . '</p>');
         $matrix = [];
         foreach (self::preset_seed_sets() as $preset => $seeds) {
             $fails = array_filter(self::audit_rows($seeds), fn($r) => !$r['pass']);
@@ -456,7 +464,7 @@ class BHY_Contrast {
             $matrix[$preset] = $fails;
         }
         echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr>'
-            . '<th>Preset</th><th># failing</th><th>Worst role</th><th>APCA / target</th></tr></thead><tbody>';
+            . ('<th>' . OUS_Words::get('admin.contrast.preset') . '</th><th>' . OUS_Words::get('admin.contrast.failing') . '</th><th>Worst role</th><th>' . OUS_Words::get('admin.contrast.apca_target') . '</th></tr></thead><tbody>');
         foreach ($matrix as $preset => $fails) {
             $n = count($fails);
             $worst = $fails[0] ?? null;
@@ -470,11 +478,12 @@ class BHY_Contrast {
         echo '</tbody></table></div>';
     }
 
+    /** @param array<int, array<string, mixed>> $rows */
     private static function render_audit_table(string $title, array $rows, bool $with_copy = false): void {
         $fail_lines = [];
         echo '<h3>' . esc_html($title) . '</h3>';
         echo '<div class="bhy-table-wrap"><table class="widefat striped" id="bhy-contrast-audit"><thead><tr>'
-            . '<th>Role</th><th>Intent</th><th>Colours</th><th>APCA Lc</th><th>WCAG</th><th>Target</th><th>Status</th>'
+            . ('<th>' . OUS_Words::get('admin.contrast.role') . '</th><th>' . OUS_Words::get('admin.contrast.intent') . '</th><th>' . OUS_Words::get('admin.contrast.colours') . '</th><th>' . OUS_Words::get('admin.contrast.apca_lc') . '</th><th>' . OUS_Words::get('admin.contrast.wcag') . '</th><th>' . OUS_Words::get('admin.contrast.target') . '</th><th>' . OUS_Words::get('admin.campaigns.status') . '</th>')
             . '</tr></thead><tbody>';
         foreach ($rows as $r) {
             $status = $r['pass']
@@ -482,12 +491,12 @@ class BHY_Contrast {
                 : '<span class="bhy-badge bhy-badge-danger">fail</span>';
             if (!$r['pass']) {
                 $fail_lines[] = sprintf(
-                    '%s — APCA %.1f (need %.0f), WCAG %.2f (need %.1f) — %s on %s%s',
+                    OUS_Words::get('admin.contrast.s_apca_1f_need_0f'),
                     $r['label'], $r['apca'], $r['target_apca'], $r['wcag'], $r['target_wcag'],
                     $r['fg'], $r['bg'], $r['note'] ? ' — ' . $r['note'] : ''
                 );
             }
-            $swatch = '<span style="display:inline-block;width:2.4em;height:1.1em;border-radius:3px;vertical-align:middle;background:' . esc_attr($r['bg']) . ';color:' . esc_attr($r['fg']) . ';text-align:center;font-size:11px;line-height:1.1em">Aa</span>';
+            $swatch = '<span style="display:inline-block;width:2.4em;height:1.1em;border-radius:3px;vertical-align:middle;background:' . esc_attr($r['bg']) . ';color:' . esc_attr($r['fg']) . (';text-align:center;font-size:11px;line-height:1.1em">' . OUS_Words::get('admin.contrast.aa') . '</span>');
             echo '<tr>'
                 . '<td>' . esc_html($r['label']) . '</td>'
                 . '<td>' . esc_html($r['intent']) . '</td>'
@@ -501,9 +510,9 @@ class BHY_Contrast {
         echo '</tbody></table></div>';
 
         if ($with_copy) {
-            $blob = $fail_lines ? implode("\n", $fail_lines) : 'No contrast failures in the current theme.';
+            $blob = $fail_lines ? implode("\n", $fail_lines) : OUS_Words::get('admin.contrast.no_contrast_failures_current_theme');
             echo '<p><textarea id="bhy-contrast-fails" readonly rows="4" style="width:100%;font-family:monospace;font-size:12px">' . esc_textarea($blob) . '</textarea></p>';
-            echo '<button type="button" class="button bhy-copy-btn" data-copy-target="#bhy-contrast-fails">Copy failures</button>';
+            echo ('<button type="button" class="button bhy-copy-btn" data-copy-target="#bhy-contrast-fails">' . OUS_Words::get('admin.contrast.copy_failures') . '</button>');
         }
     }
 

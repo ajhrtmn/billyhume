@@ -68,7 +68,7 @@ class BHM_Recommendations {
         $products = self::related_products($product_id, $limit);
         if (!$products) return '';
 
-        $heading = (string) ($attrs['heading'] ?? 'You may also like');
+        $heading = (string) ($attrs['heading'] ?? BHM_Words::get('admin.recommendations.may_also_like'));
         $out = '<div class="bhm-related-products">';
         $out .= '<h3 class="bhm-related-products-heading">' . esc_html($heading) . '</h3>';
         $out .= '<div class="bhm-product-grid" style="--bhm-grid-cols:4;">';

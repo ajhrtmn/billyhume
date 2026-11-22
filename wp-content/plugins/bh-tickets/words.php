@@ -47,4 +47,50 @@ return [
     'status.pending'        => 'Pending',
     'status.resolved'       => 'Resolved',
     'status.closed'         => 'Closed',
+    /* =================================================================
+     * ADMIN SCREENS (wp-admin). Some text keeps small bits of HTML from the
+     * original, like <code> or &rarr; (an arrow); leave those as they are.
+     * ================================================================= */
+
+    /* ---------- admin (includes/class-admin.php) ---------- */
+    'admin.admin.support_tickets'    => 'Support Tickets',
+    'admin.admin.all'                => 'All',
+    'admin.admin.no_tickets'         => 'No tickets.',
+    'admin.admin.subject'            => 'Subject',
+    'admin.admin.requester'          => 'Requester',
+    'admin.admin.priority'           => 'Priority',
+    'admin.admin.status'             => 'Status',
+    'admin.admin.assigned'           => 'Assigned',
+    'admin.admin.updated'            => 'Updated',
+    'admin.admin.ticket_not_found'   => 'Ticket not found.',
+    'admin.admin.requester_2'        => 'Requester:',
+    'admin.admin.update_status'      => 'Update status',
+    'admin.admin.assign'             => 'Assign',
+    'admin.admin.staff'              => 'Staff',
+    'admin.admin.reply'              => 'Reply',
+    'admin.admin.send_reply'         => 'Send reply',
+    'admin.admin.reply_sent'         => 'Reply sent.',
+    'admin.admin.status_updated'     => 'Status updated.',
+    'admin.admin.assignment_updated' => 'Assignment updated.',
+
+    /* ---------- replies (includes/class-replies.php) ---------- */
+    'admin.replies.reply_needs_body'            => 'A reply needs a body.',
+    'admin.replies.could_not_save_reply'        => 'Could not save the reply.',
+    'admin.replies.new_reply_ticket'            => 'New reply on your ticket:',
+    'admin.replies.someone_replied_take_look'   => 'Someone replied — take a look.',
+    'admin.replies.bh_tickets'                  => 'BH Tickets',
+    'admin.replies.new_reply_assigned_ticket'   => 'New reply on assigned ticket:',
+    'admin.replies.requester_replied_take_look' => 'The requester replied — take a look.',
+
+    /* ---------- support (includes/class-support.php) ---------- */
+    'admin.support.website'                     => 'Website',
+    'admin.support.request_must_come_from_site' => 'This request must come from this site.',
+    'admin.support.support_message'             => 'Support message:',
+    'admin.support.wrote_no_account_reply_by'   => 'wrote (no account, reply by email):',
+
+    /* ---------- tickets (includes/class-tickets.php) ---------- */
+    'admin.tickets.ticket_needs_real_account_subject' => 'A ticket needs a real account and a subject.',
+    'admin.tickets.could_not_create_ticket'           => 'Could not create the ticket.',
+    'admin.tickets.new_support_ticket'                => 'New support ticket:',
+    'admin.tickets.new_ticket_needs_triage'           => 'A new ticket needs triage.',
 ];

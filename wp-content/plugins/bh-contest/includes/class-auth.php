@@ -33,7 +33,7 @@ class BH_Auth {
 
         $start = get_post_meta($cid, '_bh_start', true);
         $end   = get_post_meta($cid, '_bh_end', true);
-        $desc  = wp_strip_all_tags(get_post_field('post_content', $cid)) ?: (get_the_title($cid) . ' — vote now on ' . get_bloginfo('name'));
+        $desc  = wp_strip_all_tags(get_post_field('post_content', $cid)) ?: (get_the_title($cid) . ' ' . BHCON_Words::get('admin.auth.vote_now') . ' ' . get_bloginfo('name'));
 
         BH_SEO::set_page_data([
             'title' => get_the_title($cid) . ' — ' . get_bloginfo('name'),
@@ -72,15 +72,15 @@ class BH_Auth {
                 // rather than a broken-looking box.
                 return '<p style="padding:12px 16px;background:#3a2a00;color:#ffcf6b;border-radius:6px;'
                      . 'font-family:sans-serif;font-size:13px;">'
-                     . '<strong>BH Contest:</strong> no contest matches <code>' . esc_html($raw) . '</code>. '
-                     . 'Check Contests → the Shortcode column for the exact value. (Only editors see this notice.)'
+                     . ('<strong>' . BHCON_Words::get('admin.auth.bh_contest') . '</strong> no contest matches <code>') . esc_html($raw) . '</code>. '
+                     . BHCON_Words::get('admin.auth.check_contests_shortcode_column_exact')
                      . '</p>';
             }
         }
 
         // Contests are public unless marked members-only; the REST endpoints enforce the same check.
         if ($cid && !OUS_Visibility::can_view_open_by_default($cid)) {
-            return OUS_Visibility::render_login_notice(__('Log in to view this contest.', 'bh-contest'));
+            return OUS_Visibility::render_login_notice(BHCON_Words::get('admin.auth.log_view_contest'));
         }
 
         // Repeats the early SEO call for embeds the early hook can't see; idempotent.

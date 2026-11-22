@@ -17,7 +17,7 @@ class BHT_Tickets {
     public static function create(int $user_id, string $subject, string $body, string $category = '', string $priority = 'normal') {
         global $wpdb;
         $subject = sanitize_text_field($subject);
-        if (!$user_id || $subject === '') return new WP_Error('invalid', 'A ticket needs a real account and a subject.');
+        if (!$user_id || $subject === '') return new WP_Error('invalid', BHT_Words::get('admin.tickets.ticket_needs_real_account_subject'));
 
         $priority = isset(self::PRIORITIES[$priority]) ? $priority : 'normal';
 
@@ -31,7 +31,7 @@ class BHT_Tickets {
             'updated_at' => current_time('mysql'),
         ]);
         $ticket_id = (int) $wpdb->insert_id;
-        if (!$ticket_id) return new WP_Error('db_error', 'Could not create the ticket.');
+        if (!$ticket_id) return new WP_Error('db_error', BHT_Words::get('admin.tickets.could_not_create_ticket'));
 
         // The opening message is the first reply; there is no separate body field.
         if (class_exists('BHT_Replies')) {
@@ -64,9 +64,9 @@ class BHT_Tickets {
             if ((int) $user->ID === $creator_id) continue;
             OUS_Notifications::notify(
                 (int) $user->ID, 'ticket_created',
-                'New support ticket: ' . $subject,
-                'A new ticket needs triage.',
-                $url, 'BH Tickets'
+                BHT_Words::get('admin.tickets.new_support_ticket') . ' ' . $subject,
+                BHT_Words::get('admin.tickets.new_ticket_needs_triage'),
+                $url, BHT_Words::get('admin.replies.bh_tickets')
             );
         }
     }
@@ -158,10 +158,10 @@ class BHT_Tickets {
         if (!$tickets) return $sections;
         $open = count(array_filter($tickets, fn($t) => in_array($t['status'], ['open', 'pending'], true)));
         $sections[] = [
-            'plugin' => 'BH Tickets',
+            'plugin' => BHT_Words::get('admin.replies.bh_tickets'),
             'summary' => count($tickets) . ' ticket' . (count($tickets) === 1 ? '' : 's') . ($open ? ", $open open" : ''),
             'render' => function () use ($tickets) {
-                echo '<table class="widefat striped"><thead><tr><th>Subject</th><th>Status</th><th>Updated</th></tr></thead><tbody>';
+                echo ('<table class="widefat striped"><thead><tr><th>' . BHT_Words::get('admin.admin.subject') . '</th><th>' . BHT_Words::get('admin.admin.status') . '</th><th>' . BHT_Words::get('admin.admin.updated') . '</th></tr></thead><tbody>');
                 foreach ($tickets as $t) {
                     $url = admin_url('admin.php?page=bh-tickets&ticket_id=' . (int) $t['id']);
                     echo '<tr><td><a href="' . esc_url($url) . '">' . esc_html($t['subject']) . '</a></td>'

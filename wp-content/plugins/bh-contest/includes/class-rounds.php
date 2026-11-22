@@ -2,10 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Multi-round elimination. Without 2+ `_bh_rounds`, everything falls back to
- * BH_Helpers' single-window logic. `_bh_active_round` is the current round index;
- * a submission's `_bh_round_reached` is the highest round it survived into.
- * Votes and judge scores carry their own `round`, so each round tallies independently.
+ * Multi-round elimination; with fewer than 2 _bh_rounds the single-window logic applies.
+ * _bh_active_round is the current round; _bh_round_reached is how far an entry got.
+ * Votes and judge scores carry their round, so each round tallies on its own.
  */
 class BH_Rounds {
     /** @return array<int, array<string, mixed>> */
@@ -91,8 +90,8 @@ class BH_Rounds {
     public static function advance_round(int $cid) {
         $rounds = self::rounds($cid);
         $idx = self::active_round_index($cid);
-        if (!isset($rounds[$idx])) return new WP_Error('no_round', 'No active round to advance from.');
-        if (!isset($rounds[$idx + 1])) return new WP_Error('final_round', 'This is already the final round — nothing to advance to.');
+        if (!isset($rounds[$idx])) return new WP_Error('no_round', BHCON_Words::get('admin.rounds.no_active_round_advance_from'));
+        if (!isset($rounds[$idx + 1])) return new WP_Error('final_round', BHCON_Words::get('admin.rounds.already_final_round_nothing_advance'));
 
         $round = $rounds[$idx];
         $cut = max(1, (int) ($round['cut_count'] ?? 0));

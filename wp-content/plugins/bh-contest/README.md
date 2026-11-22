@@ -1,74 +1,22 @@
 # BH Contest
 
-Music contest voting — submissions, category-based voting with
-configurable per-category vote limits, a live results reveal system
-built for streaming, and Discord integration for announcements.
+Music contests: song submissions, voting, judging, and a live results reveal for streaming. Wording people see is in `words.php`.
 
 ## What it does
 
-- **Contests**: admin-configurable submission and voting windows,
-  per-contest branding overrides, and configurable contact-info
-  requirements (which fields a submitter must provide, per contest).
-  Format is a genuine per-contest choice — public voting, judge/rubric
-  scoring, or a hybrid of both (two separate leaderboards, Judges' Pick
-  and People's Choice, never a blended score) — plus optional
-  multi-round/elimination structure (1-4 rounds, each with its own
-  submission/voting window and cut count, later rounds scoped to
-  whoever survived the last one).
-- **Voting**: per-category vote limits (a base amount plus a bonus for
-  submitting a track), with proper tie handling — ties share a rank,
-  Olympic-medal style, rather than an arbitrary tiebreak.
-- **Judge/rubric scoring**: an admin-defined rubric (criteria, 1-10
-  scale), a per-contest judge list, and a dedicated `[bh_judge_panel]`
-  scoring UI — judges never see each other's scores, only the admin
-  sees the aggregate.
-- **Anti-fraud signal**: IP address + a first-party cookie/fingerprint
-  captured alongside each vote, surfaced as suspicious-cluster
-  detection on the Results console — manual-review only, no automated
-  blocking, no third-party CAPTCHA.
-- **Live Console**: a private, contest-scoped dashboard tying together
-  participant identity info, live vote counts, CSV export, and the
-  Results Reveal controls in one place — built specifically for running
-  a contest live on stream.
-- **Results Reveal**: a controller (private, in Live Console) and a
-  public display (`[bh_results_reveal]`) that stay in sync over polling
-  — the controller can be on a completely different machine from
-  whatever's doing the OBS capture. Reveals build suspense
-  category-by-category, medal-style.
-- **Archive**: `[bh_archive]` — a unified, searchable library across
-  every contest ever run, with winner badges once a contest's results
-  are published.
-- **Discord**: automatic notifications (new entry approved, voting
-  opened) plus a manual "announce anything, right now" box — every
-  message is a rich embed, not plain text.
+- **Contests** with submission and voting windows, per-contest branding, and which contact fields entrants must give. Format per contest: public voting, judge scoring, or both (two leaderboards, Judges' Pick and People's Choice, never blended). Optional 1–4 elimination rounds.
+- **Voting** with per-category limits (a base amount plus a bonus for entering); ties share a rank.
+- **Judging**: an admin-defined rubric, a judge list, and a `[bh_judge_panel]` scoring page; judges never see each other's scores.
+- **Anti-fraud signal**: IP + first-party cookie per vote, shown as suspicious clusters on the Results console for a human to review. Nothing is blocked automatically.
+- **Live Console**: one admin screen for running a contest live (votes, entrants, CSV export, reveal controls).
+- **Reveal Party** (`[bh_results_reveal]`): a public display driven from Live Console, revealed category by category.
+- **Contests page** (`[bh_contest_library]`) and **Archive** (`[bh_archive]`): every contest as a card, and a searchable library of entries with winner badges.
+- **Discord** announcements (optional webhook).
 
-## Requirements
+## Setup
 
-- **the-self-hosted-self** (the site core — shared accounts/profiles/email
-  verification and the design tokens this plugin's own stylesheet is
-  built on)
+Needs the core plugin (`the-self-hosted-self`) active. Create a contest under **Contests** in wp-admin; its player page is created when you publish. The Reveal Party, Archive and Contests pages are created automatically.
 
-It needs to be installed and active first — this plugin will show a
-clear admin notice and refuse to load its own features otherwise (the
-dependency check happens on `plugins_loaded`, so it's reliable
-regardless of which plugin's folder name happens to sort first
-alphabetically).
+## Testing
 
-## Installation
-
-1. Install and activate the core plugin (**the-self-hosted-self**) first.
-2. Install and activate this plugin.
-3. Create a contest under **Contests** in wp-admin.
-4. The `[bh_contest_player]` shortcode page gets created automatically
-   when you publish a contest — find its link on the contest's own edit
-   screen.
-5. `[bh_results_reveal]` and `[bh_archive]` pages ("Reveal Party,"
-   "Archive") get created automatically the first time you're in
-   wp-admin after this plugin is active.
-
-## For testing
-
-Use **Debug Tools** under Contests to seed fake submissions and votes on
-a test contest — the reveal, Discord notifications, and everything else
-run on the exact same code path against seeded data as they do against
-a real contest, so a rehearsal is a genuine rehearsal, not a simulation.
+Debug Tools → BH Contest seeds fake submissions and votes on a test contest; everything runs on the same code path as a real contest, and reset removes only the fake data.

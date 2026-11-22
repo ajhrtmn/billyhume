@@ -146,8 +146,8 @@ class BHM_Referrals {
 
         $stats = self::stats_for_referrer($user_id);
         echo '<div class="bhi-portal-section">';
-        echo '<h2>Referrals</h2>';
-        echo '<p>Share your code — anyone who uses it gets ' . (int) self::DISCOUNT_PERCENT . '% off, and you earn ' . (int) self::COMMISSION_PERCENT . '% of what they spend as wallet credit.</p>';
+        echo ('<h2>' . BHM_Words::get('admin.referrals.referrals') . '</h2>');
+        echo ('<p>' . BHM_Words::get('admin.referrals.share_code_anyone_who_uses') . ' ') . (int) self::DISCOUNT_PERCENT . BHM_Words::get('admin.referrals.off_earn') . ' ' . (int) self::COMMISSION_PERCENT . (BHM_Words::get('admin.referrals.what_they_spend_as_wallet') . '</p>');
         echo '<p class="bhi-referral-code">' . esc_html($code) . '</p>';
         if ($stats['redemptions'] > 0) {
             echo '<p>' . (int) $stats['redemptions'] . ' redemption' . ($stats['redemptions'] === 1 ? '' : 's') . ' — $' . esc_html(BHM_Money::display($stats['total_cents'])) . ' earned.</p>';

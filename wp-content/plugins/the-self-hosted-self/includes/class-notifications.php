@@ -2,12 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Shared notification inbox: any plugin calls notify() with no registration step. In-app rows
- * feed the admin-bar bell and the `[bh_notifications]` shortcode; optional email is queued
- * through OUS_Jobs so notify() never blocks on SMTP.
- *
- *   OUS_Notifications::notify($user_id, 'course_completed', 'Course complete!',
- *       'You finished "Songwriting Fundamentals".', get_permalink($course_id), 'BH Courses');
+ * Shared notification inbox (admin-bar bell, [bh_notifications], account tab); email is
+ * queued through OUS_Jobs so notify() never waits on SMTP:
+ *   OUS_Notifications::notify($user_id, $type, $title, $body, $url, $source);
  */
 class OUS_Notifications {
     public static function init(): void {
@@ -144,7 +141,7 @@ class OUS_Notifications {
                 'user_id' => $user_id,
                 'subject' => wp_specialchars_decode($title),
                 'body' => $message,
-                'source' => 'OUS Notifications',
+                'source' => OUS_Words::get('admin.notifications.ous_notifications'),
                 'log_context' => ['title' => $title],
             ]);
             return;
@@ -209,7 +206,7 @@ class OUS_Notifications {
             ]);
         }
         if (!self::for_user($user_id, 1)) {
-            $wp_admin_bar->add_node(['id' => 'bhcore-notif-empty', 'parent' => 'bhcore-notifications', 'title' => 'No notifications yet']);
+            $wp_admin_bar->add_node(['id' => 'bhcore-notif-empty', 'parent' => 'bhcore-notifications', 'title' => OUS_Words::get('admin.notifications.no_notifications_yet')]);
         }
     }
 
@@ -226,7 +223,7 @@ class OUS_Notifications {
     public static function register_portal_panel($panels): array {
         $panels[] = [
             'id' => 'notifications',
-            'label' => 'Notifications',
+            'label' => OUS_Words::get('admin.notifications.notifications'),
             'icon' => 'dashicons-bell',
             'render' => [self::class, 'render_portal_panel'],
             'priority' => 50,
@@ -235,7 +232,7 @@ class OUS_Notifications {
     }
 
     public static function render_portal_panel(): void {
-        echo '<h1>Notifications</h1>';
+        echo ('<h1>' . OUS_Words::get('admin.notifications.notifications') . '</h1>');
         echo self::render_shortcode(); // phpcs:ignore -- render_shortcode() already returns fully-escaped markup
     }
 
@@ -246,7 +243,7 @@ class OUS_Notifications {
 
         ob_start(); ?>
         <details class="bhcore-notif-prefs">
-            <summary>Manage what you get emailed about</summary>
+            <summary><?php echo OUS_Words::get('admin.notifications.manage_what_get_emailed_about'); ?></summary>
             <div class="bhcore-notif-prefs-body" data-nonce="<?php echo esc_attr(wp_create_nonce('bhcore_notifications')); ?>">
                 <?php foreach ($types as $type): ?>
                     <label class="bhcore-notif-pref-row">
@@ -262,14 +259,14 @@ class OUS_Notifications {
     }
 
     public static function render_shortcode(): string {
-        if (!is_user_logged_in()) return '<p class="bhcore-notif-empty">Log in to see your notifications.</p>';
+        if (!is_user_logged_in()) return ('<p class="bhcore-notif-empty">' . OUS_Words::get('admin.notifications.log_see_notifications') . '</p>');
         $user_id = get_current_user_id();
         $items = self::for_user($user_id, 30);
-        if (!$items) return '<p class="bhcore-notif-empty">Nothing here yet.</p>';
+        if (!$items) return ('<p class="bhcore-notif-empty">' . OUS_Words::get('admin.notifications.nothing_here_yet') . '</p>');
 
         ob_start();
         echo '<div class="bhcore-notifications-list">';
-        echo '<button type="button" class="bhcore-btn bhcore-mark-all-read" data-nonce="' . esc_attr(wp_create_nonce('bhcore_notifications')) . '">Mark all read</button>';
+        echo '<button type="button" class="bhcore-btn bhcore-mark-all-read" data-nonce="' . esc_attr(wp_create_nonce('bhcore_notifications')) . ('">' . OUS_Words::get('admin.notifications.mark_all_read') . '</button>');
         echo self::render_email_prefs($user_id);
         foreach ($items as $n) {
             echo '<div class="bhcore-notification' . ($n['read_at'] ? '' : ' bhcore-unread') . '" data-id="' . (int) $n['id'] . '">';
@@ -295,15 +292,8 @@ class OUS_Notifications {
             .bhcore-notif-count { background: #d63638; color: #fff; border-radius: 9px; font-size: 11px; padding: 0 5px; margin-left: 2px; }
             .bhcore-notifications-list { max-width: 600px; }
             .bhcore-notification { border: 1px solid var(--bh-border, #dcdcde); border-radius: var(--bh-radius-sm, 6px); padding: 10px 14px; margin-bottom: 8px; background: var(--bh-surface, #fff); }
-            /* Unread used --bh-accent-soft as a flat fill. Despite the name that
-               token is a solid, fairly saturated color (#E0A184 on the live
-               warm-noir theme), not a tint -- so the card turned into a light
-               coral block while every text token on it (--bh-text,
-               --bh-text-dim) stayed the theme DARK-mode foreground. Measured
-               on a real phone: the whole unread card was light-on-light and
-               effectively unreadable. --bh-accent-muted-bg is the low-alpha
-               treatment class-portal.php already switched its active nav item
-               to for exactly this reason; same fix, same token. */
+            /* Unread cards use --bh-accent-muted-bg, not --bh-accent-soft: soft is a
+               saturated solid that made unread cards unreadable on the dark theme. */
             .bhcore-notification.bhcore-unread { background: var(--bh-accent-muted-bg, color-mix(in srgb, var(--bh-accent, #72aee6) 14%, transparent)); border-color: var(--bh-accent, #72aee6); }
             .bhcore-notif-source { font-size: 11px; text-transform: uppercase; color: var(--bh-text-dim, #646970); letter-spacing: .04em; }
             .bhcore-notif-title { font-weight: 600; color: var(--bh-text, inherit); }
@@ -397,7 +387,7 @@ class OUS_Notifications {
         if (!$user_id) wp_send_json_error([], 401);
 
         $type = sanitize_key($_POST['type'] ?? '');
-        if (!$type) wp_send_json_error(['message' => 'Missing notification type.'], 400);
+        if (!$type) wp_send_json_error(['message' => OUS_Words::get('admin.notifications.missing_notification_type')], 400);
         $wants = !empty($_POST['wants']);
 
         $prefs = get_user_meta($user_id, 'bhcore_notification_email_prefs', true);
@@ -413,7 +403,7 @@ class OUS_Notifications {
      * @return array<string, mixed>
      */
     public static function register_test_suite($suites): array {
-        $suites['the-self-hosted-self-notifications'] = ['label' => 'The Self-Hosted Self (Notifications)', 'callback' => [self::class, 'run_tests']];
+        $suites['the-self-hosted-self-notifications'] = ['label' => OUS_Words::get('admin.notifications.self_hosted_self_notifications'), 'callback' => [self::class, 'run_tests']];
         return $suites;
     }
 
@@ -443,7 +433,7 @@ class OUS_Notifications {
         update_user_meta($uid, 'bhcore_notifications_email_optout', '1');
         $rows[] = OUS_TestRunner::assert_false(self::user_wants_email($uid, 'order_refunded'), 'user_wants_email(): the global opt-out overrides an otherwise-on per-type preference');
 
-        $rows[] = OUS_TestRunner::assert_same('Course completed', self::type_label('course_completed'), 'type_label(): an unregistered type humanizes its own raw string');
+        $rows[] = OUS_TestRunner::assert_same(OUS_Words::get('admin.notifications.course_completed'), self::type_label('course_completed'), 'type_label(): an unregistered type humanizes its own raw string');
 
         delete_user_meta($uid, 'bhcore_notification_email_prefs');
         delete_user_meta($uid, 'bhcore_notifications_email_optout');

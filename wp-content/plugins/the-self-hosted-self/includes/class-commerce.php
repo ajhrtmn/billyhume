@@ -21,13 +21,9 @@ class BH_Commerce {
     }
 
     /**
-     * Create or update a product; returns its ID (0 on failure). $args:
-     *   name (string, required), price_cents (int, required)
-     *   virtual (bool, true), downloadable (bool, false)
-     *   catalog_visibility (string, 'hidden'): sold only via this ecosystem's UI
-     *   subscription (bool, false): recurring only if has_subscriptions()
-     *   subscription_period ('month'), subscription_period_interval (1)
-     *   trial_length (int, 0 = none), trial_period ('day'|'week'|'month'|'year')
+     * Create or update a product; returns its ID (0 on failure). Args: name, price_cents (required);
+     * virtual, downloadable, catalog_visibility, subscription, subscription_period(_interval),
+     * trial_length, trial_period.
      *
      * @param array<string, mixed> $args
      */

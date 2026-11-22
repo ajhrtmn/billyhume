@@ -2,18 +2,15 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Course downloads: files Billy attaches to a course (Course edit screen → Downloads box,
- * each for the whole course or one lesson), plus every lesson Resource step. Students get
- * them on the course's Downloads view (course URL + ?view=downloads) through an access-checked
- * link, and as one zip when the server can build it.
- * WHY: uploads are public URLs, so the checked link is the student-facing one; the raw
- * /wp-content/uploads/ URL still works for anyone who already has it.
+ * Course downloads: files attached in the course Downloads box (whole course or one lesson)
+ * plus lesson Resource steps, served through an access-checked link and as one zip.
+ * WHY: uploads are public URLs, so the checked link is what students get.
  */
 class BHC_Downloads {
     const META = '_bhc_downloads';
     const ZIP_LIMIT_BYTES = 400 * 1024 * 1024; // past this, a zip risks timing out on shared hosting
 
-    /** @var array<int, array<int, array<string, mixed>>> per-request cache */
+    /** @var array<int, array<int, array<int, array<string, mixed>>>> per-request cache, by course */
     private static array $cache = [];
 
     public static function init(): void {
@@ -43,7 +40,7 @@ class BHC_Downloads {
     /**
      * Everything downloadable in the course, grouped: key 0 = whole-course files, then lesson
      * ids in course order. Each file: attachment_id, label, description.
-     * @return array<int, array<int, array{attachment_id:int, label:string, description:string}>>
+     * @return array<int, array<int, array<string, mixed>>>
      */
     public static function for_course(int $course_id): array {
         if (isset(self::$cache[$course_id])) return self::$cache[$course_id];
@@ -73,6 +70,7 @@ class BHC_Downloads {
         return null;
     }
 
+    /** @param array<string, mixed> $file */
     public static function display_name(array $file): string {
         if ($file['label'] !== '') return $file['label'];
         // Unlabelled: tidy the file's own name ("bass-stem_v2" → "Bass stem v2").
@@ -178,7 +176,10 @@ class BHC_Downloads {
         return '<a class="' . esc_attr($class) . ' bhc-downloads-link" href="' . esc_url(self::url($course_id)) . '">&#8681; ' . BHC_Words::e('downloads.link') . '</a>';
     }
 
-    /** One download row, also used by lesson Resource steps so both look the same. */
+    /**
+     * One download row, also used by lesson Resource steps so both look the same.
+     * @param array<string, mixed> $file
+     */
     public static function render_file(int $course_id, array $file, bool $open): string {
         $meta = self::file_meta($file['attachment_id']);
         $facts = trim($meta['ext'] . ($meta['size'] ? ' · ' . $meta['size'] : ''));
@@ -229,7 +230,7 @@ class BHC_Downloads {
     /* ---------- admin: Course edit → Downloads box ---------- */
 
     public static function render_admin_box(\WP_Post $post): void {
-        $lessons = array_values(array_filter(BHC_PostTypes::lesson_order($post->ID), fn($id) => get_post($id)));
+        $lessons = array_values(array_filter(BHC_PostTypes::lesson_order($post->ID), fn($id) => (bool) get_post($id)));
         $options = [['id' => 0, 'title' => 'Whole course']];
         foreach ($lessons as $id) $options[] = ['id' => (int) $id, 'title' => get_the_title($id)];
         echo '<p class="description">Files students can download from this course\'s Downloads page. Pick several at once; give each a friendly name and choose whether it belongs to the whole course or one lesson. Drag to reorder. Resource steps inside lessons are listed there automatically too.</p>';
@@ -251,13 +252,13 @@ class BHC_Downloads {
         echo '<span class="bhc-order-drag-handle dashicons dashicons-menu" aria-hidden="true" title="Drag to reorder"></span>';
         echo '<span class="bhc-dl-file"><strong>' . esc_html($file) . '</strong> <span class="description">' . esc_html(trim($meta['ext'] . ' ' . $meta['size'])) . '</span></span>';
         echo '<input type="hidden" name="bhc_downloads[' . $i . '][id]" value="' . (int) $attachment_id . '">';
-        echo '<label class="screen-reader-text" for="bhc-dl-label-' . $i . '">Name shown to students</label>';
+        echo '<label class="screen-reader-text" for="bhc-dl-label-' . $i . ('">' . BHC_Words::get('admin.downloads.name_shown_students') . '</label>');
         echo '<input type="text" id="bhc-dl-label-' . $i . '" name="bhc_downloads[' . $i . '][label]" value="' . esc_attr($label) . '" placeholder="Name shown to students (optional)">';
         echo '<label class="screen-reader-text" for="bhc-dl-lesson-' . $i . '">Shows with</label>';
         echo '<select id="bhc-dl-lesson-' . $i . '" name="bhc_downloads[' . $i . '][lesson]">';
         foreach ($options as $o) echo '<option value="' . (int) $o['id'] . '"' . selected($lesson_id, $o['id'], false) . '>' . esc_html($o['title']) . '</option>';
         echo '</select>';
-        echo '<button type="button" class="button-link bhc-dl-remove" aria-label="Remove ' . esc_attr($file) . '">Remove</button>';
+        echo '<button type="button" class="button-link bhc-dl-remove" aria-label="Remove ' . esc_attr($file) . ('">' . BHC_Words::get('admin.downloads.remove') . '</button>');
         echo '</li>';
     }
 

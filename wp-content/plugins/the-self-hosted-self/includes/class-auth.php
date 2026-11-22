@@ -2,18 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Shared registration/login/session/email-verification system. Any
- * ecosystem plugin's sign-up form points at these bhi/v1 endpoints
- * instead of building its own.
- *
- * Security model (no second factor is assumed, so the password and the
- * throttles are the real barrier):
- * - Every state-changing endpoint rejects requests whose Origin/Referer
- *   is another site (login/logout CSRF), and bhi/v1 responses never carry
- *   CORS headers for foreign origins.
- * - Failed logins lock out per account+IP and per IP across accounts.
- * - Sign-up can be switched off from the dashboard, is throttled per IP,
- *   rejects common passwords, and carries a honeypot for naive bots.
+ * Shared sign-up, log-in, session and email-confirmation endpoints (bhi/v1).
+ * Security: same-origin check on every state change, per-account and per-IP lockouts,
+ * and sign-up that can be closed, is throttled per IP, rejects common passwords and has a honeypot.
  */
 class BHI_Auth {
     const REG_THROTTLE = 5;               // successful registrations per IP per hour
@@ -91,10 +82,8 @@ class BHI_Auth {
     }
 
     /**
-     * Browsers always send Origin on a cross-site POST (fetch and plain
-     * forms alike), so a foreign or opaque ("null", e.g. a sandboxed
-     * iframe) Origin is refused. With neither header present the caller
-     * isn't a browser, and a non-browser client can't be a CSRF vector.
+     * Browsers always send Origin on a cross-site POST, so a foreign or "null" Origin is
+     * refused. With neither header the caller is not a browser, so not a CSRF vector.
      *
      * @param string[]|null $allowed
      */
@@ -109,7 +98,7 @@ class BHI_Auth {
 
     private static function guard_origin(\WP_REST_Request $req): ?\WP_Error {
         if (self::is_same_origin_request($req->get_header('origin'), $req->get_header('referer'))) return null;
-        return new WP_Error('bad_origin', 'This request must come from this site.', ['status' => 403]);
+        return new WP_Error('bad_origin', OUS_Words::get('admin.auth.request_must_come_from_site'), ['status' => 403]);
     }
 
     /**
@@ -186,7 +175,7 @@ class BHI_Auth {
         $code = trim((string) $req->get_param('code'));
         if ($code !== '') $_POST['bhcore_2fa_code'] = sanitize_text_field($code);
 
-        $remember = $req->get_param('remember') === null ? true : rest_sanitize_boolean($req->get_param('remember'));
+        $remember = $req->get_param('remember') === null ? true : rest_sanitize_boolean((string) $req->get_param('remember'));
         $user = wp_signon(['user_login' => $username, 'user_password' => $password, 'remember' => $remember], is_ssl());
 
         if (is_wp_error($user)) {
@@ -359,7 +348,7 @@ class BHI_Auth {
         update_user_meta($uid, '_bhi_email_verify_sent', time());
 
         $verify_url = add_query_arg(['action' => 'bhi_verify_email', 'uid' => $uid, 'token' => $token], admin_url('admin-post.php'));
-        $subject = 'Confirm your email — ' . get_bloginfo('name');
+        $subject = OUS_Words::get('admin.auth.confirm_email') . ' ' . get_bloginfo('name');
         $body = "Hi {$username},\n\nOne more step: confirm this is really your email.\n\n{$verify_url}\n\nThis link works for 48 hours. If you didn't sign up for this, you can ignore it.";
         if (class_exists('BH_Mail')) {
             BH_Mail::send(['to' => $email, 'user_id' => $uid, 'subject' => $subject, 'body' => $body, 'source' => 'BH Auth']);
@@ -446,7 +435,7 @@ class BHI_Auth {
 
         echo '<h2 style="margin-top:32px;">Fan accounts</h2>';
         if (isset($_GET['bhi_account_settings_saved'])) {
-            echo '<div class="notice notice-success is-dismissible"><p>Account settings saved.</p></div>';
+            echo ('<div class="notice notice-success is-dismissible"><p>' . OUS_Words::get('admin.auth.account_settings_saved') . '</p></div>');
         }
         echo '<div class="ous-cards"><div class="ous-card">';
         echo '<div class="ous-card-header"><strong>Sign-ups</strong> ' . BHY_UI::badge($open ? 'Open' : 'Closed', ['variant' => $open ? 'success' : 'neutral']) . '</div>';
@@ -454,23 +443,23 @@ class BHI_Auth {
         echo '<input type="hidden" name="action" value="bhi_save_account_settings">';
         wp_nonce_field('bhi_save_account_settings');
         echo '<p><label><input type="checkbox" name="registration_open" value="1"' . checked($open, true, false) . '> ';
-        echo 'Let visitors create accounts from the <a href="' . esc_url(home_url('/account/')) . '">account page</a></label></p>';
+        echo (OUS_Words::get('admin.auth.let_visitors_create_accounts_from') . ' <a href="') . esc_url(home_url('/account/')) . '">account page</a></label></p>';
         echo '<p class="ous-card-desc">When off, the "Create account" tab disappears and new sign-ups are refused. Existing members can still log in. WordPress\'s own wp-login.php registration is controlled separately (Settings &rarr; General).</p>';
-        echo '<p><label for="bhi-ip-header"><strong>Visitor IP source</strong></label><br><select id="bhi-ip-header" name="ip_header">';
+        echo ('<p><label for="bhi-ip-header"><strong>' . OUS_Words::get('admin.auth.visitor_ip_source') . '</strong></label><br><select id="bhi-ip-header" name="ip_header">');
         foreach (self::IP_HEADERS as $key => $label) {
             echo '<option value="' . esc_attr($key) . '"' . selected($header, $key, false) . '>' . esc_html($label) . '</option>';
         }
         echo '</select></p>';
         echo '<p class="ous-card-desc">Login lockouts and sign-up limits count per visitor IP. Only pick a proxy header if the site really sits behind that proxy; otherwise anyone could fake their IP. ';
-        echo 'IP the site sees for you right now: <code>' . esc_html(self::client_ip()) . '</code>.';
-        if ($detected) echo ' Proxy headers present on this request: ' . esc_html(implode(', ', $detected)) . '.';
+        echo (OUS_Words::get('admin.auth.ip_site_sees_right_now') . ' <code>') . esc_html(self::client_ip()) . '</code>.';
+        if ($detected) echo ' ' . OUS_Words::get('admin.auth.proxy_headers_present_request') . ' ' . esc_html(implode(', ', $detected)) . '.';
         echo '</p>';
-        submit_button('Save account settings', 'secondary', 'submit', false);
+        submit_button(OUS_Words::get('admin.auth.save_account_settings'), 'secondary', 'submit', false);
         echo '</form></div></div>';
     }
 
     public static function handle_save_settings(): void {
-        if (!current_user_can('manage_options')) wp_die('You do not have permission to change these settings.', '', ['response' => 403]);
+        if (!current_user_can('manage_options')) wp_die(OUS_Words::get('admin.auth.do_not_have_permission_change'), '', ['response' => 403]);
         check_admin_referer('bhi_save_account_settings');
 
         update_option(self::OPTION_REGISTRATION_OPEN, empty($_POST['registration_open']) ? '0' : '1');

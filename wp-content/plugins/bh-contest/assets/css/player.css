@@ -973,7 +973,11 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     color: var(--bh-text-dim);
     font-size: calc(14px * var(--bh-font-scale));
 }
-.bh-contests-landing { display: flex; flex-direction: column; gap: calc(30px * var(--bh-space-scale)); }
+.bh-contests-landing {
+    display: flex;
+    flex-direction: column;
+    gap: calc(30px * var(--bh-space-scale));
+}
 .bh-contests-landing-section { margin: 0; }
 .bh-contests-landing-heading {
     display: flex;
@@ -988,17 +992,28 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     color: var(--bh-text-dim);
 }
 .bh-contests-landing-heading-dot {
-    width: 7px; height: 7px; border-radius: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
     background: var(--bh-text-dim);
     flex-shrink: 0;
 }
-.is-open  .bh-contests-landing-heading-dot { background: var(--bh-accent, #1DB954); box-shadow: 0 0 0 4px color-mix(in srgb, var(--bh-accent, #1DB954) 18%, transparent); }
+.is-open  .bh-contests-landing-heading-dot {
+    background: var(--bh-accent, #1DB954);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--bh-accent, #1DB954) 18%, transparent);
+}
 .is-upcoming .bh-contests-landing-heading-dot { background: #e0a341; }
 .bh-contests-landing-count {
     font-family: var(--bh-font-body);
-    font-size: 11px; font-weight: 700; letter-spacing: 0;
-    min-width: 18px; padding: 1px 6px; border-radius: 999px; text-align: center;
-    color: var(--bh-text-dim); background: var(--bh-surface-2);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0;
+    min-width: 18px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    text-align: center;
+    color: var(--bh-text-dim);
+    background: var(--bh-surface-2);
 }
 .bh-contests-landing-grid {
     display: grid;
@@ -1015,8 +1030,14 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 .bh-contests-landing-grid .bh-contest-card:nth-child(4) { animation-delay: 0.15s; }
 .bh-contests-landing-grid .bh-contest-card:nth-child(n+5) { animation-delay: 0.2s; }
 @keyframes bh-contest-card-in {
-    from { opacity: 0; transform: translateY(10px); }
-    to   { opacity: 1; transform: none; }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
 }
 @media (prefers-reduced-motion: reduce) {
     .bh-contests-landing-grid .bh-contest-card { animation: none; }
@@ -1037,10 +1058,12 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     text-decoration: none;
     color: inherit;
     transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+    isolation: isolate;
 }
 .bh-contest-card::before {
     content: "";
-    position: absolute; inset: 0 auto 0 0;
+    position: absolute;
+    inset: 0 auto 0 0;
     width: 3px;
     background: var(--tone);
     z-index: 3;
@@ -1075,6 +1098,7 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     justify-content: space-between;
     gap: 8px;
     padding: 12px;
+    transition: filter .25s ease;
 }
 .bh-contest-card-cover[data-placeholder="1"] { min-height: 108px; }
 .bh-contest-phase-pill {
@@ -1092,7 +1116,9 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     backdrop-filter: blur(2px);
 }
 .bh-contest-phase-dot {
-    width: 6px; height: 6px; border-radius: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
     background: #fff;
     flex-shrink: 0;
 }
@@ -1118,7 +1144,10 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     text-align: right;
 }
 .bh-contest-countdown-label {
-    font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
     color: rgba(255,255,255,.7);
 }
 .bh-contest-countdown-value {
@@ -1151,10 +1180,20 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     line-height: 1.25;
     color: var(--bh-text);
 }
-.bh-contest-card-badges { display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.bh-contest-card-badges {
+    display: flex;
+    gap: 5px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
 .bh-contest-badge {
-    font-size: var(--bh-comp-contest_badge-font_size, 10px); font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
-    padding: 2px var(--bh-comp-contest_badge-padding_h, 7px); border-radius: var(--bh-comp-contest_badge-radius, 4px);
+    font-size: var(--bh-comp-contest_badge-font_size, 10px);
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    padding: 2px var(--bh-comp-contest_badge-padding_h, 7px);
+    border-radius: var(--bh-comp-contest_badge-radius, 4px);
     color: var(--bh-text-dim);
     border: 1px solid var(--bh-border);
     white-space: nowrap;
@@ -1166,17 +1205,25 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     line-height: 1.5;
 }
 .bh-contest-card-stats {
-    list-style: none; margin: 0; padding: 0;
-    display: flex; flex-wrap: wrap; gap: 4px 14px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
 }
 .bh-contest-card-stats li {
-    display: inline-flex; align-items: center; gap: 5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     font-size: calc(12px * var(--bh-font-scale));
     color: var(--bh-text);
     font-variant-numeric: tabular-nums;
 }
 .bh-contest-card-stats .dashicons {
-    font-size: 15px; width: 15px; height: 15px;
+    font-size: 15px;
+    width: 15px;
+    height: 15px;
     color: var(--tone);
 }
 
@@ -1189,14 +1236,23 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     flex-direction: column;
     gap: 8px;
 }
-.bh-contest-card-cats { display: flex; flex-wrap: wrap; gap: 5px; }
+.bh-contest-card-cats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
 .bh-contest-cat-chip {
-    font-size: 10.5px; font-weight: 600;
-    padding: 2px 8px; border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
     background: var(--bh-surface-2);
     color: var(--bh-text-dim);
 }
-.bh-contest-cat-chip.is-more { background: transparent; border: 1px dashed var(--bh-border); }
+.bh-contest-cat-chip.is-more {
+    background: transparent;
+    border: 1px dashed var(--bh-border);
+}
 .bh-contest-card-more {
     font-size: calc(11.5px * var(--bh-font-scale));
     font-weight: 700;
@@ -1207,23 +1263,41 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 .tone-muted .bh-contest-card-more { color: var(--bh-text); }
 
 /* voting: crowd-momentum bar */
-.bh-contest-momentum { display: flex; align-items: center; gap: 9px; }
+.bh-contest-momentum {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
 .bh-contest-momentum-track {
-    flex: 1; height: 5px; border-radius: 3px;
-    background: var(--bh-surface-2); overflow: hidden;
+    flex: 1;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--bh-surface-2);
+    overflow: hidden;
 }
 .bh-contest-momentum-track span {
-    display: block; height: 100%;
+    display: block;
+    height: 100%;
     background: var(--tone);
     border-radius: 3px;
 }
 .bh-contest-momentum-label {
-    font-size: 11px; font-weight: 600; color: var(--bh-text-dim);
-    white-space: nowrap; font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--bh-text-dim);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 /* wrapped: podium */
-.bh-contest-podium { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.bh-contest-podium {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
 .bh-contest-podium li {
     display: grid;
     grid-template-columns: 20px 1fr auto;
@@ -1231,9 +1305,21 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     gap: 8px;
     font-size: calc(12px * var(--bh-font-scale));
 }
-.bh-contest-podium-medal { text-align: center; }
-.bh-contest-podium-name { color: var(--bh-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bh-contest-podium-votes { color: var(--bh-text-dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+.bh-contest-podium-medal {
+    text-align: center;
+    transition: transform .2s cubic-bezier(.34,1.56,.64,1);
+}
+.bh-contest-podium-name {
+    color: var(--bh-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bh-contest-podium-votes {
+    color: var(--bh-text-dim);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
 
 /* ---- lifecycle track ---- */
 .bh-contest-track {
@@ -1258,16 +1344,20 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 .bh-contest-track li::before {
     content: "";
     position: absolute;
-    top: 4px; left: -50%;
-    width: 100%; height: 2px;
+    top: 4px;
+    left: -50%;
+    width: 100%;
+    height: 2px;
     background: var(--bh-border);
 }
 .bh-contest-track li:first-child::before { display: none; }
 .bh-contest-track-dot {
     position: absolute;
-    top: 0; left: 50%;
+    top: 0;
+    left: 50%;
     transform: translateX(-50%);
-    width: 10px; height: 10px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background: var(--bh-surface);
     border: 2px solid var(--bh-border);
@@ -1275,7 +1365,10 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 }
 .bh-contest-track li.is-done { color: var(--bh-text); }
 .bh-contest-track li.is-done::before { background: var(--tone); }
-.bh-contest-track li.is-done .bh-contest-track-dot { background: var(--tone); border-color: var(--tone); }
+.bh-contest-track li.is-done .bh-contest-track-dot {
+    background: var(--tone);
+    border-color: var(--tone);
+}
 .bh-contest-track li.is-current { color: var(--tone); }
 .bh-contest-track li.is-current::before { background: color-mix(in srgb, var(--tone) 60%, var(--bh-border)); }
 .bh-contest-track li.is-current .bh-contest-track-dot {
@@ -1283,17 +1376,20 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     border-color: var(--tone);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 24%, transparent);
 }
-
 /* ---- interaction states ----
    The whole card is one link, so all of its parts respond to hover/focus together. */
-.bh-contest-card {
-    isolation: isolate;
-}
 /* A contest with no published player page yet renders as a <div>, not
    a link — don't imply it's clickable. */
 .bh-contest-card.is-unlinked { cursor: default; }
-.bh-contest-card.is-unlinked:hover { transform: none; box-shadow: none; border-color: var(--bh-border); }
-.bh-contest-card.is-unlinked:hover::after { opacity: 0; animation: none; }
+.bh-contest-card.is-unlinked:hover {
+    transform: none;
+    box-shadow: none;
+    border-color: var(--bh-border);
+}
+.bh-contest-card.is-unlinked:hover::after {
+    opacity: 0;
+    animation: none;
+}
 .bh-contest-card.is-unlinked .bh-contest-card-more { display: none; }
 /* WHY: block themes reassert a:hover underline above the :where(a) reset; clear it here. */
 .bh-contests-landing a.bh-contest-card,
@@ -1335,9 +1431,6 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 .bh-contest-card:active {
     transform: translateY(-1px) scale(.994);
     transition-duration: .08s;
-}
-.bh-contest-card-cover {
-    transition: filter .25s ease;
 }
 .bh-contest-card:hover .bh-contest-card-cover {
     filter: saturate(1.12) brightness(1.06);
@@ -1381,9 +1474,11 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 .bh-contest-card:hover .bh-contest-podium-medal {
     transform: scale(1.18) rotate(-6deg);
 }
-.bh-contest-podium-medal { transition: transform .2s cubic-bezier(.34,1.56,.64,1); }
 @media (prefers-reduced-motion: reduce) {
-    .bh-contest-card::after { transition: none; animation: none; }
+    .bh-contest-card::after {
+        transition: none;
+        animation: none;
+    }
     .bh-contest-card:hover::after,
     .bh-contest-card:focus-visible::after { animation: none; }
     .bh-contest-card:active { transform: none; }

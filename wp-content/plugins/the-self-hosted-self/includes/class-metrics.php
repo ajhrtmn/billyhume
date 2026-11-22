@@ -2,11 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Creator metrics dashboard: one shared page where each plugin contributes a KPI card via
- * the bhcore_metrics_widgets filter. Read-only aggregation over bhcore_events.
- *
- * WHY: manage_options only, and widgets show counts/trends, never per-person event rows
- * (individual activity belongs on the CRM person page).
+ * Metrics dashboard: each plugin adds a KPI card via bhcore_metrics_widgets, read-only
+ * over bhcore_events. WHY: admins only, and counts/trends only; per-person activity
+ * belongs on the CRM person page.
  */
 class OUS_Metrics {
     public static function init(): void {
@@ -100,12 +98,12 @@ class OUS_Metrics {
     public static function render(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['response' => 403, 'back_link' => true]);
 
-        echo '<div class="wrap"><h1>Metrics</h1>';
-        echo '<p class="description">Your own data, your own dashboard — no third-party analytics tool involved. Every number below comes from this site\'s own event log (<code>bhcore_events</code>), aggregate only — never a per-visitor identity lookup.</p>';
+        echo ('<div class="wrap"><h1>' . OUS_Words::get('admin.metrics.metrics') . '</h1>');
+        echo ('<p class="description">' . OUS_Words::get('admin.metrics.own_data_own_dashboard_no') . '</p>');
 
         $widgets = apply_filters('bhcore_metrics_widgets', []);
         if (!$widgets) {
-            echo '<p>No plugin has registered any metrics widgets yet.</p></div>';
+            echo ('<p>' . OUS_Words::get('admin.metrics.no_plugin_has_registered_any') . '</p></div>');
             return;
         }
 

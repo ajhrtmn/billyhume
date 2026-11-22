@@ -13,7 +13,10 @@ class BHC_Render_Landing {
         add_filter('oust_show_page_header', [self::class, 'hide_theme_title'], 10, 2);
     }
 
-    /** Sales pages and course pages open with their own hero title, so the theme's would repeat it. */
+    /**
+     * Sales pages and course pages open with their own hero title, so the theme's would repeat it.
+     * @param mixed $post
+     */
     public static function hide_theme_title(bool $show, $post): bool {
         if (!$post instanceof \WP_Post) return $show;
         if ($post->post_type === 'bh_course') return false;
@@ -143,7 +146,7 @@ class BHC_Render_Landing {
         $blocks = preg_split('/\R\s*\R/', trim($text)) ?: [];
         $out = [];
         foreach ($blocks as $block) {
-            $lines = array_values(array_filter(array_map('trim', preg_split('/\R/', $block) ?: []), 'strlen'));
+            $lines = array_values(array_filter(array_map('trim', preg_split('/\R/', $block) ?: []), fn($line) => $line !== ''));
             if ($lines) $out[] = $lines;
         }
         return $out;

@@ -2,22 +2,9 @@ import { LitElement, html, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
 /**
- * <bhy-copy-button value="…">Copy</bhy-copy-button>
- *
- * Progressive enhancement, deliberately: the server sends a real, styled
- * <button> inside this element. If this module never loads, that button is
- * still there and still styled — it just does not copy. Nothing renders
- * "blank until hydrated".
- *
- * Light DOM on purpose. Shadow DOM would encapsulate styles and cut the
- * button off from the design tokens and admin styles, which is exactly the
- * thing that would make Lit a bad fit for this design system.
- * See STYLE-SYSTEM.md.
- *
- * NOTE: no `star-slash` sequence in this comment, deliberately — writing the
- * token prefixes as a glob pair closed the block early and broke the parse.
- * Same failure shape as an unescaped apostrophe inside a single-quoted PHP
- * string, which took this codebase down once already.
+ * <bhy-copy-button value="…">Copy</bhy-copy-button>: progressive enhancement of a
+ * server-rendered button. Light DOM so the design tokens still reach it.
+ * NOTE: never write a star followed by a slash inside this comment; it ends the block.
  */
 @customElement('bhy-copy-button')
 export class BhyCopyButton extends LitElement {

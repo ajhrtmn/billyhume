@@ -21,7 +21,7 @@ class BHT_Admin {
         if (!current_user_can('bhcore_manage_tickets')) wp_die('Not allowed.');
 
         $ticket_id = isset($_GET['ticket_id']) ? (int) $_GET['ticket_id'] : 0;
-        BHY_UI::shell_open('Support Tickets');
+        BHY_UI::shell_open(BHT_Words::get('admin.admin.support_tickets'));
 
         if (isset($_GET['bht_msg'])) echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sanitize_text_field(wp_unslash($_GET['bht_msg']))) . '</p></div>';
 
@@ -35,19 +35,19 @@ class BHT_Admin {
         $tickets = BHT_Tickets::all($status);
 
         echo '<p>';
-        echo '<a href="' . esc_url(admin_url('admin.php?page=bh-tickets')) . '">All</a> | ';
+        echo '<a href="' . esc_url(admin_url('admin.php?page=bh-tickets')) . ('">' . BHT_Words::get('admin.admin.all') . '</a> | ');
         foreach (BHT_Tickets::STATUSES as $key => $label) {
             echo '<a href="' . esc_url(admin_url('admin.php?page=bh-tickets&status=' . $key)) . '">' . esc_html($label) . '</a> ';
         }
         echo '</p>';
 
         if (!$tickets) {
-            echo '<p>No tickets.</p>';
+            echo ('<p>' . BHT_Words::get('admin.admin.no_tickets') . '</p>');
             return;
         }
 
         echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr>'
-           . '<th>Subject</th><th>Requester</th><th>Priority</th><th>Status</th><th>Assigned</th><th>Updated</th>'
+           . ('<th>' . BHT_Words::get('admin.admin.subject') . '</th><th>' . BHT_Words::get('admin.admin.requester') . '</th><th>' . BHT_Words::get('admin.admin.priority') . '</th><th>' . BHT_Words::get('admin.admin.status') . '</th><th>' . BHT_Words::get('admin.admin.assigned') . '</th><th>' . BHT_Words::get('admin.admin.updated') . '</th>')
            . '</tr></thead><tbody>';
         foreach ($tickets as $t) {
             $user = get_userdata((int) $t['user_id']);
@@ -68,14 +68,14 @@ class BHT_Admin {
     private static function render_detail(int $ticket_id): void {
         $ticket = BHT_Tickets::get($ticket_id);
         if (!$ticket) {
-            echo '<p>Ticket not found.</p>';
+            echo ('<p>' . BHT_Words::get('admin.admin.ticket_not_found') . '</p>');
             return;
         }
         $user = get_userdata((int) $ticket['user_id']);
 
         echo '<p><a href="' . esc_url(admin_url('admin.php?page=bh-tickets')) . '">&larr; All tickets</a></p>';
         echo '<h2>' . esc_html($ticket['subject']) . '</h2>';
-        echo '<p><strong>Requester:</strong> ' . esc_html($user ? $user->display_name : '#' . $ticket['user_id'])
+        echo ('<p><strong>' . BHT_Words::get('admin.admin.requester_2') . '</strong> ') . esc_html($user ? $user->display_name : '#' . $ticket['user_id'])
            . ' &nbsp; <strong>Priority:</strong> ' . esc_html(BHT_Tickets::PRIORITIES[$ticket['priority']] ?? $ticket['priority']) . '</p>';
 
         // Status + assignment controls.
@@ -87,7 +87,7 @@ class BHT_Admin {
         foreach (BHT_Tickets::STATUSES as $key => $label) {
             echo '<option value="' . esc_attr($key) . '"' . selected($ticket['status'], $key, false) . '>' . esc_html($label) . '</option>';
         }
-        echo '</select> <button class="button">Update status</button>';
+        echo ('</select> <button class="button">' . BHT_Words::get('admin.admin.update_status') . '</button>');
         echo '</form>';
 
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-bottom:20px;">';
@@ -95,7 +95,7 @@ class BHT_Admin {
         echo '<input type="hidden" name="ticket_id" value="' . (int) $ticket_id . '">';
         wp_nonce_field('bht_assign_' . $ticket_id);
         wp_dropdown_users(['name' => 'assigned_to', 'selected' => (int) $ticket['assigned_to'], 'show_option_none' => 'Unassigned', 'capability' => 'bhcore_manage_tickets']);
-        echo ' <button class="button">Assign</button>';
+        echo (' <button class="button">' . BHT_Words::get('admin.admin.assign') . '</button>');
         echo '</form>';
 
         // Thread.
@@ -104,20 +104,20 @@ class BHT_Admin {
             $author = get_userdata((int) $reply['user_id']);
             echo '<div style="border:1px solid #dcdcde;border-radius:4px;padding:12px;margin-bottom:8px;' . ($reply['is_staff'] ? 'background:#f0f6fc;' : '') . '">';
             echo '<p><strong>' . esc_html($author ? $author->display_name : '#' . $reply['user_id']) . '</strong>'
-               . ($reply['is_staff'] ? ' <span class="bhy-badge bhy-badge-neutral">Staff</span>' : '')
+               . ($reply['is_staff'] ? (' <span class="bhy-badge bhy-badge-neutral">' . BHT_Words::get('admin.admin.staff') . '</span>') : '')
                . ' <span class="description">' . esc_html($reply['created_at']) . '</span></p>';
             echo wp_kses_post($reply['body']);
             echo '</div>';
         }
         echo '</div>';
 
-        echo '<h3>Reply</h3>';
+        echo ('<h3>' . BHT_Words::get('admin.admin.reply') . '</h3>');
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="bht_reply">';
         echo '<input type="hidden" name="ticket_id" value="' . (int) $ticket_id . '">';
         wp_nonce_field('bht_reply_' . $ticket_id);
         echo '<textarea name="body" rows="6" class="large-text" required></textarea>';
-        echo '<p><button class="button button-primary">Send reply</button></p>';
+        echo ('<p><button class="button button-primary">' . BHT_Words::get('admin.admin.send_reply') . '</button></p>');
         echo '</form>';
     }
 
@@ -126,7 +126,7 @@ class BHT_Admin {
         if (!current_user_can('bhcore_manage_tickets') || !check_admin_referer('bht_reply_' . $ticket_id)) wp_die('Not allowed.');
 
         $result = BHT_Replies::add($ticket_id, get_current_user_id(), wp_unslash($_POST['body'] ?? ''), true);
-        $msg = is_wp_error($result) ? $result->get_error_message() : 'Reply sent.';
+        $msg = is_wp_error($result) ? $result->get_error_message() : BHT_Words::get('admin.admin.reply_sent');
         wp_safe_redirect(add_query_arg(['page' => 'bh-tickets', 'ticket_id' => $ticket_id, 'bht_msg' => rawurlencode($msg)], admin_url('admin.php')));
         exit;
     }
@@ -136,7 +136,7 @@ class BHT_Admin {
         if (!current_user_can('bhcore_manage_tickets') || !check_admin_referer('bht_set_status_' . $ticket_id)) wp_die('Not allowed.');
 
         BHT_Tickets::set_status($ticket_id, sanitize_key($_POST['status'] ?? ''));
-        wp_safe_redirect(add_query_arg(['page' => 'bh-tickets', 'ticket_id' => $ticket_id, 'bht_msg' => 'Status updated.'], admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg(['page' => 'bh-tickets', 'ticket_id' => $ticket_id, 'bht_msg' => BHT_Words::get('admin.admin.status_updated')], admin_url('admin.php')));
         exit;
     }
 
@@ -145,7 +145,7 @@ class BHT_Admin {
         if (!current_user_can('bhcore_manage_tickets') || !check_admin_referer('bht_assign_' . $ticket_id)) wp_die('Not allowed.');
 
         BHT_Tickets::assign($ticket_id, (int) ($_POST['assigned_to'] ?? 0));
-        wp_safe_redirect(add_query_arg(['page' => 'bh-tickets', 'ticket_id' => $ticket_id, 'bht_msg' => 'Assignment updated.'], admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg(['page' => 'bh-tickets', 'ticket_id' => $ticket_id, 'bht_msg' => BHT_Words::get('admin.admin.assignment_updated')], admin_url('admin.php')));
         exit;
     }
 }

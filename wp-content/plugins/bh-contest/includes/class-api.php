@@ -46,9 +46,9 @@ class BH_API {
     public static function tracks(\WP_REST_Request $req) {
         $page = max(1, (int) $req->get_param('page'));
         $cid  = BH_Helpers::resolve_contest($req->get_param('contest'));
-        if (!$cid) return self::err('no_contest', 'No matching contest.', 404);
+        if (!$cid) return self::err('no_contest', BHCON_Words::get('admin.api.no_matching_contest'), 404);
         if (!OUS_Visibility::can_view_open_by_default($cid)) {
-            return self::err('members_only', 'This contest is only visible to logged-in members.', 403);
+            return self::err('members_only', BHCON_Words::get('admin.api.contest_only_visible_logged_members'), 403);
         }
 
         $cats = BH_Helpers::categories($cid);
@@ -143,7 +143,7 @@ class BH_API {
     /** @return \WP_REST_Response|\WP_Error */
     public static function play(\WP_REST_Request $req) {
         $sid = (int) $req->get_param('submission_id');
-        if (get_post_type($sid) !== 'bh_submission') return self::err('bad', 'Invalid track.', 400);
+        if (get_post_type($sid) !== 'bh_submission') return self::err('bad', BHCON_Words::get('admin.api.invalid_track'), 400);
 
         $ip = self::client_ip();
         $k = 'bh_play_' . md5($ip . '_' . $sid);
@@ -159,20 +159,20 @@ class BH_API {
     public static function vote(\WP_REST_Request $req) {
         $uid = get_current_user_id();
         if (!BHI_Auth::is_email_verified($uid)) {
-            return self::err('unverified', 'Please confirm your email before voting — check your inbox for the verification link.', 403);
+            return self::err('unverified', BHCON_Words::get('admin.api.please_confirm_email_before_voting'), 403);
         }
 
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
         $voting_open = class_exists('BH_Rounds') ? BH_Rounds::is_voting_open($cid) : BH_Helpers::is_voting_open($cid);
         if (!$cid || !$voting_open) {
-            return self::err('closed', 'Voting is not open right now.', 403);
+            return self::err('closed', BHCON_Words::get('admin.api.voting_not_open_right_now'), 403);
         }
         $round = class_exists('BH_Rounds') ? BH_Rounds::active_round_index($cid) : 0;
 
         $cat = (string) $req->get_param('category');
         if ($cat === '' && $req->get_param('category') === null) $cat = BH_Helpers::default_category($cid);
         if (!BH_Helpers::is_valid_category($cid, $cat)) {
-            return self::err('bad_category', 'That voting category does not exist.', 400);
+            return self::err('bad_category', BHCON_Words::get('admin.api.voting_category_does_not_exist'), 400);
         }
 
         global $wpdb;
@@ -193,11 +193,11 @@ class BH_API {
             $sub = get_post($sid);
             if (!$sub || $sub->post_type !== 'bh_submission' || $sub->post_status !== 'publish'
                 || (int) get_post_meta($sid, '_bh_contest_id', true) !== $cid) {
-                return self::err('bad', 'That track does not belong to this contest.', 400);
+                return self::err('bad', BHCON_Words::get('admin.api.track_does_not_belong_contest'), 400);
             }
             // Entries cut in a prior round can't collect new votes.
             if (class_exists('BH_Rounds') && !BH_Rounds::is_eligible($sid, $cid)) {
-                return self::err('eliminated', 'This entry did not advance to the current round.', 400);
+                return self::err('eliminated', BHCON_Words::get('admin.api.entry_did_not_advance_current'), 400);
             }
         }
 
@@ -210,7 +210,7 @@ class BH_API {
                         'user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'vote_row_id' => $existing, 'db_error' => $wpdb->last_error,
                     ], 'BH Contest Voting');
                 }
-                return self::err('vote_failed', 'Your vote could not be removed. Please try again.', 500);
+                return self::err('vote_failed', BHCON_Words::get('admin.api.vote_could_not_removed_please'), 500);
             }
             // Fire-and-forget activity event; never affects the tally.
             if (class_exists('BH_Event')) {
@@ -239,8 +239,8 @@ class BH_API {
         if ($used >= $limit) {
             $wpdb->query('ROLLBACK');
             $msg = $limit === 1
-                ? 'You have used your vote in this category. Submit a track to unlock a second, or tap your pick to switch.'
-                : 'You have used both your votes in this category. Tap one of your picks to free a vote, then choose again.';
+                ? BHCON_Words::get('admin.api.have_used_vote_category_submit')
+                : BHCON_Words::get('admin.api.have_used_both_votes_category');
             return self::err('limit', $msg, 403, ['votes_left' => 0, 'limit' => $limit]);
         }
 
@@ -257,7 +257,7 @@ class BH_API {
                     'user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'submission_id' => $sid, 'db_error' => $db_error,
                 ], 'BH Contest Voting');
             }
-            return self::err('vote_failed', 'Your vote could not be saved. Please try again.', 500);
+            return self::err('vote_failed', BHCON_Words::get('admin.api.vote_could_not_saved_please'), 500);
         }
         $wpdb->query('COMMIT');
 
@@ -283,26 +283,26 @@ class BH_API {
     public static function submit(\WP_REST_Request $req) {
         $uid = get_current_user_id();
         if (!BHI_Auth::is_email_verified($uid)) {
-            return self::err('unverified', 'Please confirm your email before submitting — check your inbox for the verification link.', 403);
+            return self::err('unverified', BHCON_Words::get('admin.api.please_confirm_email_before_submitting'), 403);
         }
 
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
 
-        if (!$cid) return self::err('no_contest', 'No contest is accepting submissions right now.', 403);
+        if (!$cid) return self::err('no_contest', BHCON_Words::get('admin.api.no_contest_accepting_submissions_right'), 403);
         $submission_open = class_exists('BH_Rounds') ? BH_Rounds::is_new_submission_allowed($cid) : BH_Helpers::is_submission_open($cid);
         if (!$submission_open) {
             $status = BH_Helpers::submission_status($cid);
             $msg = $status === 'upcoming'
-                ? 'Submissions haven\'t opened yet.'
-                : 'Submissions have closed for this contest.';
+                ? BHCON_Words::get('admin.api.submissions_haven_t_opened_yet')
+                : BHCON_Words::get('admin.api.submissions_have_closed_contest');
             return self::err('sub_closed', $msg, 403);
         }
         // An unfinished draft (no audio yet) gets a "finish it" message instead.
         $existing_draft = BH_Helpers::draft_submission_for($uid, $cid);
         if ($existing_draft) {
-            return self::err('needs_audio', 'You already started a submission for this contest — finish it by uploading your audio file from your account portal.', 409, ['submission_id' => $existing_draft]);
+            return self::err('needs_audio', BHCON_Words::get('admin.api.already_started_submission_contest_finis'), 409, ['submission_id' => $existing_draft]);
         }
-        if (BH_Helpers::has_submitted($uid, $cid)) return self::err('duplicate', 'You have already submitted a track to this contest.', 403);
+        if (BH_Helpers::has_submitted($uid, $cid)) return self::err('duplicate', BHCON_Words::get('admin.api.have_already_submitted_track_contest'), 403);
 
         // Save only the profile fields present in this request.
         $profile_fields = BHI_Profiles::from_request($req);
@@ -312,7 +312,7 @@ class BH_API {
         if ($missing) {
             return self::err(
                 'profile_incomplete',
-                'Please add your real name and at least one way to reach you (Discord, Twitch, or YouTube) before submitting.',
+                BHCON_Words::get('admin.api.please_add_real_name_at'),
                 400,
                 ['missing' => $missing]
             );
@@ -323,17 +323,17 @@ class BH_API {
         $allow_draft = (bool) get_post_meta($cid, '_bh_allow_audio_optional', true);
         $f = $req->get_file_params();
         $has_file = !empty($f['audio']['tmp_name']);
-        if (!$has_file && !$allow_draft) return self::err('file', 'Please attach an audio file.', 400);
+        if (!$has_file && !$allow_draft) return self::err('file', BHCON_Words::get('admin.api.please_attach_audio_file'), 400);
         if ($has_file) {
-            if ($f['audio']['size'] > BH_MAX_BYTES) return self::err('file', 'Audio file must be 20MB or smaller.', 400);
+            if ($f['audio']['size'] > BH_MAX_BYTES) return self::err('file', BHCON_Words::get('admin.api.audio_file_must_20mb_smaller'), 400);
             // Server-side type gate — the client `accept` attribute is cosmetic.
             if (empty(wp_check_filetype($f['audio']['name'], BH_Helpers::allowed_audio())['ext'])) {
-                return self::err('file', 'Only MP3 or M4A files are allowed.', 400);
+                return self::err('file', BHCON_Words::get('admin.api.only_mp3_m4a_files_are'), 400);
             }
         }
 
         $title = sanitize_text_field($req->get_param('title'));
-        if ($title === '') return self::err('title', 'Please enter a song title.', 400);
+        if ($title === '') return self::err('title', BHCON_Words::get('admin.api.please_enter_song_title'), 400);
 
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/image.php';
@@ -343,7 +343,7 @@ class BH_API {
         // (unique option_name), so this lock is the real duplicate guard.
         $lock_key = 'bh_sub_lock_' . $uid . '_' . $cid;
         if (!add_option($lock_key, time(), '', 'no')) {
-            return self::err('duplicate', 'You have already submitted a track to this contest.', 403);
+            return self::err('duplicate', BHCON_Words::get('admin.api.have_already_submitted_track_contest'), 403);
         }
 
         $pid = wp_insert_post([
@@ -361,7 +361,7 @@ class BH_API {
                     'user_id' => $uid, 'contest_id' => $cid, 'wp_error' => $pid->get_error_message(),
                 ], 'BH Contest Submission');
             }
-            return self::err('save', 'Could not save your submission.', 500);
+            return self::err('save', BHCON_Words::get('admin.api.could_not_save_submission'), 500);
         }
 
         update_post_meta($pid, '_bh_contest_id', $cid);
@@ -373,7 +373,7 @@ class BH_API {
             return self::ok([
                 'submission_id' => $pid,
                 'needs_audio' => true,
-                'message' => "Submission started! Attach your audio file anytime before the deadline from your account portal to finish entering.",
+                'message' => BHCON_Words::get('admin.api.submission_started_attach_audio_file'),
             ]);
         }
 
@@ -386,7 +386,7 @@ class BH_API {
                     'user_id' => $uid, 'contest_id' => $cid, 'filename' => $f['audio']['name'] ?? '', 'wp_error' => $aid->get_error_message(),
                 ], 'BH Contest Submission');
             }
-            return self::err('upload', 'We could not process that audio file. Please try another.', 400);
+            return self::err('upload', BHCON_Words::get('admin.api.we_could_not_process_audio'), 400);
         }
         update_post_meta($pid, '_bh_audio_id', $aid);
         self::notify_submission_complete($pid, $uid, $cid, $title);
@@ -415,7 +415,7 @@ class BH_API {
         $user = get_userdata($uid);
         if ($user && $user->user_email) {
             $contest_title = get_the_title($cid);
-            $subject = 'We got your submission — ' . get_bloginfo('name');
+            $subject = BHCON_Words::get('admin.api.we_got_submission') . ' ' . get_bloginfo('name');
             $body = "Hi {$user->user_login},\n\nYour track \"{$title}\" for {$contest_title} has been received and is pending review. You'll hear from us once it's approved.\n\nThanks for entering!";
 
             // WHY: queued, not sent inline, so slow mail can't time out the upload request.
@@ -428,7 +428,7 @@ class BH_API {
                 if (class_exists('BH_Mail')) {
                     BH_Mail::send([
                         'to' => $user->user_email, 'user_id' => $uid, 'subject' => $subject, 'body' => $body,
-                        'source' => 'BH Contest Submission', 'log_context' => ['submission_id' => $pid],
+                        'source' => BHCON_Words::get('admin.admin_moderation.bh_contest_submission'), 'log_context' => ['submission_id' => $pid],
                     ]);
                 } else {
                     wp_mail($user->user_email, $subject, $body);
@@ -448,7 +448,7 @@ class BH_API {
         if (class_exists('BH_Mail')) {
             BH_Mail::send([
                 'to' => $email, 'user_id' => (int) ($args['user_id'] ?? 0), 'subject' => $subject, 'body' => $body,
-                'source' => 'BH Contest Submission', 'log_context' => ['submission_id' => $args['submission_id'] ?? 0],
+                'source' => BHCON_Words::get('admin.admin_moderation.bh_contest_submission'), 'log_context' => ['submission_id' => $args['submission_id'] ?? 0],
             ]);
             return;
         }
@@ -465,26 +465,26 @@ class BH_API {
         $pid = (int) $req->get_param('submission_id');
         $post = get_post($pid);
         if (!$post || $post->post_type !== 'bh_submission') {
-            return self::err('not_found', 'Submission not found.', 404);
+            return self::err('not_found', BHCON_Words::get('admin.admin_moderation.submission_not_found'), 404);
         }
 
         $uid = get_current_user_id();
         $is_owner = (int) $post->post_author === $uid;
         $is_admin = current_user_can('manage_options');
         if (!$is_owner && !$is_admin) {
-            return self::err('forbidden', 'You can only replace your own submission.', 403);
+            return self::err('forbidden', BHCON_Words::get('admin.api.can_only_replace_own_submission'), 403);
         }
 
         $cid = (int) get_post_meta($pid, '_bh_contest_id', true);
         if (!$cid || !BH_Helpers::is_submission_open($cid)) {
-            return self::err('sub_closed', 'Submissions are closed for this contest — the file can no longer be changed.', 403);
+            return self::err('sub_closed', BHCON_Words::get('admin.api.submissions_are_closed_contest_file'), 403);
         }
 
         $f = $req->get_file_params();
-        if (empty($f['audio']['tmp_name'])) return self::err('file', 'Please attach an audio file.', 400);
-        if ($f['audio']['size'] > BH_MAX_BYTES) return self::err('file', 'Audio file must be 20MB or smaller.', 400);
+        if (empty($f['audio']['tmp_name'])) return self::err('file', BHCON_Words::get('admin.api.please_attach_audio_file'), 400);
+        if ($f['audio']['size'] > BH_MAX_BYTES) return self::err('file', BHCON_Words::get('admin.api.audio_file_must_20mb_smaller'), 400);
         if (empty(wp_check_filetype($f['audio']['name'], BH_Helpers::allowed_audio())['ext'])) {
-            return self::err('file', 'Only MP3 or M4A files are allowed.', 400);
+            return self::err('file', BHCON_Words::get('admin.api.only_mp3_m4a_files_are'), 400);
         }
 
         require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -498,7 +498,7 @@ class BH_API {
                     'user_id' => $uid, 'submission_id' => $pid, 'filename' => $f['audio']['name'] ?? '', 'wp_error' => $aid->get_error_message(),
                 ], 'BH Contest Submission');
             }
-            return self::err('upload', 'We could not process that audio file. Please try another.', 400);
+            return self::err('upload', BHCON_Words::get('admin.api.we_could_not_process_audio'), 400);
         }
 
         // A draft's first file is not a swap: it goes live and the draft moves to pending.
@@ -506,7 +506,7 @@ class BH_API {
             update_post_meta($pid, '_bh_audio_id', $aid);
             wp_update_post(['ID' => $pid, 'post_status' => 'pending']);
             self::notify_submission_complete($pid, (int) $post->post_author, $cid, $post->post_title);
-            return self::ok(['message' => 'Submission complete — your track is now pending review!']);
+            return self::ok(['message' => BHCON_Words::get('admin.api.submission_complete_track_now_pending')]);
         }
 
         // Only the newest pending swap survives.
@@ -526,7 +526,7 @@ class BH_API {
             ]);
         }
 
-        return self::ok(['message' => 'Your replacement file is uploaded and waiting for review — your original submission stays active until then.']);
+        return self::ok(['message' => BHCON_Words::get('admin.api.replacement_file_uploaded_waiting_review')]);
     }
 
     /**
@@ -538,29 +538,29 @@ class BH_API {
         $pid = (int) $req->get_param('submission_id');
         $post = get_post($pid);
         if (!$post || $post->post_type !== 'bh_submission') {
-            return self::err('not_found', 'Submission not found.', 404);
+            return self::err('not_found', BHCON_Words::get('admin.admin_moderation.submission_not_found'), 404);
         }
 
         $uid = get_current_user_id();
         $is_owner = (int) $post->post_author === $uid;
         $is_admin = current_user_can('manage_options');
         if (!$is_owner && !$is_admin) {
-            return self::err('forbidden', 'You can only edit your own submission.', 403);
+            return self::err('forbidden', BHCON_Words::get('admin.api.can_only_edit_own_submission'), 403);
         }
 
         $cid = (int) get_post_meta($pid, '_bh_contest_id', true);
         if (!$cid || !BH_Helpers::is_submission_open($cid)) {
-            return self::err('sub_closed', 'Submissions are closed for this contest — details can no longer be changed.', 403);
+            return self::err('sub_closed', BHCON_Words::get('admin.api.submissions_are_closed_contest_details'), 403);
         }
 
         $title = sanitize_text_field($req->get_param('title'));
-        if ($title === '') return self::err('title', 'Song title can\'t be empty.', 400);
+        if ($title === '') return self::err('title', BHCON_Words::get('admin.api.song_title_can_t_empty'), 400);
         $artist = sanitize_text_field($req->get_param('artist'));
 
         wp_update_post(['ID' => $pid, 'post_title' => $title]);
         update_post_meta($pid, '_bh_artist_name', $artist);
 
-        return self::ok(['message' => 'Saved.', 'title' => $title, 'artist' => $artist]);
+        return self::ok(['message' => BHCON_Words::get('admin.api.saved'), 'title' => $title, 'artist' => $artist]);
     }
 
     // Always returns `categories`; an uncategorized contest gets one entry with slug ''.
@@ -568,10 +568,10 @@ class BH_API {
     public static function results(\WP_REST_Request $req) {
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
         if (!$cid || get_post_meta($cid, '_bh_results_published', true) !== '1') {
-            return self::err('hidden', 'Results have not been published yet.', 403);
+            return self::err('hidden', BHCON_Words::get('admin.api.results_have_not_been_published'), 403);
         }
         if (!OUS_Visibility::can_view_open_by_default($cid)) {
-            return self::err('members_only', 'This contest is only visible to logged-in members.', 403);
+            return self::err('members_only', BHCON_Words::get('admin.api.contest_only_visible_logged_members'), 403);
         }
 
         $cats = BH_Helpers::categories($cid);
@@ -635,7 +635,7 @@ class BH_API {
     /** @return \WP_REST_Response|\WP_Error */
     public static function admin_live(\WP_REST_Request $req) {
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
-        if (!$cid) return self::err('no_contest', 'No matching contest.', 404);
+        if (!$cid) return self::err('no_contest', BHCON_Words::get('admin.api.no_matching_contest'), 404);
 
         // Also check the raw query value for 'all', in case sanitizing ever alters it.
         $raw   = $req->get_query_params();

@@ -33,10 +33,10 @@ class BHC_ProgressAdmin {
         // The override form posts its course_id so a submission stays on the same course.
         if (isset($_POST['course_id'])) $selected_id = (int) $_POST['course_id'];
 
-        echo '<div class="wrap"><h1>Student Progress</h1>';
+        echo ('<div class="wrap"><h1>' . BHC_Words::get('admin.progress_admin.student_progress') . '</h1>');
         settings_errors('bhc_progress_admin');
 
-        if (!$courses) { echo '<p>No courses yet.</p></div>'; return; }
+        if (!$courses) { echo ('<p>' . BHC_Words::get('admin.progress_admin.no_courses_yet') . '</p></div>'); return; }
 
         echo '<form method="get" style="margin:16px 0;"><input type="hidden" name="post_type" value="bh_course"><input type="hidden" name="page" value="bhc-progress">';
         echo '<select name="course_id" onchange="this.form.submit()">';
@@ -83,10 +83,10 @@ class BHC_ProgressAdmin {
         if ($stalled > 0) {
             echo '<p><strong style="color:#b32d2e;">' . (int) $stalled . ' student' . ($stalled === 1 ? '' : 's') . '</strong> active before but quiet for ' . self::STALLED_DAYS . '+ days and not yet finished — flagged &#9888; in the table below.</p>';
         } else {
-            echo '<p class="description">No stalled students right now (none quiet ' . self::STALLED_DAYS . '+ days without finishing).</p>';
+            echo ('<p class="description">' . BHC_Words::get('admin.progress_admin.no_stalled_students_right_now') . ' ') . self::STALLED_DAYS . (BHC_Words::get('admin.progress_admin.days_without_finishing') . '</p>');
         }
 
-        echo '<div class="bhy-table-wrap" style="max-width:720px;"><table class="widefat striped"><thead><tr><th>Lesson</th><th>Completion rate</th><th>Avg. quiz score</th></tr></thead><tbody>';
+        echo ('<div class="bhy-table-wrap" style="max-width:720px;"><table class="widefat striped"><thead><tr><th>' . BHC_Words::get('admin.post_types.lesson') . '</th><th>' . BHC_Words::get('admin.progress_admin.completion_rate') . '</th><th>' . BHC_Words::get('admin.crm_integration.avg_quiz_score') . '</th></tr></thead><tbody>');
         foreach ($lesson_ids as $lesson_id) {
             $step_count = BHC_Steps::count($lesson_id);
             $finished = 0;
@@ -136,7 +136,7 @@ class BHC_ProgressAdmin {
         $lesson_id = (int) ($_POST['lesson_id'] ?? 0); // 0 = whole course
 
         if (!$course_id || !$student_id) {
-            add_settings_error('bhc_progress_admin', 'bhc_override_missing', 'Pick a student to mark complete.', 'error');
+            add_settings_error('bhc_progress_admin', 'bhc_override_missing', BHC_Words::get('admin.progress_admin.pick_student_mark_complete'), 'error');
             return;
         }
 
@@ -174,11 +174,11 @@ class BHC_ProgressAdmin {
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
 
         echo '<div class="bhy-card" style="max-width:640px;">';
-        echo '<h2>Manual override</h2>';
+        echo ('<h2>' . BHC_Words::get('admin.progress_admin.manual_override') . '</h2>');
         echo '<p class="description">For support cases where progress didn\'t record correctly — marks steps complete directly (quiz steps as scored/passed), bypassing normal submission. Only students with existing activity in this course are listed; this isn\'t an enrollment or access tool.</p>';
 
         if (!$students) {
-            echo '<p class="description"><em>No students with recorded activity yet — nothing to override.</em></p></div>';
+            echo ('<p class="description"><em>' . BHC_Words::get('admin.progress_admin.no_students_with_recorded_activity') . '</em></p></div>');
             return;
         }
 
@@ -187,20 +187,20 @@ class BHC_ProgressAdmin {
         echo '<input type="hidden" name="bhc_override_action" value="1">';
         echo '<input type="hidden" name="course_id" value="' . (int) $course_id . '">';
 
-        echo '<p><label>Student<br><select name="student_user_id">';
+        echo ('<p><label>' . BHC_Words::get('admin.progress_admin.student') . '<br><select name="student_user_id">');
         foreach ($students as $sid) {
             $u = get_userdata($sid);
             echo '<option value="' . (int) $sid . '">' . esc_html($u ? ($u->display_name ?: $u->user_login) : "User #$sid") . '</option>';
         }
         echo '</select></label></p>';
 
-        echo '<p><label>Scope<br><select name="lesson_id"><option value="0">— Entire course —</option>';
+        echo ('<p><label>' . BHC_Words::get('admin.progress_admin.scope') . '<br><select name="lesson_id"><option value="0">' . BHC_Words::get('admin.progress_admin.entire_course') . '</option>');
         foreach ($lesson_ids as $lid) {
             echo '<option value="' . (int) $lid . '">' . esc_html(get_the_title($lid)) . '</option>';
         }
         echo '</select></label></p>';
 
-        submit_button('Mark complete', 'secondary', 'submit', false);
+        submit_button(BHC_Words::get('admin.progress_admin.mark_complete'), 'secondary', 'submit', false);
         echo '</form></div>';
     }
 
@@ -219,13 +219,13 @@ class BHC_ProgressAdmin {
         $students = $matrix['user_ids'];
 
         if (!$students) {
-            echo '<p class="description">No student activity recorded for this course yet.</p>';
+            echo ('<p class="description">' . BHC_Words::get('admin.progress_admin.no_student_activity_recorded_course') . '</p>');
             return;
         }
 
         // .bhy-table-wrap: one column per lesson makes this genuinely wide; --tall since the
         // table is the page.
-        echo '<div class="bhy-table-wrap bhy-table-wrap--tall"><table class="widefat striped"><thead><tr><th>Student</th><th>Progress</th><th>Completed</th><th>Last activity</th>';
+        echo ('<div class="bhy-table-wrap bhy-table-wrap--tall"><table class="widefat striped"><thead><tr><th>' . BHC_Words::get('admin.progress_admin.student') . '</th><th>' . BHC_Words::get('admin.crm_integration.progress') . '</th><th>' . BHC_Words::get('admin.crm_integration.completed') . '</th><th>' . BHC_Words::get('admin.progress_admin.last_activity') . '</th>');
         foreach ($lesson_titles as $title) echo '<th>' . esc_html($title) . '</th>';
         echo '</tr></thead><tbody>';
 
@@ -254,6 +254,6 @@ class BHC_ProgressAdmin {
             echo '</tr>';
         }
         echo '</tbody></table></div>';
-        echo '<p class="description">' . count($students) . ' student(s) with recorded activity. ' . (int) $total_steps . ' total step(s) in this course.</p>';
+        echo '<p class="description">' . count($students) . ' ' . BHC_Words::get('admin.progress_admin.student_s_with_recorded_activity') . ' ' . (int) $total_steps . (' ' . BHC_Words::get('admin.progress_admin.total_step_s_course') . '</p>');
     }
 }

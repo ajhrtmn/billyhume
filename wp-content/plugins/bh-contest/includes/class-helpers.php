@@ -111,7 +111,7 @@ class BH_Helpers {
     /** @return array{label:string, color:string} */
     public static function contest_phase_summary(int $cid): array {
         if (get_post_status($cid) !== 'publish') {
-            return ['label' => 'Draft — not published yet', 'color' => '#8a8a8a'];
+            return ['label' => BHCON_Words::get('admin.helpers.draft_not_published_yet'), 'color' => '#8a8a8a'];
         }
 
         $sub_status = self::submission_status($cid);
@@ -119,26 +119,26 @@ class BH_Helpers {
         $published = get_post_meta($cid, '_bh_results_published', true) === '1';
 
         if ($sub_status === 'open' || $sub_status === 'unscheduled') {
-            return ['label' => 'Accepting submissions', 'color' => '#1DB954'];
+            return ['label' => BHCON_Words::get('admin.helpers.accepting_submissions'), 'color' => '#1DB954'];
         }
         if ($sub_status === 'upcoming') {
-            return ['label' => 'Published — submissions open soon', 'color' => '#8a8a8a'];
+            return ['label' => BHCON_Words::get('admin.helpers.published_submissions_open_soon'), 'color' => '#8a8a8a'];
         }
         // Submissions have closed from here down.
         if ($vote_status === 'open') {
-            return ['label' => 'Voting open', 'color' => '#1DB954'];
+            return ['label' => BHCON_Words::get('admin.helpers.voting_open'), 'color' => '#1DB954'];
         }
         if ($vote_status === 'upcoming') {
-            return ['label' => 'Submissions closed — voting opens soon', 'color' => '#8a8a8a'];
+            return ['label' => BHCON_Words::get('admin.helpers.submissions_closed_voting_opens_soon'), 'color' => '#8a8a8a'];
         }
         if ($vote_status === 'unscheduled') {
-            return ['label' => 'Submissions closed — voting not scheduled yet', 'color' => '#b3261e'];
+            return ['label' => BHCON_Words::get('admin.helpers.submissions_closed_voting_not_scheduled'), 'color' => '#b3261e'];
         }
         // Voting has closed from here down.
         if ($published) {
-            return ['label' => 'Complete — results published', 'color' => '#1DB954'];
+            return ['label' => BHCON_Words::get('admin.helpers.complete_results_published'), 'color' => '#1DB954'];
         }
-        return ['label' => 'Voting closed — awaiting results', 'color' => '#b3261e'];
+        return ['label' => BHCON_Words::get('admin.helpers.voting_closed_awaiting_results'), 'color' => '#b3261e'];
     }
 
     // Flags users with many votes in a short window, for manual review only.

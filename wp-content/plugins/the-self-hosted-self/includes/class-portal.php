@@ -4,15 +4,8 @@ if (!defined('ABSPATH')) exit;
 // The debug section is read-only, so it groups under "Reference & Docs".
 
 /**
- * BHI_Portal: the branded front-end account area at /account/, built from
- * panels contributed via the `bhi_portal_panels` filter. Panel entry:
- *   [
- *     'id'       => 'profile',                       // unique slug, used in ?panel=
- *     'label'    => 'Profile',
- *     'icon'     => 'dashicons-admin-users',          // any dashicon class
- *     'render'   => ['BHI_PublicProfile', 'render_portal_panel'], // callable, echoes HTML
- *     'priority' => 10,                                // nav order, lower first
- *   ]
+ * The front-end account area at /account/, built from tabs added via bhi_portal_panels:
+ *   ['id' => slug, 'label' => ..., 'icon' => dashicon class, 'render' => callable, 'priority' => int]
  */
 class BHI_Portal {
     const QUERY_VAR = 'bhi_portal';
@@ -58,28 +51,28 @@ class BHI_Portal {
      * @return array<string, mixed>
      */
     public static function register_debug_section($tools): array {
-        $tools['bhi-portal'] = ['label' => 'Portal', 'render' => [self::class, 'render_debug_section'], 'handle' => null, 'reset' => null, 'group' => OUS_Debug::GROUP_REFERENCE];
+        $tools['bhi-portal'] = ['label' => OUS_Words::get('admin.portal.portal'), 'render' => [self::class, 'render_debug_section'], 'handle' => null, 'reset' => null, 'group' => OUS_Debug::GROUP_REFERENCE];
         return $tools;
     }
 
     public static function render_debug_section(): void {
-        echo '<p><a class="button" href="' . esc_url(home_url('/' . self::REWRITE_SLUG . '/')) . '" target="_blank">Open the portal</a></p>';
-        echo '<h4>Registered panels</h4>';
+        echo '<p><a class="button" href="' . esc_url(home_url('/' . self::REWRITE_SLUG . '/')) . ('" target="_blank">' . OUS_Words::get('admin.portal.open_portal') . '</a></p>');
+        echo ('<h4>' . OUS_Words::get('admin.portal.registered_panels') . '</h4>');
         $panels = self::get_panels();
         if (!$panels) {
-            echo '<p class="description">No panels registered — every plugin\'s own <code>bhi_portal_panels</code> filter callback either isn\'t hooked or returned nothing.</p>';
+            echo ('<p class="description">' . OUS_Words::get('admin.portal.no_panels_registered_every_plugin') . '</p>');
         } else {
-            echo '<table class="widefat striped"><thead><tr><th>ID</th><th>Label</th><th>Priority</th></tr></thead><tbody>';
+            echo ('<table class="widefat striped"><thead><tr><th>' . OUS_Words::get('admin.portal.id') . '</th><th>' . OUS_Words::get('admin.portal.label') . '</th><th>' . OUS_Words::get('admin.portal_layout.priority') . '</th></tr></thead><tbody>');
             foreach ($panels as $panel) {
                 echo '<tr><td><code>' . esc_html($panel['id']) . '</code></td><td>' . esc_html($panel['label']) . '</td><td>' . (int) ($panel['priority'] ?? 10) . '</td></tr>';
             }
             echo '</tbody></table>';
         }
         echo '<h4>wp-admin lockout</h4>';
-        echo '<p>Excluded roles: <code>' . esc_html(implode(', ', self::excluded_roles())) . '</code>'
+        echo ('<p>' . OUS_Words::get('admin.portal.excluded_roles') . ' <code>') . esc_html(implode(', ', self::excluded_roles())) . '</code>'
            . ' &mdash; an account is locked out only when <em>every</em> role it holds is on this list.</p>';
 
-        echo '<h4>Fan accounts (' . esc_html(class_exists('OUS_Roles') ? OUS_Roles::MEMBER_ROLE : 'bh_member') . ')</h4>';
+        echo ('<h4>' . OUS_Words::get('admin.portal.fan_accounts')) . esc_html(class_exists('OUS_Roles') ? OUS_Roles::MEMBER_ROLE : 'bh_member') . ')</h4>';
         if (class_exists('OUS_Roles') && get_role(OUS_Roles::MEMBER_ROLE)) {
             $member_count = count_users();
             $n = (int) ($member_count['avail_roles'][OUS_Roles::MEMBER_ROLE] ?? 0);
@@ -93,17 +86,17 @@ class BHI_Portal {
                 echo '<p class="description">Subscriber&rarr;member migration hasn\'t run yet (fires on the next admin page load; only touches accounts whose <em>only</em> role is <code>subscriber</code>).</p>';
             }
         } else {
-            echo '<p class="description">Role not registered yet.</p>';
+            echo ('<p class="description">' . OUS_Words::get('admin.portal.role_not_registered_yet') . '</p>');
         }
 
         // Checks whether the rule reached WordPress's persisted rewrite table; if it
         // has but /account/ still 404s, the request is not reaching PHP at all.
-        echo '<h4>Rewrite rule</h4>';
+        echo ('<h4>' . OUS_Words::get('admin.portal.rewrite_rule') . '</h4>');
         // Reads the DB directly, bypassing a possibly stale object cache.
         $found = class_exists('BHY_RewriteHealer') ? BHY_RewriteHealer::rule_persisted('^' . self::REWRITE_SLUG) : false;
         if ($found) {
             echo '<p>&#9989; Found in the persisted rewrite table — WordPress itself knows this URL. '
-               . 'If <code>/' . esc_html(self::REWRITE_SLUG) . '/</code> still 404s from here, the request likely never reaches WordPress\'s PHP at all — check the web server (nginx/Apache) config for a rewrite/proxy rule sending unmatched paths to <code>index.php</code>, or a caching layer serving a stale 404.</p>';
+               . (OUS_Words::get('admin.portal.if') . ' <code>/') . esc_html(self::REWRITE_SLUG) . ('/</code> ' . OUS_Words::get('admin.portal.still_404s_from_here_request') . '</p>');
         } else {
             echo '<p>&#10060; NOT found in the persisted rewrite table as of this page load. This class self-heals automatically on the next un-throttled request (at most a ' . (int) self::VERIFY_THROTTLE_SECONDS . '-second wait, see <code>BHY_RewriteHealer::maybe_heal()</code>) — reload this page in a moment before assuming it\'s stuck. If it\'s STILL missing after that, the cause is outside what a flush + full cache eviction can fix from PHP: a reverse proxy/CDN caching the route itself, a read-only options table, or multisite domain mapping. Check <code>OUS_DebugLog</code> for a matching "still not persisted after a forced flush" entry, which confirms the self-heal genuinely ran and genuinely failed, rather than just not having fired yet.</p>';
         }
@@ -287,7 +280,7 @@ class BHI_Portal {
             if ($active) {
                 $shown_anything = true;
                 $tier = BHM_Tiers::get($active[0]['object_id']);
-                $label = $tier ? $tier['name'] : ('Tier #' . $active[0]['object_id']);
+                $label = $tier ? $tier['name'] : (OUS_Words::get('admin.portal.tier') . $active[0]['object_id']);
                 echo '<div class="bhi-portal-section bhi-overview-membership">';
                 echo '<h2>' . OUS_Words::e('portal.membership') . '</h2>';
                 echo '<p><span class="bhi-overview-tier-badge">' . esc_html($label) . '</span>';
@@ -405,10 +398,8 @@ class BHI_Portal {
      */
     public static function inject_portal(string $content): string {
         if (!self::is_account_request() || !is_main_query() || !in_the_loop()) return $content;
-        // Built once and reused: some setups run the_content twice, and
-        // the second pass' wptexturize/wpautop would corrupt the HTML
-        // this filter injected on the first (a bare `>` inside a
-        // Datastar data-* attribute breaks their naive tag detection).
+        // Built once and reused: a second the_content pass (wptexturize/wpautop)
+        // would corrupt markup with a bare > inside a data attribute.
         static $html = null;
         if ($html === null) {
             $html = is_user_logged_in()
@@ -430,7 +421,7 @@ class BHI_Portal {
             'redirectTo' => self::post_login_redirect(),
             // Only logged-in visitors get a REST nonce; a logged-out nonce is the same for everyone and protects nothing.
             'nonce' => is_user_logged_in() ? wp_create_nonce('wp_rest') : '',
-            'words' => OUS_Words::all(),
+            'words' => OUS_Words::for_browser(),
         ];
         wp_add_inline_script('ous-portal-auth', 'window.BHIPortalAuth = ' . wp_json_encode($config, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ';', 'before');
     }
@@ -460,10 +451,8 @@ class BHI_Portal {
     }
 
     /**
-     * The branded fan-facing login/register screen shown at /account/ when
-     * logged out. Posts to bhi/v1/login and bhi/v1/register (BHI_Auth),
-     * the same endpoints the contest player uses; behaviour lives in
-     * assets/ts/portal-auth.ts, styles in assets/css/portal.css.
+     * The log-in / create-account screen at /account/ when logged out. Posts to the
+     * bhi/v1 login and register endpoints; behaviour in portal-auth.ts, styles in portal.css.
      */
     private static function login_html(): string {
         $registration_open = !class_exists('BHI_Auth') || BHI_Auth::registration_open();
@@ -500,7 +489,7 @@ class BHI_Portal {
     <div class="bhi-login-field"><label for="bhi-reg-email"><?php echo OUS_Words::e('signup.email'); ?></label><input type="email" id="bhi-reg-email" name="email" autocomplete="email" maxlength="100" required></div>
     <div class="bhi-login-field"><label for="bhi-reg-password"><?php echo OUS_Words::e('signup.password'); ?></label><input type="password" id="bhi-reg-password" name="password" autocomplete="new-password" minlength="8" maxlength="200" required>
       <p class="bhi-login-hint"><?php echo OUS_Words::e('signup.password_hint'); ?></p></div>
-    <div class="bhi-login-trap" aria-hidden="true"><label for="bhi-reg-<?php echo esc_attr($honeypot); ?>">Leave this empty</label><input type="text" id="bhi-reg-<?php echo esc_attr($honeypot); ?>" name="<?php echo esc_attr($honeypot); ?>" tabindex="-1" autocomplete="off"></div>
+    <div class="bhi-login-trap" aria-hidden="true"><label for="bhi-reg-<?php echo esc_attr($honeypot); ?>"><?php echo OUS_Words::get('admin.portal.leave_empty'); ?></label><input type="text" id="bhi-reg-<?php echo esc_attr($honeypot); ?>" name="<?php echo esc_attr($honeypot); ?>" tabindex="-1" autocomplete="off"></div>
     <button type="submit" class="bhi-login-submit"><?php echo OUS_Words::e('signup.submit'); ?></button>
   </form>
   <?php endif; ?>

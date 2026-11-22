@@ -24,9 +24,9 @@ class BHM_GiftAccess {
     // attribute to submit a separate form printed in admin_footer.
     public static function render_metabox(\WP_Post $post): void {
         $form_id = 'bhm-gift-access-form';
-        echo '<p><label>Recipient email<br><input type="email" name="email" form="' . $form_id . '" class="widefat"></label></p>';
-        echo '<p><label>Message (optional, shown in their order email)<br><textarea name="message" rows="2" form="' . $form_id . '" class="widefat"></textarea></label></p>';
-        echo '<p><button type="submit" class="button" form="' . $form_id . '">Gift access</button></p>';
+        echo ('<p><label>' . BHM_Words::get('admin.gift_access.recipient_email') . '<br><input type="email" name="email" form="') . $form_id . '" class="widefat"></label></p>';
+        echo ('<p><label>' . BHM_Words::get('admin.gift_access.message_optional_shown_their_order') . '<br><textarea name="message" rows="2" form="') . $form_id . '" class="widefat"></textarea></label></p>';
+        echo '<p><button type="submit" class="button" form="' . $form_id . ('">' . BHM_Words::get('admin.gift_access.gift_access') . '</button></p>');
         echo '<p class="description">Creates a $0 completed order, so it shows under WooCommerce &rarr; Orders and can be refunded or cancelled there to take access back. New emails get an account and a set-password email.</p>';
         add_action('admin_footer', function () use ($post, $form_id) {
             echo '<form id="' . $form_id . '" method="post" action="' . esc_url(admin_url('admin-post.php')) . '" hidden>';
@@ -44,9 +44,9 @@ class BHM_GiftAccess {
         }
         $email = sanitize_email(wp_unslash($_POST['email'] ?? ''));
         $message = sanitize_textarea_field(wp_unslash($_POST['message'] ?? ''));
-        $result = is_email($email) ? self::gift($post_id, $email, $message, get_current_user_id()) : new WP_Error('email', 'Enter a valid email address.');
+        $result = is_email($email) ? self::gift($post_id, $email, $message, get_current_user_id()) : new WP_Error('email', BHM_Words::get('admin.gift_access.enter_valid_email_address'));
 
-        $msg = is_wp_error($result) ? $result->get_error_message() : 'Gifted to ' . $email . ' (order #' . $result . ').';
+        $msg = is_wp_error($result) ? $result->get_error_message() : BHM_Words::get('admin.gift_access.gifted') . ' ' . $email . ' ' . BHM_Words::get('admin.gift_access.order') . $result . ').';
         wp_safe_redirect(add_query_arg(['bhm_gift_msg' => rawurlencode($msg), 'bhm_gift_ok' => is_wp_error($result) ? 0 : 1], (string) get_edit_post_link($post_id, 'raw')));
         exit;
     }
@@ -54,7 +54,7 @@ class BHM_GiftAccess {
     /** @return int|\WP_Error the completed order id */
     public static function gift(int $object_id, string $email, string $message, int $gifted_by) {
         $product = wc_get_product((int) get_post_meta($object_id, '_bhm_purchase_wc_product_id', true));
-        if (!$product) return new WP_Error('no_product', 'This item has no purchase product yet. Set a price and save first.');
+        if (!$product) return new WP_Error('no_product', BHM_Words::get('admin.gift_access.item_has_no_purchase_product'));
 
         $user = get_user_by('email', $email);
         if (!$user) {
@@ -63,7 +63,7 @@ class BHM_GiftAccess {
             $user = get_userdata($user_id);
         }
         if (class_exists('BHM_Gate') && BHM_Gate::user_owns_object($user->ID, $object_id)) {
-            return new WP_Error('owned', $email . ' already has access.');
+            return new WP_Error('owned', $email . ' ' . BHM_Words::get('admin.gift_access.already_has_access'));
         }
 
         $order = wc_create_order(['customer_id' => $user->ID, 'created_via' => 'bhm_gift']);
@@ -73,8 +73,8 @@ class BHM_GiftAccess {
         if ($message !== '') $order->set_customer_note($message);
         $order->calculate_totals(false);
         $giver = get_userdata($gifted_by);
-        $order->add_order_note('Gifted by ' . ($giver ? $giver->display_name : 'an admin') . ' via Gift access.');
-        $order->update_meta_data('_bhm_gift_access', 1);
+        $order->add_order_note(BHM_Words::get('admin.gift_access.gifted_by') . ' ' . ($giver ? $giver->display_name : 'an admin') . ' ' . BHM_Words::get('admin.gift_access.via_gift_access'));
+        $order->update_meta_data('_bhm_gift_access', '1');
         $order->save();
         $order->update_status('completed'); // runs the normal fulfilment hooks
         return $order->get_id();

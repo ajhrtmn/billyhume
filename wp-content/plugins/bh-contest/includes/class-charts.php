@@ -65,7 +65,7 @@ class BH_Charts {
             $known = wp_list_pluck($cats, 'slug');
             $orphan = 0;
             foreach ($by_slug as $slug => $v) if ($slug !== '' && !in_array($slug, $known, true)) $orphan += $v;
-            if ($orphan > 0) $slices[] = ['label' => __('(removed categories)', 'bh-contest'), 'value' => (float) $orphan, 'color' => '#7A7A7A'];
+            if ($orphan > 0) $slices[] = ['label' => BHCON_Words::get('admin.charts.removed_categories'), 'value' => (float) $orphan, 'color' => '#7A7A7A'];
         } else {
             $slices[] = ['label' => __('All votes', 'bh-contest'), 'value' => (float) ($by_slug[''] ?? array_sum($by_slug)), 'color' => $pal[0]];
         }
@@ -127,7 +127,10 @@ class BH_Charts {
 
     /* ---------------- data helpers ---------------- */
 
-    /** @param array<int, object> $rows submission_id + v */
+    /**
+     * @param array<int, object> $rows submission_id + v
+     * @return array<int, array<string, mixed>>
+     */
     private static function songs_to_slices(array $rows): array {
         $slices = [];
         foreach ($rows as $r) {
@@ -141,7 +144,11 @@ class BH_Charts {
         return self::cap_slices($slices);
     }
 
-    /** Fold everything past MAX_SLICES into one "Other (N)" wedge. */
+    /**
+     * Fold everything past MAX_SLICES into one "Other (N)" wedge.
+     * @param array<int, array<string, mixed>> $slices
+     * @return array<int, array<string, mixed>>
+     */
     private static function cap_slices(array $slices): array {
         if (count($slices) <= self::MAX_SLICES) return $slices;
         $keep = array_slice($slices, 0, self::MAX_SLICES - 1);
@@ -149,7 +156,7 @@ class BH_Charts {
         $sum = 0.0;
         foreach ($rest as $s) $sum += $s['value'];
         $keep[] = [
-            'label' => sprintf(_n('%d more', '%d more', count($rest), 'bh-contest'), count($rest)),
+            'label' => sprintf(_n(BHCON_Words::get('admin.charts.d_more'), BHCON_Words::get('admin.charts.d_more'), count($rest), 'bh-contest'), count($rest)),
             'value' => $sum,
             'color' => '#7A7A7A',
         ];
@@ -175,7 +182,7 @@ class BH_Charts {
 
         $r = 70.0;
         $c = 2 * M_PI * $r;
-        $svg = '<svg class="bh-chart-svg" viewBox="0 0 180 180" role="img" aria-label="' . esc_attr($aria ?: __('Vote breakdown', 'bh-contest')) . '">';
+        $svg = '<svg class="bh-chart-svg" viewBox="0 0 180 180" role="img" aria-label="' . esc_attr($aria ?: BHCON_Words::get('admin.charts.vote_breakdown')) . '">';
 
         if ($total <= 0) {
             $svg .= '<circle cx="90" cy="90" r="' . $r . '" fill="none" stroke="var(--bhy-border,#d7d7d7)" stroke-width="26"/>';
@@ -222,6 +229,7 @@ class BH_Charts {
     /**
      * The whole visualisation block for one contest.
      * $opts: ['compact' => bool, 'round' => ?int, 'heading' => bool]
+     * @param array<string, mixed> $opts
      */
     public static function render_section(int $cid, array $opts = []): void {
         $compact = !empty($opts['compact']);
@@ -235,36 +243,36 @@ class BH_Charts {
 
         self::print_style_once();
         echo '<div class="bh-charts">';
-        if (!empty($opts['heading'])) echo '<h2 class="bh-charts-title">' . esc_html__('Vote breakdown', 'bh-contest') . '</h2>';
-        echo '<p class="bh-charts-note">' . esc_html__('Snapshot as of this page load — reload to refresh.', 'bh-contest')
-           . ($round !== null ? ' ' . esc_html(sprintf(__('Round %d only.', 'bh-contest'), $round)) : '') . '</p>';
+        if (!empty($opts['heading'])) echo '<h2 class="bh-charts-title">' . esc_html(BHCON_Words::get('admin.charts.vote_breakdown')) . '</h2>';
+        echo '<p class="bh-charts-note">' . esc_html(BHCON_Words::get('admin.charts.snapshot_as_page_load_reload'))
+           . ($round !== null ? ' ' . esc_html(sprintf(BHCON_Words::get('admin.charts.round_d_only'), $round)) : '') . '</p>';
 
         if (!$has_votes && !in_array($format, ['judges', 'hybrid'], true)) {
-            echo '<p class="bh-charts-empty">' . esc_html__('No votes have been cast yet.', 'bh-contest') . '</p></div>';
+            echo '<p class="bh-charts-empty">' . esc_html(BHCON_Words::get('admin.charts.no_votes_have_been_cast')) . '</p></div>';
             return;
         }
 
         // --- overview row ---
         echo '<div class="bh-charts-row">';
         if ($cats) {
-            echo self::labelled(self::pie($cat_slices, __('votes', 'bh-contest'), __('Votes by category', 'bh-contest')), __('By category', 'bh-contest'));
+            echo self::labelled(self::pie($cat_slices, __('votes', 'bh-contest'), BHCON_Words::get('admin.charts.votes_by_category')), __('By category', 'bh-contest'));
         }
-        echo self::labelled(self::pie($song_slices, __('votes', 'bh-contest'), __('Votes by song', 'bh-contest')), __('By song (overall)', 'bh-contest'));
+        echo self::labelled(self::pie($song_slices, __('votes', 'bh-contest'), BHCON_Words::get('admin.charts.votes_by_song')), BHCON_Words::get('admin.charts.by_song_overall'));
         echo '</div>';
 
         if ($compact) {
             $url = add_query_arg(['post_type' => 'bh_contest', 'page' => 'bh-results', 'contest_id' => $cid], admin_url('edit.php'));
-            echo '<p class="bh-charts-more"><a href="' . esc_url($url) . '">' . esc_html__('Full breakdown, per category →', 'bh-contest') . '</a></p></div>';
+            echo '<p class="bh-charts-more"><a href="' . esc_url($url) . '">' . esc_html(BHCON_Words::get('admin.charts.full_breakdown_per_category')) . '</a></p></div>';
             return;
         }
 
         // --- one pie per category ---
         if ($cats && count($cats) > 1) {
-            echo '<h3 class="bh-charts-subtitle">' . esc_html__('Vote split within each category', 'bh-contest') . '</h3>';
+            echo '<h3 class="bh-charts-subtitle">' . esc_html(BHCON_Words::get('admin.charts.vote_split_within_each_category')) . '</h3>';
             echo '<div class="bh-charts-grid">';
             foreach ($cats as $c) {
                 $slices = self::vote_slices_by_song($cid, $round, (string) $c['slug']);
-                echo self::labelled(self::pie($slices, __('votes', 'bh-contest'), sprintf(__('Votes in %s', 'bh-contest'), $c['name'])), (string) $c['name']);
+                echo self::labelled(self::pie($slices, __('votes', 'bh-contest'), sprintf(BHCON_Words::get('admin.charts.votes_s'), $c['name'])), (string) $c['name']);
             }
             echo '</div>';
         }
@@ -274,11 +282,11 @@ class BH_Charts {
             $j_cat  = self::judge_slices_by_category($cid, $round);
             $j_song = self::judge_slices_by_song($cid, $round);
             if (array_sum(wp_list_pluck($j_cat, 'value')) > 0 || array_sum(wp_list_pluck($j_song, 'value')) > 0) {
-                echo '<h3 class="bh-charts-subtitle">' . esc_html__('Judge scores', 'bh-contest')
-                   . ' <span class="bh-charts-hint">' . esc_html__('(share of total rubric points)', 'bh-contest') . '</span></h3>';
+                echo '<h3 class="bh-charts-subtitle">' . esc_html(BHCON_Words::get('admin.charts.judge_scores'))
+                   . ' <span class="bh-charts-hint">' . esc_html(BHCON_Words::get('admin.charts.share_total_rubric_points')) . '</span></h3>';
                 echo '<div class="bh-charts-row">';
-                if ($cats) echo self::labelled(self::pie($j_cat, __('pts', 'bh-contest'), __('Judge points by category', 'bh-contest')), __('By category', 'bh-contest'));
-                echo self::labelled(self::pie($j_song, __('pts', 'bh-contest'), __('Judge points by song', 'bh-contest')), __('By song (overall)', 'bh-contest'));
+                if ($cats) echo self::labelled(self::pie($j_cat, __('pts', 'bh-contest'), BHCON_Words::get('admin.charts.judge_points_by_category')), __('By category', 'bh-contest'));
+                echo self::labelled(self::pie($j_song, __('pts', 'bh-contest'), BHCON_Words::get('admin.charts.judge_points_by_song')), BHCON_Words::get('admin.charts.by_song_overall'));
                 echo '</div>';
             }
         }

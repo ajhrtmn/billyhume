@@ -2,32 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Person list and detail view, built on shared identity (BHI_Profiles) plus two
- * filters other plugins may hook; it never queries another plugin's tables.
- *
- * 1. Add people to the list (beyond those with profile data):
- *
- *        add_filter('bh_crm_active_user_ids', function ($ids) {
- *            global $wpdb;
- *            return array_merge($ids, $wpdb->get_col(
- *                "SELECT DISTINCT user_id FROM {$wpdb->prefix}bh_votes"
- *            ));
- *        });
- *
- * 2. Add an activity section (summary line + optional detail renderer) to a person's page:
- *
- *        add_filter('bh_crm_activity_summary', function ($sections, $user_id) {
- *            $votes = BH_Helpers::user_total_votes($user_id);
- *            if (!$votes) return $sections;
- *            $sections[] = [
- *                'plugin'  => 'BH Contest',
- *                'summary' => "$votes votes cast",
- *                'render'  => fn() => BH_Participants_Activity::render_detail($user_id),
- *            ];
- *            return $sections;
- *        }, 10, 2);
- *
- * Hooking these is harmless when bh-crm isn't installed.
+ * People list and person page, on shared identity; never queries other plugin tables.
+ * Plugins can add people via bh_crm_active_user_ids and an activity section via
+ * bh_crm_activity_summary ([plugin, summary, render]).
  */
 class BHCRM_People {
     // The menu entry is registered by core's class-registry.php ('bh-crm'), not here.
@@ -69,7 +46,7 @@ class BHCRM_People {
     private static function render_list(): void {
         $ids = self::active_user_ids();
         if (!$ids) {
-            echo '<p>No one has a profile on file or any recorded activity yet. This list fills in on its own — nothing to configure.</p>';
+            echo ('<p>' . BHCRM_Words::get('admin.people.no_one_has_profile_file') . '</p>');
             return;
         }
 
@@ -84,12 +61,12 @@ class BHCRM_People {
         // Toolbar: one flex column with a single token-driven gap.
         echo '<div style="display:flex;flex-direction:column;gap:var(--bhy-space-3,12px);margin-bottom:var(--bhy-space-4,16px);">';
 
-        echo '<p style="margin:0;">Anyone with profile data on file or recorded activity. Click a name for their full detail.</p>';
+        echo ('<p style="margin:0;">' . BHCRM_Words::get('admin.people.anyone_with_profile_data_file') . '</p>');
 
         $all_tags = BHCRM_Tags::all_in_use();
         if ($all_tags) {
-            echo '<p style="margin:0;"><strong>Filter by tag:</strong> ';
-            echo '<a href="' . esc_url(remove_query_arg('tag')) . '">All</a> ';
+            echo ('<p style="margin:0;"><strong>' . BHCRM_Words::get('admin.people.filter_by_tag') . '</strong> ');
+            echo '<a href="' . esc_url(remove_query_arg('tag')) . ('">' . BHCRM_Words::get('admin.people.all') . '</a> ');
             foreach ($all_tags as $t) {
                 echo '&middot; <a href="' . esc_url(add_query_arg('tag', $t)) . '"' . ($tag_filter === $t ? ' style="font-weight:700;"' : '') . '>' . esc_html($t) . '</a> ';
             }
@@ -99,7 +76,7 @@ class BHCRM_People {
         self::render_segments_panel($active_segment);
 
         $export_url = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_export' . ($tag_filter ? '&tag=' . urlencode($tag_filter) : '')), 'bhcrm_export');
-        echo '<p style="margin:0;"><a class="button" href="' . esc_url($export_url) . '">Export CSV (all)</a></p>';
+        echo '<p style="margin:0;"><a class="button" href="' . esc_url($export_url) . ('">' . BHCRM_Words::get('admin.people.export_csv_all') . '</a></p>');
 
         // Search + sortable columns come from BHY_UI::print_design_system_js().
         echo '<input type="text" class="bhy-table-search" data-target="#bhcrm-people-table" placeholder="Filter by name, email, or tag&hellip;">';
@@ -113,7 +90,7 @@ class BHCRM_People {
         echo '<div class="bhcrm-bulk-bar" style="display:flex;align-items:center;gap:8px;margin:10px 0;flex-wrap:wrap;">';
         echo '<input type="text" name="bulk_tag" placeholder="Tag to apply…" style="max-width:200px;">';
         echo '<button type="submit" formaction="' . esc_url($bulk_tag_action) . '" class="button">Tag selected</button>';
-        echo '<button type="submit" formaction="' . esc_url($bulk_export_action) . '" class="button">Export selected (CSV)</button>';
+        echo '<button type="submit" formaction="' . esc_url($bulk_export_action) . ('" class="button">' . BHCRM_Words::get('admin.people.export_selected_csv') . '</button>');
         echo '<span class="description bhcrm-bulk-count">0 selected</span>';
         echo '</div>';
 
@@ -121,7 +98,7 @@ class BHCRM_People {
         echo '<div class="bhy-table-wrap bhy-table-wrap--tall">';
         echo '<table id="bhcrm-people-table" class="wp-list-table widefat striped bhy-sortable"><thead><tr>'
            . '<th style="width:24px;"><input type="checkbox" id="bhcrm-select-all"></th>'
-           . '<th data-sort>Name</th><th data-sort>Email</th><th>Tags</th><th style="min-width:220px;">Activity</th><th data-sort>Registered</th>'
+           . ('<th data-sort>' . BHCRM_Words::get('admin.people.name') . '</th><th data-sort>' . BHCRM_Words::get('admin.people.email') . '</th><th>' . BHCRM_Words::get('admin.people.tags') . '</th><th style="min-width:220px;">' . BHCRM_Words::get('admin.people.activity') . '</th><th data-sort>' . BHCRM_Words::get('admin.people.registered') . '</th>')
            . '</tr></thead><tbody>';
         foreach ($ids as $uid) {
             $user = get_userdata($uid);
@@ -162,7 +139,7 @@ class BHCRM_People {
             }
             echo '</div>';
         } else {
-            echo '<p class="description" style="margin:0 0 var(--bhy-space-3,12px);">No saved lists yet — build one below (e.g. "tagged vip AND registered after a date AND has an active project").</p>';
+            echo ('<p class="description" style="margin:0 0 var(--bhy-space-3,12px);">' . BHCRM_Words::get('admin.people.no_saved_lists_yet_build') . '</p>');
         }
 
         // segment-builder.js manages condition rows. With Datastar, input/change events bubble to the
@@ -173,7 +150,7 @@ class BHCRM_People {
         $preview_url = admin_url('admin-ajax.php?action=bhcrm_preview_segment');
 
         echo '<details id="bhcrm-segment-builder"' . ($has_datastar ? ' data-signals="{previewCount: null, previewTotal: null}"' : '') . '>';
-        echo '<summary style="cursor:pointer;color:var(--bhy-accent,#c1503a);font-size:var(--bhy-text-sm,12px);">+ Build a new list</summary>';
+        echo ('<summary style="cursor:pointer;color:var(--bhy-accent,#c1503a);font-size:var(--bhy-text-sm,12px);">' . BHCRM_Words::get('admin.people.build_new_list') . '</summary>');
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:var(--bhy-space-3,12px);">';
         wp_nonce_field('bhcrm_save_segment');
         echo '<input type="hidden" name="action" value="bhcrm_save_segment">';
@@ -182,7 +159,7 @@ class BHCRM_People {
         echo '<div id="bhcrm-segment-conditions"'
             . ($has_datastar ? ' data-on:input__debounce.350ms="@post(\'' . esc_js($preview_url) . '\', {contentType: \'form\'})" data-on:change__debounce.350ms="@post(\'' . esc_js($preview_url) . '\', {contentType: \'form\'})"' : '')
             . '></div>';
-        echo '<p><button type="button" class="button" id="bhcrm-add-condition">+ Add condition</button> ';
+        echo ('<p><button type="button" class="button" id="bhcrm-add-condition">' . BHCRM_Words::get('admin.people.add_condition') . '</button> ');
         if ($has_datastar) {
             echo '<span class="description" style="margin-left:8px;" data-show="$previewCount !== null" data-text="$previewCount + \' of \' + $previewTotal + \' people match\'"></span>';
         } else {
@@ -209,32 +186,32 @@ class BHCRM_People {
     private static function render_profile(int $uid): void {
         $p = BHI_Profiles::get($uid);
         $rows = array_filter([
-            ['Real name', $p['real_name'], $p['real_name_public']],
+            [BHCRM_Words::get('admin.export.real_name'), $p['real_name'], $p['real_name_public']],
             ['Discord',   $p['discord_name'], $p['discord_public']],
             ['Twitch',    $p['twitch_name'], $p['twitch_public']],
             ['YouTube',   $p['youtube_name'], $p['youtube_public']],
         ], fn($r) => $r[1] !== '');
 
-        echo '<h3>Profile</h3>';
+        echo ('<h3>' . BHCRM_Words::get('admin.people.profile') . '</h3>');
         if (!$rows && !$p['typical_platform'] && $p['phone'] === '') {
-            echo '<p><em>No profile data collected yet.</em></p>';
+            echo ('<p><em>' . BHCRM_Words::get('admin.people.no_profile_data_collected_yet') . '</em></p>');
             return;
         }
         if ($rows) {
             echo '<div class="bhy-table-wrap">';
-            echo '<table class="wp-list-table widefat striped"><thead><tr><th>Field</th><th>Value</th><th>Consent to share</th></tr></thead><tbody>';
+            echo ('<table class="wp-list-table widefat striped"><thead><tr><th>' . BHCRM_Words::get('admin.people.field') . '</th><th>' . BHCRM_Words::get('admin.people.value') . '</th><th>' . BHCRM_Words::get('admin.people.consent_share') . '</th></tr></thead><tbody>');
             foreach ($rows as [$label, $value, $public]) {
                 echo '<tr><td>' . esc_html($label) . '</td><td>' . esc_html($value) . '</td>'
-                   . '<td>' . ($public ? '&#10003; OK to share' : 'Keep private') . '</td></tr>';
+                   . '<td>' . ($public ? '&#10003; OK to share' : BHCRM_Words::get('admin.people.keep_private')) . '</td></tr>';
             }
             echo '</tbody></table></div>';
         }
-        if ($p['typical_platform']) echo '<p><strong>Usually watches on:</strong> ' . esc_html(ucfirst($p['typical_platform'])) . '</p>';
+        if ($p['typical_platform']) echo ('<p><strong>' . BHCRM_Words::get('admin.people.usually_watches') . '</strong> ') . esc_html(ucfirst($p['typical_platform'])) . '</p>';
         // WHY: the phone number needs bhcore_view_crm_sensitive, beyond the page's bhcore_manage_crm.
         if ($p['phone'] !== '' && current_user_can('bhcore_view_crm_sensitive')) {
-            echo '<p><strong>Phone</strong> (direct contact only, never shared): ' . esc_html($p['phone']) . '</p>';
+            echo ('<p><strong>' . BHCRM_Words::get('admin.people.phone') . '</strong> ' . BHCRM_Words::get('admin.people.direct_contact_only_never_shared') . ' ') . esc_html($p['phone']) . '</p>';
         } elseif ($p['phone'] !== '') {
-            echo '<p><em>Phone on file — hidden (admin only).</em></p>';
+            echo ('<p><em>' . BHCRM_Words::get('admin.people.phone_file_hidden_admin_only') . '</em></p>');
         }
     }
 
@@ -258,7 +235,7 @@ class BHCRM_People {
         if ($p['profile_public'] && $public_profiles_live) {
             echo '<a href="' . esc_url(BHI_PublicProfile::profile_url($uid)) . '" target="_blank">View public profile page &rarr;</a>';
         } else {
-            echo '<span style="color:var(--bhy-text-dim,#777);">Profile page not public</span>';
+            echo ('<span style="color:var(--bhy-text-dim,#777);">' . BHCRM_Words::get('admin.people.profile_page_not_public') . '</span>');
         }
         echo '</div></div>';
         if ($p['bio']) {
@@ -269,7 +246,7 @@ class BHCRM_People {
 
     private static function render_detail(int $uid): void {
         $user = get_userdata($uid);
-        if (!$user) { echo '<p>User not found.</p>'; return; }
+        if (!$user) { echo ('<p>' . BHCRM_Words::get('admin.people.user_not_found') . '</p>'); return; }
 
         echo '<p style="margin-bottom:var(--bhy-space-4,16px);"><a href="' . esc_url(remove_query_arg('user_id')) . '">&larr; All people</a></p>';
 
@@ -279,7 +256,7 @@ class BHCRM_People {
         echo '<div class="bhy-card">';
         echo '<h2 style="text-transform:none;letter-spacing:normal;font-size:var(--bhy-text-xl,20px);color:var(--bhy-ink,inherit);">' . esc_html($user->display_name) . '</h2>';
         echo '<p>' . esc_html($user->user_email) . ' &middot; Registered ' . esc_html(mysql2date('M j, Y', $user->user_registered))
-           . ' &middot; <a href="' . esc_url(get_edit_user_link($uid)) . '">Edit WordPress profile</a></p>';
+           . ' &middot; <a href="' . esc_url(get_edit_user_link($uid)) . ('">' . BHCRM_Words::get('admin.people.edit_wordpress_profile') . '</a></p>');
         self::render_profile($uid);
         echo '</div>';
 
@@ -300,7 +277,7 @@ class BHCRM_People {
         $sections = apply_filters('bh_crm_activity_summary', [], $uid);
         if ($sections) {
             echo '<div class="bhy-card">';
-            echo '<h3>Activity</h3>';
+            echo ('<h3>' . BHCRM_Words::get('admin.people.activity') . '</h3>');
             foreach ($sections as $section) {
                 echo '<h4>' . esc_html($section['plugin']) . '</h4><p>' . esc_html($section['summary']) . '</p>';
                 if (!empty($section['render'])) call_user_func($section['render']);
@@ -314,13 +291,13 @@ class BHCRM_People {
 add_filter('bhcore_metrics_widgets', function ($widgets) {
     if (!class_exists('OUS_Metrics')) return $widgets;
 
-    $widgets[] = ['source' => 'BH CRM', 'render' => function () {
+    $widgets[] = ['source' => BHCRM_Words::get('admin.people.bh_crm'), 'render' => function () {
         $people = count(apply_filters('bh_crm_active_user_ids', []));
-        OUS_Metrics::render_card('People tracked', $people, 'Total, all-time');
+        OUS_Metrics::render_card(BHCRM_Words::get('admin.people.people_tracked'), $people, BHCRM_Words::get('admin.people.total_all_time'));
     }];
-    $widgets[] = ['source' => 'BH CRM', 'render' => function () {
+    $widgets[] = ['source' => BHCRM_Words::get('admin.people.bh_crm'), 'render' => function () {
         $trend = OUS_Metrics::event_trend_monthly('bhcrm/link_created', 12);
-        OUS_Metrics::render_card('Relationship links', array_sum($trend), 'Last 12 months', $trend);
+        OUS_Metrics::render_card(BHCRM_Words::get('admin.people.relationship_links'), array_sum($trend), BHCRM_Words::get('admin.people.last_12_months'), $trend);
     }];
     return $widgets;
 });

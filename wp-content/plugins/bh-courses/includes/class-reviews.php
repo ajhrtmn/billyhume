@@ -32,11 +32,12 @@ class BHC_Reviews {
         return $course_id && (bool) get_post_meta($course_id, '_bhc_reviews_enabled', true);
     }
 
+    /** @return true|\WP_Error */
     public static function submit_review(int $user_id, int $course_id, int $rating, string $body) {
-        if (!$user_id || !$course_id) return new WP_Error('bhc_review_invalid', 'Missing user or course.');
-        if (!self::enabled_for($course_id)) return new WP_Error('bhc_review_disabled', 'Reviews are turned off for this course.');
+        if (!$user_id || !$course_id) return new WP_Error('bhc_review_invalid', BHC_Words::get('admin.reviews.missing_user_course'));
+        if (!self::enabled_for($course_id)) return new WP_Error('bhc_review_disabled', BHC_Words::get('admin.reviews.reviews_are_turned_off_course'));
         if (!BHC_Progress::enrolled_at($user_id, $course_id)) {
-            return new WP_Error('bhc_review_not_enrolled', 'You need to be enrolled in this course to leave a review.');
+            return new WP_Error('bhc_review_not_enrolled', BHC_Words::get('admin.reviews.need_enrolled_course_leave_review'));
         }
 
         $rating = max(1, min(5, (int) $rating));
@@ -50,14 +51,14 @@ class BHC_Reviews {
              ON DUPLICATE KEY UPDATE rating = VALUES(rating), body = VALUES(body), status = 'pending', completed_at_review = VALUES(completed_at_review), updated_at = CURRENT_TIMESTAMP",
             $user_id, $course_id, $rating, $body, $completed
         ));
-        if ($result === false) return new WP_Error('bhc_review_db_error', 'Could not save your review — please try again.');
+        if ($result === false) return new WP_Error('bhc_review_db_error', BHC_Words::get('admin.reviews.could_not_save_review_please'));
         return true;
     }
 
     public static function ajax_submit_review(): void {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();
-        if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
+        if (!$user_id) wp_send_json_error(['message' => BHC_Words::get('admin.progress.log_required')], 401);
 
         $course_id = (int) ($_POST['course_id'] ?? 0);
         $rating = (int) ($_POST['rating'] ?? 0);
@@ -65,7 +66,7 @@ class BHC_Reviews {
 
         $result = self::submit_review($user_id, $course_id, $rating, $body);
         if (is_wp_error($result)) wp_send_json_error(['message' => $result->get_error_message()], 403);
-        wp_send_json_success(['message' => 'Thanks — your review is awaiting approval before it appears publicly.']);
+        wp_send_json_success(['message' => BHC_Words::get('admin.reviews.thanks_review_awaiting_approval_before')]);
     }
 
     /* ---------------- reads ---------------- */
@@ -152,12 +153,12 @@ class BHC_Reviews {
     public static function render_admin(): void {
         if (!current_user_can(self::required_cap())) wp_die('Not allowed.', '', ['back_link' => true]);
 
-        echo '<div class="wrap"><h1>Course Reviews</h1>';
+        echo ('<div class="wrap"><h1>' . BHC_Words::get('admin.reviews.course_reviews') . '</h1>');
 
         $pending = self::pending_reviews();
-        echo '<h2>Pending approval</h2>';
+        echo ('<h2>' . BHC_Words::get('admin.reviews.pending_approval') . '</h2>');
         if (!$pending) {
-            echo '<p class="description">No reviews waiting on approval right now.</p>';
+            echo ('<p class="description">' . BHC_Words::get('admin.reviews.no_reviews_waiting_approval_right') . '</p>');
         } else {
             self::render_review_table($pending, true);
         }
@@ -168,9 +169,9 @@ class BHC_Reviews {
             "SELECT * FROM " . self::table() . " WHERE status IN ('approved','rejected') ORDER BY updated_at DESC LIMIT 50",
             ARRAY_A
         );
-        echo '<h2 style="margin-top:24px;">Recently moderated</h2>';
+        echo ('<h2 style="margin-top:24px;">' . BHC_Words::get('admin.reviews.recently_moderated') . '</h2>');
         if (!$recent) {
-            echo '<p class="description">Nothing moderated yet.</p>';
+            echo ('<p class="description">' . BHC_Words::get('admin.reviews.nothing_moderated_yet') . '</p>');
         } else {
             self::render_review_table($recent, false);
         }
@@ -180,23 +181,23 @@ class BHC_Reviews {
 
     /** @param array<int, array<string, mixed>> $rows */
     private static function render_review_table($rows, bool $show_actions): void {
-        echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>Course</th><th>Student</th><th>Rating</th><th>Review</th><th>Status</th>';
+        echo ('<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>' . BHC_Words::get('admin.crm_integration.course') . '</th><th>' . BHC_Words::get('admin.progress_admin.student') . '</th><th>' . BHC_Words::get('admin.reviews.rating') . '</th><th>' . BHC_Words::get('admin.reviews.review') . '</th><th>' . BHC_Words::get('admin.reviews.status') . '</th>');
         if ($show_actions) echo '<th></th>';
         echo '</tr></thead><tbody>';
         foreach ($rows as $row) {
             $user = get_userdata((int) $row['user_id']);
-            $name = $user ? ($user->display_name ?: $user->user_login) : 'User #' . $row['user_id'];
-            $course_title = get_the_title((int) $row['course_id']) ?: 'Course #' . $row['course_id'];
+            $name = $user ? ($user->display_name ?: $user->user_login) : BHC_Words::get('admin.reviews.user') . $row['user_id'];
+            $course_title = get_the_title((int) $row['course_id']) ?: BHC_Words::get('admin.reviews.course') . $row['course_id'];
             echo '<tr>';
             echo '<td>' . esc_html($course_title) . '</td>';
-            echo '<td>' . esc_html($name) . ($row['completed_at_review'] ? ' <span class="description">(completed course)</span>' : ' <span class="description">(enrolled, not yet completed)</span>') . '</td>';
+            echo '<td>' . esc_html($name) . ($row['completed_at_review'] ? (' <span class="description">' . BHC_Words::get('admin.reviews.completed_course') . '</span>') : (' <span class="description">' . BHC_Words::get('admin.reviews.enrolled_not_yet_completed') . '</span>')) . '</td>';
             echo '<td>' . str_repeat('&#9733;', (int) $row['rating']) . str_repeat('&#9734;', 5 - (int) $row['rating']) . '</td>';
             echo '<td>' . esc_html(wp_trim_words($row['body'], 25)) . '</td>';
             echo '<td>' . esc_html(ucfirst($row['status'])) . '</td>';
             if ($show_actions) {
                 $approve_url = wp_nonce_url(admin_url('admin-post.php?action=bhc_review_approve&review_id=' . (int) $row['id']), 'bhc_review_moderate');
                 $reject_url = wp_nonce_url(admin_url('admin-post.php?action=bhc_review_reject&review_id=' . (int) $row['id']), 'bhc_review_moderate');
-                echo '<td><a class="button button-primary button-small" href="' . esc_url($approve_url) . '">Approve</a> <a class="button button-small" href="' . esc_url($reject_url) . '">Reject</a></td>';
+                echo '<td><a class="button button-primary button-small" href="' . esc_url($approve_url) . ('">' . BHC_Words::get('admin.reviews.approve') . '</a> <a class="button button-small" href="') . esc_url($reject_url) . ('">' . BHC_Words::get('admin.reviews.reject') . '</a></td>');
             }
             echo '</tr>';
         }

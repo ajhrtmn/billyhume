@@ -2,10 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Optional TOTP (RFC 6238) two-factor auth in plain PHP. Off site-wide by
- * default; when on, opt-in per user, and only enforced after enrollment is
- * confirmed with a real code. Enforced once in the 'authenticate' filter, which
- * covers both wp-login.php and the REST login (both use wp_signon()).
+ * Optional TOTP two-factor (RFC 6238): off site-wide by default, opt-in per user, enforced
+ * after enrollment in the authenticate filter (covers wp-login.php and REST login).
  */
 class BHI_TwoFactor {
     const SECRET_META_KEY = 'bhcore_2fa_secret';
@@ -129,14 +127,14 @@ class BHI_TwoFactor {
             );
         }
 
-        return new WP_Error('bhcore_2fa_required', __('<strong>Error</strong>: Enter the 6-digit code from your authenticator app.'));
+        return new WP_Error('bhcore_2fa_required', __(('<strong>' . OUS_Words::get('admin.two_factor.error') . '</strong>' . OUS_Words::get('admin.two_factor.enter_6_digit_code_from'))));
     }
 
     // Always shown once the feature is on; accounts without 2FA leave it blank
     // and gate_login() ignores it.
     public static function render_code_field(): void {
         if (!self::site_enabled()) return;
-        echo '<p><label for="bhcore_2fa_code">Authentication code <span class="description">(only if you have 2FA enabled on your account)</span><br>';
+        echo ('<p><label for="bhcore_2fa_code">' . OUS_Words::get('admin.two_factor.authentication_code') . ' <span class="description">' . OUS_Words::get('admin.two_factor.only_if_have_2fa_enabled') . '</span><br>');
         echo '<input type="text" name="bhcore_2fa_code" id="bhcore_2fa_code" class="input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="width:100%;"></label></p>';
     }
 
@@ -145,7 +143,7 @@ class BHI_TwoFactor {
     public static function render_profile_fields(\WP_User $user): void {
         if (!self::site_enabled()) {
             if (current_user_can('manage_options')) {
-                echo '<h2>Two-Factor Authentication</h2><p class="description">Disabled site-wide. Turn it on under <a href="' . esc_url(admin_url('admin.php?page=ous-security')) . '">The Self-Hosted Self → Security</a> before anyone can enroll.</p>';
+                echo ('<h2>' . OUS_Words::get('admin.two_factor.two_factor_authentication') . '</h2><p class="description">' . OUS_Words::get('admin.two_factor.disabled_site_wide_turn_under') . ' <a href="') . esc_url(admin_url('admin.php?page=ous-security')) . ('">' . OUS_Words::get('admin.two_factor.self_hosted_self_security') . '</a> ' . OUS_Words::get('admin.two_factor.before_anyone_can_enroll') . '</p>');
             }
             return;
         }
@@ -153,25 +151,25 @@ class BHI_TwoFactor {
         $is_own_profile = get_current_user_id() === $user->ID;
         $enabled = self::user_has_2fa($user->ID);
 
-        echo '<h2>Two-Factor Authentication</h2>';
+        echo ('<h2>' . OUS_Words::get('admin.two_factor.two_factor_authentication') . '</h2>');
         if (!$is_own_profile) {
-            echo '<p>' . ($enabled ? 'Enabled' : 'Not enabled') . ' for this account.</p>';
+            echo '<p>' . ($enabled ? 'Enabled' : OUS_Words::get('admin.two_factor.not_enabled')) . (' ' . OUS_Words::get('admin.two_factor.account') . '</p>');
             return;
         }
 
         echo '<div id="bhcore-2fa-panel" data-enabled="' . ($enabled ? '1' : '0') . '" data-nonce="' . esc_attr(wp_create_nonce('bhcore_2fa')) . '">';
         if ($enabled) {
-            echo '<p>Enabled on your account. <button type="button" class="button" id="bhcore-2fa-disable">Disable</button></p>';
+            echo ('<p>' . OUS_Words::get('admin.two_factor.enabled_account') . ' <button type="button" class="button" id="bhcore-2fa-disable">' . OUS_Words::get('admin.two_factor.disable') . '</button></p>');
         } else {
-            echo '<p><button type="button" class="button" id="bhcore-2fa-start">Set up two-factor authentication</button></p>';
-            echo '<div id="bhcore-2fa-setup" style="display:none;max-width:420px;">
-                <p>Scan this with any authenticator app (Google Authenticator, Authy, 1Password, etc.), or enter the secret manually:</p>
+            echo ('<p><button type="button" class="button" id="bhcore-2fa-start">' . OUS_Words::get('admin.two_factor.set_up_two_factor_authentication') . '</button></p>');
+            echo ('<div id="bhcore-2fa-setup" style="display:none;max-width:420px;">
+                <p>' . OUS_Words::get('admin.two_factor.scan_with_any_authenticator_app') . '</p>
                 <p><img id="bhcore-2fa-qr" src="" alt="QR code" style="border:1px solid #ccd0d4;"></p>
                 <p><code id="bhcore-2fa-secret-text"></code></p>
-                <p><label>Enter the 6-digit code your app shows to confirm setup: <input type="text" id="bhcore-2fa-confirm-code" maxlength="6" inputmode="numeric" style="width:100px;"></label>
+                <p><label>' . OUS_Words::get('admin.two_factor.enter_6_digit_code_app') . ' <input type="text" id="bhcore-2fa-confirm-code" maxlength="6" inputmode="numeric" style="width:100px;"></label>
                 <button type="button" class="button button-primary" id="bhcore-2fa-confirm">Confirm &amp; enable</button></p>
                 <p id="bhcore-2fa-error" class="bh-alert bh-alert-error" role="alert" hidden></p>
-            </div>';
+            </div>');
         }
         echo '</div>';
         self::enqueue_profile_script();
@@ -258,7 +256,7 @@ class BHI_TwoFactor {
     public static function ajax_start_enroll(): void {
         check_ajax_referer('bhcore_2fa', 'nonce');
         $user_id = get_current_user_id();
-        if (!$user_id || !self::site_enabled()) wp_send_json_error(['message' => 'Not available.'], 403);
+        if (!$user_id || !self::site_enabled()) wp_send_json_error(['message' => OUS_Words::get('admin.two_factor.not_available')], 403);
 
         // WHY: a fresh secret is stored as PENDING and only goes live after a
         // real code confirms it, so a botched scan cannot lock anyone out.
@@ -277,11 +275,11 @@ class BHI_TwoFactor {
         if (!$user_id) wp_send_json_error([], 403);
 
         $pending_secret = get_user_meta($user_id, self::PENDING_META_KEY, true);
-        if (!$pending_secret) wp_send_json_error(['message' => 'Start setup first.'], 400);
+        if (!$pending_secret) wp_send_json_error(['message' => OUS_Words::get('admin.two_factor.start_setup_first')], 400);
 
         $code = sanitize_text_field($_POST['code'] ?? '');
         if (!self::verify_code($user_id, $code, $pending_secret)) {
-            wp_send_json_error(['message' => 'That code didn\'t match — try the current code from your app.'], 400);
+            wp_send_json_error(['message' => OUS_Words::get('admin.two_factor.code_didn_t_match_try')], 400);
         }
 
         update_user_meta($user_id, self::SECRET_META_KEY, $pending_secret);
@@ -315,14 +313,14 @@ class BHI_TwoFactor {
         $enabled = self::site_enabled();
         $enrolled_count = (int) (new WP_User_Query(['meta_key' => self::ENABLED_META_KEY, 'meta_value' => '1', 'fields' => 'ID', 'number' => 0, 'count_total' => true]))->get_total();
 
-        echo '<div class="wrap"><h1>Security</h1>';
-        echo '<h2>Two-Factor Authentication</h2>';
-        echo '<p class="description">Entirely your call as the site holder — off by default, and off means zero change to how anyone logs in. Turning it on doesn\'t force it on anyone: each person still opts in individually from their own profile screen.</p>';
+        echo ('<div class="wrap"><h1>' . OUS_Words::get('admin.two_factor.security') . '</h1>');
+        echo ('<h2>' . OUS_Words::get('admin.two_factor.two_factor_authentication') . '</h2>');
+        echo ('<p class="description">' . OUS_Words::get('admin.two_factor.entirely_call_as_site_holder') . '</p>');
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="bhcore_save_2fa_site_setting">';
         wp_nonce_field('bhcore_2fa_site_setting');
-        echo '<p><label><input type="checkbox" name="bhcore_2fa_site_enabled" value="1"' . checked($enabled, true, false) . '> Allow users to enable two-factor authentication on this site</label></p>';
-        echo '<p class="description">' . $enrolled_count . ' account(s) currently have 2FA enabled.</p>';
+        echo '<p><label><input type="checkbox" name="bhcore_2fa_site_enabled" value="1"' . checked($enabled, true, false) . ('> ' . OUS_Words::get('admin.two_factor.allow_users_enable_two_factor') . '</label></p>');
+        echo '<p class="description">' . $enrolled_count . (' ' . OUS_Words::get('admin.two_factor.account_s_currently_have_2fa') . '</p>');
         submit_button('Save');
         echo '</form></div>';
     }

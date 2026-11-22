@@ -38,7 +38,7 @@ class BHCRM_Tags {
         // Handed to tag-chips.js via a data attribute.
         $suggestions = BHCRM_Tags::all_in_use();
 
-        echo '<h3>Tags</h3>';
+        echo ('<h3>' . BHCRM_Words::get('admin.people.tags') . '</h3>');
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         wp_nonce_field('bhcrm_save_tags');
         echo '<input type="hidden" name="action" value="bhcrm_save_tags">';
@@ -75,10 +75,10 @@ class BHCRM_Tags {
         }
 
         if (class_exists('OUS_Toast')) {
-            OUS_Toast::queue($tag === '' ? 'Enter a tag to apply.' : "Tagged $count " . ($count === 1 ? 'person' : 'people') . " with \"$tag\".", $tag === '' ? 'error' : 'success');
+            OUS_Toast::queue($tag === '' ? BHCRM_Words::get('admin.tags.enter_tag_apply') : "Tagged $count " . ($count === 1 ? 'person' : 'people') . " with \"$tag\".", $tag === '' ? 'error' : 'success');
         }
 
-        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'bhcrm_msg' => rawurlencode($tag === '' ? 'Enter a tag to apply.' : "Tagged $count people.")], admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'bhcrm_msg' => rawurlencode($tag === '' ? BHCRM_Words::get('admin.tags.enter_tag_apply') : "Tagged $count people.")], admin_url('admin.php')));
         exit;
     }
 

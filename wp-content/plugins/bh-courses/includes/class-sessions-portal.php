@@ -19,7 +19,7 @@ class BHC_SessionsPortal {
         if (!is_admin() && class_exists('BHC_Sessions') && !BHC_Sessions::for_student($uid) && !BHC_Sessions::open_slots()) return $panels;
         $panels[] = [
             'id' => 'sessions',
-            'label' => 'Sessions',
+            'label' => BHC_Words::get('admin.sessions_portal.sessions'),
             'icon' => 'dashicons-calendar-alt',
             'render' => [self::class, 'render'],
             'priority' => 35, // right after Courses (30), same neighborhood

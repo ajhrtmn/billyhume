@@ -2,15 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Vendored Datastar (assets/js/vendor/datastar.js, MIT) for interactive admin UI, plus SSE
- * response helpers. Deliberately not a dependency on the HyperPress plugin.
- *
- *   if (class_exists('OUS_Hypermedia')) OUS_Hypermedia::enqueue();   // on admin_enqueue_scripts
- *   <button data-on:click="@get('/wp-json/my/v1/thing')">...</button>
- *
- *   OUS_Hypermedia::sse_headers();
- *   OUS_Hypermedia::patch_elements('<div id="result">Done</div>');
- *   exit;
+ * Vendored Datastar (MIT) for interactive admin UI, plus SSE helpers:
+ *   OUS_Hypermedia::enqueue(); OUS_Hypermedia::sse_headers(); OUS_Hypermedia::patch_elements($html);
  */
 class OUS_Hypermedia {
     const ASSET_VERSION = '1.0.2'; // the vendored Datastar release tag — bump both together

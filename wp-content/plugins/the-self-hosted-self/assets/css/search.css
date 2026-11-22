@@ -1,7 +1,4 @@
-/* [ous_search] shortcode — draws on BHY_Style's real --bh-* design
- * tokens (BHY_Style::inline_css(), printed on every front-end page via
- * wp_head), same convention every other front-end widget in this
- * ecosystem already follows. */
+/* [ous_search] shortcode, styled with the site --bh-* design tokens. */
 
 .ous-search {
     position:relative;

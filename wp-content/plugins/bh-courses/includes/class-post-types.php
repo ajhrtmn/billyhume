@@ -2,10 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * - bh_course: holds an ordered list of lesson IDs in `_bhc_lesson_order`; optionally
- *   tier-gated via `_bhm_required_tier` (class-gate.php).
- * - bh_lesson: belongs to one course (`_bhc_course_id`); its body is an ordered array of
- *   steps (class-steps.php).
+ * bh_course: ordered lesson IDs in _bhc_lesson_order (optional tier gate in _bhm_required_tier).
+ * bh_lesson: belongs to one course (_bhc_course_id); its body is an ordered list of steps.
  */
 class BHC_PostTypes {
     const MENU_PARENT = 'edit.php?post_type=bh_course';
@@ -13,8 +11,8 @@ class BHC_PostTypes {
     public static function register(): void {
         register_post_type('bh_course', [
             'labels' => [
-                'name' => 'Courses', 'menu_name' => 'Courses', 'singular_name' => 'Course',
-                'add_new_item' => 'Add New Course', 'edit_item' => 'Edit Course', 'all_items' => 'All Courses',
+                'name' => BHC_Words::get('admin.post_types.courses'), 'menu_name' => BHC_Words::get('admin.post_types.courses'), 'singular_name' => BHC_Words::get('admin.crm_integration.course'),
+                'add_new_item' => BHC_Words::get('admin.post_types.add_new_course'), 'edit_item' => BHC_Words::get('admin.admin.edit_course'), 'all_items' => BHC_Words::get('admin.post_types.all_courses'),
             ],
             // No archive: /courses/ is a real Page with the bhc/catalog block.
             'public' => true, 'show_ui' => true, 'show_in_menu' => true, 'has_archive' => false,
@@ -29,13 +27,13 @@ class BHC_PostTypes {
         // Real taxonomies. 'rewrite' => false: no term archives, only catalog filtering, which
         // avoids needing a versioned rewrite flush.
         register_taxonomy('bhc_course_category', 'bh_course', [
-            'labels' => ['name' => 'Course Categories', 'singular_name' => 'Category'],
+            'labels' => ['name' => BHC_Words::get('admin.post_types.course_categories'), 'singular_name' => BHC_Words::get('admin.post_types.category')],
             'public' => true, 'show_ui' => true, 'show_in_menu' => true, 'show_in_rest' => true,
             'hierarchical' => true, // like core Categories ("Music Production" > "Mixing") — a course has a home category, possibly nested
             'rewrite' => false,
         ]);
         register_taxonomy('bhc_course_topic', 'bh_course', [
-            'labels' => ['name' => 'Course Topics', 'singular_name' => 'Topic'],
+            'labels' => ['name' => BHC_Words::get('admin.post_types.course_topics'), 'singular_name' => BHC_Words::get('admin.post_types.topic')],
             'public' => true, 'show_ui' => true, 'show_in_menu' => true, 'show_in_rest' => true,
             'hierarchical' => false, // like core Tags — flat, many-per-course
             'rewrite' => false,
@@ -43,16 +41,14 @@ class BHC_PostTypes {
 
         register_post_type('bh_lesson', [
             'labels' => [
-                'name' => 'Lessons', 'singular_name' => 'Lesson', 'add_new_item' => 'Add New Lesson',
-                'edit_item' => 'Edit Lesson', 'all_items' => 'All Lessons',
+                'name' => BHC_Words::get('admin.post_types.lessons'), 'singular_name' => BHC_Words::get('admin.post_types.lesson'), 'add_new_item' => BHC_Words::get('admin.post_types.add_new_lesson'),
+                'edit_item' => BHC_Words::get('admin.post_types.edit_lesson'), 'all_items' => 'All Lessons',
             ],
             // Public so lesson URLs work; gating happens at render time.
             'public' => true, 'show_ui' => true, 'show_in_menu' => self::MENU_PARENT,
             'rewrite' => ['slug' => 'lesson'],
-            // 'editor' + show_in_rest: steps are authored as bhc/* blocks (BHC_ContentBridge).
-            // 'revisions': steps are post_content, so native revisions cover them.
-            // 'custom-fields': required for REST to expose `meta` to the Lesson sidebar panel.
-            // 'excerpt': the short description under each lesson on the course page.
+            // editor + show_in_rest: steps are bhc/* blocks; revisions cover post_content;
+            // custom-fields exposes meta to the Lesson sidebar; excerpt is the course-page blurb.
             'supports' => ['title', 'editor', 'excerpt', 'revisions', 'custom-fields'], 'show_in_rest' => true, 'capability_type' => 'post',
         ]);
     }

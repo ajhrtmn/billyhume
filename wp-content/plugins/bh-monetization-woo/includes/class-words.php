@@ -20,6 +20,14 @@ class BHM_Words {
         return self::$words;
     }
 
+    /**
+     * Everything except the admin-screen wording, for pages that pass the words to JavaScript.
+     * @return array<string, string>
+     */
+    public static function for_browser(): array {
+        return array_filter(self::all(), fn($key) => strpos($key, 'admin.') !== 0, ARRAY_FILTER_USE_KEY);
+    }
+
     /** Plain text with {placeholders} filled in. Not escaped: use e() or html() to print. */
     /** @param array<string, string|int> $vars */
     public static function get(string $key, array $vars = []): string {

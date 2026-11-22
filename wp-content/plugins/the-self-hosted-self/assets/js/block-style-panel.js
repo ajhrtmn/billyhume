@@ -1,9 +1,7 @@
 "use strict";
 /**
- * "Advanced Styles": a generic InspectorControls panel on every block; the
- * client half of class-block-style.php. The property vocabulary comes entirely
- * from `bhyBlockStyleSchema` (BHY_Style::style_schema_for_js()), so new
- * PROPERTY_MAP entries need no JS changes.
+ * "Advanced Styles" panel on every block: the client half of class-block-style.php.
+ * Properties come from bhyBlockStyleSchema, so new PROPERTY_MAP entries need no JS.
  */
 (function () {
     var wp = window.wp;

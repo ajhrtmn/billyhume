@@ -1,7 +1,5 @@
-/* BH_Studio canvas layout — deliberately plain flex/grid, no
- * absolute positioning anywhere in this file, matching the same
- * constraint enforced in studio.js (supports.position: false on every
- * registered block). */
+/* BH_Studio canvas: plain flex/grid with no absolute positioning, matching
+ * studio.js (supports.position: false on every block). */
 
 #bh-studio-root {
     display: flex;

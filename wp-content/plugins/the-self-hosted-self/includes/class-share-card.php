@@ -94,13 +94,8 @@ class BH_ShareCard {
     }
 
     /**
-     * $args:
-     *   style     'brand' (default) or a 'poster*' style
-     *   eyebrow   small uppercase label above the title, e.g. "COURSE COMPLETE"
-     *   title     the headline
-     *   subtitle  smaller line under the title
-     *   entity_id optional post ID; 'brand' uses that entity's style override
-     * Caller must imagepng()/imagedestroy() the returned image.
+     * $args: style (brand or poster*), eyebrow, title, subtitle, entity_id.
+     * The caller must imagepng()/imagedestroy() the returned image.
      */
     /**
      * @param array<string, mixed> $args

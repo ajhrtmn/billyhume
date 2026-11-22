@@ -22,7 +22,7 @@ class BHCRM_Export {
         header('Content-Disposition: attachment; filename="people-' . gmdate('Y-m-d') . '.csv"');
 
         $out = fopen('php://output', 'w');
-        fputcsv($out, ['Name', 'Email', 'Real name', 'Discord', 'Twitch', 'YouTube', 'Tags', 'Notes', 'Registered']);
+        fputcsv($out, ['Name', 'Email', BHCRM_Words::get('admin.export.real_name'), 'Discord', 'Twitch', 'YouTube', 'Tags', 'Notes', 'Registered']);
         foreach ($ids as $uid) {
             $user = get_userdata($uid);
             if (!$user) continue;

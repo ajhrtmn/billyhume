@@ -17,7 +17,7 @@ class OUS_Privacy {
      */
     public static function register_exporter($exporters): array {
         $exporters['the-self-hosted-self-profile'] = [
-            'exporter_friendly_name' => __('The Self-Hosted Self — Profile', 'the-self-hosted-self'),
+            'exporter_friendly_name' => OUS_Words::get('admin.privacy.self_hosted_self_profile'),
             'callback' => [self::class, 'export_profile'],
         ];
         return $exporters;
@@ -29,7 +29,7 @@ class OUS_Privacy {
      */
     public static function register_eraser($erasers): array {
         $erasers['the-self-hosted-self-profile'] = [
-            'eraser_friendly_name' => __('The Self-Hosted Self — Profile', 'the-self-hosted-self'),
+            'eraser_friendly_name' => OUS_Words::get('admin.privacy.self_hosted_self_profile'),
             'callback' => [self::class, 'erase_profile'],
         ];
         return $erasers;
@@ -64,7 +64,7 @@ class OUS_Privacy {
         if ($has_data) {
             $data[] = [
                 'group_id' => 'the-self-hosted-self-profile',
-                'group_label' => __('The Self-Hosted Self Profile', 'the-self-hosted-self'),
+                'group_label' => OUS_Words::get('admin.privacy.self_hosted_self_profile_2'),
                 'item_id' => 'profile-' . $user->ID,
                 'data' => $props,
             ];

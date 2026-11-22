@@ -1,11 +1,8 @@
 "use strict";
 /**
- * Client half of the lesson step blocks (bhc/text, bhc/image, bhc/video, bhc/quiz,
- * bhc/quiz-question, ...); BHC_ContentBridge::register_block_types() registers the
- * server-side schema/renderers. Loaded on the bh_lesson block editor.
- *
- * bhc/quiz is an InnerBlocks container of bhc/quiz-question children (parent-restricted).
- * `wp` is typed as `any` deliberately: the surface is huge and the risk is runtime behavior.
+ * Client half of the lesson step blocks (bhc/text, bhc/image, bhc/video, bhc/quiz, ...);
+ * BHC_ContentBridge registers the server side. bhc/quiz holds bhc/quiz-question children.
+ * wp is typed as any on purpose: the API surface is huge and the risk is runtime behaviour.
  */
 (function (wp) {
     'use strict';
@@ -72,11 +69,8 @@
     // Deliberately minimal: a step is a content primitive, not a layout box.
     // The "Advanced Styles" panel is excluded for bhc/* in block-style-panel.ts.
     var SUPPORTS = { html: false, position: false, customClassName: false };
-    /* ==================================================================
-     * Shared authoring shell for every lesson step block. Styling lives in
-     * class-content-bridge.php's `styles` array, the only channel that
-     * reaches the editor's iframed canvas.
-     * ================================================================== */
+    /* ---- Shared authoring shell for every lesson step block. Styles live in
+     * class-content-bridge.php styles, the only channel into the iframed canvas. ---- */
     /** The step's own frame: type header + body. */
     function stepShell(icon, label, meta, blockProps, children) {
         return el('div', blockProps, el('div', { className: 'bhc-studio-head' }, el(wp.components.Icon, { icon: icon, size: 16 }), el('span', { className: 'bhc-studio-head-label' }, label), meta ? el('span', { className: 'bhc-studio-head-meta' }, meta) : null), el('div', { className: 'bhc-studio-body' }, children));

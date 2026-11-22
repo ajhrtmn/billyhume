@@ -51,7 +51,7 @@ class BHC_Leaderboard {
 
         ob_start();
         echo '<div class="bhc-leaderboard">';
-        echo '<h2 class="bhc-leaderboard-title">Top Quiz Scorers</h2>';
+        echo ('<h2 class="bhc-leaderboard-title">' . BHC_Words::get('admin.leaderboard.top_quiz_scorers') . '</h2>');
         echo '<ol class="bhc-leaderboard-list">';
         // Medal glyphs for the top 3.
         $medals = [1 => '&#129351;', 2 => '&#129352;', 3 => '&#129353;'];

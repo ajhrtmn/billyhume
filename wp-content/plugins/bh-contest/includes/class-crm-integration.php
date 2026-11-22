@@ -32,7 +32,7 @@ class BH_CRMIntegration {
         if (!$votes && !$sub_count) return $sections;
 
         $sections[] = [
-            'plugin'  => 'BH Contest',
+            'plugin'  => BHCON_Words::get('admin.admin_reports.bh_contest'),
             'summary' => "$sub_count submission" . ($sub_count === 1 ? '' : 's') . ", $votes vote" . ($votes === 1 ? '' : 's'),
             'render'  => fn() => self::render_detail($user_id),
         ];
@@ -43,7 +43,7 @@ class BH_CRMIntegration {
         $subs = get_posts(['post_type' => 'bh_submission', 'author' => $uid, 'post_status' => 'any', 'posts_per_page' => -1]);
         if ($subs) {
             echo '<div class="bhy-table-wrap">';
-            echo '<table class="wp-list-table widefat striped"><thead><tr><th>Title</th><th>Contest</th><th>Status</th><th>Plays</th></tr></thead><tbody>';
+            echo ('<table class="wp-list-table widefat striped"><thead><tr><th>' . BHCON_Words::get('admin.crm_integration.title') . '</th><th>' . BHCON_Words::get('admin.crm_integration.contest') . '</th><th>' . BHCON_Words::get('admin.console.status') . '</th><th>' . BHCON_Words::get('admin.admin_reports.plays') . '</th></tr></thead><tbody>');
             foreach ($subs as $p) {
                 $cid   = (int) get_post_meta($p->ID, '_bh_contest_id', true);
                 $cname = ($cid && get_post($cid)) ? get_the_title($cid) : '—';
@@ -74,7 +74,7 @@ class BH_CRMIntegration {
             foreach (BH_Helpers::categories($cid) as $c) $cat_names[$c['slug']] = $c['name'];
 
             echo '<div class="bhy-table-wrap">';
-            echo '<table class="wp-list-table widefat striped"><thead><tr><th>Track</th><th>Category</th><th>When</th></tr></thead><tbody>';
+            echo ('<table class="wp-list-table widefat striped"><thead><tr><th>' . BHCON_Words::get('admin.console.track') . '</th><th>' . BHCON_Words::get('admin.admin_reports.category_3') . '</th><th>' . BHCON_Words::get('admin.crm_integration.when') . '</th></tr></thead><tbody>');
             foreach ($vs as $v) {
                 $track    = get_post($v->submission_id);
                 $cat_name = $v->category === '' ? '—' : ($cat_names[$v->category] ?? $v->category);
@@ -93,13 +93,13 @@ class BH_CRMIntegration {
 add_filter('bhcore_metrics_widgets', function ($widgets) {
     if (!class_exists('OUS_Metrics')) return $widgets;
 
-    $widgets[] = ['source' => 'BH Contest', 'render' => function () {
+    $widgets[] = ['source' => BHCON_Words::get('admin.admin_reports.bh_contest'), 'render' => function () {
         $trend = OUS_Metrics::event_trend('bh/submission_created', 30);
-        OUS_Metrics::render_card('Submissions', array_sum($trend), 'Last 30 days', $trend);
+        OUS_Metrics::render_card('Submissions', array_sum($trend), BHCON_Words::get('admin.crm_integration.last_30_days'), $trend);
     }];
-    $widgets[] = ['source' => 'BH Contest', 'render' => function () {
+    $widgets[] = ['source' => BHCON_Words::get('admin.admin_reports.bh_contest'), 'render' => function () {
         $trend = OUS_Metrics::event_trend('bh/vote', 30);
-        OUS_Metrics::render_card('Votes cast', array_sum($trend), 'Last 30 days (includes un-votes)', $trend);
+        OUS_Metrics::render_card(BHCON_Words::get('admin.crm_integration.votes_cast'), array_sum($trend), BHCON_Words::get('admin.crm_integration.last_30_days_includes_un'), $trend);
     }];
     return $widgets;
 });

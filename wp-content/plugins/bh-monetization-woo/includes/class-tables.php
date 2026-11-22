@@ -1,12 +1,7 @@
 <?php
 /**
- * Physical table names for this plugin — the only place they are written.
- *
- * Named accessors rather than a generic get($key): a mistyped method is a
- * fatal, where a mistyped key would return null and degrade into a query
- * against a table that doesn't exist — silent on the money paths.
- *
- * @package BH_Monetization_Woo
+ * Physical table names for this plugin, written only here. Named accessors, so a typo
+ * is a fatal instead of a silent query against a missing table on the money paths.
  */
 if (!defined('ABSPATH')) exit;
 

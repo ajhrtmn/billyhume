@@ -2,13 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Shared async job queue on WP-Cron + MySQL (no external broker), delegating to Action
- * Scheduler when it is available.
- *
- *   OUS_Jobs::register('bhc_send_nudge', ['BHC_Nudges', 'send_one']);   // on 'init'
- *   OUS_Jobs::enqueue('bhc_send_nudge', ['user_id' => $id]);
- *
- * A job with no registered handler never runs and is eventually logged as failed, never fatal.
+ * Async job queue on WP-Cron + MySQL, using Action Scheduler when available:
+ *   OUS_Jobs::register('bhc_send_nudge', ['BHC_Nudges', 'send_one']); OUS_Jobs::enqueue('bhc_send_nudge', ['user_id' => $id]);
+ * A job with no handler never runs and is logged as failed, never fatal.
  */
 class OUS_Jobs {
     const MAX_ATTEMPTS = 5;
@@ -73,7 +69,7 @@ class OUS_Jobs {
         $tmp = download_url(self::AS_ZIP_URL);
         if (is_wp_error($tmp)) {
             // Full WP_Error message: download failures are often SSL-related and need the real text.
-            self::redirect_with_notice('Download failed: ' . $tmp->get_error_message());
+            self::redirect_with_notice(OUS_Words::get('admin.jobs.download_failed') . ' ' . $tmp->get_error_message());
             return;
         }
 
@@ -81,7 +77,7 @@ class OUS_Jobs {
         if (!is_dir($vendor_dir)) {
             if (!wp_mkdir_p($vendor_dir)) {
                 @unlink($tmp);
-                self::redirect_with_notice('Could not create the vendor directory (' . $vendor_dir . ') — check that includes/ is writable by the web server.');
+                self::redirect_with_notice(OUS_Words::get('admin.jobs.could_not_create_vendor_directory') . $vendor_dir . OUS_Words::get('admin.jobs.check_includes_writable_by_web'));
                 return;
             }
         }
@@ -91,7 +87,7 @@ class OUS_Jobs {
         @unlink($tmp);
 
         if (is_wp_error($result)) {
-            self::redirect_with_notice('Extraction failed: ' . $result->get_error_message());
+            self::redirect_with_notice(OUS_Words::get('admin.jobs.extraction_failed') . ' ' . $result->get_error_message());
             return;
         }
 
@@ -101,7 +97,7 @@ class OUS_Jobs {
 
         if (!$extracted) {
             $wp_filesystem->delete($unzip_to, true);
-            self::redirect_with_notice('Downloaded archive did not contain the expected "action-scheduler-' . self::AS_VERSION . '/" folder — GitHub\'s archive layout may have changed. Nothing was installed.');
+            self::redirect_with_notice(OUS_Words::get('admin.jobs.downloaded_archive_did_not_contain') . self::AS_VERSION . '/" folder — GitHub\'s archive layout may have changed. Nothing was installed.');
             return;
         }
 
@@ -110,25 +106,25 @@ class OUS_Jobs {
         $wp_filesystem->delete($unzip_to, true);
 
         if (!$moved) {
-            self::redirect_with_notice('Could not move the extracted library into place (' . $final_dir . ') — check file permissions. Nothing was installed.');
+            self::redirect_with_notice(OUS_Words::get('admin.jobs.could_not_move_extracted_library') . $final_dir . OUS_Words::get('admin.jobs.check_file_permissions_nothing_was'));
             return;
         }
 
         // Only report success if the vendor entry file really exists now.
         if (!file_exists(self::vendor_path())) {
-            self::redirect_with_notice('Install did not complete — the library file was not found at ' . self::vendor_path() . ' after moving. Nothing changed; the job queue is still on the fallback runner.');
+            self::redirect_with_notice(OUS_Words::get('admin.jobs.install_did_not_complete_library') . ' ' . self::vendor_path() . ' after moving. Nothing changed; the job queue is still on the fallback runner.');
             return;
         }
 
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('info', 'Action Scheduler library installed via one-click installer.', ['version' => self::AS_VERSION], 'OUS_Jobs');
         }
-        self::redirect_with_notice('Action Scheduler ' . self::AS_VERSION . ' installed — the job queue now runs on it automatically. Any jobs already pending in the old table will still be processed by the fallback runner until they drain.');
+        self::redirect_with_notice(OUS_Words::get('admin.jobs.action_scheduler') . ' ' . self::AS_VERSION . ' ' . OUS_Words::get('admin.jobs.installed_job_queue_now_runs'));
     }
 
     // Every failure message contains one of these phrases; success does not. Only picks the toast color.
     private static function notice_looks_like_failure(string $msg): bool {
-        foreach (['failed', 'Could not', 'did not', 'not allowed'] as $needle) {
+        foreach (['failed', OUS_Words::get('admin.jobs.could_not'), 'did not', 'not allowed'] as $needle) {
             if (stripos($msg, $needle) !== false) return true;
         }
         return false;
@@ -153,7 +149,7 @@ class OUS_Jobs {
      */
     public static function register_debug_section($tools): array {
         $tools['bh-jobs'] = [
-            'label' => 'Job Queue',
+            'label' => OUS_Words::get('admin.dashboard.job_queue'),
             'render' => [self::class, 'render_debug_section'],
             'handle' => [self::class, 'handle_debug_action'],
             'reset' => [self::class, 'reset_debug'],
@@ -164,21 +160,21 @@ class OUS_Jobs {
 
     public static function render_debug_section(): void {
         if (self::library_available()) {
-            echo '<p>&#9989; Running on <strong>Action Scheduler ' . esc_html(self::AS_VERSION) . '</strong> (vendored, real library — not the fallback table). Its own queue view: <a href="' . esc_url(admin_url('tools.php?page=action-scheduler')) . '">Tools → Scheduled Actions</a>.</p>';
+            echo ('<p>&#9989; Running on <strong>' . OUS_Words::get('admin.jobs.action_scheduler') . ' ') . esc_html(self::AS_VERSION) . ('</strong> ' . OUS_Words::get('admin.jobs.vendored_real_library_not_fallback') . ' <a href="') . esc_url(admin_url('tools.php?page=action-scheduler')) . ('">' . OUS_Words::get('admin.jobs.tools_scheduled_actions') . '</a>.</p>');
         } else {
-            echo '<p>&#9888; Running on the built-in fallback queue (a plain wpdb table). <a href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=ous_jobs_install_as'), 'ous_jobs_install_as')) . '" class="button button-primary" onclick="return confirm(\'Download and install Action Scheduler ' . esc_js(self::AS_VERSION) . ' from GitHub now?\');">Install Action Scheduler ' . esc_html(self::AS_VERSION) . '</a> — one click, downloads the real official release directly from GitHub onto this site, no separate plugin to activate.</p>';
+            echo '<p>&#9888; Running on the built-in fallback queue (a plain wpdb table). <a href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=ous_jobs_install_as'), 'ous_jobs_install_as')) . '" class="button button-primary" onclick="return confirm(\'Download and install Action Scheduler ' . esc_js(self::AS_VERSION) . (' from GitHub now?\');">' . OUS_Words::get('admin.jobs.install_action_scheduler') . ' ') . esc_html(self::AS_VERSION) . ('</a> ' . OUS_Words::get('admin.jobs.one_click_downloads_real_official') . '</p>');
         }
         if (isset($_GET['ous_jobs_msg'])) {
             echo '<div class="notice notice-info inline"><p>' . esc_html(wp_unslash($_GET['ous_jobs_msg'])) . '</p></div>';
         }
 
         $counts = self::counts_by_status();
-        echo '<p>Pending: <strong>' . $counts['pending'] . '</strong> &nbsp; Running: <strong>' . $counts['running'] . '</strong> &nbsp; Done: <strong>' . $counts['done'] . '</strong> &nbsp; Failed: <strong>' . $counts['failed'] . '</strong></p>';
-        OUS_Debug::button('bh-jobs', 'run_now', 'Run due jobs now (don\'t wait for cron)');
+        echo ('<p>' . OUS_Words::get('admin.dashboard.pending') . ' <strong>') . $counts['pending'] . '</strong> &nbsp; Running: <strong>' . $counts['running'] . '</strong> &nbsp; Done: <strong>' . $counts['done'] . '</strong> &nbsp; Failed: <strong>' . $counts['failed'] . '</strong></p>';
+        OUS_Debug::button('bh-jobs', 'run_now', OUS_Words::get('admin.jobs.run_due_jobs_now_don'));
 
         $failed = self::recent_failed(10);
         if ($failed) {
-            echo '<h4>Recently failed</h4><div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>Hook</th><th>Attempts</th><th>Last error</th><th>Updated</th></tr></thead><tbody>';
+            echo ('<h4>' . OUS_Words::get('admin.jobs.recently_failed') . '</h4><div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>' . OUS_Words::get('admin.jobs.hook') . '</th><th>' . OUS_Words::get('admin.jobs.attempts') . '</th><th>Last error</th><th>' . OUS_Words::get('admin.jobs.updated') . '</th></tr></thead><tbody>');
             foreach ($failed as $f) {
                 echo '<tr><td>' . esc_html($f['hook']) . '</td><td>' . (int) $f['attempts'] . '</td><td>' . esc_html($f['last_error']) . '</td><td>' . esc_html($f['updated_at']) . '</td></tr>';
             }
@@ -189,9 +185,9 @@ class OUS_Jobs {
     public static function handle_debug_action(string $action): string {
         if ($action === 'run_now') {
             self::run_due_jobs(100);
-            return 'Ran up to 100 due jobs.';
+            return OUS_Words::get('admin.jobs.ran_up_100_due_jobs');
         }
-        return 'Unknown action.';
+        return OUS_Words::get('admin.debug_log.unknown_action');
     }
 
     public static function reset_debug(): string {
@@ -213,7 +209,7 @@ class OUS_Jobs {
      * @return array<string, mixed>
      */
     public static function register_cron_schedule($schedules): array {
-        $schedules['bhcore_every_minute'] = ['interval' => 60, 'display' => 'Every Minute (BH Jobs)'];
+        $schedules['bhcore_every_minute'] = ['interval' => 60, 'display' => OUS_Words::get('admin.jobs.every_minute_bh_jobs')];
         return $schedules;
     }
 

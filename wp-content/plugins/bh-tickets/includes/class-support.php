@@ -43,7 +43,7 @@ class BHT_Support {
             echo '<p><label>' . BHT_Words::e('support.name') . '<br><input type="text" name="name" maxlength="100" required autocomplete="name"></label></p>';
             echo '<p><label>' . BHT_Words::e('support.email') . '<br><input type="email" name="email" maxlength="200" required autocomplete="email"></label></p>';
             // WHY: honeypot; hidden from people, filled in by most bots.
-            echo '<p class="bht-support-hp" aria-hidden="true" style="position:absolute;left:-9999px;"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label></p>';
+            echo ('<p class="bht-support-hp" aria-hidden="true" style="position:absolute;left:-9999px;"><label>' . BHT_Words::get('admin.support.website') . '<input type="text" name="website" tabindex="-1" autocomplete="off"></label></p>');
         }
         echo '<p><label>' . BHT_Words::e('support.subject') . '<br><input type="text" name="subject" maxlength="150" required></label></p>';
         echo '<p><label>' . BHT_Words::e('support.message') . '<br><textarea name="body" rows="6" maxlength="' . self::MAX_LENGTH . '" required></textarea></label></p>';
@@ -65,7 +65,7 @@ class BHT_Support {
 
         if (!wp_verify_nonce((string) ($_POST['_wpnonce'] ?? ''), 'bht_support_message')) $done('error');
         $origin_ok = !class_exists('BHI_Auth') || BHI_Auth::is_same_origin_request($_SERVER['HTTP_ORIGIN'] ?? null, $_SERVER['HTTP_REFERER'] ?? null);
-        if (!$origin_ok) wp_die('This request must come from this site.', '', ['response' => 403]);
+        if (!$origin_ok) wp_die(BHT_Words::get('admin.support.request_must_come_from_site'), '', ['response' => 403]);
 
         $subject = sanitize_text_field(wp_unslash($_POST['subject'] ?? ''));
         $body = trim(mb_substr(sanitize_textarea_field(wp_unslash($_POST['body'] ?? '')), 0, self::MAX_LENGTH));
@@ -97,8 +97,8 @@ class BHT_Support {
         if (!class_exists('OUS_Notifications')) return;
         $from = esc_html($name) . ' (<a href="mailto:' . esc_attr($email) . '">' . esc_html($email) . '</a>)';
         foreach (get_users(['capability' => 'bhcore_manage_tickets', 'fields' => 'ID']) as $staff_id) {
-            OUS_Notifications::notify((int) $staff_id, 'support_message', 'Support message: ' . $subject,
-                $from . ' wrote (no account, reply by email):<br><br>' . $html_body, '', 'BH Tickets');
+            OUS_Notifications::notify((int) $staff_id, 'support_message', BHT_Words::get('admin.support.support_message') . ' ' . $subject,
+                $from . (' ' . BHT_Words::get('admin.support.wrote_no_account_reply_by') . '<br><br>') . $html_body, '', BHT_Words::get('admin.replies.bh_tickets'));
         }
     }
 }

@@ -57,7 +57,7 @@ class OUS_Roles {
         if (get_role(self::MANAGER_ROLE)) return;
         $editor = get_role('editor');
         $caps = $editor ? $editor->capabilities : ['read' => true, 'edit_posts' => true, 'upload_files' => true];
-        add_role(self::MANAGER_ROLE, 'Studio Manager', $caps);
+        add_role(self::MANAGER_ROLE, OUS_Words::get('admin.roles.studio_manager'), $caps);
     }
 
     // The fan/student role: just `read`. add_role() never clobbers later edits.

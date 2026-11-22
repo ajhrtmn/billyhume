@@ -2,10 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Pure-CSS wide layout for CPT edit screens: flattens WP's meta box
- * containers into a multi-column card layout. Meta box contexts and
- * postboxes.js drag-reorder are untouched; below BREAKPOINT nothing changes.
- * Opt in via the 'ous_wide_admin_layout_post_types' filter.
+ * Wide multi-column card layout for CPT edit screens (pure CSS; drag-reorder
+ * untouched; off below BREAKPOINT). Opt in via ous_wide_admin_layout_post_types.
  */
 class OUS_AdminLayout {
     // WP core's admin-menu collapse point; the column layout itself is fluid.
@@ -30,31 +28,9 @@ class OUS_AdminLayout {
         $bp = self::BREAKPOINT;
         echo '<style id="ous-admin-wide-layout">
         @media (min-width: ' . (int) $bp . 'px) {
-            /* No distinct sidebar column at all — every meta box
-               (Publish included) becomes one card in a single uniform
-               grid, regardless of whether WordPress itself considers
-               it \'normal\', \'side\', or \'advanced\' priority.
-               \'side\'/\'normal\'/\'advanced\' still control default
-               ordering (grid auto-flow follows DOM order) and which
-               drag-reorder GROUP a box belongs to (WordPress\'s own
-               postboxes.js keeps those three sortable groups
-               independent) — this only changes how they\'re
-               positioned on screen, not that underlying grouping.
-               display:contents on every intermediate wrapper
-               (#post-body-content, #postbox-container-1/-2,
-               #normal-sortables, #side-sortables, #advanced-sortables)
-               flattens WordPress\'s nested container structure for
-               LAYOUT purposes only — the elements themselves stay in
-               the DOM exactly where WordPress put them (so its own
-               JS, which operates on the DOM/event model rather than
-               visual position, keeps working), they just stop
-               generating their own box, letting every .postbox several
-               levels deep become a direct grid item on #post-body
-               itself. Handles both DOM shapes a CPT can have — a
-               normal post-editor screen and a title-only one
-               (bh_contest/bh_submission), which previously needed two
-               different CSS strategies due to a WordPress core
-               template difference between the two. */
+            /* One uniform card grid, no sidebar column. display:contents flattens the
+               meta box wrappers for layout only, so postboxes.js drag groups still work;
+               covers both normal and title-only (bh_contest/bh_submission) screens. */
             #poststuff #post-body,
             #poststuff #post-body-content,
             #poststuff #postbox-container-1,
@@ -65,42 +41,18 @@ class OUS_AdminLayout {
                 display: contents;
             }
 
-            /* CSS Grid lays boxes out in strict rows, so a short card
-               next to a tall one (Publish next to the much longer
-               Contest Rules & Results) leaves a dead gap under the
-               short one; grid-auto-flow:dense only backfills later
-               gaps, it can\'t fix a gap directly beside a tall
-               neighbor in the same row. CSS multi-column layout (not
-               CSS Grid) gives genuine top-to-bottom masonry-style
-               packing instead, no build step or JS measurement pass
-               needed. Tradeoff: reading order becomes top-to-bottom-
-               then-next-column (newspaper-style) rather than grid\'s
-               left-to-right-then-wrap — acceptable since these are
-               independent cards, not a sequence read in a specific
-               order. */
+            /* Multi-column (not Grid) packs cards top-to-bottom like masonry, so a short
+               card beside a tall one leaves no gap. Reading order becomes column-first,
+               which is fine for independent cards. */
             #poststuff {
                 columns: 360px 3;
                 column-gap: 16px;
             }
 
-            /* The layout-only fix above just rearranged stock
-               WordPress metaboxes, still flat white boxes with a
-               harsh 1px border and a cramped header. This ecosystem
-               already has a design system for exactly this —
-               the-self-hosted-self\'s --bhy-* tokens (class-ui.php) — already
-               loaded on every one of these screens
-               (print_design_system_css() fires on any screen id
-               containing "bh"/"ous"), just never applied to WordPress
-               core\'s own .postbox chrome before now. Reuses the same
-               tokens .bhy-card uses elsewhere rather than inventing a
-               second visual language. */
+            /* Give the stock meta boxes the same --bhy-* card treatment as .bhy-card,
+               instead of flat white boxes with a harsh border. */
             #poststuff .postbox {
-                /* break-inside:avoid is the multi-column equivalent of
-                   grid\'s own "don\'t split a card across two rows" —
-                   here it stops a card being split across two
-                   COLUMNS instead. margin-bottom (not grid\'s gap)
-                   is what creates vertical space between stacked
-                   cards within a column now. */
+                /* Keep a card in one column; margin-bottom spaces stacked cards. */
                 break-inside: avoid;
                 margin: 0 0 16px;
                 background: var(--bhy-surface, #fff);
@@ -128,21 +80,11 @@ class OUS_AdminLayout {
                 box-shadow: 0 2px 6px rgba(0, 0, 0, .07);
             }
 
-            /* The title field isn\'t a .postbox — it\'s WordPress\'s own
-               #titlediv, a direct child of #post-body-content (now
-               flattened into #poststuff\'s own grid alongside every
-               card) — full-width across the top rather than becoming
-               just another narrow card, with the same card treatment
-               as everything else instead of WordPress\'s bare default
-               (a single oversized borderless input floating on the
-               page background). */
+            /* The title field (#titlediv) spans the full width above the cards, with
+               the same card treatment. */
             #poststuff #titlediv,
             #poststuff #titlewrap {
-                /* column-span:all is the multi-column equivalent of
-                   grid\'s "grid-column: 1 / -1" — breaks the title out
-                   of the column flow to sit full-width above it,
-                   pushing every card below into a fresh set of
-                   columns starting under it. */
+                /* column-span: all breaks the title out of the column flow. */
                 column-span: all;
                 background: var(--bhy-surface, #fff);
                 border: 1px solid var(--bhy-border, #dcdcde);

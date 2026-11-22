@@ -1,107 +1,53 @@
 # Runbook — updating the live site
 
-If you are about to push plugin changes to `billyhume.net`, read this first.
+How changes on `dev` reach `billyhume.net`. Third-party plugins (WooCommerce, MailPoet, Etch, Rank Math, the Bluehost plugin) are updated from wp-admin as usual; this covers only this repo's plugins (`tools/ecosystem-plugins.txt`) and the theme.
 
-## When to use this
+## The normal path: GitHub Updates
 
-- You merged plugin changes to `dev` / `master` and need them on the live site.
-- The live site is showing stale behaviour (old JS, an old markup shape) after a change that *should* have landed.
-- The GitHub Updates panel is flagging drift.
+1. **Commit on `dev`** with the version bump and CHANGELOG entry in the same commit, then push `dev` (only when Billy or AJ says to).
+2. **Wait about 5 minutes** for GitHub's cache. To check what GitHub is serving:
+   ```bash
+   curl -s "https://raw.githubusercontent.com/ajhrtmn/billyhume/dev/wp-content/plugins/<plugin>/<plugin>.php" | grep -m1 "Version:"
+   ```
+   (With a private repo, check on the GitHub website instead; this URL needs a login.)
+3. **Live wp-admin → Site Tools → Debug Tools → GitHub Updates → Check now.** It queues a background check; reload after a moment, and click Check now again if the "On GitHub" column still shows the old number.
+4. **Update now** on each row that says "Update available". Update the core plugin first when it has an update.
+5. **Purge the page cache**: admin bar → Caching → Purge All (and Cloudflare, if it's in front). The host caches pages for 8 hours, and a cached page still loads the old CSS/JS.
+6. **Check**: open a lesson and a contest page (also at phone width) and confirm the asset version changed:
+   ```bash
+   curl -s "https://billyhume.net/lesson/<any-lesson>/" | grep -oE "courses\.js\?ver=[0-9.]+"
+   ```
 
-Not for: third-party plugins (WooCommerce, Rank Math, the Bluehost plugin, Etch) — Billy's dev manages those from wp-admin / WordPress.org. This workflow only ever touches the folders in `tools/ecosystem-plugins.txt` (the core, bh-courses, bh-contest, bh-monetization-woo, bh-tickets, bh-crm, bh-mailpoet) and the theme.
+## Making the repository private
 
-## The two delivery paths (know which one you're on)
+GitHub Updates reads the public repo anonymously. Before switching the repo to private:
 
-| | **A — GitHub Updates panel** | **B — `stable` → FTP** |
-|---|---|---|
-| What triggers it | A human clicking **Update now** in wp-admin | A push to the `stable` branch |
-| Source | The plugin folder on the **`dev`** branch of `github.com/ajhrtmn/billyhume` | `deploy-ftp.yml` builds + FTP-syncs `deploy_staging/` |
-| Currently live on billyhume.net | **Yes — this is the one in use** | Needs `FTP_SERVER` / `FTP_USERNAME` / `FTP_PASSWORD` / `FTP_REMOTE_PLUGINS_PATH` GitHub secrets. The workflow comments still say "PLACEHOLDERS — replace once real credentials exist," so treat path B as **not proven** until someone confirms those secrets are set. |
-| Core plugin (`the-self-hosted-self`) | Updates the same way — it self-registers as a GitHub Updates source (`class-github-updates.php` → `load_sources()`). First-ever core update on a site that predates that self-registration is manual (drop the built zip in over FTP once). | Included in `PLUGIN_FOLDERS`. |
+1. Install core **3.22.1 or later** on the live site (it adds token support).
+2. On GitHub: Settings → Developer settings → **Fine-grained tokens** → generate one with access to only `ajhrtmn/billyhume` and the permission **Contents: Read-only**. Give it a long expiry and note the date.
+3. Live wp-admin → Debug Tools → GitHub Updates → **Private repository access** → paste the token → Save. (Or add `define('BH_GITHUB_TOKEN', '…');` to `wp-config.php`.)
+4. Click **Check now** and confirm the versions still read correctly.
+5. Only then: GitHub → repo Settings → General → Danger Zone → **Change visibility → Private**.
+6. Click **Check now** once more to confirm updates still work.
 
-Branch flow feeding both: work on **`dev`** → merge to **`master`** (both run `checks.yml`) → promote to **`stable`** for path B. Path A reads `dev` directly, so a `dev` push is enough for it.
-
-## Procedure — path A (the normal case)
-
-### 1. Land the change on `dev` (and `master`)
-
-```bash
-git add -A && git commit -m "…"        # version header + CHANGELOG.md in the SAME commit (checks.yml advises on this)
-git push origin dev
-git checkout master && git merge dev --ff-only && git push origin master && git checkout dev
-```
-
-### 2. Wait for GitHub's raw CDN
-
-`raw.githubusercontent.com` caches ~5 min. Confirm the new version is actually being served before touching wp-admin:
-
-```bash
-curl -s "https://raw.githubusercontent.com/ajhrtmn/billyhume/dev/wp-content/plugins/<plugin>/<plugin>.php" | grep -m1 "Version:"
-```
-
-### 3. Update in wp-admin
-
-**Site Tools → Debug Tools → GitHub Updates** (`admin.php?page=ous-debug#ous-section-ous-github-updates`).
-
-1. **Check now.** This *queues* an async job (it never checks synchronously — a synchronous check timed the whole site out once, see `class-github-updates.php` history). On a host where WP-Cron is unreliable it also auto-submits the Job Queue's "Run due jobs now" for you.
-2. Wait, then re-read the table. **The "On GitHub" column lags step 2's `curl` result by another 5–15 min** — the checker keeps its own transient. Click **Check now** again if it still shows the old number. Every session this session it took 1–2 extra Check-now cycles.
-3. When the row says **Update available**, click **Update now** (a `confirm()` → an `admin-post.php` form POST → downloads the folder from `dev`, overwrites in place).
-
-The "not installed here" toggle at the top of that panel hides rows for plugins this site doesn't run. Option: `ous_updates_show_absent`.
-
-### 4. Purge the page cache — do not skip this
-
-Billy's host (Bluehost plugin) puts a page cache in front with an **8-hour TTL**. It will keep serving the *old rendered HTML*, which references the *old* `assets/js/*.js?ver=<OLD_VER>` — so the plugin files update but the site behaves as if they didn't. This is the single trap that cost the most time this session.
-
-- **wp-admin admin bar → Caching → Purge All** (URL: `admin.php?...&nfd_purge_all=1`).
-- Cloudflare, if in front: purge there too.
-- `bh-courses ≥ 0.16.18` sends `DONOTCACHEPAGE` + `no-store` on `is_singular(['bh_lesson','bh_course'])`, so those pages *stop* being cached going forward — but a purge is still needed once to clear what's already stored.
-
-### 5. Verify
-
-```bash
-# the deployed asset version now matches the plugin constant
-curl -s "https://billyhume.net/lesson/<any-lesson>/" | grep -oE "courses\.js\?ver=[0-9.]+"
-```
-
-Then the smoke checks (also run in CI as the `smoke` job, `checks.yml`):
-
-```bash
-WP_BASE_URL="https://billyhume.net" npx playwright test --project=smoke
-```
-
-Loads `/`, `/account/`, `/courses/`, `/contests/`, `wp-login.php`; fails on 5xx, on a PHP fatal signature in the body, on a near-empty `<body>`, or on raw `[bhi_portal]` text (core inactive).
+When the token expires, updates stop with "check failed"; make a new one and paste it in.
 
 ## Rollback
 
-There is **no built-in "reinstall previous version"** button. To roll back:
+There is no "previous version" button. `git revert` the bad commit on `dev`, bump the version forward with a "revert" changelog entry, push, and update again. If wp-admin itself is down, upload the previous plugin folder (from a good commit on GitHub) over FTP, then fix forward. Keep changes small so a forward revert is always safe.
 
-1. `git revert <bad commit>` on `dev`, bump the version *down-then-up* isn't possible — bump it *forward* with a "revert X" changelog entry, push `dev` + `master`.
-2. Re-run steps 2–5 above. **Update now** overwrites with whatever `dev` currently holds, so a forward-revert is the rollback.
-3. If the bad version is causing a fatal and wp-admin itself is down: FTP the previous known-good folder in by hand (download it from a good commit on GitHub), then fix forward.
+## The other path: `stable` → FTP
 
-Keep the change small enough that a forward-revert is always safe — this is why peer plugins shipped 6 point releases in one session rather than one big one.
-
-## Escalation
-
-| Symptom | Who / where |
-|---|---|
-| FTP secrets, host page cache, Cloudflare, DNS | Billy's dev — CodeGreer (Sarah), `hello@codegreer.com` |
-| Bunny Stream (403 in the player, chapter sync, referrer allow-list, Autoplay toggle) | Billy's Bunny dashboard → Stream → the library. See `PRIVATE-VIDEO-SETUP.md`. |
-| "Update now" 500s / the GitHub Updates panel is blank | `OUS_DebugLog` (Debug Tools → Console & Logs) first; then `class-github-updates.php` |
-| Site fatal after an update | `wp-config.php`: flip `WP_DEBUG_DISPLAY` / `WP_DEBUG_LOG` on, read the parse-error line out of `wp-content/debug.log`, revert both when done (see `CLAUDE.md` — a comment inside a CSS-in-PHP string has caused exactly this) |
-
-## Related
-
-- `deploy-ftp.yml` — path B, and the build-verification step that fails a deploy on stale committed `.js`.
-- `OPEN.md` "Blocked on AJ" — the path-B / GitHub-Updates flow has never been click-through verified end to end on a real host.
-- `ETCH-COMPATIBILITY-NOTES.md` — why the live site's rendered markup can differ from what the plugin emitted.
-- `CLAUDE.md` — version bump + CHANGELOG in one commit.
+`deploy-ftp.yml` syncs the plugin folders over FTP when the `stable` branch is pushed. It needs FTP secrets on GitHub and has never been confirmed working; GitHub Updates is the path in use.
 
 ## One-time cleanup after the November 2026 rescope
 
-The repo dropped seven plugins Billy doesn't use: bh-streaming, bh-video, bh-live, bh-feedback, bh-registry, bh-social and self-hosted-self-admin-skin. Deleting them from git does not remove them from the live site. Once the new core (3.22.0+) is installed there:
+The repo dropped seven plugins (bh-streaming, bh-video, bh-live, bh-feedback, bh-registry, bh-social, self-hosted-self-admin-skin). On the live site, after installing core 3.22.0+: deactivate and delete any of them on the **Plugins** screen. Their database tables stay; nothing reads them.
 
-1. **Plugins** screen: deactivate any of those seven that are active, then delete them. Their database tables stay; nothing else reads them.
-2. **Debug Tools → GitHub Updates**: they no longer appear (the panel only lists plugins still in the repo).
-3. Install the remaining updates in this order: core first, then the others.
+## Who to ask
+
+| Problem | Where |
+|---|---|
+| FTP, host page cache, Cloudflare, DNS | Billy's host developer (CodeGreer) |
+| Bunny Stream (403s, chapters, allowed domains) | Bunny dashboard → Stream; see `PRIVATE-VIDEO-SETUP.md` |
+| Update now fails or the panel is blank | Debug Tools → Console & Logs, then `class-github-updates.php` |
+| White screen after an update | Turn on `WP_DEBUG_LOG` in `wp-config.php`, read `wp-content/debug.log`, turn it off again |

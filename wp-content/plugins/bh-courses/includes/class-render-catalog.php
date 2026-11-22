@@ -58,14 +58,14 @@ class BHC_Render_Catalog {
         // Catalog-level SEO: CollectionPage/ItemList, since this page lists courses.
         if (class_exists('BH_SEO')) {
             BH_SEO::set_page_data([
-                'title' => 'Courses — ' . get_bloginfo('name'),
-                'description' => 'Browse courses on ' . get_bloginfo('name') . '.',
+                'title' => BHC_Words::get('admin.render_catalog.courses') . ' ' . get_bloginfo('name'),
+                'description' => BHC_Words::get('admin.render_catalog.browse_courses') . ' ' . get_bloginfo('name') . '.',
                 'url' => remove_query_arg(['bhc_s', 'bhc_category', 'bhc_topic', 'bhc_paged', 'bhc_sort']),
                 'type' => 'website',
                 'schema' => [
                     '@context' => 'https://schema.org',
                     '@type' => 'CollectionPage',
-                    'name' => 'Courses',
+                    'name' => BHC_Words::get('admin.post_types.courses'),
                     'url' => remove_query_arg(['bhc_s', 'bhc_category', 'bhc_topic', 'bhc_paged', 'bhc_sort']),
                     'itemListElement' => array_values(array_filter(array_map(function ($course) {
                         return get_post_type($course->ID) === 'bh_course' ? get_permalink($course->ID) : null;
@@ -179,7 +179,7 @@ class BHC_Render_Catalog {
         // The spacer's margin-top:auto pins footer content to the card bottom so cards match.
         echo '<div class="bhc-footer-spacer">';
         if ($uid && !$locked) {
-            echo '<div class="bhc-progress-bar"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label">' . (int) $percent . '% complete</p>';
+            echo '<div class="bhc-progress-bar"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label">' . (int) $percent . (BHC_Words::get('admin.render_catalog.complete') . '</p>');
             echo BHC_Render_Course::render_continue_cta($uid, $course->ID, $percent);
         }
         echo '</div>';
@@ -193,7 +193,7 @@ class BHC_Render_Catalog {
      */
     private static function rich_excerpt(int $course_id, int $max_chars = 170): string {
         $raw = get_post_field('post_content', $course_id);
-        if ($raw === '' || $raw === false) return '';
+        if ($raw === '') return '';
 
         $html = apply_filters('the_content', $raw);
         $allowed = ['p' => [], 'strong' => [], 'em' => [], 'b' => [], 'i' => [], 'ul' => [], 'ol' => [], 'li' => [], 'blockquote' => [], 'br' => []];

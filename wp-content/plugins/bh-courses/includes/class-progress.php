@@ -456,16 +456,16 @@ class BHC_Progress {
     public static function ajax_mark_complete(): void {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();
-        if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
+        if (!$user_id) wp_send_json_error(['message' => BHC_Words::get('admin.progress.log_required')], 401);
 
         $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
         $step_index = (int) ($_POST['step_index'] ?? -1);
         $step = BHC_Steps::get_step($lesson_id, $step_index);
         if (!$step || $step['type'] === 'quiz') {
-            wp_send_json_error(['message' => 'Invalid step, or this step requires quiz submission instead.'], 400);
+            wp_send_json_error(['message' => BHC_Words::get('admin.progress.invalid_step_step_requires_quiz')], 400);
         }
         if (!BHC_Gate::user_can_access_lesson($user_id, $lesson_id)) {
-            wp_send_json_error(['message' => 'Access required.'], 403);
+            wp_send_json_error(['message' => BHC_Words::get('admin.progress.access_required')], 403);
         }
 
         self::mark_step_complete($user_id, $lesson_id, $step_index);
@@ -503,13 +503,13 @@ class BHC_Progress {
     public static function ajax_save_video_position(): void {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();
-        if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
+        if (!$user_id) wp_send_json_error(['message' => BHC_Words::get('admin.progress.log_required')], 401);
 
         $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
         $step_index = (int) ($_POST['step_index'] ?? -1);
         $step = BHC_Steps::get_step($lesson_id, $step_index);
-        if (!$step || $step['type'] !== 'video') wp_send_json_error(['message' => 'Invalid video step.'], 400);
-        if (!BHC_Gate::user_can_access_lesson($user_id, $lesson_id)) wp_send_json_error(['message' => 'Access required.'], 403);
+        if (!$step || $step['type'] !== 'video') wp_send_json_error(['message' => BHC_Words::get('admin.progress.invalid_video_step')], 400);
+        if (!BHC_Gate::user_can_access_lesson($user_id, $lesson_id)) wp_send_json_error(['message' => BHC_Words::get('admin.progress.access_required')], 403);
 
         self::save_video_position($user_id, $lesson_id, $step_index, max(0, min(86400, (int) ($_POST['seconds'] ?? 0))));
         wp_send_json_success();
@@ -518,17 +518,17 @@ class BHC_Progress {
     public static function ajax_update_watch_progress(): void {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();
-        if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
+        if (!$user_id) wp_send_json_error(['message' => BHC_Words::get('admin.progress.log_required')], 401);
 
         $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
         $step_index = (int) ($_POST['step_index'] ?? -1);
         $percent = (int) ($_POST['percent'] ?? 0);
         $step = BHC_Steps::get_step($lesson_id, $step_index);
         if (!$step || $step['type'] !== 'video') {
-            wp_send_json_error(['message' => 'Invalid video step.'], 400);
+            wp_send_json_error(['message' => BHC_Words::get('admin.progress.invalid_video_step')], 400);
         }
         if (!BHC_Gate::user_can_access_lesson($user_id, $lesson_id)) {
-            wp_send_json_error(['message' => 'Access required.'], 403);
+            wp_send_json_error(['message' => BHC_Words::get('admin.progress.access_required')], 403);
         }
 
         $auto_completed = self::update_watch_progress($user_id, $lesson_id, $step_index, $percent);
@@ -548,7 +548,7 @@ class BHC_Progress {
     public static function ajax_mark_annotation(): void {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();
-        if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
+        if (!$user_id) wp_send_json_error(['message' => BHC_Words::get('admin.progress.log_required')], 401);
 
         $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
         $step_index = (int) ($_POST['step_index'] ?? -1);
@@ -557,15 +557,15 @@ class BHC_Progress {
 
         $step = BHC_Steps::get_step($lesson_id, $step_index);
         if (!$step || $step['type'] !== 'video') {
-            wp_send_json_error(['message' => 'Invalid video step.'], 400);
+            wp_send_json_error(['message' => BHC_Words::get('admin.progress.invalid_video_step')], 400);
         }
         if (!BHC_Gate::user_can_access_lesson($user_id, $lesson_id)) {
-            wp_send_json_error(['message' => 'Access required.'], 403);
+            wp_send_json_error(['message' => BHC_Words::get('admin.progress.access_required')], 403);
         }
         $annotations = (array) ($step['annotations'] ?? []);
         $annotation = $annotations[$annotation_index] ?? null;
         if (!$annotation || ($annotation['type'] ?? '') !== 'question') {
-            wp_send_json_error(['message' => 'Invalid annotation.'], 400);
+            wp_send_json_error(['message' => BHC_Words::get('admin.progress.invalid_annotation')], 400);
         }
 
         $correct_index = $annotation['payload']['correct_index'] ?? null;
@@ -579,16 +579,16 @@ class BHC_Progress {
     public static function ajax_submit_quiz(): void {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();
-        if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
+        if (!$user_id) wp_send_json_error(['message' => BHC_Words::get('admin.progress.log_required')], 401);
 
         $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
         $step_index = (int) ($_POST['step_index'] ?? -1);
         $step = BHC_Steps::get_step($lesson_id, $step_index);
         if (!$step || $step['type'] !== 'quiz') {
-            wp_send_json_error(['message' => 'Invalid quiz step.'], 400);
+            wp_send_json_error(['message' => BHC_Words::get('admin.progress.invalid_quiz_step')], 400);
         }
         if (!BHC_Gate::user_can_access_lesson($user_id, $lesson_id)) {
-            wp_send_json_error(['message' => 'Access required.'], 403);
+            wp_send_json_error(['message' => BHC_Words::get('admin.progress.access_required')], 403);
         }
 
         $max_attempts = (int) ($step['max_attempts'] ?? 0);

@@ -2,12 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The list of this site's own plugins: shown on the Site Tools dashboard, used to
- * relocate their admin pages (OUS_MenuMerge), and to register them for GitHub
- * Updates ('github' => true).
- *
- * WHY: only custom admin pages are relocated, each with its real callback.
- * CPT/taxonomy menus are never touched (show_in_menu fights later menu surgery).
+ * This site plugins: listed on Site Tools, admin pages relocated by OUS_MenuMerge, and
+ * registered for GitHub Updates ('github' => true). WHY: only custom admin pages move,
+ * with their real callbacks; CPT menus are never touched.
  */
 class OUS_Registry {
     private const DEFAULTS = [

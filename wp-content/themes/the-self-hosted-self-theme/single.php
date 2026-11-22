@@ -3,10 +3,8 @@
 <div class="oust-container oust-container-narrow">
     <?php while (have_posts()) : the_post(); ?>
         <?php
-        // Fallback single view for every CPT too: get_the_category() only
-        // works for 'post', so use the post type's singular label otherwise.
-        // WHY: date/author and date-ordered prev/next are blog furniture; on a course or
-        // lesson they would link into unrelated content.
+        // Single view for every post type: label by post type when not a blog post.
+        // WHY: date/author and prev/next are blog furniture; on a course they mislead.
         $is_blog_post = get_post_type() === 'post';
         $cats = get_the_category();
         if ($cats) {

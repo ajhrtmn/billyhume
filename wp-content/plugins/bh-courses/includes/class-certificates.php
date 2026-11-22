@@ -30,9 +30,9 @@ class BHC_Certificates {
             wp_safe_redirect(wp_login_url(esc_url_raw($_SERVER['REQUEST_URI'] ?? home_url())));
             exit;
         }
-        if (!self::course_offers_certificate($course_id)) wp_die('This course doesn\'t offer a certificate.', '', ['response' => 404, 'back_link' => true]);
+        if (!self::course_offers_certificate($course_id)) wp_die(BHC_Words::get('admin.certificates.course_doesn_t_offer_certificate'), '', ['response' => 404, 'back_link' => true]);
         if (!class_exists('BHC_Progress') || !BHC_Progress::is_course_completed($user_id, $course_id)) {
-            wp_die('Complete this course to unlock its certificate.', '', ['response' => 403, 'back_link' => true]);
+            wp_die(BHC_Words::get('admin.certificates.complete_course_unlock_its_certificate'), '', ['response' => 403, 'back_link' => true]);
         }
 
         self::stream_pdf($user_id, $course_id);
@@ -44,7 +44,7 @@ class BHC_Certificates {
         if (!class_exists('FPDF')) {
             $fpdf_path = OUS_PATH . 'vendor/fpdf/fpdf.php';
             if (!file_exists($fpdf_path)) {
-                wp_die('Certificate generation is temporarily unavailable — please contact support.', '', ['response' => 500, 'back_link' => true]);
+                wp_die(BHC_Words::get('admin.certificates.certificate_generation_temporarily_unava'), '', ['response' => 500, 'back_link' => true]);
             }
             require_once $fpdf_path;
         }
@@ -76,19 +76,19 @@ class BHC_Certificates {
 
         $pdf->SetY(65);
         $pdf->SetFont('Helvetica', 'B', 28);
-        $pdf->Cell(0, 16, 'Certificate of Completion', 0, 1, 'C');
+        $pdf->Cell(0, 16, BHC_Words::get('admin.certificates.certificate_completion'), 0, 1, 'C');
 
         if ($with_distinction) {
             $pdf->SetY(83);
             $pdf->SetFont('Helvetica', 'BI', 12);
             $pdf->SetTextColor(180, 130, 30);
-            $pdf->Cell(0, 8, 'WITH DISTINCTION', 0, 1, 'C');
+            $pdf->Cell(0, 8, BHC_Words::get('admin.certificates.with_distinction'), 0, 1, 'C');
             $pdf->SetTextColor(0, 0, 0);
         }
 
         $pdf->SetY(95);
         $pdf->SetFont('Helvetica', '', 13);
-        $pdf->Cell(0, 8, 'This certifies that', 0, 1, 'C');
+        $pdf->Cell(0, 8, BHC_Words::get('admin.certificates.certifies'), 0, 1, 'C');
 
         $pdf->SetY(107);
         $pdf->SetFont('Helvetica', 'B', 22);
@@ -114,7 +114,7 @@ class BHC_Certificates {
 
         while (ob_get_level()) ob_end_clean(); // buffered output ahead of Output() would corrupt the PDF
         header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="' . sanitize_file_name($course_title . ' - Certificate') . '.pdf"');
+        header('Content-Disposition: attachment; filename="' . sanitize_file_name($course_title . ' ' . BHC_Words::get('admin.certificates.certificate')) . '.pdf"');
         $pdf->Output('D', sanitize_file_name($course_title) . '-certificate.pdf');
     }
 

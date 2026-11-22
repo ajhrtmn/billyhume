@@ -124,10 +124,10 @@ class BHM_Entitlements {
             OUS_Notifications::notify(
                 $order['customer_id'],
                 'refund_reversed',
-                'A refund adjusted your account',
-                'Order #' . $order_id . ' was refunded or cancelled, and any access or wallet credit it granted has been reversed accordingly.',
+                BHM_Words::get('admin.entitlements.refund_adjusted_account'),
+                BHM_Words::get('admin.entitlements.order') . $order_id . ' ' . BHM_Words::get('admin.entitlements.was_refunded_cancelled_any_access'),
                 '',
-                'BH Monetization'
+                BHM_Words::get('admin.crm_integration.bh_monetization')
             );
         }
     }
@@ -181,12 +181,12 @@ class BHM_Entitlements {
                 OUS_Notifications::notify(
                     $user_id,
                     'subscription_' . ($is_paused ? 'paused' : 'ended'),
-                    $is_paused ? 'Your subscription is paused' : 'Your subscription has ended',
+                    $is_paused ? BHM_Words::get('admin.entitlements.subscription_paused') : BHM_Words::get('admin.entitlements.subscription_has_ended'),
                     $is_paused
-                        ? 'Your supporter access is on hold while your subscription is paused. Resume it any time to pick back up right where you left off.'
-                        : 'Your supporter subscription has ended, and the access it granted has been removed.',
+                        ? BHM_Words::get('admin.entitlements.supporter_access_hold_while_subscription')
+                        : BHM_Words::get('admin.entitlements.supporter_subscription_has_ended_access'),
                     '',
-                    'BH Monetization'
+                    BHM_Words::get('admin.crm_integration.bh_monetization')
                 );
             }
         }
@@ -237,10 +237,10 @@ class BHM_Entitlements {
             OUS_Notifications::notify(
                 (int) $row['user_id'],
                 'access_revoked',
-                'Your access was updated',
-                'An administrator removed access previously granted to your account.',
+                BHM_Words::get('admin.entitlements.access_was_updated'),
+                BHM_Words::get('admin.entitlements.administrator_removed_access_previously_'),
                 '',
-                'BH Monetization'
+                BHM_Words::get('admin.crm_integration.bh_monetization')
             );
         }
         return $row;
@@ -293,12 +293,12 @@ class BHM_Entitlements {
                 OUS_Notifications::notify(
                     $user_id,
                     'tier_switched',
-                    $is_downgrade ? 'Your supporter tier changed' : 'You\'re now a ' . $new_tier['name'] . ' supporter!',
+                    $is_downgrade ? BHM_Words::get('admin.entitlements.supporter_tier_changed') : BHM_Words::get('admin.entitlements.re_now') . ' ' . $new_tier['name'] . ' supporter!',
                     $is_downgrade
-                        ? 'You switched from ' . $old_tier['name'] . ' to ' . $new_tier['name'] . '.' . (class_exists('BHM_Wallet') ? ' Any unused time on your old tier was credited to your wallet.' : '')
-                        : 'You upgraded from ' . $old_tier['name'] . ' to ' . $new_tier['name'] . '. Welcome to the next level!',
+                        ? BHM_Words::get('admin.entitlements.switched_from') . ' ' . $old_tier['name'] . ' to ' . $new_tier['name'] . '.' . (class_exists('BHM_Wallet') ? ' ' . BHM_Words::get('admin.entitlements.any_unused_time_old_tier') : '')
+                        : BHM_Words::get('admin.entitlements.upgraded_from') . ' ' . $old_tier['name'] . ' to ' . $new_tier['name'] . '. Welcome to the next level!',
                     '',
-                    'BH Monetization'
+                    BHM_Words::get('admin.crm_integration.bh_monetization')
                 );
             }
         }
@@ -348,10 +348,10 @@ class BHM_Entitlements {
             OUS_Notifications::notify(
                 $user_id,
                 'entitlement_granted',
-                $is_purchase ? 'Yours now: ' . get_the_title($object_id) : 'Access granted',
-                $is_purchase ? 'It\'s in your account whenever you want it.' : 'Thanks for your support — your access is active now.',
+                $is_purchase ? 'Yours now: ' . get_the_title($object_id) : BHM_Words::get('admin.entitlements.access_granted'),
+                $is_purchase ? BHM_Words::get('admin.entitlements.s_account_whenever_want') : BHM_Words::get('admin.entitlements.thanks_support_access_active_now'),
                 $is_purchase ? (string) get_permalink($object_id) : '',
-                'BH Monetization',
+                BHM_Words::get('admin.crm_integration.bh_monetization'),
                 false // in-app only; WooCommerce already emails an order confirmation
             );
         }

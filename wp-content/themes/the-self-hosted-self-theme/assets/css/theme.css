@@ -1,17 +1,10 @@
 /*
- * The Self-Hosted Self theme chrome.
- *
- * Namespaced under .oust-* so theme and plugin CSS never collide, while both
- * read the same --bh-* tokens (the-self-hosted-self/includes/class-style.php).
- * Fallbacks match the default "The Door" palette so an install with no saved
- * BHY_Style settings still looks right. body.bhi-has-user-bar bottom padding
- * is handled by class-user-bar.php, not here.
+ * Theme chrome, namespaced .oust-* and reading the same --bh-* tokens as the plugins.
+ * Fallbacks match the default palette, so a site with no saved style still looks right.
  */
 
-/* Depth-aware cross-document navigation, the front-end half of the admin
-   skin's. functions.php's oust_print_nav_depth_script() stamps
-   data-oust-nav-direction/-depth on <html>: lateral = slide within a
-   section, jump = zoom-through between sections. */
+/* Cross-document navigation: functions.php stamps data-oust-nav-direction/-depth on <html>;
+   lateral slides within a section, jump zooms between sections. */
 @supports (view-transition-name: none) {
     @view-transition { navigation: auto; }
 }
@@ -77,10 +70,8 @@ body {
 .oust-main { flex: 1 0 auto; }
 img { max-width: 100%; height: auto; display: block; }
 
-/* WHY: plain --bh-accent fails AA as text on some presets, and
-   --bh-accent-soft/-hover only shift one direction. Accent text mixes toward
-   --bh-text, which lands >=4.5:1 on light and dark presets alike.
-   Decorative accent uses stay plain --bh-accent. */
+/* WHY: plain --bh-accent fails AA as text on some presets, so accent text mixes toward
+   --bh-text (>= 4.5:1 on light and dark). Decorative accents stay plain. */
 a { color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); }
 a:hover { color: var(--bh-text, #EDDFCB); }
 h1, h2, h3, h4, h5, h6 { font-family: var(--bh-font-display, 'Space Grotesk', 'Segoe UI', sans-serif); font-weight: 700; line-height: 1.2; margin: 0 0 0.5em; }
@@ -203,10 +194,8 @@ body.admin-bar .oust-site-header { top: 32px; }
     color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); background: var(--bh-accent-muted-bg, rgba(193,80,58,.18));
 }
 
-/* Sub-menus. WHY position:fixed: overflow-x on the nav forces overflow-y to
-   auto, which clipped absolute dropdowns. theme.js sets top/left on open and
-   flips right-aligned near the edge. Static fallback without JS: top:78px
-   (72px header + 6px gap). */
+/* Sub-menus. WHY position: fixed: overflow-x on the nav clipped absolute dropdowns.
+   theme.js positions them on open; without JS they sit at top: 78px. */
 .oust-nav-list ul {
     display: none; position: fixed; top: 78px; left: 24px; z-index: 50;
     min-width: 200px; list-style: none; margin: 0; padding: 6px;
@@ -617,10 +606,8 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
 .oust-no-sidebar .oust-container { max-width: 1200px; }
 
 /* ================================================================
-   WooCommerce
-   ================================================================
-   Built from the site's own vocabulary (card treatment, pill buttons,
-   --bh-* tokens) so a re-themed site re-themes the store too. */
+   WooCommerce, on the site card, pill button and --bh-* vocabulary.
+   ================================================================ */
 
 /* ---- shop archive: toolbar ---- */
 .woocommerce .woocommerce-result-count { color: var(--bh-text-dim, #B99584); font-size: 14px; margin: 0; }
@@ -904,11 +891,8 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
     content: ''; display: table; clear: both;
 }
 
-/* ---- storefront "magic" layer ----
-   1. Product cards resolve out of haze on load, staggered.
-   2. Price gets a soft accent glow on card hover.
-   3. Sale badges get the frosted-glass badge treatment.
-   All opt out under prefers-reduced-motion. */
+/* ---- storefront layer: staggered card entrance, price glow on hover, frosted sale
+   badges; all off under prefers-reduced-motion. ---- */
 .woocommerce ul.products li.product {
     animation: oust-card-in 280ms ease-out both;
 }
@@ -949,10 +933,8 @@ body.admin-bar .oust-nav-list ul { top: 110px; }
     .woocommerce span.onsale { box-shadow: none; backdrop-filter: none; }
 }
 
-/* ---- WooCommerce Blocks (cart / checkout) ----
-   Block-based cart/checkout use the wc-block-* namespace, not
-   table.shop_table. Several values are set via WooCommerce Blocks' own
-   custom properties at the container level. */
+/* ---- WooCommerce Blocks (cart/checkout) use wc-block-* classes and their own
+   container-level custom properties. ---- */
 .wp-block-woocommerce-cart,
 .wp-block-woocommerce-checkout,
 .wc-block-components-sidebar-layout {

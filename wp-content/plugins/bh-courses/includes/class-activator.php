@@ -167,10 +167,9 @@ class BHC_Activator {
             PRIMARY KEY  (id),
             UNIQUE KEY user_lesson_step (user_id, lesson_id, step_index, sub_index)
         ) $charset;";
-        // sub_index: 0 is the step's own row; >0 is one in-video annotation's completion.
-        // watched_percent: the furthest position reached (never regresses); NULL for non-video.
-        // answers: JSON snapshot of the latest attempt, self-contained (question text, choices,
-        // correct index as submitted), so later quiz edits don't change an old review.
+        // sub_index: 0 = the step itself, >0 = one in-video annotation. watched_percent: furthest
+        // point reached, never regresses. answers: self-contained JSON of the latest attempt,
+        // so later quiz edits do not change an old review.
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql);

@@ -22,7 +22,7 @@ class BH_AdminReports {
         }
         $cid  = (int) ($_GET['contest_id'] ?? 0);
         $type = sanitize_key($_GET['type'] ?? '');
-        if (!$cid || !in_array($type, ['submissions', 'votes'], true)) wp_die('Invalid export request.', '', ['back_link' => true]);
+        if (!$cid || !in_array($type, ['submissions', 'votes'], true)) wp_die(BHCON_Words::get('admin.admin_reports.invalid_export_request'), '', ['back_link' => true]);
 
         $filename = 'bh-' . $type . '-contest-' . $cid . '-' . gmdate('Y-m-d') . '.csv';
         header('Content-Type: text/csv; charset=utf-8');
@@ -31,7 +31,7 @@ class BH_AdminReports {
         $out = fopen('php://output', 'w');
 
         if ($type === 'submissions') {
-            fputcsv($out, ['Submission ID', 'Title', 'Artist', 'Author', 'Email', 'Status', 'Submitted']);
+            fputcsv($out, [BHCON_Words::get('admin.admin_reports.submission_id'), 'Title', 'Artist', 'Author', 'Email', 'Status', 'Submitted']);
             $subs = get_posts([
                 'post_type' => 'bh_submission', 'post_status' => 'any',
                 'meta_key' => '_bh_contest_id', 'meta_value' => (string) $cid,
@@ -52,7 +52,7 @@ class BH_AdminReports {
                 // id ASC breaks ties: created_at has only 1-second resolution.
                 "SELECT user_id, category, submission_id, created_at FROM $t WHERE contest_id = %d ORDER BY created_at ASC, id ASC", $cid
             ));
-            fputcsv($out, ['Voter', 'Category', 'Submission ID', 'Track Title', 'Voted At']);
+            fputcsv($out, ['Voter', 'Category', BHCON_Words::get('admin.admin_reports.submission_id'), BHCON_Words::get('admin.admin_reports.track_title'), BHCON_Words::get('admin.admin_reports.voted_at')]);
             foreach ($rows as $r) {
                 $voter = get_userdata($r->user_id);
                 $track = get_post($r->submission_id);
@@ -128,7 +128,9 @@ class BH_AdminReports {
                 $wins
             );
             $body = "Hi {$user->user_login},\n\nCongratulations — here's how you placed in {$contest_title}:\n\n"
-                . implode("\n", $lines) . "\n\nWell done!";
+                . implode("\n", $lines) . '
+
+' . BHCON_Words::get('admin.admin_reports.well_done');
 
             if (class_exists('OUS_Jobs')) {
                 OUS_Jobs::enqueue('bh_contest_email_winner', [
@@ -142,7 +144,7 @@ class BH_AdminReports {
                 $sent = class_exists('BH_Mail')
                     ? BH_Mail::send([
                         'to' => $user->user_email, 'user_id' => $uid, 'subject' => "You placed in {$contest_title}!", 'body' => $body,
-                        'source' => 'BH Contest', 'log_context' => ['contest_id' => $cid],
+                        'source' => BHCON_Words::get('admin.admin_reports.bh_contest'), 'log_context' => ['contest_id' => $cid],
                     ])
                     : wp_mail($user->user_email, "You placed in {$contest_title}!", $body);
                 if ($sent) {
@@ -168,7 +170,7 @@ class BH_AdminReports {
         if (class_exists('BH_Mail')) {
             BH_Mail::send([
                 'to' => $email, 'user_id' => (int) ($args['user_id'] ?? 0), 'subject' => $subject, 'body' => $body,
-                'source' => 'BH Contest', 'log_context' => ['contest_id' => $args['contest_id'] ?? 0],
+                'source' => BHCON_Words::get('admin.admin_reports.bh_contest'), 'log_context' => ['contest_id' => $args['contest_id'] ?? 0],
             ]);
             return;
         }
@@ -184,10 +186,10 @@ class BH_AdminReports {
         $cid = isset($_GET['contest_id']) ? (int) $_GET['contest_id'] : 0;
         if (!$cid || get_post_type($cid) !== 'bh_contest') $cid = BH_Helpers::active_contest();
 
-        BHY_UI::shell_open('Contest Results <span id="bh-live-dot" class="bh-live-dot" title="Auto-refreshing"></span>');
+        BHY_UI::shell_open((BHCON_Words::get('admin.admin_reports.contest_results') . ' <span id="bh-live-dot" class="bh-live-dot" title="Auto-refreshing"></span>'));
 
         if (!$contests) {
-            echo '<p>No contests yet. Create one under Contests → Add New.</p>';
+            echo ('<p>' . BHCON_Words::get('admin.admin_reports.no_contests_yet_create_one') . '</p>');
             BHY_UI::shell_close();
             return;
         }
@@ -210,21 +212,21 @@ class BH_AdminReports {
         echo '<form method="get" style="margin-bottom:16px;">'
            . '<input type="hidden" name="post_type" value="bh_contest">'
            . '<input type="hidden" name="page" value="bh-results">'
-           . '<label>Viewing: <select name="contest_id" onchange="this.form.submit()">';
+           . ('<label>' . BHCON_Words::get('admin.admin_reports.viewing') . ' <select name="contest_id" onchange="this.form.submit()">');
         foreach ($contests as $c) {
             echo '<option value="' . (int) $c->ID . '" ' . selected($cid, $c->ID, false) . '>'
                . esc_html($c->post_title) . ' — ' . esc_html(ucfirst(BH_Helpers::contest_status($c->ID))) . '</option>';
         }
         echo '</select></label>';
         if ($cats) {
-            echo ' &nbsp; <label>Category: <select name="bh_category" onchange="this.form.submit()">';
-            echo '<option value="all" ' . selected($all, true, false) . '>All categories</option>';
+            echo (' &nbsp; <label>' . BHCON_Words::get('admin.admin_reports.category') . ' <select name="bh_category" onchange="this.form.submit()">');
+            echo '<option value="all" ' . selected($all, true, false) . ('>' . BHCON_Words::get('admin.admin_reports.all_categories') . '</option>');
             foreach ($cats as $c) {
                 echo '<option value="' . esc_attr($c['slug']) . '" ' . selected(!$all && $cat === $c['slug'], true, false) . '>' . esc_html($c['name']) . '</option>';
             }
             echo '</select></label>';
         }
-        echo ' <noscript><button class="button">Go</button></noscript></form>';
+        echo (' <noscript><button class="button">' . BHCON_Words::get('admin.admin_reports.go') . '</button></noscript></form>');
 
         global $wpdb;
         if ($all) {
@@ -250,11 +252,11 @@ class BH_AdminReports {
         }
         $voting_open = BH_Helpers::is_voting_open($cid);
         $published   = get_post_meta($cid, '_bh_results_published', true) === '1';
-        $cat_label   = $cats ? ' — category: <strong>' . ($all ? 'All' : esc_html(self::category_name($cats, $cat))) . '</strong>' : '';
+        $cat_label   = $cats ? (' ' . BHCON_Words::get('admin.admin_reports.category_2') . ' <strong>') . ($all ? 'All' : esc_html(self::category_name($cats, $cat))) . '</strong>' : '';
 
-        echo '<p><strong>' . esc_html(get_the_title($cid)) . '</strong>' . $cat_label . ' — voting is currently <strong>' . ($voting_open ? 'open' : 'closed') . '</strong>. '
-           . 'This page is private to admins; the public results page for this contest is ' . ($published ? '<strong>currently published</strong>' : 'still <strong>hidden</strong>') . ' regardless of what you see here. '
-           . 'Shortcode: <code>' . esc_html(BH_Helpers::shortcode_for($cid)) . '</code></p>';
+        echo '<p><strong>' . esc_html(get_the_title($cid)) . '</strong>' . $cat_label . (' ' . BHCON_Words::get('admin.admin_reports.voting_currently') . ' <strong>') . ($voting_open ? 'open' : 'closed') . '</strong>. '
+           . 'This page is private to admins; the public results page for this contest is ' . ($published ? '<strong>currently published</strong>' : 'still <strong>hidden</strong>') . ' ' . BHCON_Words::get('admin.admin_reports.regardless_what_see_here') . ' '
+           . (BHCON_Words::get('admin.admin_reports.shortcode') . ' <code>') . esc_html(BH_Helpers::shortcode_for($cid)) . '</code></p>';
 
         echo '<div class="bh-stats-bar">'
            . '<div class="bh-stat"><span class="bh-stat-num" id="bh-stat-votes">' . (int) $total_votes . '</span><span class="bh-stat-label">total votes</span></div>'
@@ -262,17 +264,17 @@ class BH_AdminReports {
            . '<div class="bh-stat"><span class="bh-stat-num" id="bh-stat-last">—</span><span class="bh-stat-label">last vote</span></div>'
            . '</div>';
 
-        echo '<p><label><input type="checkbox" id="bh-autorefresh" checked> Auto-refresh every 8s</label> '
-           . '&nbsp;·&nbsp; <span id="bh-updated-at" style="color:#666;">Not yet refreshed live.</span></p>';
+        echo ('<p><label><input type="checkbox" id="bh-autorefresh" checked> ' . BHCON_Words::get('admin.admin_reports.auto_refresh_every_8s') . '</label> ')
+           . ('&nbsp;·&nbsp; <span id="bh-updated-at" style="color:#666;">' . BHCON_Words::get('admin.admin_reports.not_yet_refreshed_live') . '</span></p>');
 
         // Pie breakdowns always cover the whole contest, ignoring the category picker.
         if (class_exists('BH_Charts')) BH_Charts::render_section($cid, ['heading' => true]);
 
-        $cat_col = $all ? '<th>Category</th>' : '';
-        echo '<p>Click the <strong>Votes</strong> or <strong>Plays</strong> headers to sort. (Sort resets on each live refresh.)</p>';
+        $cat_col = $all ? ('<th>' . BHCON_Words::get('admin.admin_reports.category_3') . '</th>') : '';
+        echo ('<p>' . BHCON_Words::get('admin.admin_reports.click_votes_plays_headers_sort') . '</p>');
         echo '<div class="bhy-table-wrap">';
         echo '<table class="wp-list-table widefat striped" id="bh-results-table">';
-        echo '<thead><tr><th>Song &amp; Artist</th>' . $cat_col . '<th data-dir="desc">Votes</th><th data-dir="desc">Plays</th><th>Chart</th></tr></thead>';
+        echo '<thead><tr><th>Song &amp; Artist</th>' . $cat_col . ('<th data-dir="desc">' . BHCON_Words::get('admin.admin_reports.votes') . '</th><th data-dir="desc">' . BHCON_Words::get('admin.admin_reports.plays') . '</th><th>' . BHCON_Words::get('admin.admin_reports.chart') . '</th></tr></thead>');
         echo '<tbody id="bh-results-body">';
         self::results_rows_html($rows, $all ? $cats : null);
         echo '</tbody></table></div>';
@@ -373,7 +375,7 @@ class BH_AdminReports {
      */
     private static function results_rows_html($rows, $cats = null): void {
         $colspan = $cats ? 5 : 4;
-        if (empty($rows)) { echo '<tr><td colspan="' . $colspan . '">No votes yet.</td></tr>'; return; }
+        if (empty($rows)) { echo '<tr><td colspan="' . $colspan . ('">' . BHCON_Words::get('admin.admin_reports.no_votes_yet') . '</td></tr>'); return; }
 
         $cat_names = [];
         if ($cats) foreach ($cats as $c) $cat_names[$c['slug']] = $c['name'];

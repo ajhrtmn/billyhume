@@ -121,7 +121,7 @@ class BHM_Storefront {
     public static function register_taxonomy(): void {
         if (!post_type_exists('product')) return; // WooCommerce not active yet — nothing to attach to
         register_taxonomy(self::TAXONOMY, ['product'], [
-            'labels' => ['name' => 'Collections', 'singular_name' => 'Collection'],
+            'labels' => ['name' => BHM_Words::get('admin.storefront.collections'), 'singular_name' => BHM_Words::get('admin.storefront.collection')],
             'public' => true, 'hierarchical' => false, 'show_admin_column' => true,
             'show_in_rest' => true,
             'rewrite' => ['slug' => self::REWRITE_SLUG],
@@ -138,7 +138,7 @@ class BHM_Storefront {
         add_rewrite_rule('^' . self::REWRITE_SLUG . '/([^/]+)/?$', 'index.php?bhm_collection_slug=$matches[1]', 'top');
 
         if (class_exists('BHY_RewriteHealer')) {
-            BHY_RewriteHealer::maybe_heal('^' . self::REWRITE_SLUG, 'bhm_storefront_rewrite_last_attempt', 'BH Storefront', self::VERIFY_THROTTLE_SECONDS);
+            BHY_RewriteHealer::maybe_heal('^' . self::REWRITE_SLUG, 'bhm_storefront_rewrite_last_attempt', BHM_Words::get('admin.storefront.bh_storefront'), self::VERIFY_THROTTLE_SECONDS);
         }
     }
 
@@ -200,7 +200,7 @@ class BHM_Storefront {
         status_header(404);
         nocache_headers();
         self::print_header();
-        echo '<div class="bhm-storefront-wrap"><p>That collection doesn\'t exist.</p></div>';
+        echo ('<div class="bhm-storefront-wrap"><p>' . BHM_Words::get('admin.storefront.collection_doesn_t_exist') . '</p></div>');
         self::print_footer();
         exit;
     }
@@ -239,7 +239,7 @@ class BHM_Storefront {
     /** @param array<string, mixed> $attrs */
     public static function render_product_grid_block($attrs): string {
         if (!BH_Commerce::available() || !function_exists('wc_get_products')) {
-            return '<p class="description">WooCommerce isn\'t active — nothing to show here yet.</p>';
+            return ('<p class="description">' . BHM_Words::get('admin.storefront.woocommerce_isn_t_active_nothing') . '</p>');
         }
 
         $products = self::query_products([
@@ -265,9 +265,10 @@ class BHM_Storefront {
         ?>
         <form class="bhm-product-filter" onsubmit="return false;">
             <?php if (!empty($attrs['showCategory']) && function_exists('get_terms')): ?>
-                <label>Category
+                <label><?php echo BHM_Words::get('admin.storefront.category'); ?>
+
                     <select class="bhm-filter-category">
-                        <option value="">All</option>
+                        <option value=""><?php echo BHM_Words::get('admin.storefront.all'); ?></option>
                         <?php foreach (get_terms(['taxonomy' => 'product_cat', 'hide_empty' => true]) as $cat): ?>
                             <option value="<?php echo esc_attr($cat->slug); ?>"><?php echo esc_html($cat->name); ?></option>
                         <?php endforeach; ?>
@@ -275,13 +276,13 @@ class BHM_Storefront {
                 </label>
             <?php endif; ?>
             <?php if (!empty($attrs['showPrice'])): ?>
-                <label>Min price <input type="number" class="bhm-filter-min-price" min="0" step="0.01"></label>
-                <label>Max price <input type="number" class="bhm-filter-max-price" min="0" step="0.01"></label>
+                <label><?php echo BHM_Words::get('admin.storefront.min_price'); ?> <input type="number" class="bhm-filter-min-price" min="0" step="0.01"></label>
+                <label><?php echo BHM_Words::get('admin.storefront.max_price'); ?> <input type="number" class="bhm-filter-max-price" min="0" step="0.01"></label>
             <?php endif; ?>
             <?php if (!empty($attrs['showStock'])): ?>
-                <label><input type="checkbox" class="bhm-filter-in-stock"> In stock only</label>
+                <label><input type="checkbox" class="bhm-filter-in-stock"> <?php echo BHM_Words::get('admin.storefront.stock_only'); ?></label>
             <?php endif; ?>
-            <button type="button" class="bhm-filter-apply button">Apply</button>
+            <button type="button" class="bhm-filter-apply button"><?php echo BHM_Words::get('admin.storefront.apply'); ?></button>
         </form>
         <?php
         return ob_get_clean();
@@ -292,12 +293,12 @@ class BHM_Storefront {
         if (!$products) {
             return class_exists('BHY_Style') ? BHY_Style::empty_state_html($is_filtered ? [
                 'reason' => 'filtered',
-                'title' => 'No products match your filters',
+                'title' => BHM_Words::get('admin.storefront.no_products_match_filters'),
             ] : [
                 'reason' => 'zero',
-                'title' => 'No products yet',
-                'description' => 'Products you publish in WooCommerce will show up here.',
-            ]) : '<p class="description">No products found' . ($is_filtered ? ' matching your filters.' : '.') . '</p>';
+                'title' => BHM_Words::get('admin.storefront.no_products_yet'),
+                'description' => BHM_Words::get('admin.storefront.products_publish_woocommerce_will_show'),
+            ]) : ('<p class="description">' . BHM_Words::get('admin.storefront.no_products_found')) . ($is_filtered ? ' ' . BHM_Words::get('admin.storefront.matching_filters') : '.') . '</p>';
         }
         $out = '';
         foreach ($products as $product) {
@@ -364,7 +365,7 @@ class BHM_Storefront {
     /** @return \WP_REST_Response|\WP_Error */
     public static function rest_query_products(\WP_REST_Request $req) {
         if (!BH_Commerce::available() || !function_exists('wc_get_products')) {
-            return new \WP_Error('bhm_storefront_no_woocommerce', 'WooCommerce is unavailable.', ['status' => 500]);
+            return new \WP_Error('bhm_storefront_no_woocommerce', BHM_Words::get('admin.storefront.woocommerce_unavailable'), ['status' => 500]);
         }
         $is_filtered = $req->get_param('min_price') !== null || $req->get_param('max_price') !== null || (bool) $req->get_param('in_stock');
         $products = self::query_products([
@@ -413,8 +414,8 @@ class BHM_Storefront {
      */
     public static function register_studio_block_types($types): array {
         $types['bhm/product-grid'] = ['tag' => 'div', 'category' => 'commerce', 'label' => 'Product Grid'];
-        $types['bhm/product-filter'] = ['tag' => 'form', 'category' => 'commerce', 'label' => 'Product Filter'];
-        $types['bhm/related-products'] = ['tag' => 'div', 'category' => 'commerce', 'label' => 'Related Products'];
+        $types['bhm/product-filter'] = ['tag' => 'form', 'category' => 'commerce', 'label' => BHM_Words::get('admin.storefront.product_filter')];
+        $types['bhm/related-products'] = ['tag' => 'div', 'category' => 'commerce', 'label' => BHM_Words::get('admin.storefront.related_products')];
         return $types;
     }
 

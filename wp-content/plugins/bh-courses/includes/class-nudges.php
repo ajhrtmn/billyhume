@@ -50,9 +50,9 @@ class BHC_Nudges {
                     $user_id,
                     'course_stalled',
                     'Still with "' . $course->post_title . '"?',
-                    'You started this course but haven\'t made progress in a while — pick up right where you left off.',
+                    BHC_Words::get('admin.nudges.started_course_but_haven_t'),
                     get_permalink($course->ID),
-                    'BH Courses'
+                    BHC_Words::get('admin.crm_integration.bh_courses')
                 );
                 update_user_meta($user_id, $meta_key, time());
             }

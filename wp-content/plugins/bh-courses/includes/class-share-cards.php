@@ -23,11 +23,11 @@ class BHC_ShareCards {
         $user_id = (int) ($_GET['u'] ?? 0);
         $course = get_post($course_id);
 
-        if (!$course || $course->post_type !== 'bh_course') wp_die('Course not found.', '', ['response' => 404, 'back_link' => true]);
+        if (!$course || $course->post_type !== 'bh_course') wp_die(BHC_Words::get('admin.admin.course_not_found'), '', ['response' => 404, 'back_link' => true]);
         if (!$user_id || !class_exists('BHC_Progress') || !BHC_Progress::is_course_completed($user_id, $course_id)) {
-            wp_die('Nothing to share yet — this course hasn\'t been completed by that student.', '', ['response' => 404, 'back_link' => true]);
+            wp_die(BHC_Words::get('admin.share_cards.nothing_share_yet_course_hasn'), '', ['response' => 404, 'back_link' => true]);
         }
-        if (!class_exists('BH_ShareCard')) wp_die('Share cards are unavailable right now.', '', ['response' => 501, 'back_link' => true]);
+        if (!class_exists('BH_ShareCard')) wp_die(BHC_Words::get('admin.share_cards.share_cards_are_unavailable_right'), '', ['response' => 501, 'back_link' => true]);
 
         $user = get_userdata($user_id);
         $name = $user ? ($user->display_name ?: $user->user_login) : 'A student';
@@ -36,9 +36,9 @@ class BHC_ShareCards {
 
         BH_ShareCard::output_png([
             'style' => $style,
-            'eyebrow' => 'Course Complete',
+            'eyebrow' => BHC_Words::get('admin.share_cards.course_complete'),
             'title' => $course->post_title,
-            'subtitle' => 'Finished by ' . $name . ' on ' . get_bloginfo('name'),
+            'subtitle' => BHC_Words::get('admin.share_cards.finished_by') . ' ' . $name . ' on ' . get_bloginfo('name'),
             'entity_id' => $course_id,
         ], sanitize_title($course->post_title) . '-complete.png');
     }

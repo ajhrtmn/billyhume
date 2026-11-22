@@ -25,14 +25,14 @@ class BHM_PostGate {
         wp_nonce_field('bhm_post_gate_save', 'bhm_post_gate_nonce');
         $required_tier = (int) get_post_meta($post->ID, '_bhm_required_tier', true);
         $tiers = BHM_Tiers::all();
-        echo '<p><label>Require a supporter tier to read this' . (class_exists('BHY_UI') ? BHY_UI::tip('Requires the tier selected here OR any higher-priced tier — same price-rank rule bh-courses\' own tier gate uses.') : '') . '<br>';
-        echo '<select name="bhm_post_required_tier" style="width:100%;"><option value="0">— Open to everyone —</option>';
+        echo ('<p><label>' . BHM_Words::get('admin.post_gate.require_supporter_tier_read')) . (class_exists('BHY_UI') ? BHY_UI::tip(BHM_Words::get('admin.post_gate.requires_tier_selected_here_any')) : '') . '<br>';
+        echo ('<select name="bhm_post_required_tier" style="width:100%;"><option value="0">' . BHM_Words::get('admin.post_gate.open_everyone') . '</option>');
         foreach ($tiers as $t) {
             echo '<option value="' . esc_attr($t['id']) . '" ' . selected($required_tier, $t['id'], false) . '>' . esc_html($t['name']) . ' ($' . BHM_Money::display($t['price_cents']) . '/mo or equivalent)</option>';
         }
         echo '</select></label></p>';
-        if (empty($tiers)) echo '<p class="description">No tiers created yet — see Supporter Tiers.</p>';
-        if ($required_tier > 0) echo '<p class="description">A visitor without this tier sees a paywall notice instead of the real content.</p>';
+        if (empty($tiers)) echo ('<p class="description">' . BHM_Words::get('admin.post_gate.no_tiers_created_yet_see') . '</p>');
+        if ($required_tier > 0) echo ('<p class="description">' . BHM_Words::get('admin.post_gate.visitor_without_tier_sees_paywall') . '</p>');
     }
 
     public static function save_metabox(int $post_id): void {

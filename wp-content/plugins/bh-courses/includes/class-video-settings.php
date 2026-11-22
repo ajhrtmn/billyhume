@@ -35,22 +35,22 @@ class BHC_VideoSettings {
         settings_errors('bhc_video_settings');
         $mb = self::max_mb();
 
-        echo '<div class="wrap"><h1>Video Settings</h1>';
+        echo ('<div class="wrap"><h1>' . BHC_Words::get('admin.video_settings.video_settings') . '</h1>');
         echo '<p class="description">Controls the "Lesson: Video" block\'s <strong>Uploaded file</strong> source. Leave at 0 for no limit — the default, unchanged behavior. Neither this site\'s own PHP upload limit nor real hosting (Bluehost, a Wasmer deploy target, etc.) is assumed here; set this to whatever ceiling actually makes sense for wherever this ends up running.</p>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         wp_nonce_field('bhc_save_video_settings', 'bhc_video_settings_nonce');
         echo '<input type="hidden" name="action" value="bhc_save_video_settings">';
-        echo '<table class="form-table"><tr><th scope="row"><label for="bhc_max_video_mb">Max direct upload size</label></th><td>';
-        echo '<input type="number" min="0" step="1" id="bhc_max_video_mb" name="bhc_max_video_mb" PLACEHOLDER style="width:100px;"> MB';
-        echo '<p class="description">Above this size, a lesson video must use the block\'s <strong>URL (oEmbed)</strong> source (YouTube/Vimeo) instead of uploading the file directly.</p>';
+        echo ('<table class="form-table"><tr><th scope="row"><label for="bhc_max_video_mb">' . BHC_Words::get('admin.video_settings.max_direct_upload_size') . '</label></th><td>');
+        echo ('<input type="number" min="0" step="1" id="bhc_max_video_mb" name="bhc_max_video_mb" PLACEHOLDER style="width:100px;"> ' . BHC_Words::get('admin.video_settings.mb'));
+        echo ('<p class="description">' . BHC_Words::get('admin.video_settings.above_size_lesson_video_must') . '</p>');
         echo '</td></tr></table>';
-        echo '<p class="submit"><button type="submit" class="button button-primary">Save</button></p>';
+        echo ('<p class="submit"><button type="submit" class="button button-primary">' . BHC_Words::get('admin.video_settings.save') . '</button></p>');
         echo '</form></div>';
     }
 
     public static function save(): void {
         if (!current_user_can('manage_options') || !check_admin_referer('bhc_save_video_settings', 'bhc_video_settings_nonce')) {
-            wp_die('Invalid request.');
+            wp_die(BHC_Words::get('admin.admin.invalid_request'));
         }
         update_option(self::OPTION, max(0, (int) ($_POST['bhc_max_video_mb'] ?? 0)));
         add_settings_error('bhc_video_settings', 'saved', 'Saved.', 'success');
@@ -90,6 +90,6 @@ class BHC_VideoSettings {
         if (!$over) return;
         delete_transient('bhc_video_size_notice_' . $post_id);
         $max_mb = self::max_mb();
-        echo '<div class="notice notice-warning"><p>This lesson has a video step (' . esc_html(implode(', ', array_map(fn($mb) => $mb . 'MB', $over))) . ') larger than the ' . (int) $max_mb . 'MB direct-upload limit set in <a href="' . esc_url(admin_url('edit.php?post_type=bh_course&page=bhc-video-settings')) . '">Video Settings</a>. Consider switching that step to the URL (oEmbed) source instead — it was still saved as-is.</p></div>';
+        echo ('<div class="notice notice-warning"><p>' . BHC_Words::get('admin.video_settings.lesson_has_video_step')) . esc_html(implode(', ', array_map(fn($mb) => $mb . 'MB', $over))) . BHC_Words::get('admin.video_settings.larger_than') . ' ' . (int) $max_mb . (BHC_Words::get('admin.video_settings.mb_direct_upload_limit_set') . ' <a href="') . esc_url(admin_url('edit.php?post_type=bh_course&page=bhc-video-settings')) . ('">' . BHC_Words::get('admin.video_settings.video_settings') . '</a>. Consider switching that step to the URL (oEmbed) source instead — it was still saved as-is.</p></div>');
     }
 }

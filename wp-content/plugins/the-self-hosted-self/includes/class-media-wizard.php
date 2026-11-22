@@ -2,13 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Guided media/CDN setup wrapping Advanced Media Offloader (ADVMO): writes ADVMO's own
- * `advmo_settings`/`advmo_credentials` options and validates with its providers' checkConnection().
- * Also hosts the optional Cloudflare Stream (Tier B) step.
- *
- * WHY: a submenu under 'the-self-hosted-self', not 'ous-debug' — new submenu slugs under
- * 'ous-debug' have resolved to the wrong screen on this install.
- * No Azure option: ADVMO only speaks the S3 API.
+ * Guided media/CDN setup for Advanced Media Offloader (writes its options, tests the
+ * connection), plus the optional Cloudflare Stream step.
+ * WHY: a submenu of the core menu; new ous-debug submenus resolved to the wrong screen here.
  */
 class OUS_MediaWizard {
     // key => [name, recommended, credential fields, dashboard link, help text].
@@ -130,7 +126,7 @@ class OUS_MediaWizard {
 
         if ($has_advmo && $current_provider) {
             $label = self::PROVIDERS[$current_provider]['name'] ?? $current_provider;
-            echo '<div class="notice notice-success" style="padding:12px;"><p><strong>Currently connected:</strong> ' . esc_html($label) . '. New uploads offload automatically.' . (!empty($settings['auto_offload_uploads']) ? '' : ' <strong>Auto-offload is currently OFF</strong> — existing media stays local until you re-save below.') . '</p></div>';
+            echo ('<div class="notice notice-success" style="padding:12px;"><p><strong>' . OUS_Words::get('admin.media_wizard.currently_connected') . '</strong> ') . esc_html($label) . '. New uploads offload automatically.' . (!empty($settings['auto_offload_uploads']) ? '' : (' ' . OUS_Words::get('admin.media_wizard.auto_offload_currently_off_existing'))) . '</p></div>';
         }
 
         if ($test_result) {
@@ -140,31 +136,31 @@ class OUS_MediaWizard {
 
         if ($has_advmo) {
         echo '<div class="bhy-alert bhy-alert-info" style="max-width:760px;">';
-        echo '<p><strong>Why this matters, especially for video:</strong> a single long, high-resolution video served straight from ordinary WordPress hosting can eat up your host\'s bandwidth allowance fast, or slow down for everyone else on shared hosting. Moving media to real object storage behind a CDN fixes both — your own server just stores a pointer, the CDN does the heavy lifting, and viewers get fast, reliable playback (including proper seeking/scrubbing) regardless of file size.</p>';
+        echo ('<p><strong>' . OUS_Words::get('admin.media_wizard.why_matters_especially_video') . '</strong> ' . OUS_Words::get('admin.media_wizard.single_long_high_resolution_video') . '</p>');
         echo '</div>';
 
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" id="ous-media-wizard-form" style="max-width:760px;">';
         wp_nonce_field('ous_media_wizard_save', 'ous_media_wizard_nonce');
         echo '<input type="hidden" name="action" value="ous_media_wizard_save">';
 
-        echo '<h2>1. Choose a provider</h2>';
+        echo ('<h2>' . OUS_Words::get('admin.media_wizard.1_choose_provider') . '</h2>');
         echo '<div class="ous-wizard-providers" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">';
         foreach (self::PROVIDERS as $key => $p) {
             $checked = ($current_provider === $key) || (!$current_provider && $key === 'cloudflare_r2');
             echo '<label style="display:block;border:2px solid ' . ($checked ? '#2271b1' : '#dcdcde') . ';border-radius:8px;padding:12px 14px;cursor:pointer;background:#fff;">';
             echo '<input type="radio" name="ous_provider" value="' . esc_attr($key) . '" class="ous-provider-radio"' . checked($checked, true, false) . '> ';
-            echo '<strong>' . esc_html($p['name']) . '</strong>' . ($p['recommended'] ? ' <span style="background:#2271b1;color:#fff;font-size:11px;padding:2px 8px;border-radius:999px;">Recommended</span>' : '');
+            echo '<strong>' . esc_html($p['name']) . '</strong>' . ($p['recommended'] ? (' <span style="background:#2271b1;color:#fff;font-size:11px;padding:2px 8px;border-radius:999px;">' . OUS_Words::get('admin.media_wizard.recommended') . '</span>') : '');
             echo '<p class="description" style="margin:6px 0 0;">' . esc_html($p['why']) . '</p>';
             echo '</label>';
         }
         echo '</div>';
 
-        echo '<h2>2. Enter your credentials</h2>';
+        echo ('<h2>' . OUS_Words::get('admin.media_wizard.2_enter_credentials') . '</h2>');
         foreach (self::PROVIDERS as $key => $p) {
             $display = ($current_provider === $key) || (!$current_provider && $key === 'cloudflare_r2') ? '' : 'display:none;';
             echo '<div class="ous-provider-fields" data-provider="' . esc_attr($key) . '" style="' . $display . 'border:1px solid #dcdcde;border-radius:8px;padding:16px;margin-bottom:16px;background:#fff;">';
             if ($p['dashboard_url']) {
-                echo '<p><a class="button" href="' . esc_url($p['dashboard_url']) . '" target="_blank" rel="noopener">&rarr; Get your ' . esc_html($p['name']) . ' credentials (' . esc_html($p['dashboard_label']) . ')</a></p>';
+                echo '<p><a class="button" href="' . esc_url($p['dashboard_url']) . '" target="_blank" rel="noopener">&rarr; Get your ' . esc_html($p['name']) . ' ' . OUS_Words::get('admin.media_wizard.credentials') . esc_html($p['dashboard_label']) . ')</a></p>';
             }
             $saved = $credentials[$key] ?? [];
             foreach ($p['fields'] as $f) {
@@ -172,7 +168,7 @@ class OUS_MediaWizard {
                 $placeholder = $f['placeholder'] ?? '';
                 echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">' . esc_html($f['label']) . '<br>';
                 echo '<input type="' . esc_attr($f['type']) . '" name="ous_cred[' . esc_attr($key) . '][' . esc_attr($f['name']) . ']" value="' . esc_attr($f['type'] === 'password' ? '' : $val) . '" placeholder="' . esc_attr($placeholder) . '" style="width:100%;max-width:480px;" autocomplete="off">';
-                if ($f['type'] === 'password' && $val) echo '<span class="description"> (already set — leave blank to keep it)</span>';
+                if ($f['type'] === 'password' && $val) echo ('<span class="description"> ' . OUS_Words::get('admin.media_wizard.already_set_leave_blank_keep') . '</span>');
                 echo '</label></p>';
             }
             echo '</div>';
@@ -217,9 +213,9 @@ class OUS_MediaWizard {
         delete_transient('ous_cf_stream_test_result');
 
         echo '<hr style="max-width:760px;margin:32px 0;">';
-        echo '<h2>Tier B: Cloudflare Stream (optional, adaptive-bitrate video)</h2>';
+        echo ('<h2>' . OUS_Words::get('admin.media_wizard.tier_b_cloudflare_stream_optional') . '</h2>');
         echo '<div class="bhy-alert bhy-alert-info" style="max-width:760px;">';
-        echo '<p><strong>What this adds over Tier A:</strong> automatic transcoding and real adaptive bitrate — a viewer on a slow connection automatically gets a lower-quality rendition instead of buffering. <strong>What it costs:</strong> roughly $5 per 1,000 minutes stored and $1 per 1,000 minutes delivered (Cloudflare\'s own current pricing — verify before relying on this exact figure, pricing changes). Tier A (above) already gives you fast, reliable playback via CDN + object storage at no extra per-minute cost — only turn this on if long/high-resolution video specifically needs adaptive bitrate.</p>';
+        echo ('<p><strong>' . OUS_Words::get('admin.media_wizard.what_adds_over_tier') . '</strong> automatic transcoding and real adaptive bitrate — a viewer on a slow connection automatically gets a lower-quality rendition instead of buffering. <strong>What it costs:</strong> roughly $5 per 1,000 minutes stored and $1 per 1,000 minutes delivered (Cloudflare\'s own current pricing — verify before relying on this exact figure, pricing changes). Tier A (above) already gives you fast, reliable playback via CDN + object storage at no extra per-minute cost — only turn this on if long/high-resolution video specifically needs adaptive bitrate.</p>');
         echo '</div>';
 
         if ($test_result) {
@@ -231,12 +227,12 @@ class OUS_MediaWizard {
         wp_nonce_field('ous_media_wizard_save_cloudflare_stream', 'ous_media_wizard_cf_stream_nonce');
         echo '<input type="hidden" name="action" value="ous_media_wizard_save_cloudflare_stream">';
 
-        echo '<p><label><input type="checkbox" name="cf_stream_enabled" value="1"' . checked($enabled, true, false) . '> Enable Cloudflare Stream as an available option for video-heavy plugins (opt-in per plugin/upload — this switch alone doesn\'t move anything).</label></p>';
+        echo '<p><label><input type="checkbox" name="cf_stream_enabled" value="1"' . checked($enabled, true, false) . ('> ' . OUS_Words::get('admin.media_wizard.enable_cloudflare_stream_as_available') . '</label></p>');
 
-        echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">Cloudflare Account ID<br>';
+        echo ('<p><label style="display:block;font-weight:600;margin-bottom:4px;">' . OUS_Words::get('admin.media_wizard.cloudflare_account_id') . '<br>');
         echo '<input type="text" name="cf_account_id" value="' . esc_attr($creds['account_id'] ?? '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
 
-        echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">API Token (Stream:Edit permission)<br>';
+        echo ('<p><label style="display:block;font-weight:600;margin-bottom:4px;">' . OUS_Words::get('admin.media_wizard.api_token_stream_edit_permission') . '<br>');
         echo '<input type="password" name="cf_api_token" value="" placeholder="' . (!empty($creds['api_token']) ? 'Already set — leave blank to keep it' : '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
 
         echo '<p><button type="submit" class="button button-primary">Save &amp; test connection</button></p>';
@@ -260,7 +256,7 @@ class OUS_MediaWizard {
 
     public static function handle_save_cloudflare_stream(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_cf_stream_nonce'] ?? '', 'ous_media_wizard_save_cloudflare_stream')) {
-            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+            wp_die(OUS_Words::get('admin.media_wizard.security_check_failed'), '', ['response' => 403, 'back_link' => true]);
         }
 
         $enabled = !empty($_POST['cf_stream_enabled']);
@@ -273,20 +269,20 @@ class OUS_MediaWizard {
         update_option('ous_cf_stream_credentials', ['account_id' => $account_id, 'api_token' => $api_token]);
 
         // Live validation: a plain GET against the account's Stream endpoint proves the token/account pair.
-        $result = ['success' => false, 'message' => 'Enter both an Account ID and an API Token to test the connection.'];
+        $result = ['success' => false, 'message' => OUS_Words::get('admin.media_wizard.enter_both_account_id_api')];
         if ($account_id && $api_token) {
             $response = wp_remote_get(
                 'https://api.cloudflare.com/client/v4/accounts/' . rawurlencode($account_id) . '/stream?per_page=1',
                 ['headers' => ['Authorization' => 'Bearer ' . $api_token], 'timeout' => 10]
             );
             if (is_wp_error($response)) {
-                $result = ['success' => false, 'message' => 'Connection failed: ' . $response->get_error_message()];
+                $result = ['success' => false, 'message' => OUS_Words::get('admin.media_wizard.connection_failed') . ' ' . $response->get_error_message()];
             } else {
                 $code = wp_remote_retrieve_response_code($response);
                 $body = json_decode(wp_remote_retrieve_body($response), true);
                 $result = ($code === 200 && !empty($body['success']))
-                    ? ['success' => true, 'message' => 'Connected to Cloudflare Stream successfully.']
-                    : ['success' => false, 'message' => 'Cloudflare rejected the request (HTTP ' . $code . ') — check the Account ID and API Token.'];
+                    ? ['success' => true, 'message' => OUS_Words::get('admin.media_wizard.connected_cloudflare_stream_successfully')]
+                    : ['success' => false, 'message' => OUS_Words::get('admin.media_wizard.cloudflare_rejected_request_http') . ' ' . $code . OUS_Words::get('admin.media_wizard.check_account_id_api_token')];
             }
         }
         set_transient('ous_cf_stream_test_result', $result, 60);
@@ -297,12 +293,12 @@ class OUS_MediaWizard {
 
     public static function handle_save(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_nonce'] ?? '', 'ous_media_wizard_save')) {
-            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+            wp_die(OUS_Words::get('admin.media_wizard.security_check_failed'), '', ['response' => 403, 'back_link' => true]);
         }
 
         $provider = sanitize_key($_POST['ous_provider'] ?? '');
         if (!isset(self::PROVIDERS[$provider])) {
-            wp_die('Unknown provider.', '', ['response' => 400, 'back_link' => true]);
+            wp_die(OUS_Words::get('admin.media_wizard.unknown_provider'), '', ['response' => 400, 'back_link' => true]);
         }
 
         // Merge onto all providers' credentials, like ADVMO's sanitize_credentials(), so switching
@@ -326,15 +322,15 @@ class OUS_MediaWizard {
         update_option('advmo_settings', $settings);
 
         // Live test via ADVMO's provider checkConnection() (a real headBucket(); returns bool).
-        $result = ['success' => false, 'message' => 'Could not test the connection.'];
+        $result = ['success' => false, 'message' => OUS_Words::get('admin.media_wizard.could_not_test_connection')];
         try {
             $factory = new \Advanced_Media_Offloader\Factories\CloudProviderFactory();
             $cloud_provider = $factory::create($provider);
             $result = $cloud_provider->checkConnection()
-                ? ['success' => true, 'message' => 'Connected successfully — ' . self::PROVIDERS[$provider]['name'] . ' is ready.']
-                : ['success' => false, 'message' => 'Connection failed — double-check your credentials and bucket name.'];
+                ? ['success' => true, 'message' => OUS_Words::get('admin.media_wizard.connected_successfully') . ' ' . self::PROVIDERS[$provider]['name'] . ' is ready.']
+                : ['success' => false, 'message' => OUS_Words::get('admin.media_wizard.connection_failed_double_check_credentia')];
         } catch (\Throwable $e) {
-            $result = ['success' => false, 'message' => 'Connection failed: ' . $e->getMessage()];
+            $result = ['success' => false, 'message' => OUS_Words::get('admin.media_wizard.connection_failed') . ' ' . $e->getMessage()];
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log_exception($e, 'OUS_MediaWizard');
             }

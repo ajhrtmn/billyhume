@@ -2,10 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Dev-only contest seeding, as a Debug Tools section (OUS_Debug).
- * Test posts are tagged _bh_is_test and test users come from
- * OUS_Debug::get_or_create_test_user(), so reset() removes only fake data.
- * Every action targets the contest picked in the section's dropdown.
+ * Contest seeding in Debug Tools. Test posts are tagged _bh_is_test and test users come
+ * from OUS_Debug, so reset removes only fake data.
  */
 class BH_Debug {
     const FAKE_ARTISTS = ['The Night Owls', 'Static Bloom', 'Copper Wire', 'Low Tide Motel', 'Radio Silo', 'Paper Kites Union', 'Glass Harbor', 'Velvet Static', 'Dry County', 'The Understudies'];

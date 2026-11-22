@@ -24,7 +24,7 @@ class OUS_CodebaseDocs {
      * @return array<string, mixed>
      */
     public static function register_debug_section($tools): array {
-        $tools['codebase-docs'] = ['label' => 'Codebase Docs', 'render' => [self::class, 'render_section'], 'handle' => null, 'reset' => null, 'group' => OUS_Debug::GROUP_REFERENCE];
+        $tools['codebase-docs'] = ['label' => OUS_Words::get('admin.codebase_docs.codebase_docs'), 'render' => [self::class, 'render_section'], 'handle' => null, 'reset' => null, 'group' => OUS_Debug::GROUP_REFERENCE];
         return $tools;
     }
 
@@ -36,7 +36,7 @@ class OUS_CodebaseDocs {
         // Registers unconditionally and logs the hook suffix for diagnosis.
         $hook = add_submenu_page('ous-debug', 'Codebase Docs', 'Codebase Docs', 'manage_options', 'ous-codebase-docs', [self::class, 'render']);
         if (class_exists('OUS_DebugLog')) {
-            OUS_DebugLog::log('info', 'add_submenu_page() for Codebase Docs returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'") . ' | current_user_can(manage_options): ' . (current_user_can('manage_options') ? 'TRUE' : 'FALSE'), [
+            OUS_DebugLog::log('info', 'add_submenu_page() for Codebase Docs returned: ' . ($hook === false ? OUS_Words::get('admin.codebase_docs.false_registration_failed') : "'$hook'") . ' | current_user_can(manage_options): ' . (current_user_can('manage_options') ? 'TRUE' : 'FALSE'), [
                 'hook_suffix' => $hook,
                 'request_uri' => $_SERVER['REQUEST_URI'] ?? '',
             ], 'Codebase Docs');
@@ -55,7 +55,7 @@ class OUS_CodebaseDocs {
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('info', 'OUS_CodebaseDocs::render() entered.', [], 'Codebase Docs');
         }
-        BHY_UI::shell_open('Codebase Docs', 'A guided, sequential tour of this whole ecosystem — generated from CODEBASE-WALKTHROUGH.md, with every referenced file readable live below its mention (always the current code, never a stale pasted-in snippet).');
+        BHY_UI::shell_open(OUS_Words::get('admin.codebase_docs.codebase_docs'), OUS_Words::get('admin.codebase_docs.guided_sequential_tour_whole_ecosystem'));
         self::render_content();
         BHY_UI::shell_close();
     }
@@ -66,13 +66,13 @@ class OUS_CodebaseDocs {
 
         $path = self::walkthrough_path();
         if (!$path || !file_exists($path)) {
-            echo '<div class="notice notice-warning"><p>CODEBASE-WALKTHROUGH.md not found at the plugins root (' . esc_html($path ?: '(path could not be resolved)') . '). Nothing to render.</p></div>';
+            echo ('<div class="notice notice-warning"><p>' . OUS_Words::get('admin.codebase_docs.codebase_walkthrough_md_not_found')) . esc_html($path ?: OUS_Words::get('admin.codebase_docs.path_could_not_resolved')) . (OUS_Words::get('admin.codebase_docs.nothing_render') . '</p></div>');
             return;
         }
 
         $md = file_get_contents($path);
         if ($md === false) {
-            echo '<div class="notice notice-error"><p>Found the file but could not read it (permissions?).</p></div>';
+            echo ('<div class="notice notice-error"><p>' . OUS_Words::get('admin.codebase_docs.found_file_but_could_not') . '</p></div>');
             return;
         }
 
@@ -159,7 +159,7 @@ class OUS_CodebaseDocs {
         $out .= '<button type="button" class="button button-small ous-view-live-code" '
               . 'data-file="' . esc_attr($ref) . '" data-line="' . (int) $line_hint . '" '
               . 'data-target="' . esc_attr($id) . '" data-nonce="' . esc_attr($nonce) . '">'
-              . '&#128269; View live code: <code>' . esc_html($ref) . '</code>' . ($line_hint ? ' (near line ' . (int) $line_hint . ')' : '') . '</button>';
+              . '&#128269; View live code: <code>' . esc_html($ref) . '</code>' . ($line_hint ? ' ' . OUS_Words::get('admin.codebase_docs.near_line') . ' ' . (int) $line_hint . ')' : '') . '</button>';
         $out .= '<div id="' . esc_attr($id) . '" style="margin-top:8px;display:none;"></div>';
         $out .= '</div>';
         return $out;
@@ -182,7 +182,7 @@ class OUS_CodebaseDocs {
         $line = isset($_POST['line']) ? max(0, (int) $_POST['line']) : 0;
 
         if (!$rel || !self::path_is_safe($rel)) {
-            wp_send_json_error(['message' => 'Invalid file reference.'], 400);
+            wp_send_json_error(['message' => OUS_Words::get('admin.codebase_docs.invalid_file_reference')], 400);
         }
 
         $root = self::plugins_root();
@@ -193,14 +193,14 @@ class OUS_CodebaseDocs {
         if (!$full || !$root || strpos($full, rtrim($root, '/\\') . DIRECTORY_SEPARATOR) !== 0 || !is_readable($full)) {
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('warning', 'Codebase Docs snippet request rejected — resolved path outside plugins root or unreadable.', [
-                    'requested' => $rel, 'resolved' => $full ?: '(failed to resolve)',
+                    'requested' => $rel, 'resolved' => $full ?: OUS_Words::get('admin.codebase_docs.failed_resolve'),
                 ], 'OUS_CodebaseDocs');
             }
-            wp_send_json_error(['message' => 'File not found or not accessible.'], 404);
+            wp_send_json_error(['message' => OUS_Words::get('admin.codebase_docs.file_not_found_not_accessible')], 404);
         }
 
         $lines = file($full, FILE_IGNORE_NEW_LINES);
-        if ($lines === false) wp_send_json_error(['message' => 'Could not read file.'], 500);
+        if ($lines === false) wp_send_json_error(['message' => OUS_Words::get('admin.codebase_docs.could_not_read_file')], 500);
 
         $total = count($lines);
         if ($line > 0) {

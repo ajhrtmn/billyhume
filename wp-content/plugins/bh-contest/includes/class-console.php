@@ -23,10 +23,10 @@ class BH_Console {
         $contests = BH_Helpers::all_contests();
         $cid = isset($_GET['contest_id']) ? (int) $_GET['contest_id'] : BH_Reveal::default_contest();
 
-        BHY_UI::shell_open('Live Console', 'Private — never link or share this page. Real names and contact info are shown here specifically so you know who you\'re listening to; none of it belongs on stream.');
+        BHY_UI::shell_open(BHCON_Words::get('admin.console.live_console'), 'Private — never link or share this page. Real names and contact info are shown here specifically so you know who you\'re listening to; none of it belongs on stream.');
 
         if (!$contests) {
-            echo '<p>No contests yet.</p>';
+            echo ('<p>' . BHCON_Words::get('admin.console.no_contests_yet') . '</p>');
             BHY_UI::shell_close();
             return;
         }
@@ -45,10 +45,10 @@ class BH_Console {
         $phase = BH_Helpers::contest_phase_summary($cid);
         echo '<p><span class="bhy-badge bhy-badge-dot" style="background:' . esc_attr($phase['color']) . '1a;color:' . esc_attr($phase['color']) . ';">' . esc_html($phase['label']) . '</span> &middot; ';
         $export_base = admin_url('admin-post.php?action=bh_export&contest_id=' . $cid);
-        echo '<a href="' . esc_url(wp_nonce_url($export_base . '&type=submissions', 'bh_export')) . '">Export submissions (CSV)</a> &middot; ';
-        echo '<a href="' . esc_url(wp_nonce_url($export_base . '&type=votes', 'bh_export')) . '">Export votes (CSV)</a> &middot; ';
+        echo '<a href="' . esc_url(wp_nonce_url($export_base . '&type=submissions', 'bh_export')) . ('">' . BHCON_Words::get('admin.console.export_submissions_csv') . '</a> &middot; ');
+        echo '<a href="' . esc_url(wp_nonce_url($export_base . '&type=votes', 'bh_export')) . ('">' . BHCON_Words::get('admin.console.export_votes_csv') . '</a> &middot; ');
         echo '<a href="' . esc_url(admin_url('edit.php?post_type=bh_contest&page=bh-results&contest_id=' . $cid)) . '">Full results</a> &middot; ';
-        echo '<a href="' . esc_url(admin_url('edit.php?post_type=bh_submission&bh_contest_filter=' . $cid)) . '">All submissions</a></p>';
+        echo '<a href="' . esc_url(admin_url('edit.php?post_type=bh_submission&bh_contest_filter=' . $cid)) . ('">' . BHCON_Words::get('admin.console.all_submissions') . '</a></p>');
 
         // At-a-glance counts: approved, pending review, votes, voters.
         $approved = BH_Helpers::submission_count($cid, 'publish');
@@ -56,15 +56,15 @@ class BH_Console {
         $votes    = BH_Helpers::vote_count($cid);
         $voters   = BH_Helpers::voter_count($cid);
         echo '<div class="bhc-console-stats">';
-        echo '<div class="bhc-console-stat"><span class="bhc-console-stat-num">' . (int) $approved . '</span><span class="bhc-console-stat-label">Approved</span></div>';
+        echo '<div class="bhc-console-stat"><span class="bhc-console-stat-num">' . (int) $approved . ('</span><span class="bhc-console-stat-label">' . BHCON_Words::get('admin.console.approved') . '</span></div>');
         if ($pending > 0) {
             $pending_url = esc_url(admin_url('edit.php?post_type=bh_submission&post_status=pending&bh_contest_filter=' . $cid));
-            echo '<div class="bhc-console-stat bhc-console-stat-attn"><a href="' . $pending_url . '"><span class="bhc-console-stat-num">' . (int) $pending . '</span><span class="bhc-console-stat-label">Pending review</span></a></div>';
+            echo '<div class="bhc-console-stat bhc-console-stat-attn"><a href="' . $pending_url . '"><span class="bhc-console-stat-num">' . (int) $pending . ('</span><span class="bhc-console-stat-label">' . BHCON_Words::get('admin.console.pending_review') . '</span></a></div>');
         } else {
-            echo '<div class="bhc-console-stat"><span class="bhc-console-stat-num">0</span><span class="bhc-console-stat-label">Pending review</span></div>';
+            echo ('<div class="bhc-console-stat"><span class="bhc-console-stat-num">0</span><span class="bhc-console-stat-label">' . BHCON_Words::get('admin.console.pending_review') . '</span></div>');
         }
-        echo '<div class="bhc-console-stat"><span class="bhc-console-stat-num">' . (int) $votes . '</span><span class="bhc-console-stat-label">Votes</span></div>';
-        echo '<div class="bhc-console-stat"><span class="bhc-console-stat-num">' . (int) $voters . '</span><span class="bhc-console-stat-label">Voters</span></div>';
+        echo '<div class="bhc-console-stat"><span class="bhc-console-stat-num">' . (int) $votes . ('</span><span class="bhc-console-stat-label">' . BHCON_Words::get('admin.admin_reports.votes') . '</span></div>');
+        echo '<div class="bhc-console-stat"><span class="bhc-console-stat-num">' . (int) $voters . ('</span><span class="bhc-console-stat-label">' . BHCON_Words::get('admin.console.voters') . '</span></div>');
         echo '</div>';
         echo '<style>
             .bhc-console-stats { display: flex; gap: 12px; margin: 0 0 16px; flex-wrap: wrap; }
@@ -79,11 +79,11 @@ class BH_Console {
         $suspicious = BH_Helpers::suspicious_voters($cid);
         if ($suspicious) {
             echo '<div class="bhy-alert bhy-alert-warning">';
-            echo '<strong>⚠️ Rapid voting detected</strong> — worth a look, not necessarily a problem:';
+            echo ('<strong>' . BHCON_Words::get('admin.console.rapid_voting_detected') . '</strong> ' . BHCON_Words::get('admin.console.worth_look_not_necessarily_problem'));
             echo '<ul style="margin:var(--bhy-space-2) 0 0 18px;">';
             foreach ($suspicious as $s) {
                 $u = get_userdata($s->user_id);
-                echo '<li>' . esc_html($u ? $u->user_login : 'User #' . $s->user_id) . ': ' . esc_html($s->vote_count) . ' votes in ' . esc_html($s->span_seconds) . 's</li>';
+                echo '<li>' . esc_html($u ? $u->user_login : BHCON_Words::get('admin.console.user') . $s->user_id) . ': ' . esc_html($s->vote_count) . ' votes in ' . esc_html($s->span_seconds) . 's</li>';
             }
             echo '</ul></div>';
         }
@@ -92,7 +92,7 @@ class BH_Console {
         $ip_clusters = BH_Helpers::suspicious_ip_clusters($cid);
         if ($ip_clusters) {
             echo '<div class="bhy-alert bhy-alert-warning">';
-            echo '<strong>⚠️ Multiple accounts voting from the same IP</strong> — worth a look, not necessarily a problem (a shared IP alone is normal for a household, campus, or VPN):';
+            echo ('<strong>' . BHCON_Words::get('admin.console.multiple_accounts_voting_from_same') . '</strong> ' . BHCON_Words::get('admin.console.worth_look_not_necessarily_problem_2'));
             echo '<ul style="margin:var(--bhy-space-2) 0 0 18px;">';
             foreach ($ip_clusters as $c) {
                 $names = array_map(function ($uid) {
@@ -100,13 +100,13 @@ class BH_Console {
                     return $u ? $u->user_login : "User #$uid";
                 }, $c->user_ids);
                 echo '<li>' . esc_html($c->ip_address) . ': ' . esc_html(implode(', ', $names)) . ' (' . esc_html($c->vote_count) . ' votes in ' . esc_html($c->span_seconds) . 's)'
-                   . ($c->same_fingerprint ? ' <strong style="color:#b42318;">— same browser fingerprint</strong>' : '') . '</li>';
+                   . ($c->same_fingerprint ? (' <strong style="color:#b42318;">' . BHCON_Words::get('admin.console.same_browser_fingerprint') . '</strong>') : '') . '</li>';
             }
             echo '</ul></div>';
         }
 
         echo '<div class="bhy-card" style="max-width:640px;">';
-        echo '<h2>Reveal Controls</h2>';
+        echo ('<h2>' . BHCON_Words::get('admin.console.reveal_controls') . '</h2>');
         BH_Reveal::render_controls_widget($cid);
         echo '</div>';
 
@@ -116,14 +116,14 @@ class BH_Console {
             'posts_per_page' => -1, 'orderby' => 'date', 'order' => 'ASC',
         ]);
 
-        if (!$subs) { echo '<p>No submissions for this contest yet.</p>'; BHY_UI::shell_close(); return; }
+        if (!$subs) { echo ('<p>' . BHCON_Words::get('admin.console.no_submissions_contest_yet') . '</p>'); BHY_UI::shell_close(); return; }
 
         global $wpdb;
         $t = BH_Helpers::table();
 
         echo '<div class="bhy-table-wrap">';
         echo '<table class="wp-list-table widefat striped"><thead><tr>'
-           . '<th>Track</th><th>Status</th><th>Identity</th><th>Live votes</th><th>Actions</th>'
+           . ('<th>' . BHCON_Words::get('admin.console.track') . '</th><th>' . BHCON_Words::get('admin.console.status') . '</th><th>' . BHCON_Words::get('admin.console.identity') . '</th><th>Live votes</th><th>' . BHCON_Words::get('admin.console.actions') . '</th>')
            . '</tr></thead><tbody>';
 
         foreach ($subs as $p) {
@@ -140,9 +140,9 @@ class BH_Console {
             if ($url) echo '<br><audio controls preload="none" src="' . esc_url($url) . '" style="height:32px;margin-top:6px;max-width:240px;"></audio>';
             echo '</td>';
             $status_badge = [
-                'publish'  => '<span class="bhy-badge bhy-badge-success">Approved</span>',
-                'rejected' => '<span class="bhy-badge bhy-badge-neutral">Rejected</span>',
-            ][$p->post_status] ?? '<span class="bhy-badge bhy-badge-warning">Pending</span>';
+                'publish'  => ('<span class="bhy-badge bhy-badge-success">' . BHCON_Words::get('admin.console.approved') . '</span>'),
+                'rejected' => ('<span class="bhy-badge bhy-badge-neutral">' . BHCON_Words::get('admin.admin_metaboxes.rejected') . '</span>'),
+            ][$p->post_status] ?? ('<span class="bhy-badge bhy-badge-warning">' . BHCON_Words::get('admin.console.pending') . '</span>');
             echo '<td>' . $status_badge . '</td>';
             echo '<td>' . self::identity_cell($profile) . '</td>';
             echo '<td style="font-weight:600;">' . esc_html((string) $votes) . '</td>';
@@ -152,9 +152,9 @@ class BH_Console {
                     admin_url('admin-post.php?action=bh_quick_approve&submission_id=' . $p->ID),
                     'bh_quick_approve_' . $p->ID
                 );
-                echo '<a href="' . esc_url($approve_url) . '">Approve</a> &middot; ';
+                echo '<a href="' . esc_url($approve_url) . ('">' . BHCON_Words::get('admin.admin_moderation.approve') . '</a> &middot; ');
             }
-            echo '<a href="' . esc_url((string) get_edit_post_link($p->ID, '')) . '">Edit' . ($p->post_status !== 'publish' ? ' / Reject' : '') . '</a>';
+            echo '<a href="' . esc_url((string) get_edit_post_link($p->ID, '')) . ('">' . BHCON_Words::get('admin.admin_menus.edit')) . ($p->post_status !== 'publish' ? ' / Reject' : '') . '</a>';
             echo '</td>';
             echo '</tr>';
         }
@@ -185,10 +185,10 @@ class BH_Console {
         // Phone is never public (prize contact only).
         if ($p['phone'] !== '') $all[] = 'Phone: ' . esc_html($p['phone']);
 
-        if (!$all) return '<em style="color:var(--bhy-ink-dim);">No profile on file</em>';
+        if (!$all) return ('<em style="color:var(--bhy-ink-dim);">' . BHCON_Words::get('admin.console.no_profile_file') . '</em>');
 
-        $html = '<div style="margin-bottom:4px;"><span class="bhy-badge bhy-badge-success">OK on stream</span> '
-              . ($public ? implode(', ', $public) : '<em style="color:var(--bhy-ink-dim);">nothing — don\'t say any name for them</em>')
+        $html = ('<div style="margin-bottom:4px;"><span class="bhy-badge bhy-badge-success">' . BHCON_Words::get('admin.console.ok_stream') . '</span> ')
+              . ($public ? implode(', ', $public) : ('<em style="color:var(--bhy-ink-dim);">' . BHCON_Words::get('admin.console.nothing_don_t_say_any') . '</em>'))
               . '</div>';
         $html .= '<div style="color:var(--bhy-ink-dim);font-size:var(--bhy-text-xs);">' . implode('<br>', $all) . '</div>';
         return $html;

@@ -2,10 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Shared SEO output: meta description, Open Graph/Twitter tags, JSON-LD.
- * Code that knows what it is rendering calls BH_SEO::set_page_data() once;
- * this renders it at wp_head. The `bh_seo_page_data` filter is an override
- * hatch, not the primary path.
+ * Shared SEO output (meta description, Open Graph/Twitter, JSON-LD). Rendering code calls
+ * BH_SEO::set_page_data() once; bh_seo_page_data is an override hatch.
  */
 class BH_SEO {
     /** @var array<string, mixed>|null */
@@ -17,15 +15,8 @@ class BH_SEO {
     }
 
     /**
-     * $data:
-     *   title        string, required — falls back to wp_title() if omitted
-     *   description  string — plain text, gets truncated to a sane meta-description length
-     *   url           string — canonical URL, defaults to the current request URL
-     *   image        string — absolute URL, used for og:image/twitter:image
-     *   type         string — og:type, e.g. 'profile', 'music.song', 'website' (default)
-     *   schema       array — a schema.org JSON-LD structured-data array, e.g.
-     *                 ['@context' => 'https://schema.org', '@type' => 'Person', 'name' => ..., ...]
-     *                 Rendered verbatim via wp_json_encode() — caller's responsibility to shape it correctly.
+     * $data: title, description (truncated), url (canonical), image, type (og:type, default
+     * website), schema (a JSON-LD array, output verbatim).
      */
     /** @param array<string, mixed> $data */
     public static function set_page_data(array $data): void {
@@ -107,7 +98,9 @@ class BH_SEO {
 
         echo "# " . $site_name . "\n\n";
         if ($description) echo "> " . $description . "\n\n";
-        echo "This site is self-hosted on The Self-Hosted Self, an independent musician's own platform — not a rented profile on a third-party service. Content below is organized for easy reference.\n\n";
+        echo OUS_Words::get('admin.seo.site_self_hosted_self_hosted') . '
+
+';
 
         $sections = apply_filters('bh_llms_txt_sections', []);
         foreach ($sections as $section) {

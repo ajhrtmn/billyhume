@@ -57,7 +57,7 @@ class BHC_Feedback {
     private static function deliver(int $uid, int $course_id, string $message): void {
         $title = get_the_title($course_id);
         if (class_exists('BHT_Tickets')) {
-            $ticket = BHT_Tickets::create($uid, 'Course feedback: ' . $title, nl2br(esc_html($message)), 'course-feedback');
+            $ticket = BHT_Tickets::create($uid, BHC_Words::get('admin.feedback.course_feedback') . ' ' . $title, nl2br(esc_html($message)), 'course-feedback');
             if (!is_wp_error($ticket)) return;
         }
         if (!class_exists('OUS_Notifications')) return;
@@ -67,7 +67,7 @@ class BHC_Feedback {
         $instructor = BHC_PostTypes::instructor($course_id);
         if ($instructor) $recipients[] = (int) $instructor->ID;
         foreach (array_unique($recipients) as $recipient) {
-            OUS_Notifications::notify($recipient, 'course_feedback', 'Course feedback: ' . $title, nl2br(esc_html($who . " wrote:\n\n" . $message)), (string) get_edit_post_link($course_id, 'raw'), 'BH Courses');
+            OUS_Notifications::notify($recipient, 'course_feedback', BHC_Words::get('admin.feedback.course_feedback') . ' ' . $title, nl2br(esc_html($who . " wrote:\n\n" . $message)), (string) get_edit_post_link($course_id, 'raw'), BHC_Words::get('admin.crm_integration.bh_courses'));
         }
     }
 }

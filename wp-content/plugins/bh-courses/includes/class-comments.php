@@ -2,11 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Lesson comments/Q&A via WordPress's native comments, off by default per course
- * (`_bhc_comments_enabled`). Existing comments are hidden too, using the same access rule
- * as the lesson content.
- * WHY: hooks pre_get_comments, not comments_array, because block themes' Comments block
- * queries WP_Comment_Query directly.
+ * Lesson comments via native WordPress comments, off by default per course and hidden
+ * under the same access rule as the lesson. WHY: hooks pre_get_comments because the block
+ * theme Comments block queries WP_Comment_Query directly.
  */
 class BHC_Comments {
     public static function init(): void {

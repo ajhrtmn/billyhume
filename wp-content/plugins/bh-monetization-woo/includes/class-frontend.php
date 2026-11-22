@@ -138,7 +138,7 @@ class BHM_Frontend {
     public static function ensure_tiers_page(): void {
         // WHY: method_exists, not class_exists — this plugin can deploy ahead of a core that lacks the method.
         if (!method_exists('OUS_Pages', 'ensure')) return;
-        OUS_Pages::ensure('bhm_tiers', 'bhm_tiers_page_id', __('Supporter Tiers', 'bh-monetization-woo'), ['bhm/tiers']);
+        OUS_Pages::ensure('bhm_tiers', 'bhm_tiers_page_id', BHM_Words::get('admin.frontend.supporter_tiers'), ['bhm/tiers']);
     }
 
     public static function maybe_remember_gift_redeem_page(int $post_id): void {
@@ -183,7 +183,7 @@ class BHM_Frontend {
         $admin = '';
         if (current_user_can('edit_posts')) {
             $admin = '<p class="bhm-tiers-empty-admin"><a href="' . esc_url(admin_url('post-new.php?post_type=bhm_tier')) . '">&rarr; Add your first tier</a>'
-                   . ' <span class="bhm-tiers-empty-admin-hint">(only you can see this)</span></p>';
+                   . (' <span class="bhm-tiers-empty-admin-hint">' . BHM_Words::get('admin.frontend.only_can_see') . '</span></p>');
         }
 
         return '<div class="bhm-tiers-empty">' . $star
@@ -224,7 +224,7 @@ class BHM_Frontend {
                 $annual_monthly_equivalent = $t['annual_price_cents'] / 12;
                 $savings_percent = BHM_Gate::annual_savings_percent($t['price_cents'], $t['annual_price_cents']);
                 echo '<div class="bhm-tier-price-annual">or $' . esc_html(BHM_Money::display($t['annual_price_cents'])) . '/yr ($' . esc_html(BHM_Money::display($annual_monthly_equivalent)) . '/mo equivalent)';
-                if ($savings_percent > 0) echo ' <span class="bhm-tier-savings">— save ' . (int) $savings_percent . '%</span>';
+                if ($savings_percent > 0) echo (' <span class="bhm-tier-savings">' . BHM_Words::get('admin.frontend.save') . ' ') . (int) $savings_percent . '%</span>';
                 echo '</div>';
             }
             if (!empty($t['trial_days']) && class_exists('BH_Commerce') && BH_Commerce::has_subscriptions()) {
@@ -312,21 +312,21 @@ class BHM_Frontend {
         $user_id = get_current_user_id();
 
         if (!$user_id || !$sub_id || !wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhm_manage_subscription_' . $sub_id)) {
-            wp_die('Invalid request.', '', ['response' => 400]);
+            wp_die(BHM_Words::get('admin.frontend.invalid_request'), '', ['response' => 400]);
         }
         if (!class_exists('BH_Commerce') || !BH_Commerce::has_subscriptions()) {
-            wp_die('Subscriptions aren\'t available.', 400);
+            wp_die(BHM_Words::get('admin.frontend.subscriptions_aren_t_available'), 400);
         }
 
         $subscription = BH_Commerce::get_subscription($sub_id);
         // WHY: ownership comes from the subscription itself, never from the form.
         if (!$subscription || (int) $subscription->get_user_id() !== $user_id) {
-            wp_die('That subscription doesn\'t belong to you.', 403);
+            wp_die(BHM_Words::get('admin.frontend.subscription_doesn_t_belong'), 403);
         }
 
         $new_status = $action === 'resume' ? 'active' : ($action === 'pause' ? 'on-hold' : '');
         if ($new_status && $subscription->can_be_updated_to($new_status)) {
-            $subscription->update_status($new_status, $action === 'pause' ? 'Paused by the subscriber from their account.' : 'Resumed by the subscriber from their account.');
+            $subscription->update_status($new_status, $action === 'pause' ? BHM_Words::get('admin.frontend.paused_by_subscriber_from_their') : BHM_Words::get('admin.frontend.resumed_by_subscriber_from_their'));
         }
 
         wp_safe_redirect(wp_get_referer() ?: home_url('/'));
@@ -373,7 +373,7 @@ class BHM_Frontend {
     private static function ensure_tip_product(): int {
         if (class_exists('BH_Commerce')) {
             $product_id = BH_Commerce::upsert_product(0, [
-                'name' => 'Tip',
+                'name' => BHM_Words::get('admin.frontend.tip'),
                 'price_cents' => self::TIP_MIN_CENTS, // catalog fallback; apply_tip_price() sets the real amount
                 'virtual' => true,
                 'catalog_visibility' => 'hidden',
@@ -495,7 +495,7 @@ class BHM_Frontend {
     /* ---------- wallet ---------- */
 
     public static function render_wallet(): string {
-        if (!is_user_logged_in()) return '<p>Log in to see your play-credit wallet.</p>';
+        if (!is_user_logged_in()) return ('<p>' . BHM_Words::get('admin.frontend.log_see_play_credit_wallet') . '</p>');
         $user_id = get_current_user_id();
         $balance = BHM_Wallet::balance_cents($user_id);
         $topup_options = get_option('bhm_wallet_topup_options', []);

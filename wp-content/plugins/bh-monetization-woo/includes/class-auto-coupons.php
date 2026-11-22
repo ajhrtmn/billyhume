@@ -68,8 +68,8 @@ class BHM_AutoCoupons {
         if (!function_exists('woocommerce_wp_checkbox')) return;
         woocommerce_wp_checkbox([
             'id' => self::META,
-            'label' => 'Apply automatically',
-            'description' => 'Added to every cart this coupon is valid for. Use the usage limit for offers like "first 10 buyers".',
+            'label' => BHM_Words::get('admin.auto_coupons.apply_automatically'),
+            'description' => BHM_Words::get('admin.auto_coupons.added_every_cart_coupon_valid'),
             'value' => get_post_meta($coupon_id, self::META, true) === 'yes' ? 'yes' : 'no',
         ]);
     }

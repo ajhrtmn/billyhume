@@ -114,7 +114,7 @@ class BHM_Downloads {
             foreach ($upload_video_steps as $i => $step) {
                 $url = wp_get_attachment_url((int) $step['attachment_id']);
                 if (!$url) continue;
-                $label = $lesson_title . ($multiple ? ' — Video ' . ($i + 1) : '');
+                $label = $lesson_title . ($multiple ? ' ' . BHM_Words::get('admin.downloads.video') . ' ' . ($i + 1) : '');
                 $out[$label] = $url;
             }
         }

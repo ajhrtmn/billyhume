@@ -15,10 +15,10 @@ class BHCRM_Hub {
 
     public static function add_menu(): void {
         $hook = add_menu_page('People', 'People', self::CAP, 'bh-crm-hub', ['BHCRM_People', 'render'], OUS_MenuIcons::people(), 5);
-        self::log_result('bh-crm-hub (top-level)', $hook);
+        self::log_result(BHCRM_Words::get('admin.hub.bh_crm_hub_top_level'), $hook);
 
         $hook2 = add_submenu_page('bh-crm-hub', 'People', 'People', self::CAP, 'bh-crm-hub', ['BHCRM_People', 'render']);
-        self::log_result('bh-crm-hub (relabeled first submenu)', $hook2);
+        self::log_result(BHCRM_Words::get('admin.hub.bh_crm_hub_relabeled_first'), $hook2);
     }
 
     // Logs only failed registrations.

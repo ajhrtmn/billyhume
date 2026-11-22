@@ -180,24 +180,24 @@ class BH_Judging {
         $scores = (array) $req->get_param('scores');
 
         if (!self::is_judge($uid, $cid)) {
-            return new WP_Error('not_judge', 'You are not assigned to judge this contest.', ['status' => 403]);
+            return new WP_Error('not_judge', BHCON_Words::get('admin.judging.are_not_assigned_judge_contest'), ['status' => 403]);
         }
         $sub = get_post($sid);
         if (!$sub || $sub->post_type !== 'bh_submission' || $sub->post_status !== 'publish'
             || (int) get_post_meta($sid, '_bh_contest_id', true) !== $cid) {
-            return new WP_Error('bad', 'That track does not belong to this contest.', ['status' => 400]);
+            return new WP_Error('bad', BHCON_Words::get('admin.api.track_does_not_belong_contest'), ['status' => 400]);
         }
         if (!BH_Helpers::is_valid_category($cid, $category)) {
-            return new WP_Error('bad_category', 'That category does not exist.', ['status' => 400]);
+            return new WP_Error('bad_category', BHCON_Words::get('admin.judging.category_does_not_exist'), ['status' => 400]);
         }
         // Entries cut in a prior round can't be scored in the current one.
         $round = class_exists('BH_Rounds') ? BH_Rounds::active_round_index($cid) : 0;
         if (class_exists('BH_Rounds') && !BH_Rounds::is_eligible($sid, $cid)) {
-            return new WP_Error('eliminated', 'This entry did not advance to the current round.', ['status' => 403]);
+            return new WP_Error('eliminated', BHCON_Words::get('admin.api.entry_did_not_advance_current'), ['status' => 403]);
         }
 
         $ok = self::save_score($uid, $cid, $sid, $category, $scores, $status, $round);
-        if (!$ok) return new WP_Error('save_failed', 'Could not save your score — please try again.', ['status' => 500]);
+        if (!$ok) return new WP_Error('save_failed', BHCON_Words::get('admin.judging.could_not_save_score_please'), ['status' => 500]);
 
         return new WP_REST_Response(['success' => true, 'status' => $status === 'submitted' ? 'submitted' : 'draft'], 200);
     }
@@ -209,21 +209,21 @@ class BH_Judging {
     /** @param mixed $atts */
     public static function render_judge_panel($atts): string {
         if (!is_user_logged_in()) {
-            return '<p class="bh-empty">Log in to access the judging panel.</p>';
+            return ('<p class="bh-empty">' . BHCON_Words::get('admin.judging.log_access_judging_panel') . '</p>');
         }
         $uid = get_current_user_id();
         $cid = BH_Helpers::resolve_contest($atts['contest'] ?? '');
         if (!$cid || !self::is_judge($uid, $cid)) {
-            return '<p class="bh-empty">You are not assigned to judge this contest.</p>';
+            return ('<p class="bh-empty">' . BHCON_Words::get('admin.judging.are_not_assigned_judge_contest') . '</p>');
         }
 
         $rubric = self::rubric($cid);
         if (!$rubric) {
-            return '<p class="bh-empty">This contest has no rubric configured yet.</p>';
+            return ('<p class="bh-empty">' . BHCON_Words::get('admin.judging.contest_has_no_rubric_configured') . '</p>');
         }
 
         $cats = BH_Helpers::categories($cid);
-        if (!$cats) $cats = [['slug' => '', 'name' => 'Entries']];
+        if (!$cats) $cats = [['slug' => '', 'name' => BHCON_Words::get('admin.judging.entries')]];
 
         $subs = get_posts([
             'post_type' => 'bh_submission', 'post_status' => 'publish', 'posts_per_page' => -1,
@@ -248,7 +248,7 @@ class BH_Judging {
         ob_start();
         // bh-container opts into player.css's design tokens.
         echo '<div class="bh-judge-panel bh-container">';
-        echo '<h2 class="bh-judge-title">Judging: ' . esc_html(get_the_title($cid)) . ($round > 0 ? ' — Round ' . ((int) $round + 1) : '') . '</h2>';
+        echo ('<h2 class="bh-judge-title">' . BHCON_Words::get('admin.judging.judging') . ' ') . esc_html(get_the_title($cid)) . ($round > 0 ? ' ' . BHCON_Words::get('admin.judging.round') . ' ' . ((int) $round + 1) : '') . '</h2>';
         foreach ($cats as $cat) {
             echo '<h3 class="bh-judge-category">' . esc_html($cat['name']) . '</h3>';
             foreach ($subs as $sub) {
@@ -261,7 +261,7 @@ class BH_Judging {
                 if ($audio_url) {
                     echo '<audio class="bh-judge-audio" controls preload="none" style="color-scheme: dark;" src="' . esc_url($audio_url) . '"></audio>';
                 } else {
-                    echo '<p class="bh-judge-no-audio">No audio file attached to this entry yet.</p>';
+                    echo ('<p class="bh-judge-no-audio">' . BHCON_Words::get('admin.judging.no_audio_file_attached_entry') . '</p>');
                 }
 
                 foreach ($rubric as $c) {
@@ -270,8 +270,8 @@ class BH_Judging {
                        . '<input type="range" class="bh-scrubber bh-judge-slider" min="0" max="' . (int) $c['max'] . '" value="' . (int) $val . '" data-criterion="' . esc_attr($c['slug']) . '"></label>';
                 }
                 echo '<div class="bh-judge-actions">';
-                echo '<button type="button" class="bh-btn bh-btn-outline bh-judge-save-draft">Save draft</button> ';
-                echo '<button type="button" class="bh-btn bh-btn-primary bh-judge-submit">' . ($submitted ? 'Update submission' : 'Submit score') . '</button>';
+                echo ('<button type="button" class="bh-btn bh-btn-outline bh-judge-save-draft">' . BHCON_Words::get('admin.judging.save_draft') . '</button> ');
+                echo '<button type="button" class="bh-btn bh-btn-primary bh-judge-submit">' . ($submitted ? BHCON_Words::get('admin.judging.update_submission') : BHCON_Words::get('admin.judging.submit_score')) . '</button>';
                 echo ' <span class="bh-judge-status' . ($submitted ? ' bh-judge-status-submitted' : '') . '">' . ($submitted ? 'Submitted' : 'Draft') . '</span>';
                 echo '</div>';
                 echo '</div>';

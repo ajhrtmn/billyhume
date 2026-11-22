@@ -1,11 +1,8 @@
 "use strict";
 /**
- * Project kanban board, mounted into #bhcrm-kanban-board (BHCRM_Projects::render_board()).
- *
- * A card is a bh/sticky-card placement; all reads/writes go through core's
- * ous/v1/elements/placements routes. Every edit (including drag) re-saves the
- * whole 'board' slot in order; a card's column is its config.attrs.column literal.
- * Drag-and-drop uses vendored SortableJS, one instance per column list.
+ * Project kanban board (#bhcrm-kanban-board). Cards are bh/sticky-card placements saved
+ * through ous/v1/elements/placements; every edit re-saves the whole board slot in order.
+ * A card column is its config.attrs.column; drag-and-drop is SortableJS per column.
  */
 (function () {
     'use strict';

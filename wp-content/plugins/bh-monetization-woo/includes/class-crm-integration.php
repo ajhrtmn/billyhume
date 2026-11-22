@@ -19,7 +19,7 @@ class BHM_CRMIntegration {
         }
         $entitlement_id = (int) ($_GET['entitlement_id'] ?? 0);
         $row = $entitlement_id ? BHM_Entitlements::revoke_entitlement_by_id($entitlement_id, 'manual_admin_revoke') : null;
-        if ($row && class_exists('OUS_Toast')) OUS_Toast::queue('Access revoked — the fan has been notified.', 'success');
+        if ($row && class_exists('OUS_Toast')) OUS_Toast::queue(BHM_Words::get('admin.crm_integration.access_revoked_fan_has_been'), 'success');
 
         wp_safe_redirect(wp_get_referer() ?: admin_url());
         exit;
@@ -69,15 +69,15 @@ class BHM_CRMIntegration {
         $topup_flagged = class_exists('BHM_Fraud') && get_user_meta($user_id, '_bhm_topup_velocity_flagged', true) === '1';
         $topup_recent_cents = class_exists('BHM_Fraud') ? BHM_Fraud::topup_total_recent_cents($user_id) : 0;
 
-        $summary = ($active_tier ? $active_tier . ' supporter' : 'No active tier') . ', ' . $purchase_count . ' purchase' . ($purchase_count === 1 ? '' : 's')
+        $summary = ($active_tier ? $active_tier . ' supporter' : BHM_Words::get('admin.crm_integration.no_active_tier')) . ', ' . $purchase_count . ' purchase' . ($purchase_count === 1 ? '' : 's')
             . ', $' . BHM_Money::display($balance) . ' play credit'
             . ($flagged ? ' — ⚠ ' . $refund_count . ' refunds in 30 days' : '')
-            . ($shared_device_flagged ? ' — ⚠ shared device with another refunding account' : '')
-            . ($velocity_flagged ? ' — ⚠ unusual play-rate burst detected' : '')
-            . ($topup_flagged ? ' — ⚠ unusual wallet top-up volume' : '');
+            . ($shared_device_flagged ? ' ' . BHM_Words::get('admin.crm_integration.shared_device_with_another_refunding') : '')
+            . ($velocity_flagged ? ' ' . BHM_Words::get('admin.crm_integration.unusual_play_rate_burst_detected') : '')
+            . ($topup_flagged ? ' ' . BHM_Words::get('admin.crm_integration.unusual_wallet_top_up_volume') : '');
 
         $sections[] = [
-            'plugin'  => 'BH Monetization',
+            'plugin'  => BHM_Words::get('admin.crm_integration.bh_monetization'),
             'summary' => $summary,
             'render'  => fn() => self::render_detail($entitlements, $balance, $refund_count, $flagged, $shared_device_flagged, $velocity_flagged, $topup_flagged, $topup_recent_cents),
         ];
@@ -86,29 +86,29 @@ class BHM_CRMIntegration {
 
     /** @param array<int, object> $entitlements */
     private static function render_detail($entitlements, int $balance, int $refund_count = 0, bool $flagged = false, bool $shared_device_flagged = false, bool $velocity_flagged = false, bool $topup_flagged = false, int $topup_recent_cents = 0): void {
-        echo '<p><strong>Wallet balance:</strong> $' . esc_html(BHM_Money::display($balance)) . '</p>';
+        echo ('<p><strong>' . BHM_Words::get('admin.crm_integration.wallet_balance') . '</strong> $') . esc_html(BHM_Money::display($balance)) . '</p>';
         if ($refund_count > 0) {
             echo '<p' . ($flagged ? ' style="color:#b32d2e;font-weight:600;"' : '') . '>'
                . ($flagged ? '⚠ ' : '') . esc_html((string) $refund_count) . ' refund' . ($refund_count === 1 ? '' : 's') . ' in the last 30 days'
-               . ($flagged ? ' — repeated-refund pattern, worth a human look before extending further trust (e.g. wallet top-ups).' : '') . '</p>';
+               . ($flagged ? ' ' . BHM_Words::get('admin.crm_integration.repeated_refund_pattern_worth_human') : '') . '</p>';
         }
         if ($topup_flagged) {
             echo '<p style="color:#b32d2e;font-weight:600;">⚠ $' . esc_html(BHM_Money::display($topup_recent_cents)) . ' in wallet top-ups in the last 24 hours — an unusually fast burst (default cap $500/24h). Could be normal heavy use or a compromised payment method being tested. Worth a look.</p>';
         }
         if ($shared_device_flagged) {
-            echo '<p style="color:#b32d2e;font-weight:600;">⚠ This account\'s device/connection matches another account with a recent refund — possible same-person, new-account evasion. Worth a look, not proof on its own (shared networks/households do happen).</p>';
+            echo ('<p style="color:#b32d2e;font-weight:600;">' . BHM_Words::get('admin.crm_integration.account_s_device_connection_matches') . '</p>');
         }
         if ($velocity_flagged) {
-            echo '<p style="color:#b32d2e;font-weight:600;">⚠ An unusually fast burst of paid plays was detected recently — could be normal heavy use, or a compromised account/payment method being tested. Worth a look.</p>';
+            echo ('<p style="color:#b32d2e;font-weight:600;">' . BHM_Words::get('admin.crm_integration.unusually_fast_burst_paid_plays') . '</p>');
         }
         if (!$entitlements) return;
-        echo '<div class="bhy-table-wrap"><table class="wp-list-table widefat striped"><thead><tr><th>Type</th><th>What</th><th>Granted</th><th>Expires</th><th></th></tr></thead><tbody>';
+        echo ('<div class="bhy-table-wrap"><table class="wp-list-table widefat striped"><thead><tr><th>' . BHM_Words::get('admin.crm_integration.type') . '</th><th>' . BHM_Words::get('admin.crm_integration.what') . '</th><th>' . BHM_Words::get('admin.crm_integration.granted') . '</th><th>' . BHM_Words::get('admin.crm_integration.expires') . '</th><th></th></tr></thead><tbody>');
         foreach ($entitlements as $e) {
-            $label = $e->scope === 'account' ? (BHM_Tiers::get($e->object_id)['name'] ?? 'Tier #' . $e->object_id) : ($e->scope . ' #' . $e->object_id);
+            $label = $e->scope === 'account' ? (BHM_Tiers::get($e->object_id)['name'] ?? BHM_Words::get('admin.crm_integration.tier') . $e->object_id) : ($e->scope . ' #' . $e->object_id);
             $revoke_url = wp_nonce_url(admin_url('admin-post.php?action=bhm_revoke_entitlement&entitlement_id=' . (int) $e->id), 'bhm_revoke_entitlement');
             echo '<tr><td>' . esc_html($e->type) . '</td><td>' . esc_html($label) . '</td><td>' . esc_html($e->created_at) . '</td><td>' . esc_html($e->expires_at ?: 'Never') . '</td>';
             // Two-click arm/confirm instead of a native confirm() dialog.
-            echo '<td><button type="button" class="button button-small bhm-revoke-btn" data-url="' . esc_url($revoke_url) . '" style="color:#b32d2e;">Revoke</button></td>';
+            echo '<td><button type="button" class="button button-small bhm-revoke-btn" data-url="' . esc_url($revoke_url) . ('" style="color:#b32d2e;">' . BHM_Words::get('admin.crm_integration.revoke') . '</button></td>');
             echo '</tr>';
         }
         echo '</tbody></table></div>';
@@ -148,15 +148,15 @@ class BHM_CRMIntegration {
 add_filter('bhcore_metrics_widgets', function ($widgets) {
     if (!class_exists('OUS_Metrics')) return $widgets;
 
-    $widgets[] = ['source' => 'BH Monetization', 'render' => function () {
+    $widgets[] = ['source' => BHM_Words::get('admin.crm_integration.bh_monetization'), 'render' => function () {
         global $wpdb;
         $active_tiers = (int) $wpdb->get_var(
             "SELECT COUNT(DISTINCT user_id) FROM " . BHM_Tables::entitlements() . "
              WHERE type IN ('subscription','streaming_tier') AND (expires_at IS NULL OR expires_at > NOW())"
         );
-        OUS_Metrics::render_card('Active supporters', $active_tiers, 'Current subscription/tier entitlements');
+        OUS_Metrics::render_card(BHM_Words::get('admin.crm_integration.active_supporters'), $active_tiers, BHM_Words::get('admin.crm_integration.current_subscription_tier_entitlements'));
     }];
-    $widgets[] = ['source' => 'BH Monetization', 'render' => function () {
+    $widgets[] = ['source' => BHM_Words::get('admin.crm_integration.bh_monetization'), 'render' => function () {
         global $wpdb;
         $rows = $wpdb->get_results(
             "SELECT DATE(created_at) as d, COUNT(*) as c FROM " . BHM_Tables::entitlements() . "
@@ -169,7 +169,7 @@ add_filter('bhcore_metrics_widgets', function ($widgets) {
             $day = gmdate('Y-m-d', time() - $i * DAY_IN_SECONDS);
             $trend[$day] = $by_day[$day] ?? 0;
         }
-        OUS_Metrics::render_card('New entitlements', array_sum($trend), 'Purchases + tier grants, last 30 days', $trend);
+        OUS_Metrics::render_card(BHM_Words::get('admin.crm_integration.new_entitlements'), array_sum($trend), BHM_Words::get('admin.crm_integration.purchases_tier_grants_last_30'), $trend);
     }];
     return $widgets;
 });

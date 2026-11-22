@@ -1,9 +1,6 @@
 /**
- * Controls-pane side of BHY_Customize_Css_Rules_Control: the visual Custom CSS
- * rule editor inside the Customizer. Mirrors the gallery's inline JS control
- * builder (the two load in very different contexts, so code is not shared).
- * Uses wp.customize(id).get()/.set() directly because the value is a whole
- * array of rule objects, not one input's string.
+ * Customizer side of BHY_Customize_Css_Rules_Control: the visual Custom CSS rule
+ * editor. Reads/writes the whole rules array via wp.customize(id).get()/.set().
  */
 interface BhyCssPropertyDef {
     label: string;

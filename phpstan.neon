@@ -70,12 +70,6 @@ parameters:
         # PHPStan actually type-check real FPDF method calls instead of
         # reporting the whole class as unknown.
         - wp-content/plugins/the-self-hosted-self/vendor/fpdf/fpdf.php
-        # Timber is a real runtime dependency now, vendored into the core
-        # plugin and installed at build time. Listed explicitly rather than
-        # via scanDirectories because excludePaths' */vendor/* rule filters
-        # the directory walk but NOT explicit scanFiles entries — the same
-        # reason FPDF is listed this way directly above.
-        - wp-content/plugins/the-self-hosted-self/vendor/timber/timber/src/Timber.php
     scanDirectories:
         - wp-content/plugins/the-self-hosted-self
     # WooCommerce is now stubbed for real (scanFiles above) — bumping to
@@ -84,6 +78,18 @@ parameters:
     # coverage of that one remaining unstubbed dependency.
     reportUnmatchedIgnoredErrors: false
     ignoreErrors:
+        # Data from filters and post meta can lack keys its PHPDoc shape promises.
+        - '#on left side of \?\? always exists and is not nullable#'
+        # The stubs type WC()->session / WC()->cart as always set; outside a request they're null.
+        -
+            message: '#(Negated boolean expression is always false|Ternary operator condition is always true)#'
+            paths:
+                - wp-content/plugins/bh-monetization-woo/includes/class-auto-coupons.php
+                - wp-content/plugins/bh-monetization-woo/includes/class-guest-buyers.php
+        # Customizer control args carry our own keys (unit, min, max) the stub shapes don't list.
+        -
+            message: '#Parameter \#[23] \$args of (class|method) \S*Customize#'
+            path: wp-content/plugins/the-self-hosted-self/includes/class-customizer.php
         # COOKIEPATH/COOKIE_DOMAIN are real WordPress core constants —
         # defined in wp-settings.php at runtime, not in
         # php-stubs/wordpress-stubs (confirmed by grepping the stub

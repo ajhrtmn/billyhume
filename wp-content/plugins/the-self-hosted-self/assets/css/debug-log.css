@@ -1,23 +1,49 @@
 .ous-log-ok { color: var(--bhy-success, #00a32a); }
 .ous-log-bad { color: var(--bhy-danger, #d63638); }
-.ous-log-bad-strong { color: var(--bhy-danger, #d63638); font-weight: 600; }
+.ous-log-bad-strong {
+    color: var(--bhy-danger, #d63638);
+    font-weight: 600;
+}
 .ous-log-level-pill {
     color: var(--ous-log-level-text, #fff);
     background: var(--ous-log-level-color, var(--bhy-ink-dim, #646970));
-    padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
 }
 /* WHY: per-level ink comes from --bhy-accent-text so it tracks the skin's fill lightness;
    the literal fallbacks are the correct ink for each unskinned fallback fill. */
-.ous-log-level-pill[data-level="error"] { --ous-log-level-color: var(--bhy-danger, #d63638); --ous-log-level-text: var(--bhy-accent-text, #fff); }
+.ous-log-level-pill[data-level="error"] {
+    --ous-log-level-color: var(--bhy-danger, #d63638);
+    --ous-log-level-text: var(--bhy-accent-text, #fff);
+}
 /* WHY: #fff fallback, not dark ink: the real --bhy-warning is a dark amber (AA fails with dark text). */
-.ous-log-level-pill[data-level="warning"] { --ous-log-level-color: var(--bhy-warning, #dba617); --ous-log-level-text: var(--bhy-accent-text, #fff); }
-.ous-log-level-pill[data-level="info"] { --ous-log-level-color: var(--bhy-accent, #2271b1); --ous-log-level-text: var(--bhy-accent-text, #fff); }
+.ous-log-level-pill[data-level="warning"] {
+    --ous-log-level-color: var(--bhy-warning, #dba617);
+    --ous-log-level-text: var(--bhy-accent-text, #fff);
+}
+.ous-log-level-pill[data-level="info"] {
+    --ous-log-level-color: var(--bhy-accent, #2271b1);
+    --ous-log-level-text: var(--bhy-accent-text, #fff);
+}
 /* WHY: local darker ink; shared --bhy-ink-dim misses AA (4.41:1) on this row's #e5e6e6 background. */
-.ous-log-meta { font-size: 11px; color: #5a5f66; }
+.ous-log-meta {
+    font-size: 11px;
+    color: #5a5f66;
+}
 /* WHY: doubled class beats the admin skin's `body.wp-admin a` color without !important. */
 .ous-log-req-chip.ous-log-req-chip {
-    font-size: 10px; font-family: monospace; color: var(--bhy-ink-dim, #646970);
-    background: var(--bhy-subtle, #f0f0f1); padding: 1px 5px; border-radius: 3px; text-decoration: none;
+    font-size: 10px;
+    font-family: monospace;
+    color: var(--bhy-ink-dim, #646970);
+    background: var(--bhy-subtle, #f0f0f1);
+    padding: 1px 5px;
+    border-radius: 3px;
+    text-decoration: none;
 }
-.ous-log-details-hint { color: var(--bhy-accent, #2271b1); font-size: 11px; }
+.ous-log-details-hint {
+    color: var(--bhy-accent, #2271b1);
+    font-size: 11px;
+}
 .ous-log-detail-row td { background: var(--bhy-subtle, #f6f7f7); }

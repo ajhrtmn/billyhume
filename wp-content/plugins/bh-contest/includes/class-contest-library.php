@@ -12,9 +12,10 @@ class BH_Contest_Library {
         add_shortcode('bh_contest_library', [self::class, 'render_shortcode']);
     }
 
+    /** @param mixed $atts */
     public static function render_shortcode($atts = []): string {
         wp_enqueue_style('ous-catalog');
-        $atts = shortcode_atts(['heading' => __('Contests', 'bh-contest')], (array) $atts, 'bh_contest_library');
+        $atts = shortcode_atts(['heading' => BHCON_Words::get('admin.contest_library.contests')], (array) $atts, 'bh_contest_library');
 
         ob_start();
         echo '<style>' . BHY_Style::inline_css() . '</style>';
@@ -57,7 +58,7 @@ class BH_Contest_Library {
         ];
 
         if (get_post_status($cid) !== 'publish') {
-            return $mk('past', -1, 'muted', __('Draft', 'bh-contest'));
+            return $mk('past', -1, 'muted', BHCON_Words::get('admin.contest_library.draft'));
         }
         if (get_post_meta($cid, '_bh_results_published', true) === '1') {
             return $mk('past', 3, 'done', BHCON_Words::get('library.results_published'));
@@ -97,17 +98,17 @@ class BH_Contest_Library {
             return $mk('past', 2, 'done', BHCON_Words::get('library.awaiting_results'));
         }
         // No windows configured at all (older contests): quietly open.
-        return $mk('open', 0, 'live', __('Open', 'bh-contest'));
+        return $mk('open', 0, 'live', BHCON_Words::get('admin.contest_library.open'));
     }
 
     private static function human_until(int $ts): string {
         $now = current_time('timestamp');
         if ($ts <= $now) return '';
         $d = $ts - $now;
-        if ($d < HOUR_IN_SECONDS)     return sprintf(_n('%d min', '%d mins', (int) ceil($d / 60), 'bh-contest'), (int) ceil($d / 60));
-        if ($d < DAY_IN_SECONDS)      return sprintf(_n('%d hour', '%d hours', (int) round($d / HOUR_IN_SECONDS), 'bh-contest'), (int) round($d / HOUR_IN_SECONDS));
-        if ($d < 14 * DAY_IN_SECONDS) return sprintf(_n('%d day', '%d days', (int) round($d / DAY_IN_SECONDS), 'bh-contest'), (int) round($d / DAY_IN_SECONDS));
-        return sprintf(_n('%d week', '%d weeks', (int) round($d / WEEK_IN_SECONDS), 'bh-contest'), (int) round($d / WEEK_IN_SECONDS));
+        if ($d < HOUR_IN_SECONDS)     return sprintf(_n(BHCON_Words::get('admin.contest_library.d_min'), BHCON_Words::get('admin.contest_library.d_mins'), (int) ceil($d / 60), 'bh-contest'), (int) ceil($d / 60));
+        if ($d < DAY_IN_SECONDS)      return sprintf(_n(BHCON_Words::get('admin.contest_library.d_hour'), BHCON_Words::get('admin.contest_library.d_hours'), (int) round($d / HOUR_IN_SECONDS), 'bh-contest'), (int) round($d / HOUR_IN_SECONDS));
+        if ($d < 14 * DAY_IN_SECONDS) return sprintf(_n(BHCON_Words::get('admin.contest_library.d_day'), BHCON_Words::get('admin.contest_library.d_days'), (int) round($d / DAY_IN_SECONDS), 'bh-contest'), (int) round($d / DAY_IN_SECONDS));
+        return sprintf(_n(BHCON_Words::get('admin.contest_library.d_week'), BHCON_Words::get('admin.contest_library.d_weeks'), (int) round($d / WEEK_IN_SECONDS), 'bh-contest'), (int) round($d / WEEK_IN_SECONDS));
     }
 
     private static function fmt(int $n): string {
@@ -122,7 +123,10 @@ class BH_Contest_Library {
     }
 
     // Phase-appropriate stats as [dashicon, text] pairs.
-    /** @return array<int, array{0:string,1:string}> */
+    /**
+     * @param array<string, mixed> $life
+     * @return array<int, array{0:string,1:string}>
+     */
     private static function card_stats(int $cid, array $life): array {
         if (!class_exists('BH_Helpers')) return [];
         $out = [];
@@ -136,22 +140,22 @@ class BH_Contest_Library {
                     $out[] = ['dashicons-awards', get_the_title((int) $top[0]['id']) ?: BHCON_Words::get('library.winner_announced')];
                 }
             }
-            $out[] = ['dashicons-groups', sprintf(__('%s votes cast', 'bh-contest'), self::fmt(BH_Helpers::vote_count($cid)))];
-            $out[] = ['dashicons-format-audio', sprintf(_n('%s entry', '%s entries', $entries, 'bh-contest'), self::fmt($entries))];
+            $out[] = ['dashicons-groups', sprintf(BHCON_Words::get('admin.contest_library.s_votes_cast'), self::fmt(BH_Helpers::vote_count($cid)))];
+            $out[] = ['dashicons-format-audio', sprintf(_n(BHCON_Words::get('admin.contest_library.s_entry'), BHCON_Words::get('admin.contest_library.s_entries'), $entries, 'bh-contest'), self::fmt($entries))];
             return $out;
         }
 
         if ($life['stage'] === 1) { // voting
-            $out[] = ['dashicons-thumbs-up', sprintf(__('%s votes', 'bh-contest'), self::fmt(BH_Helpers::vote_count($cid)))];
-            $out[] = ['dashicons-admin-users', sprintf(_n('%s voter', '%s voters', BH_Helpers::voter_count($cid), 'bh-contest'), self::fmt(BH_Helpers::voter_count($cid)))];
-            $out[] = ['dashicons-format-audio', sprintf(_n('%s entry', '%s entries', $entries, 'bh-contest'), self::fmt($entries))];
+            $out[] = ['dashicons-thumbs-up', sprintf(BHCON_Words::get('admin.contest_library.s_votes'), self::fmt(BH_Helpers::vote_count($cid)))];
+            $out[] = ['dashicons-admin-users', sprintf(_n(BHCON_Words::get('admin.contest_library.s_voter'), BHCON_Words::get('admin.contest_library.s_voters'), BH_Helpers::voter_count($cid), 'bh-contest'), self::fmt(BH_Helpers::voter_count($cid)))];
+            $out[] = ['dashicons-format-audio', sprintf(_n(BHCON_Words::get('admin.contest_library.s_entry'), BHCON_Words::get('admin.contest_library.s_entries'), $entries, 'bh-contest'), self::fmt($entries))];
             return $out;
         }
 
         // submissions / upcoming
-        $out[] = ['dashicons-format-audio', sprintf(_n('%s entry so far', '%s entries so far', $entries, 'bh-contest'), self::fmt($entries))];
+        $out[] = ['dashicons-format-audio', sprintf(_n(BHCON_Words::get('admin.contest_library.s_entry_so_far'), BHCON_Words::get('admin.contest_library.s_entries_so_far'), $entries, 'bh-contest'), self::fmt($entries))];
         if (count($cats) > 1) {
-            $out[] = ['dashicons-category', sprintf(_n('%d category', '%d categories', count($cats), 'bh-contest'), count($cats))];
+            $out[] = ['dashicons-category', sprintf(_n(BHCON_Words::get('admin.contest_library.d_category'), BHCON_Words::get('admin.contest_library.d_categories'), count($cats), 'bh-contest'), count($cats))];
         }
         return $out;
     }
@@ -162,19 +166,20 @@ class BH_Contest_Library {
         $b = [];
         $judges = get_post_meta($cid, '_bh_judges', true);
         if (is_array($judges) ? $judges : trim((string) $judges)) {
-            $b[] = __('Judged', 'bh-contest');
+            $b[] = BHCON_Words::get('admin.contest_library.judged');
         } elseif (trim((string) get_post_meta($cid, '_bh_rubric', true)) !== '') {
-            $b[] = __('Judged', 'bh-contest');
+            $b[] = BHCON_Words::get('admin.contest_library.judged');
         }
         $rounds = get_post_meta($cid, '_bh_rounds', true);
         $rounds = $rounds ? json_decode($rounds, true) : [];
         if (is_array($rounds) && count($rounds) > 1) {
-            $b[] = sprintf(_n('%d round', '%d rounds', count($rounds), 'bh-contest'), count($rounds));
+            $b[] = sprintf(_n(BHCON_Words::get('admin.contest_library.d_round'), BHCON_Words::get('admin.contest_library.d_rounds'), count($rounds), 'bh-contest'), count($rounds));
         }
         return $b;
     }
 
     // Phase-specific block under the stats (podium, momentum bar, etc.).
+    /** @param array<string, mixed> $life */
     private static function card_feature(int $cid, array $life): string {
         $cats = class_exists('BH_Helpers') ? BH_Helpers::categories($cid) : [];
         $chips = '';
@@ -197,7 +202,7 @@ class BH_Contest_Library {
                     if (empty($r['id'])) continue;
                     $rows .= '<li><span class="bh-contest-podium-medal">' . $medals[$i] . '</span>'
                         . '<span class="bh-contest-podium-name">' . esc_html(get_the_title((int) $r['id'])) . '</span>'
-                        . '<span class="bh-contest-podium-votes">' . esc_html(sprintf(__('%s votes', 'bh-contest'), self::fmt((int) ($r['votes'] ?? 0)))) . '</span></li>';
+                        . '<span class="bh-contest-podium-votes">' . esc_html(sprintf(BHCON_Words::get('admin.contest_library.s_votes'), self::fmt((int) ($r['votes'] ?? 0)))) . '</span></li>';
                 }
                 if ($rows) {
                     return '<ol class="bh-contest-podium">' . $rows . '</ol>'
@@ -215,7 +220,7 @@ class BH_Contest_Library {
             return $chips
                 . '<div class="bh-contest-momentum" title="' . esc_attr(BHCON_Words::get('library.turnout_hint')) . '">'
                 . '<div class="bh-contest-momentum-track"><span style="width:' . $ratio . '%;"></span></div>'
-                . '<span class="bh-contest-momentum-label">' . esc_html(sprintf(__('%s voting', 'bh-contest'), self::fmt($voters))) . '</span>'
+                . '<span class="bh-contest-momentum-label">' . esc_html(sprintf(BHCON_Words::get('admin.contest_library.s_voting'), self::fmt($voters))) . '</span>'
                 . '</div>'
                 . '<span class="bh-contest-card-more">' . BHCON_Words::e('library.cast_votes') . ' &rarr;</span>';
         }
@@ -255,7 +260,7 @@ class BH_Contest_Library {
             $life = self::contest_lifecycle($c->ID);
             $groups[$life['group']][] = [
                 'id'      => $c->ID,
-                'title'   => get_the_title($c->ID) ?: __('(untitled contest)', 'bh-contest'),
+                'title'   => get_the_title($c->ID) ?: BHCON_Words::get('admin.contest_library.untitled_contest'),
                 'url'     => self::contest_url($c->ID),
                 'excerpt' => wp_trim_words(wp_strip_all_tags((string) $c->post_content), 22, '…'),
                 'life'    => $life,
@@ -285,13 +290,13 @@ class BH_Contest_Library {
         // list dropped on the page.
         echo '<p class="bh-contest-library-lead">'
             . esc_html(sprintf(
-                _n('%d contest, tracked from first submission to final results.',
-                   '%d contests, tracked from first submission to final results.', $total, 'bh-contest'),
+                _n(BHCON_Words::get('admin.contest_library.d_contest_tracked_from_first'),
+                   BHCON_Words::get('admin.contest_library.d_contests_tracked_from_first'), $total, 'bh-contest'),
                 $total))
             . '</p>';
 
         foreach ($section_titles as $key => $heading) {
-            if (!$groups[$key]) continue;
+            if (empty($groups[$key])) continue;
             echo '<div class="bh-contests-landing-section is-' . esc_attr($key) . '">';
             echo '<h2 class="bh-contests-landing-heading">'
                 . '<span class="bh-contests-landing-heading-dot" aria-hidden="true"></span>'
@@ -323,7 +328,7 @@ class BH_Contest_Library {
                 if ($life['deadline'] && ($h = self::human_until($life['deadline'])) !== '') {
                     echo '<span class="bh-contest-countdown"><span class="bh-contest-countdown-label">'
                         . esc_html($life['deadline_label']) . '</span><span class="bh-contest-countdown-value">'
-                        . esc_html(sprintf(__('in %s', 'bh-contest'), $h)) . '</span></span>';
+                        . esc_html(sprintf(BHCON_Words::get('admin.contest_library.s'), $h)) . '</span></span>';
                 }
                 echo '</div>';
 

@@ -2,12 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Transient-like store that reads/writes the options table directly, for
- * values that must not be silently lost (security throttles, values surviving
- * a redirect).
- * WHY: with a persistent object cache, transients live only in that cache, and
- * an unreliable cache can drop writes. Opt-in only; plain caching should keep
- * using transients.
+ * Transient-like store on the options table for values that must not be lost (security
+ * throttles, values that survive a redirect). WHY: with an object cache, transients live
+ * only in that cache, which can drop writes. Plain caching should keep using transients.
  */
 class OUS_ReliableStore {
     private static function option_name(string $key): string {

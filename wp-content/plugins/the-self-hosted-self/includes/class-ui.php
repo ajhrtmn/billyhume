@@ -12,25 +12,14 @@ class BHY_UI {
     ];
 
     /**
-     * Shared front-end "nothing to show" component for list/catalog surfaces.
-     *
-     * $args:
-     *   'reason'      'zero' (nothing exists yet) or 'filtered' (no matches);
-     *                 changes the default message and the "clear filters" link.
-     *   'title'       required, short; name the specific cause.
-     *   'description' optional, one more sentence.
-     *   'cta_label'/'cta_url' optional single next-step link.
-     *   'clear_url'   optional; rendered only when reason='filtered'.
-     *   'icon'        optional (no 'dashicons-' prefix); defaults to
-     *                 'search' for filtered, 'info' for zero.
-     *
-     * WHY: the <style> block is embedded on every call, not printed once, because
-     * consumers swap innerHTML between variants and would lose a one-time style tag.
+     * Shared "nothing to show" block. $args: reason (zero | filtered), title, description,
+     * cta_label/cta_url, clear_url (filtered only), icon. WHY: the <style> is embedded on every
+     * call because consumers swap innerHTML and would lose a one-time style tag.
      */
     /** @param array<string, mixed> $args */
     public static function empty_state_html(array $args): string {
         $reason = $args['reason'] ?? 'zero';
-        $title = (string) ($args['title'] ?? ($reason === 'filtered' ? 'Nothing matches your filters' : 'Nothing here yet'));
+        $title = (string) ($args['title'] ?? ($reason === 'filtered' ? OUS_Words::get('admin.ui.nothing_matches_filters') : OUS_Words::get('admin.ui.nothing_here_yet')));
         $description = (string) ($args['description'] ?? '');
         $icon_key = (string) ($args['icon'] ?? ($reason === 'filtered' ? 'search' : 'info-outline'));
         $icon_svg = self::EMPTY_STATE_ICONS[$icon_key] ?? self::EMPTY_STATE_ICONS['info-outline'];
@@ -64,7 +53,7 @@ class BHY_UI {
         if ($has_cta || $has_clear) {
             $out .= '<div class="bhy-empty-actions">';
             if ($has_cta) $out .= '<a class="bhy-empty-cta" href="' . esc_url($args['cta_url']) . '">' . esc_html($args['cta_label']) . '</a>';
-            if ($has_clear) $out .= '<a class="bhy-empty-clear" href="' . esc_url($args['clear_url']) . '">Clear filters</a>';
+            if ($has_clear) $out .= '<a class="bhy-empty-clear" href="' . esc_url($args['clear_url']) . ('">' . OUS_Words::get('admin.debug_log.clear_filters') . '</a>');
             $out .= '</div>';
         }
         $out .= '</div>';
@@ -94,13 +83,8 @@ class BHY_UI {
                 letter-spacing: .03em; color: var(--bhy-ink-dim, #787c82); cursor: pointer;
             }
             .bhy-hsl-toggle:hover, .bhy-hsl-toggle[aria-expanded="true"] { color: var(--bhy-accent, #2271b1); }
-            /* :not([hidden]) rather than a bare .bhy-hsl-controls rule —
-               a plain class selector ties in specificity with the
-               browsers own [hidden]{display:none} UA rule and wins
-               (author stylesheet beats UA default at equal specificity),
-               which defeated the toggle button entirely: every panel
-               rendered permanently expanded regardless of the hidden
-               attribute JS was correctly setting. */
+            /* :not([hidden]) so the browser [hidden] rule still hides collapsed panels;
+               a bare class selector beat it and kept every panel open. */
             .bhy-hsl-controls:not([hidden]) { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
             .bhy-hsl-controls label { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 600; color: var(--bhy-ink-dim, #646970); }
             .bhy-hsl-controls input[type=range] { flex: 1; }
@@ -115,7 +99,7 @@ class BHY_UI {
             <div class="bhy-swatch" id="bhy-swatch-<?php echo esc_attr($id); ?>" style="background:<?php echo esc_attr($display ?: '#f6f7f7'); ?>"></div>
             <div class="bhy-swatch-body">
                 <label for="<?php echo esc_attr($id); ?>"><?php echo esc_html($label); ?>
-                    <button type="button" class="bhy-hsl-toggle" data-key="<?php echo esc_attr($id); ?>" aria-expanded="false" aria-controls="bhy-hsl-<?php echo esc_attr($id); ?>">HSL</button>
+                    <button type="button" class="bhy-hsl-toggle" data-key="<?php echo esc_attr($id); ?>" aria-expanded="false" aria-controls="bhy-hsl-<?php echo esc_attr($id); ?>"><?php echo OUS_Words::get('admin.ui.hsl'); ?></button>
                 </label>
                 <div class="bhy-swatch-controls">
                     <input type="text" id="<?php echo esc_attr($id); ?>" name="<?php echo esc_attr($name); ?>"
@@ -164,14 +148,8 @@ class BHY_UI {
                 if (picker) picker.addEventListener('input', function () { input.value = picker.value; sync(); });
             });
 
-            // HSL sliders — an opt-in per swatch (behind the 'HSL' toggle
-            // button, see swatch_field()) rather than always-visible,
-            // since 17 swatches on this page all showing 3 sliders at
-            // once would swamp the panel. The hex text field stays the
-            // single source of truth: opening the panel reads FROM hex,
-            // dragging a slider writes TO hex (dispatching a real 'input'
-            // event so the existing swatch-preview/live-canvas sync above
-            // fires exactly like a manual hex edit would).
+            // Opt-in HSL sliders per swatch. The hex field stays the source of truth:
+            // the panel reads from it and sliders write back with an input event.
             function hexToHsl(hex) {
                 var m = /^#?([a-f\\d]{2})([a-f\\d]{2})([a-f\\d]{2})\$/i.exec(hex);
                 if (!m) return null;
@@ -250,7 +228,7 @@ class BHY_UI {
         <div class="bhy-font-field">
             <label for="<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></label>
             <select id="<?php echo esc_attr($key); ?>" name="<?php echo esc_attr($key); ?>" data-custom-target="<?php echo esc_attr($key); ?>_custom">
-                <option value="<?php echo esc_attr(BHY_Style::INHERIT_FONT); ?>" <?php selected($picked, BHY_Style::INHERIT_FONT); ?>><?php echo esc_html(BHY_Style::INHERIT_FONT); ?> (match the site theme)</option>
+                <option value="<?php echo esc_attr(BHY_Style::INHERIT_FONT); ?>" <?php selected($picked, BHY_Style::INHERIT_FONT); ?>><?php echo esc_html(BHY_Style::INHERIT_FONT); ?> <?php echo OUS_Words::get('admin.ui.match_site_theme'); ?></option>
                 <?php foreach (BHY_Style::FONT_OPTIONS as $name => $param): ?>
                     <?php
                     // An <option>'s inline font-family previews the typeface; the
@@ -258,7 +236,7 @@ class BHY_UI {
                     ?>
                     <option value="<?php echo esc_attr($name); ?>" style="font-family:'<?php echo esc_attr($name); ?>', sans-serif;" <?php selected($picked, $name); ?>><?php echo esc_html($name); ?></option>
                 <?php endforeach; ?>
-                <option value="Custom" <?php selected($is_custom, true); ?>>Custom…</option>
+                <option value="Custom" <?php selected($is_custom, true); ?>><?php echo OUS_Words::get('admin.ui.custom'); ?></option>
             </select>
             <input type="text" id="<?php echo esc_attr($key); ?>_custom" name="<?php echo esc_attr($key); ?>_custom"
                    placeholder="e.g. Georgia, serif" value="<?php echo esc_attr($s[$key . '_custom']); ?>"
@@ -291,11 +269,8 @@ class BHY_UI {
         return (string) file_get_contents(OUS_PATH . 'assets/css/admin-page.css') . self::swatch_css();
     }
 
-    /* ---------------------------------------------------------------
-     * Shared ecosystem admin design system: spacing/type scales and
-     * reusable component classes (card, alert, badge, table wrapper, range
-     * slider), printed globally on ecosystem admin screens.
-     * --------------------------------------------------------------- */
+    /* ---- Admin design system: spacing/type scales and card, alert, badge, table
+     * and slider components, printed on this site admin screens. ---- */
     public static function init_shared_admin_assets(): void {
         add_action('admin_head', [self::class, 'print_design_system_css']);
         add_action('admin_footer', [self::class, 'print_design_system_js']);
@@ -312,10 +287,8 @@ class BHY_UI {
     }
 
     /**
-     * Dependency-free behaviors any ecosystem admin screen opts into by markup:
-     *   - `input.bhy-table-search[data-target="#table-id"]` filters tbody rows.
-     *   - `table.bhy-sortable` with `<th data-sort>` sorts by column (numeric-aware).
-     *   - `button.bhy-copy-btn[data-copy-target="#id"]` copies value/text.
+     * Opt-in admin behaviours by markup: input.bhy-table-search[data-target] filters rows,
+     * table.bhy-sortable th[data-sort] sorts, button.bhy-copy-btn[data-copy-target] copies.
      */
     public static function print_design_system_js(): void {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
@@ -383,12 +356,8 @@ class BHY_UI {
                 }
             });
 
-            // In-context help tooltips (.bhy-tip, see BHY_UI::tip()) — one
-            // shared bubble element reused across every badge on the page
-            // rather than one bubble per badge, positioned above the
-            // badge (or below, if there is not enough room above the
-            // viewport top) and re-clamped horizontally so it never runs
-            // off either side of the screen.
+            // Help tooltips (.bhy-tip): one shared bubble, placed above (or below near the
+            // top edge) and clamped so it never runs off screen.
             var bhyTipBubble = null;
             function bhyTipShow(el) {
                 var text = el.getAttribute('data-tip');
@@ -464,10 +433,8 @@ class BHY_UI {
         echo '</div>';
     }
 
-    /* ---------------------------------------------------------------
-     * Sorts utility pages (Debug Tools, API Docs, ...) to the bottom of their
-     * parent menu. Only reorders within global $submenu; never moves pages.
-     * --------------------------------------------------------------- */
+    /* ---- Sorts utility pages (Debug Tools, API Docs) to the bottom of their parent
+     * menu; reorders only, never moves pages. ---- */
     public static function pin_hidden_submenus_to_bottom(): void {
         add_action('admin_menu', [self::class, 'reorder_hidden_submenus'], 1000);
     }

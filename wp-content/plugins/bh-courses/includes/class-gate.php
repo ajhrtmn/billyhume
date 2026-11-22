@@ -34,10 +34,10 @@ class BHC_Gate {
         OUS_Notifications::notify(
             $user_id,
             'course_access_changed',
-            'Your course access may have changed',
-            'Your supporter tier changed, which affects access to: ' . implode(', ', $affected_titles) . '.',
+            BHC_Words::get('admin.gate.course_access_may_have_changed'),
+            BHC_Words::get('admin.gate.supporter_tier_changed_which_affects') . ' ' . implode(', ', $affected_titles) . '.',
             home_url('/courses/'),
-            'BH Courses'
+            BHC_Words::get('admin.crm_integration.bh_courses')
         );
     }
 

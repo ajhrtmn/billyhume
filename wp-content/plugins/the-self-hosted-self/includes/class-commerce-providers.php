@@ -2,11 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Registry BH_Commerce dispatches through. Only 'woocommerce' is
- * implemented. To add an adapter: implement BH_CommerceProvider, call
- * register($key, $provider) from its plugin (class_exists()-guarded), and
- * select it via the 'bh_commerce_active_provider_key' filter.
- * One provider is active at a time.
+ * Registry BH_Commerce dispatches through; only woocommerce exists. A new adapter
+ * implements BH_CommerceProvider, calls register(), and is picked via bh_commerce_active_provider_key.
  */
 class BH_CommerceProviders {
     const REGISTERABLE_KEYS = ['woocommerce', 'shopify', 'stripe', 'squarespace'];
@@ -44,7 +41,7 @@ class BH_CommerceProviders {
      */
     public static function register_debug_section($tools): array {
         $tools['bh-commerce-providers'] = [
-            'label'  => 'Commerce Providers',
+            'label'  => OUS_Words::get('admin.commerce_providers.commerce_providers'),
             'render' => [self::class, 'render_debug_section'],
             'safe_in_production' => true,
             'group'  => OUS_Debug::GROUP_MONITORING,
@@ -54,17 +51,17 @@ class BH_CommerceProviders {
 
     public static function render_debug_section(): void {
         $active_key = (string) apply_filters('bh_commerce_active_provider_key', 'woocommerce');
-        echo '<p class="description">Which commerce provider is active — a swap point (see BH_CommerceProviders\' own docblock), not a settings screen.</p>';
-        echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>Key</th><th>Registered class</th><th>Status</th></tr></thead><tbody>';
+        echo ('<p class="description">' . OUS_Words::get('admin.commerce_providers.which_commerce_provider_active_swap') . '</p>');
+        echo ('<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>' . OUS_Words::get('admin.commerce_providers.key') . '</th><th>' . OUS_Words::get('admin.commerce_providers.registered_class') . '</th><th>' . OUS_Words::get('admin.campaigns.status') . '</th></tr></thead><tbody>');
         foreach (self::REGISTERABLE_KEYS as $key) {
             $provider = self::get($key);
-            $class_cell = $provider ? '<code>' . esc_html(get_class($provider)) . '</code>' : '<span class="description">— not registered —</span>';
+            $class_cell = $provider ? '<code>' . esc_html(get_class($provider)) . '</code>' : ('<span class="description">' . OUS_Words::get('admin.commerce_providers.not_registered') . '</span>');
             if ($key === $active_key && $provider) {
-                $status = $provider->available() ? '<span class="bhy-badge bhy-badge-success">Active &amp; available</span>' : '<span class="bhy-badge bhy-badge-neutral">Active, not configured</span>';
+                $status = $provider->available() ? '<span class="bhy-badge bhy-badge-success">Active &amp; available</span>' : ('<span class="bhy-badge bhy-badge-neutral">' . OUS_Words::get('admin.commerce_providers.active_not_configured') . '</span>');
             } elseif ($provider) {
-                $status = '<span class="description">Registered, not active</span>';
+                $status = ('<span class="description">' . OUS_Words::get('admin.commerce_providers.registered_not_active') . '</span>');
             } else {
-                $status = '<span class="description">Reserved slot — no adapter installed</span>';
+                $status = ('<span class="description">' . OUS_Words::get('admin.commerce_providers.reserved_slot_no_adapter_installed') . '</span>');
             }
             echo '<tr><td><code>' . esc_html($key) . '</code></td><td>' . $class_cell . '</td><td>' . $status . '</td></tr>';
         }

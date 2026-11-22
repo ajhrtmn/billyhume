@@ -93,7 +93,7 @@ class BH_AdminMenus {
         $status  = $page_id ? get_post_status($page_id) : false;
 
         if ($page_id && $status && $status !== 'trash') {
-            return '<a href="' . esc_url(get_permalink($page_id)) . '">View</a> · <a href="' . esc_url(get_edit_post_link($page_id)) . '">Edit</a>';
+            return '<a href="' . esc_url(get_permalink($page_id)) . ('">' . BHCON_Words::get('admin.admin_menus.view') . '</a> · <a href="') . esc_url(get_edit_post_link($page_id)) . ('">' . BHCON_Words::get('admin.admin_menus.edit') . '</a>');
         }
 
         // WHY: a link, not a form; this renders inside the post-edit <form>.
@@ -101,7 +101,7 @@ class BH_AdminMenus {
             admin_url('admin-post.php?action=bh_create_page&contest_id=' . (int) $contest_id),
             'bh_create_page'
         );
-        return '<a href="' . esc_url($url) . '">Create page</a>';
+        return '<a href="' . esc_url($url) . ('">' . BHCON_Words::get('admin.admin_menus.create_page') . '</a>');
     }
 
     public static function create_page_action(): void {
@@ -141,9 +141,9 @@ class BH_AdminMenus {
         if (!$cid || !get_post($cid)) return;
 
         add_meta_box('bh_page_backlink', 'BH Contest', function () use ($cid) {
-            echo '<p>This page hosts the contest:</p>';
+            echo ('<p>' . BHCON_Words::get('admin.admin_menus.page_hosts_contest') . '</p>');
             echo '<p><strong>' . esc_html(get_the_title($cid)) . '</strong></p>';
-            echo '<p><a href="' . esc_url(get_edit_post_link($cid)) . '" class="button">Edit Contest</a></p>';
+            echo '<p><a href="' . esc_url(get_edit_post_link($cid)) . ('" class="button">' . BHCON_Words::get('admin.admin_menus.edit_contest') . '</a></p>');
         }, 'page', 'side', 'high');
     }
 
@@ -233,12 +233,12 @@ class BH_AdminMenus {
         $post_id = (int) ($_GET['object_id'] ?? 0);
         $version = (int) ($_GET['version'] ?? 0);
         if (!isset($_GET['ous_revisions_nonce']) || !wp_verify_nonce($_GET['ous_revisions_nonce'], 'bh_restore_contest_' . $post_id)) {
-            wp_die('Invalid request.');
+            wp_die(BHCON_Words::get('admin.admin_menus.invalid_request'));
         }
-        if (!$post_id || get_post_type($post_id) !== 'bh_contest') wp_die('Not a contest.');
+        if (!$post_id || get_post_type($post_id) !== 'bh_contest') wp_die(BHCON_Words::get('admin.admin_menus.not_contest'));
 
         $snapshot = class_exists('OUS_Revisions') ? OUS_Revisions::get_version('bh_contest', $post_id, $version) : null;
-        if (!$snapshot) wp_die('That version no longer exists.');
+        if (!$snapshot) wp_die(BHCON_Words::get('admin.admin_menus.version_no_longer_exists'));
 
         foreach ((array) $snapshot['data'] as $key => $value) {
             update_post_meta($post_id, $key, $value);
@@ -251,10 +251,10 @@ class BH_AdminMenus {
             foreach ($all_meta as $key => $values) {
                 if (strpos($key, '_bh_') === 0 || $key === '_bhy_style_json') $flat[$key] = $values[0] ?? '';
             }
-            OUS_Revisions::snapshot('bh_contest', $post_id, $flat, 'Restored from version #' . $version);
+            OUS_Revisions::snapshot('bh_contest', $post_id, $flat, BHCON_Words::get('admin.admin_menus.restored_from_version') . $version);
         }
         if (class_exists('OUS_Toast')) {
-            OUS_Toast::queue('Restored version #' . $version . '.', 'success');
+            OUS_Toast::queue(BHCON_Words::get('admin.admin_menus.restored_version') . $version . '.', 'success');
         }
 
         wp_safe_redirect(get_edit_post_link($post_id, ''));
@@ -291,7 +291,7 @@ class BH_AdminMenus {
         $url = OUS_Pages::url('bh_archive', 'bh_archive_page_id');
         if (!$url) return $views;
         $views['bh-live-catalog'] = '<a href="' . esc_url($url) . '" target="_blank" rel="noopener">'
-            . esc_html__('View live archive', 'bh-contest') . ' <span aria-hidden="true">&#8599;</span></a>';
+            . esc_html(BHCON_Words::get('admin.admin_menus.view_live_archive')) . ' <span aria-hidden="true">&#8599;</span></a>';
         return $views;
     }
 }

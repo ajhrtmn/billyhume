@@ -2,20 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * A lesson's body is an ordered array of steps in one postmeta key (`_bhc_steps`).
- * Each step is an assoc array with a 'type' key plus type-specific fields:
- *
- *   ['type' => 'text',  'content' => '<p>...</p>']                         // wp_editor HTML
- *   ['type' => 'image', 'attachment_ids' => [123, 456], 'caption' => '...']
- *   ['type' => 'video', 'source' => 'upload', 'attachment_id' => 789, 'caption' => '...']
- *   ['type' => 'video', 'source' => 'url', 'video_url' => 'https://...', 'caption' => '...']
- *   ['type' => 'quiz',  'passing_score' => 70, 'questions' => [
- *        ['question' => 'What is...', 'choices' => ['A', 'B', 'C'], 'correct_index' => 1],
- *        ...
- *   ]]
- *   ['type' => 'resource', 'attachment_id' => 123, 'label' => 'Worksheet', 'description' => '...']
- *
- * Quizzes are multiple-choice only.
+ * A lesson body is an ordered list of steps in _bhc_steps, each with a type plus fields:
+ * text (content), image (attachment_ids, caption), video (source + attachment_id/video_url/...),
+ * quiz (passing_score, questions[question, choices, correct_index]), resource (attachment_id, label).
  */
 class BHC_Steps {
     // Every non-quiz type is non-blocking (Mark complete & continue).
@@ -224,10 +213,8 @@ class BHC_Steps {
         return count(self::get($lesson_id));
     }
 
-    // Score a submitted quiz step: $answers is [question_index => chosen_choice_index].
-    // Returns ['score' => 0-100, 'passed' => bool, 'total' => n, 'correct' => n,
-    // 'questions' => [ ['q','choices','correct_index','chosen_index'], ... ] ].
-    // 'questions' is what ajax_submit_quiz() snapshots and returns for the breakdown.
+    // Scores a quiz: $answers is [question_index => chosen_index]. Returns score (0-100), passed,
+    // total, correct and questions (q, choices, correct_index, chosen_index) for the review.
     /**
      * @param array<string, mixed> $step
      * @param array<int, int> $answers

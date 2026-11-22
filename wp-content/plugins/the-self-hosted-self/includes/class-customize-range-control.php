@@ -2,16 +2,15 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Range-input Customizer control with a live number readout (the classic
- * Customizer has no native range control).
- * WHY: required lazily from BHY_Customizer::register(); it extends
- * WP_Customize_Control, which only exists in Customizer requests.
+ * Range Customizer control with a live number readout. WHY: required lazily, because
+ * WP_Customize_Control only exists in Customizer requests.
  */
 class BHY_Customize_Range_Control extends WP_Customize_Control {
     public $type = 'bhy_range';
+    /** @var string */
     public $unit = 'px';
 
-    private static $script_added = false;
+    private static bool $script_added = false;
 
     public function render_content() {
         $min  = $this->input_attrs['min']  ?? 0;
@@ -35,7 +34,7 @@ class BHY_Customize_Range_Control extends WP_Customize_Control {
         <?php
     }
 
-    public function enqueue() {
+    public function enqueue(): void {
         if (self::$script_added) return;
         self::$script_added = true;
         // link() updates the setting, not this control's own readout.

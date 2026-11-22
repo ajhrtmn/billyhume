@@ -2,10 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Access lives on an account, so a purchase must end up on one. Checkout requires an
- * account when the cart grants access (tiers, courses, releases, tracks), and as a safety
- * net a completed order without a customer is attached to the account with its billing
- * email, or a new account (with a set-password email) before fulfilment runs.
+ * Access lives on an account, so checkout requires one for anything that grants access,
+ * and a completed guest order is attached to the matching account (or a new one with a
+ * set-password email) before fulfilment runs.
  */
 class BHM_GuestBuyers {
     public static function init(): void {
@@ -86,7 +85,7 @@ class BHM_GuestBuyers {
             return;
         }
         $order->set_customer_id($user_id);
-        $order->add_order_note($user ? 'Guest purchase attached to the existing account for ' . $email . '.' : 'Guest purchase: created an account for ' . $email . ' and sent a set-password email.');
+        $order->add_order_note($user ? BHM_Words::get('admin.guest_buyers.guest_purchase_attached_existing_account') . ' ' . $email . '.' : BHM_Words::get('admin.guest_buyers.guest_purchase_created_account') . ' ' . $email . ' ' . BHM_Words::get('admin.guest_buyers.sent_set_password_email'));
         $order->save();
     }
 

@@ -2,14 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Signed, expiring private-video URLs layered on top of storage/offload, minted at render
- * time after the caller's own access gate has passed:
- *
- *   BHY_MediaToken::sign_bunny($video_guid)  -> a tokenised Bunny embed URL
- *   BHY_MediaToken::sign_r2($object_key)     -> a tokenised URL to the R2 Worker
- *
- * Both return null when the provider isn't configured, so callers can show a setup notice.
- * Settings render on the Media & CDN Setup page via its `ous_media_setup_after` hook.
+ * Signed, expiring private-video URLs, minted after the caller has checked access:
+ * sign_bunny($guid) and sign_r2($key) return null when the provider is not set up.
+ * Settings render on Media & CDN Setup via ous_media_setup_after.
  */
 class BHY_MediaToken {
 
@@ -58,7 +53,10 @@ class BHY_MediaToken {
         return $s['r2_worker_url'] !== '' && $s['r2_signing_secret'] !== '';
     }
 
-    /** For wp_localize_script — tells an editor which signed sources to offer. */
+    /**
+     * For wp_localize_script — tells an editor which signed sources to offer.
+     * @return array<string, mixed>
+     */
     public static function js_config(): array {
         return [
             'bunny'    => self::bunny_configured(),
@@ -153,8 +151,8 @@ class BHY_MediaToken {
         $s = self::settings();
         $action = esc_url(admin_url('admin-post.php'));
         echo '<hr style="max-width:760px;margin:32px 0;">';
-        echo '<h2>Private (signed) video delivery</h2>';
-        echo '<p class="description" style="max-width:760px;">For paid course video that must not be a shareable link. The player only ever receives a URL that expires in ' . esc_html((string) (self::DEFAULT_TTL / HOUR_IN_SECONDS)) . ' hours and is tied to this site. Configure either or both; bh-courses then offers them as video-step sources.</p>';
+        echo ('<h2>' . OUS_Words::get('admin.media_token.private_signed_video_delivery') . '</h2>');
+        echo ('<p class="description" style="max-width:760px;">' . OUS_Words::get('admin.media_token.paid_course_video_must_not') . ' ') . esc_html((string) (self::DEFAULT_TTL / HOUR_IN_SECONDS)) . ' hours and is tied to this site. Configure either or both; bh-courses then offers them as video-step sources.</p>';
 
         echo '<form method="post" action="' . $action . '" style="max-width:760px;">';
         wp_nonce_field('bhy_media_token_save');
@@ -162,16 +160,16 @@ class BHY_MediaToken {
 
         echo '<h3>Bunny Stream</h3>';
         echo '<p class="description">Everything below is on the Stream library\'s <strong>API</strong> tab. The Library ID is the number in the library\'s URL. Turn on <em>Token Authentication</em> for the key that signs playback. The <em>API Key</em> is optional — add it to get an in-lesson-editor "pick from your Bunny library" browser and drag-and-drop upload (bh-courses 0.14+); leave it blank and authors just paste a video GUID.</p>';
-        echo '<p><label>Library ID<br><input type="text" name="bunny_library_id" value="' . esc_attr($s['bunny_library_id']) . '" style="width:100%;max-width:320px;"></label></p>';
-        echo '<p><label>Token Authentication Key<br><input type="password" name="bunny_token_key" value="" placeholder="' . ($s['bunny_token_key'] !== '' ? 'already set — leave blank to keep it' : '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
-        echo '<p><label>API Key <span class="description">(optional — for the in-editor library picker &amp; uploader)</span><br><input type="password" name="bunny_api_key" value="" placeholder="' . ($s['bunny_api_key'] !== '' ? 'already set — leave blank to keep it' : '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
+        echo ('<p><label>' . OUS_Words::get('admin.media_token.library_id') . '<br><input type="text" name="bunny_library_id" value="') . esc_attr($s['bunny_library_id']) . '" style="width:100%;max-width:320px;"></label></p>';
+        echo ('<p><label>' . OUS_Words::get('admin.media_token.token_authentication_key') . '<br><input type="password" name="bunny_token_key" value="" placeholder="') . ($s['bunny_token_key'] !== '' ? 'already set — leave blank to keep it' : '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
+        echo ('<p><label>' . OUS_Words::get('admin.media_token.api_key') . ' <span class="description">(optional — for the in-editor library picker &amp; uploader)</span><br><input type="password" name="bunny_api_key" value="" placeholder="') . ($s['bunny_api_key'] !== '' ? 'already set — leave blank to keep it' : '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
 
-        echo '<h3 style="margin-top:24px;">Cloudflare R2 + Worker</h3>';
-        echo '<p class="description">Deploy <code>the-self-hosted-self/tools/r2-video-worker.js</code> (see the notes at the top of that file), bind your private bucket, and set the Worker\'s <code>SIGNING_SECRET</code> to the same value you enter here.</p>';
-        echo '<p><label>Worker URL<br><input type="url" name="r2_worker_url" value="' . esc_attr($s['r2_worker_url']) . '" placeholder="https://course-video.your-subdomain.workers.dev" style="width:100%;max-width:480px;"></label></p>';
-        echo '<p><label>Signing secret<br><input type="password" name="r2_signing_secret" value="" placeholder="' . ($s['r2_signing_secret'] !== '' ? 'already set — leave blank to keep it' : 'a long random string') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
+        echo ('<h3 style="margin-top:24px;">' . OUS_Words::get('admin.media_token.cloudflare_r2_worker') . '</h3>');
+        echo ('<p class="description">' . OUS_Words::get('admin.media_token.deploy_self_hosted_self_tools') . '</p>');
+        echo ('<p><label>' . OUS_Words::get('admin.media_token.worker_url') . '<br><input type="url" name="r2_worker_url" value="') . esc_attr($s['r2_worker_url']) . '" placeholder="https://course-video.your-subdomain.workers.dev" style="width:100%;max-width:480px;"></label></p>';
+        echo ('<p><label>' . OUS_Words::get('admin.media_token.signing_secret') . '<br><input type="password" name="r2_signing_secret" value="" placeholder="') . ($s['r2_signing_secret'] !== '' ? 'already set — leave blank to keep it' : 'a long random string') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
 
-        submit_button('Save signed-video settings');
+        submit_button(OUS_Words::get('admin.media_token.save_signed_video_settings'));
         echo '</form>';
     }
 

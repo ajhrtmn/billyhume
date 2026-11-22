@@ -1,16 +1,77 @@
 /* Visual Custom CSS rule editor. WHY: rows use flex-wrap + min-width:0 on inputs so a
    ~380px column doesn't overflow. Kept out of BHY_UI::admin_page_css()'s PHP string. */
-.bhy-css-rule { border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius-sm, 6px); padding: 12px; margin-bottom: 10px; background: var(--bhy-surface, #fff); transition: border-color var(--bhy-transition, 150ms ease); }
+.bhy-css-rule {
+    border: 1px solid var(--bhy-border, #dcdcde);
+    border-radius: var(--bhy-radius-sm, 6px);
+    padding: 12px;
+    margin-bottom: 10px;
+    background: var(--bhy-surface, #fff);
+    transition: border-color var(--bhy-transition, 150ms ease);
+}
 .bhy-css-rule:focus-within { border-color: var(--bhy-accent, #2271b1); }
-.bhy-css-rule-header { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; max-width: 100%; }
-.bhy-css-rule-header input[type="text"] { flex: 1 1 160px; min-width: 0; }
-.bhy-css-rule-header select { flex: 0 1 auto; min-width: 0; max-width: 100%; }
-.bhy-css-rule-header .bhy-remove-rule { flex: 0 0 auto; white-space: nowrap; }
-.bhy-css-rule-props { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-.bhy-css-prop-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; max-width: 100%; padding-bottom: 8px; border-bottom: 1px solid var(--bhy-border, #f0f0f1); }
-.bhy-css-prop-row:last-child { border-bottom: none; padding-bottom: 0; }
-.bhy-css-prop-row .bhy-prop-select { flex: 1 1 140px; min-width: 0; max-width: 100%; }
-.bhy-css-prop-control-slot, .bhy-prop-control-slot { display: inline-flex; align-items: center; gap: 4px; flex: 1 1 120px; min-width: 0; max-width: 100%; }
-.bhy-prop-control-slot input[type="text"], .bhy-prop-control-slot input[type="number"] { min-width: 0; max-width: 100%; }
+.bhy-css-rule-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 10px;
+    max-width: 100%;
+}
+.bhy-css-rule-header input[type="text"] {
+    flex: 1 1 160px;
+    min-width: 0;
+}
+.bhy-css-rule-header select {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+}
+.bhy-css-rule-header .bhy-remove-rule {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+.bhy-css-rule-props {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.bhy-css-prop-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    max-width: 100%;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--bhy-border, #f0f0f1);
+}
+.bhy-css-prop-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.bhy-css-prop-row .bhy-prop-select {
+    flex: 1 1 140px;
+    min-width: 0;
+    max-width: 100%;
+}
+.bhy-css-prop-control-slot, .bhy-prop-control-slot {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1 1 120px;
+    min-width: 0;
+    max-width: 100%;
+}
+.bhy-prop-control-slot input[type="text"], .bhy-prop-control-slot input[type="number"] {
+    min-width: 0;
+    max-width: 100%;
+}
 .bhy-css-prop-row .bhy-remove-prop { flex: 0 0 auto; }
-#bhy-css-rules:empty::before { content: "No custom rules yet — add one below, or right-click an element in the Live Editor."; display: block; color: var(--bhy-ink-dim, #787c82); font-style: italic; font-size: 13px; padding: 4px 0 12px; }
+#bhy-css-rules:empty::before {
+    content: "No custom rules yet — add one below, or right-click an element in the Live Editor.";
+    display: block;
+    color: var(--bhy-ink-dim, #787c82);
+    font-style: italic;
+    font-size: 13px;
+    padding: 4px 0 12px;
+}

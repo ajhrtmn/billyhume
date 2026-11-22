@@ -16,7 +16,7 @@ class BH_PortalPanel {
         if (!class_exists('BHI_Portal') || !get_query_var(BHI_Portal::QUERY_VAR)) return;
         if (!wp_script_is('bh-common', 'registered')) {
             wp_register_script('bh-common', BH_URL . 'assets/js/bh-common.js', [], BH_VER, true);
-            wp_localize_script('bh-common', 'BHWords', BHCON_Words::all());
+            wp_localize_script('bh-common', 'BHWords', BHCON_Words::for_browser());
         }
         wp_enqueue_script('bh-contest-portal-submissions', BH_URL . 'assets/js/portal-submissions.js', ['bh-common'], BH_VER, true);
         wp_localize_script('bh-contest-portal-submissions', 'bhContestPortalConfig', [
@@ -34,7 +34,7 @@ class BH_PortalPanel {
         if (!is_admin() && !self::has_submissions(get_current_user_id())) return $panels;
         $panels[] = [
             'id' => 'submissions',
-            'label' => 'Contest Submissions',
+            'label' => BHCON_Words::get('admin.portal_panel.contest_submissions'),
             'icon' => 'dashicons-microphone',
             'render' => [self::class, 'render'],
             'priority' => 40,

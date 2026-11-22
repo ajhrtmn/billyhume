@@ -2,20 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_Toast: loads toast.js/toast.css everywhere and carries a toast message
- * across a classic admin-post POST+redirect.
- *
- * WHY OUS_ReliableStore, not transients: this install's object cache has lost
- * transient writes between requests. Keyed per user (or a guest cookie id), so
- * no redirect URL needs changing.
- *
- * Usage, right before a redirect:
- *
- *   OUS_Toast::queue('Notes saved.', 'success');
- *   wp_safe_redirect(...);
- *   exit;
- *
- * AJAX flows should call BHCoreToast.show() directly from JS instead.
+ * Loads toast.js/css everywhere and carries a toast across a POST + redirect:
+ * OUS_Toast::queue($message, $type) before wp_safe_redirect(). AJAX uses BHCoreToast.show().
+ * WHY OUS_ReliableStore: this install object cache has lost transient writes.
  */
 class OUS_Toast {
     const COOKIE = 'bhcore_toast_sid';

@@ -41,11 +41,11 @@ class BHC_CrmIntegration {
         if (!$completed && !$in_progress_count) return $sections;
 
         $summary_bits = [];
-        if ($completed) $summary_bits[] = count($completed) . ' course(s) completed';
-        if ($in_progress_count) $summary_bits[] = $in_progress_count . ' lesson(s) with recorded activity';
+        if ($completed) $summary_bits[] = count($completed) . ' ' . BHC_Words::get('admin.crm_integration.course_s_completed');
+        if ($in_progress_count) $summary_bits[] = $in_progress_count . ' ' . BHC_Words::get('admin.crm_integration.lesson_s_with_recorded_activity');
 
         $sections[] = [
-            'plugin' => 'BH Courses',
+            'plugin' => BHC_Words::get('admin.crm_integration.bh_courses'),
             'summary' => implode(', ', $summary_bits),
             'render' => function () use ($completed, $user_id) {
                 self::render_detail($user_id, $completed);
@@ -57,7 +57,7 @@ class BHC_CrmIntegration {
     /** @param array<int, array<string, mixed>> $completed */
     private static function render_detail(int $user_id, $completed): void {
         echo '<div class="bhy-table-wrap">';
-        echo '<table class="widefat striped"><thead><tr><th>Course</th><th>Progress</th><th>Completed</th></tr></thead><tbody>';
+        echo ('<table class="widefat striped"><thead><tr><th>' . BHC_Words::get('admin.crm_integration.course') . '</th><th>' . BHC_Words::get('admin.crm_integration.progress') . '</th><th>' . BHC_Words::get('admin.crm_integration.completed') . '</th></tr></thead><tbody>');
         $courses = get_posts(['post_type' => 'bh_course', 'numberposts' => -1, 'post_status' => ['publish', 'draft']]);
         $completed_ids = array_column($completed, 'completed_at', 'course_id');
         foreach ($courses as $course) {
@@ -80,10 +80,10 @@ add_action('bhc_course_completed', function ($user_id, $course_id) {
     OUS_Notifications::notify(
         $user_id,
         'course_completed',
-        'Course complete: ' . $course->post_title,
+        BHC_Words::get('admin.crm_integration.course_complete') . ' ' . $course->post_title,
         'You finished every lesson in "' . $course->post_title . '". Nice work.',
         get_permalink($course_id),
-        'BH Courses'
+        BHC_Words::get('admin.crm_integration.bh_courses')
     );
 }, 10, 2);
 
@@ -97,9 +97,9 @@ add_action('bhc_enrolled', function ($user_id, $course_id) {
         $user_id,
         'course_enrolled',
         'Enrolled: ' . $course->post_title,
-        'You\'re in — start whenever you\'re ready.',
+        BHC_Words::get('admin.crm_integration.re_start_whenever_re_ready'),
         get_permalink($course_id),
-        'BH Courses'
+        BHC_Words::get('admin.crm_integration.bh_courses')
     );
 }, 10, 2);
 
@@ -107,21 +107,21 @@ add_action('bhc_enrolled', function ($user_id, $course_id) {
 add_filter('bhcore_metrics_widgets', function ($widgets) {
     if (!class_exists('OUS_Metrics')) return $widgets;
 
-    $widgets[] = ['source' => 'BH Courses', 'render' => function () {
+    $widgets[] = ['source' => BHC_Words::get('admin.crm_integration.bh_courses'), 'render' => function () {
         $trend = OUS_Metrics::event_trend('bhc/enroll', 30);
-        OUS_Metrics::render_card('Enrollments', array_sum($trend), 'Last 30 days', $trend);
+        OUS_Metrics::render_card('Enrollments', array_sum($trend), BHC_Words::get('admin.crm_integration.last_30_days'), $trend);
     }];
-    $widgets[] = ['source' => 'BH Courses', 'render' => function () {
+    $widgets[] = ['source' => BHC_Words::get('admin.crm_integration.bh_courses'), 'render' => function () {
         $trend = OUS_Metrics::event_trend('bhc/course_completed', 30);
-        OUS_Metrics::render_card('Course completions', array_sum($trend), 'Last 30 days', $trend);
+        OUS_Metrics::render_card(BHC_Words::get('admin.crm_integration.course_completions'), array_sum($trend), BHC_Words::get('admin.crm_integration.last_30_days'), $trend);
     }];
-    $widgets[] = ['source' => 'BH Courses', 'render' => function () {
+    $widgets[] = ['source' => BHC_Words::get('admin.crm_integration.bh_courses'), 'render' => function () {
         global $wpdb;
         // Only rows with a real score; non-quiz NULLs would drag AVG() toward 0.
         $avg = $wpdb->get_var(
             "SELECT AVG(score) FROM " . BHC_Tables::progress() . " WHERE score IS NOT NULL AND completed_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
         );
-        OUS_Metrics::render_card('Avg. quiz score', $avg !== null ? round($avg) . '%' : '—', 'Last 30 days, all courses');
+        OUS_Metrics::render_card(BHC_Words::get('admin.crm_integration.avg_quiz_score'), $avg !== null ? round($avg) . '%' : '—', BHC_Words::get('admin.crm_integration.last_30_days_all_courses'));
     }];
     return $widgets;
 });

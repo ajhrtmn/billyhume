@@ -36,12 +36,8 @@ class BHY_Style {
     }
 
     /**
-     * Front-end text-overflow utilities:
-     *   .bh-nowrap         fixed-vocabulary badge labels that must never wrap.
-     *   .bh-badge-truncate dynamic badge text; bounded width plus ellipsis.
-     *   .bh-truncate       single-line truncation; pair with title="full text".
-     *   .bh-clamp-2/-3     multi-line clamp for card titles/descriptions.
-     * Long unbreakable tokens (URLs, hashes) use overflow-wrap inline instead.
+     * Text-overflow utilities: .bh-nowrap (fixed badges), .bh-badge-truncate, .bh-truncate
+     * (pair with title=), .bh-clamp-2/-3. Long URLs/hashes use overflow-wrap instead.
      */
     private static function text_overflow_utils_css(): string {
         return '.bh-nowrap{white-space:nowrap;}'
@@ -579,10 +575,8 @@ class BHY_Style {
     }
 
     /**
-     * Plugin-registered numeric tokens, via the bhy_style_custom_sliders filter:
-     *     $sliders['queue_row_height'] = ['label' => 'Queue row height', 'min' => 32,
-     *         'max' => 96, 'step' => 2, 'unit' => 'px', 'default' => 48];
-     * Stored under bhy_style_settings['custom'], emitted as --bh-custom-<key>.
+     * Plugin numeric tokens via bhy_style_custom_sliders (label, min, max, step, unit, default),
+     * stored under bhy_style_settings[custom] and emitted as --bh-custom-<key>.
      */
     /** @return array<string, mixed> */
     public static function custom_sliders(): array {
@@ -600,16 +594,9 @@ class BHY_Style {
     }
 
     /**
-     * Grouped component tokens, via the bhy_style_component_tokens filter:
-     *     $components['course_card'] = ['label' => 'Course card', 'tokens' => [
-     *         'thumb_radius' => ['label' => '...', 'type' => 'size', 'min' => 0, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 10],
-     *         'accent'       => ['label' => '...', 'type' => 'color', 'default' => '#2271b1'],
-     *         'heading_font' => ['label' => '...', 'type' => 'font', 'default' => 'Inter', 'fallback' => 'sans-serif'],
-     *         'show_author'  => ['label' => '...', 'type' => 'toggle', 'on' => 'none', 'off' => 'flex', 'default' => false],
-     *     ]];
-     * 'toggle' swaps CSS display keywords ('on'/'off'). Stored under
-     * bhy_style_settings['components'][group][key]; emitted as
-     * --bh-comp-<group>-<key> (fonts: ...-<key>-font).
+     * Grouped component tokens via bhy_style_component_tokens: [group => [label, selector, tokens]],
+     * token types size | color | font | toggle (swaps display keywords on/off).
+     * Stored under bhy_style_settings[components]; emitted as --bh-comp-<group>-<key>.
      */
     /** @return array<string, mixed> */
     public static function component_tokens(): array {
@@ -841,6 +828,7 @@ class BHY_Style {
     /**
      * Toggle token 'on'/'off' values are unquoted CSS keywords, so they are
      * restricted to an allowlist.
+     * @param mixed $val
      */
     public static function css_safe_string_keyword($val): string {
         $val = strtolower(trim((string) $val));
@@ -851,6 +839,7 @@ class BHY_Style {
     /**
      * Admin-entered CSS selector. Character allowlist makes breaking out of the
      * generated CSS block or <style> tag structurally impossible.
+     * @param mixed $val
      */
     public static function sanitize_css_selector($val): string {
         $val = preg_replace('/[^a-zA-Z0-9 \.\#\-\_\>\+\~\:\[\]\=\"\047,\*]/', '', (string) $val);
@@ -902,13 +891,9 @@ class BHY_Style {
         return 'https://fonts.googleapis.com/css2?' . implode('&', array_map(fn($p) => 'family=' . $p, array_values($params))) . '&display=swap';
     }
 
-    /* =================================================================
-     * Per-instance style overrides. scoped_inline_style() turns a placement's
-     * config.style map into an inline style="" value. Two key shapes:
-     *   - bare key ("color_accent"): emits a scoped --bh-* custom property.
-     *   - "group.property" ("spacing.padding"): a preset step, "@token:*"
-     *     ref, or "custom:*" value, emitted as a direct CSS declaration.
-     * ================================================================= */
+    /* ---- Per-instance style overrides: scoped_inline_style() turns a config.style map into
+     * style="". Bare keys emit a scoped --bh-* property; "group.property" keys emit a declaration
+     * from a preset step, @token:* ref or custom:* value. ---- */
 
     const SPACE_SCALE_STEPS = [
         '0'  => '0',
@@ -974,17 +959,8 @@ class BHY_Style {
     const BG_REPEAT_ENUM       = ['repeat', 'no-repeat', 'repeat-x', 'repeat-y', 'space', 'round'];
 
     /**
-     * "group.property" => [css property, resolver 'kind']. 'kind' selects the
-     * branch of resolve_style_value():
-     *   'space'            SPACE_SCALE_STEPS preset
-     *   'size'             SIZE_STEPS preset (width/height-shaped)
-     *   'scale'            a named scale table (see 'scale' sub-key)
-     *   'enum'             a fixed allowlist (see 'enum' sub-key)
-     *   'enum-scale'       a named table used as a fixed preset lookup
-     *   'token-only'       colors: MUST be "@token:<field>", never a raw value
-     *   'custom-only'      no preset table; only "custom:<value>"
-     *   'custom-or-number' a bare unitless number (line-height) or "custom:<value>"
-     *   'percent-0-100'    0-100, stored as a 0-1 opacity fraction
+     * "group.property" => [css property, kind]. Kinds: space, size, scale, enum, enum-scale,
+     * token-only (colors must be @token:<field>), custom-only, custom-or-number, percent-0-100.
      */
     const PROPERTY_MAP = [
         // Sizing
@@ -1092,10 +1068,8 @@ class BHY_Style {
     }
 
     /**
-     * Sanitizer for every free-form CSS length/value. Blocks anything that could
-     * break out of style="" or add a declaration (; quotes <> {}), plus
-     * expression()/javascript:, then allowlists a conservative charset.
-     * Fail-closed: returns null (dropped) otherwise.
+     * Fail-closed sanitizer for free-form CSS values: blocks ; quotes <> {} expression() and
+     * javascript:, then allowlists a conservative charset. Returns null when rejected.
      */
     /** @param mixed $val */
     public static function safe_length($val): ?string {
@@ -1198,10 +1172,8 @@ class BHY_Style {
     }
 
     /**
-     * PROPERTY_MAP exported for the inspector JS, with every scale/enum table
-     * resolved to {value: label} and grouped by the "group" half of the key.
-     * 'colorTokens' is the vocabulary token-only properties may reference;
-     * those never get a free-text custom option.
+     * PROPERTY_MAP for the inspector JS, tables resolved to {value: label} and grouped.
+     * colorTokens is what token-only properties may reference (no free-text option).
      */
     /** @return array<string, mixed> */
     public static function style_schema_for_js(): array {

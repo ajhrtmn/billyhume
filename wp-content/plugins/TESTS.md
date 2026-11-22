@@ -1,83 +1,29 @@
-# Test suite — how to run, and what these are (and aren't)
+# Tests and checks
 
-A real PHP runtime, MySQL and a running WordPress install are available locally (Local by Flywheel). **Run things** rather than reasoning about them.
+Run things rather than reasoning about them: the local site (in the Local app) has real PHP, MySQL and WordPress.
 
-## The four gates, in the order to run them
+## Before calling work done
 
-**1. Test Runner (the primary one).** The Site Tools → Debug Tools → **Run all tests**. Executes every registered suite on the site's own PHP — no CLI, no Composer, no PHPUnit binary — because the live WordPress install already *is* a working PHP environment. Suites register via the `bhcore_test_suites` filter.
+1. **Test Runner**: wp-admin → Site Tools → Debug Tools → **Run all tests** (or `wp eval 'echo json_encode(OUS_TestRunner::run_all());'`). Every plugin registers a suite via `bhcore_test_suites`; the courses and contest suites also fail if code uses a wording key `words.php` doesn't have. Last full run (2026-11-22): 482/482.
+2. **Syntax**: `php -l` on every PHP file you changed *or generated*. An unescaped apostrophe inside a single-quoted string has taken the whole site down before.
+3. **Static analysis**: `vendor/bin/phpstan analyse --memory-limit=3G` must report no errors (run `composer install` once first; it's dev-only).
+4. **TypeScript and CSS**: `npm run build:all` and `npm run lint:css` (both clean).
+5. **The site loads**: open `/`, `/account/` and `/wp-login.php` and check for errors. Static checks passing doesn't prove the site boots.
 
-From the command line (WP-CLI, in the site root): `wp eval 'echo json_encode(OUS_TestRunner::run_all());'`. Last full run (2026-11-22, all plugins active on the local site): **482/482 passed**. Each plugin with a `words.php` also checks that every wording key the code uses exists.
+If a page shows a critical error: set `WP_DEBUG_LOG` true (and `WP_DEBUG_DISPLAY` false) in `wp-config.php`, reload, read `wp-content/debug.log`, then revert `wp-config.php`.
 
-**2. Static analysis.** Must stay at zero before any commit:
+## Standalone PHPUnit tests
 
-```bash
-vendor/bin/phpstan analyse --memory-limit=4G
-```
+No WordPress or database needed (`vendor/bin/phpunit wp-content/plugins/the-self-hosted-self/tests`, and the same for `bh-courses/tests`):
 
-**3. Syntax, on every touched file.** This one is not optional — an unescaped apostrophe inside a comment inside a large single-quoted CSS string once took the whole site down with a fatal parse error, invisible to brace-counting and only found by reading `debug.log`. `php -l` catches that class instantly:
+- Two-factor codes against the RFC 6238 published vectors.
+- Quiz scoring (rounding, missing answers, exact pass mark).
+- Lesson step sanitization (bad input is dropped or clamped, never stored broken).
 
-```bash
-php -l path/to/changed-file.php
-```
+`bh-monetization-woo/tests-integration/` runs money paths against a real database in CI.
 
-Whole-ecosystem sweep (~7,806 files, currently clean):
+## What's worth a test
 
-```bash
-find wp-content/plugins -name '*.php' -not -path '*/vendor/*' -print0 | xargs -0 -n1 -P8 php -l | grep -v '^No syntax errors'
-```
+Logic where a subtle bug has real consequences: access, money, scoring, sanitization. Cover happy, unhappy and edge cases, not one passing case. Skip trivial getters.
 
-Do not resurrect the hand-rolled Python syntax checkers referenced in old changelogs — they were a workaround for having no interpreter.
-
-## Gate 4 — the site actually loads (30 seconds, catches what the others miss)
-
-```bash
-SITE=http://billyhume.local   # your Local site's URL
-for u in / /account/ /wp-login.php; do curl -s -o /tmp/r.html -w "$u %{http_code}\n" "$SITE$u"; grep -qi "critical error" /tmp/r.html && echo "  ^ FATAL"; done
-```
-
-Run this after any structural change. It is not redundant with `php -l`:
-on 2026-08-23 a refactor took the whole site to HTTP 500 while both
-static gates reported clean — a code-generation script linted the files
-it *edited* but not the files it *wrote*, so a parse error in a generated
-class was never checked. This curl loop found it in seconds.
-
-**If it 500s**, temporarily enable logging in `wp-config.php`
-(`WP_DEBUG` + `WP_DEBUG_LOG` true, `WP_DEBUG_DISPLAY` **false**), re-request,
-read `wp-content/debug.log` for the real file and line — then **revert
-`wp-config.php`**. Never leave debug display on.
-
-Two corollaries worth internalising: **lint every file you generate, not
-just every file you edit**, and a green static gate is not evidence the
-site boots.
-
-## The standalone PHPUnit suites
-
-Separate from the Test Runner, self-contained, no WordPress or database needed:
-
-- `the-self-hosted-self/tests/TwoFactorTest.php` — the TOTP algorithm against RFC 6238 Appendix B's published vectors, the base32 codec, and ±1 time-step drift (both accept-real-drift and reject-too-much-drift).
-- `bh-courses/tests/QuizScoringTest.php` — pass/fail scoring: rounding, missing answers, exact-threshold boundary.
-- `bh-courses/tests/StepsSanitizationTest.php` — the sanitization boundary between a raw admin POST and what gets stored/rendered; dropped-vs-clamped edge cases.
-
-```bash
-vendor/bin/phpunit wp-content/plugins/the-self-hosted-self/tests
-```
-
-## Why these areas specifically
-
-Not blanket coverage — the places where a subtle bug has real consequences *and* the logic is isolable from a full WordPress bootstrap:
-
-- **2FA/TOTP** — a bug either locks real people out or makes codes predictable, and it can be checked against an independent published standard rather than "looks right."
-- **Quiz scoring** — decides whether someone passes a possibly-paid course step. Rounding and off-by-one errors are obvious in a test and easy to miss in code.
-- **Step sanitization** — the real data-integrity boundary for lesson content. Malformed input must drop or clamp predictably, never crash the renderer or silently corrupt storage.
-
-**Deliberately not covered here:** anything touching `$wpdb` directly (`BHM_Wallet`'s atomic debit, `BHC_Progress` completion). A hand-rolled `$wpdb` stub mostly tests the stub. That is genuine integration-test territory — `wp-phpunit`/`WP_UnitTestCase` against real MySQL. Worth doing; a heavier setup than this. In the meantime, DB-backed logic is better exercised end-to-end by a Debug Tools seed/reset action (see `BHM_Debug`'s tier/entitlement/wallet buttons) than by forcing a fixture-heavy fake unit test.
-
-## What to add, and what not to
-
-The bar is **"does this let a person verify or diagnose something real,"** not "does every function have a test." A trivial getter or a one-line wrapper around a core call does not need a suite entry — that is coverage theater, and it buries the real signal.
-
-When you do write tests, **cover many cases — happy, unhappy, and edge — not one minimal passing case.** Pure functions with genuine edge cases (rounding, boundaries, coercion) are the highest-value and cheapest target.
-
-## Verification honesty
-
-If a change was reasoned through but never actually executed against a live install, **say so explicitly** — in the changelog and to whoever is reading the output. Do not imply something is confirmed working when it has only been argued for. Equally: browser-visible changes need measured verification (computed styles, `scrollHeight` vs `clientHeight`), not a screenshot glance. See `DESIGN-DIRECTION.md` and the audit-method memory.
+Browser-visible changes need measured checks (computed styles, `scrollWidth` vs `clientWidth`, contrast ratios), not a glance at a screenshot. If something wasn't actually run, say so in the changelog and to the person reading.

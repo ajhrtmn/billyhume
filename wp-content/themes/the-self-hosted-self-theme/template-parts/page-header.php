@@ -1,12 +1,8 @@
 <?php
 if (!defined('ABSPATH')) exit;
 /**
- * Shared archive/page/search/404 header (same shape as .bhc-archive-header).
- *
- * Args (via get_template_part('template-parts/page-header', null, $args)):
- *   kicker (string, optional)
- *   title  (string, required — may contain markup, e.g. the_archive_title())
- *   lede   (string, optional)
+ * Shared archive/page/search/404 header. Args via get_template_part(): kicker (optional),
+ * title (required, may contain markup), lede (optional).
  */
 $kicker = $args['kicker'] ?? '';
 $title = $args['title'] ?? '';

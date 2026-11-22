@@ -2,12 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Accountability log for admin actions: who changed WHAT on a thing that
- * may not be their own, with a before/after diff. BH_Event is the
- * per-person activity timeline; this is separate.
+ * Accountability log for admin actions: who changed what, with a before/after diff.
  * WHY: writes are synchronous so the record exists even if the next line crashes.
- * require_cap() replaces `if (!current_user_can()) wp_die()` and only logs
- * bursts of denials. Pruning is row-count bound (MAX_ROWS -> KEEP_ROWS).
+ * require_cap() replaces current_user_can() + wp_die(); pruning keeps MAX_ROWS -> KEEP_ROWS.
  */
 class OUS_Audit {
     const MAX_ROWS = 20000;
@@ -203,13 +200,13 @@ class OUS_Audit {
         global $wpdb;
         $rows = $wpdb->get_results('SELECT * FROM ' . self::table() . ' ORDER BY id DESC LIMIT 100', ARRAY_A);
 
-        echo '<p class="description">Accountability log — who changed what, and denied-access bursts. Admin-only. Newest 100 shown.</p>';
+        echo ('<p class="description">' . OUS_Words::get('admin.audit.accountability_log_who_changed_what') . '</p>');
         if (!$rows) {
-            echo '<p>No audit entries yet.</p>';
+            echo ('<p>' . OUS_Words::get('admin.audit.no_audit_entries_yet') . '</p>');
             return;
         }
 
-        echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Object</th><th>Diff</th></tr></thead><tbody>';
+        echo ('<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>' . OUS_Words::get('admin.audit.when') . '</th><th>' . OUS_Words::get('admin.audit.actor') . '</th><th>' . OUS_Words::get('admin.audit.action') . '</th><th>' . OUS_Words::get('admin.audit.object') . '</th><th>' . OUS_Words::get('admin.audit.diff') . '</th></tr></thead><tbody>');
         foreach ($rows as $r) {
             $actor = (int) $r['actor_user_id'] ? get_userdata((int) $r['actor_user_id']) : null;
             $diff = $r['diff'] ? json_decode($r['diff'], true) : [];

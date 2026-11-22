@@ -2,13 +2,9 @@
 if (!defined('ABSPATH') ) exit;
 
 /**
- * OUS_Search: site-wide search dispatch. Each plugin registers a provider via
- * `ous_search_providers`; this class merges results. A provider is a callable:
- * function(string $query, int $limit): array<{type,title,excerpt,url,icon}>
- * LIKE-based matching, not a relevance index.
- *
- * WHY: the REST route is public and unauthenticated, so only public content
- * may be registered. Never bh-crm person records or bh_submission entries.
+ * Site-wide search: plugins add providers via ous_search_providers, callable($query, $limit)
+ * returning type/title/excerpt/url/icon rows. WHY: the REST route is public, so register
+ * public content only (never CRM records or contest submissions).
  */
 class OUS_Search {
     public static function init(): void {

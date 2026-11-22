@@ -39,7 +39,7 @@ class BHC_SessionsAdmin {
         if (!current_user_can(self::required_cap())) wp_die('Not allowed.', '', ['back_link' => true]);
         if (isset($_GET['bhc_msg'])) echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sanitize_text_field(wp_unslash($_GET['bhc_msg']))) . '</p></div>';
 
-        BHY_UI::shell_open('Sessions', 'Availability slots for 1:1 sessions — students book from their account portal.');
+        BHY_UI::shell_open('Sessions', BHC_Words::get('admin.sessions_admin.availability_slots_1_1_sessions'));
 
         $instructor_id = BHC_Sessions::default_instructor_id();
         $rows = BHC_Sessions::for_instructor($instructor_id);
@@ -51,23 +51,23 @@ class BHC_SessionsAdmin {
         echo '<input type="hidden" name="action" value="bhc_create_slot">';
         wp_nonce_field('bhc_create_slot');
         echo '<table class="form-table"><tbody>';
-        echo '<tr><th><label for="starts_at">Start</label></th><td><input type="datetime-local" name="starts_at" id="starts_at" required></td></tr>';
-        echo '<tr><th><label for="duration_minutes">Duration (minutes)</label></th><td><input type="number" name="duration_minutes" id="duration_minutes" value="30" min="5" step="5"></td></tr>';
-        echo '<tr><th><label for="course_id">Course (optional)</label></th><td><select name="course_id" id="course_id"><option value="0">— Unscoped —</option>';
+        echo ('<tr><th><label for="starts_at">' . BHC_Words::get('admin.sessions_admin.start') . '</label></th><td><input type="datetime-local" name="starts_at" id="starts_at" required></td></tr>');
+        echo ('<tr><th><label for="duration_minutes">' . BHC_Words::get('admin.sessions_admin.duration_minutes') . '</label></th><td><input type="number" name="duration_minutes" id="duration_minutes" value="30" min="5" step="5"></td></tr>');
+        echo ('<tr><th><label for="course_id">' . BHC_Words::get('admin.sessions_admin.course_optional') . '</label></th><td><select name="course_id" id="course_id"><option value="0">' . BHC_Words::get('admin.sessions_admin.unscoped') . '</option>');
         foreach (get_posts(['post_type' => 'bh_course', 'numberposts' => -1, 'post_status' => ['publish', 'draft']]) as $course) {
             echo '<option value="' . (int) $course->ID . '">' . esc_html($course->post_title) . '</option>';
         }
         echo '</select></td></tr>';
-        echo '<tr><th><label for="notes">Notes</label></th><td><textarea name="notes" id="notes" rows="3" class="large-text"></textarea></td></tr>';
+        echo ('<tr><th><label for="notes">' . BHC_Words::get('admin.sessions_admin.notes') . '</label></th><td><textarea name="notes" id="notes" rows="3" class="large-text"></textarea></td></tr>');
         echo '</tbody></table>';
-        echo '<p><button class="button button-primary">Create slot</button></p>';
+        echo ('<p><button class="button button-primary">' . BHC_Words::get('admin.sessions_admin.create_slot') . '</button></p>');
         echo '</form>';
 
         echo '<h2>All slots</h2>';
         if (!$rows) {
-            echo '<p>No slots yet.</p>';
+            echo ('<p>' . BHC_Words::get('admin.sessions_admin.no_slots_yet') . '</p>');
         } else {
-            echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>Start</th><th>Duration</th><th>Course</th><th>Student</th><th>Status</th><th></th></tr></thead><tbody>';
+            echo ('<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>' . BHC_Words::get('admin.sessions_admin.start') . '</th><th>' . BHC_Words::get('admin.sessions_admin.duration') . '</th><th>' . BHC_Words::get('admin.crm_integration.course') . '</th><th>' . BHC_Words::get('admin.progress_admin.student') . '</th><th>' . BHC_Words::get('admin.reviews.status') . '</th><th></th></tr></thead><tbody>');
             foreach ($rows as $r) {
                 $student = (int) $r['student_id'] ? get_userdata((int) $r['student_id']) : null;
                 $course_title = (int) $r['course_id'] ? get_the_title((int) $r['course_id']) : '—';
@@ -84,7 +84,7 @@ class BHC_SessionsAdmin {
                     echo '<input type="hidden" name="slot_id" value="' . (int) $r['id'] . '">';
                     echo '<input type="hidden" name="status" value="cancelled">';
                     wp_nonce_field('bhc_set_slot_status_' . $r['id']);
-                    echo '<button class="button button-small" onclick="return confirm(\'Cancel this slot?\');">Cancel</button>';
+                    echo ('<button class="button button-small" onclick="return confirm(\'Cancel this slot?\');">' . BHC_Words::get('admin.sessions_admin.cancel') . '</button>');
                     echo '</form> ';
                 }
                 if ($r['status'] === 'booked') {
@@ -93,7 +93,7 @@ class BHC_SessionsAdmin {
                     echo '<input type="hidden" name="slot_id" value="' . (int) $r['id'] . '">';
                     echo '<input type="hidden" name="status" value="completed">';
                     wp_nonce_field('bhc_set_slot_status_' . $r['id']);
-                    echo '<button class="button button-small">Mark completed</button>';
+                    echo ('<button class="button button-small">' . BHC_Words::get('admin.sessions_admin.mark_completed') . '</button>');
                     echo '</form>';
                 }
                 echo '</td></tr>';
@@ -113,7 +113,7 @@ class BHC_SessionsAdmin {
             (int) ($_POST['course_id'] ?? 0),
             wp_unslash($_POST['notes'] ?? '')
         );
-        $msg = is_wp_error($result) ? $result->get_error_message() : 'Slot created.';
+        $msg = is_wp_error($result) ? $result->get_error_message() : BHC_Words::get('admin.sessions_admin.slot_created');
         wp_safe_redirect(add_query_arg(['page' => 'bhc-sessions', 'bhc_msg' => rawurlencode($msg)], admin_url('admin.php')));
         exit;
     }

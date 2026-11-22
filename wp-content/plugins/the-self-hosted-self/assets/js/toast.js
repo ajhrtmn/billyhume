@@ -1,14 +1,7 @@
 "use strict";
 /**
- * BHCoreToast: dependency-free toast renderer, loaded globally in admin and
- * front end (handle 'bhcore-toast', class-toast.php).
- *
- *   BHCoreToast.show('Vote recorded.', 'success');
- *   BHCoreToast.show('Could not save — try again.', 'error');
- *   BHCoreToast.show('Heads up: this is a preview.', 'warning');
- *   BHCoreToast.show('3 jobs ran.'); // type defaults to 'info'
- *
- * Optional third argument: auto-dismiss in ms (default 5000; 0 = manual close).
+ * BHCoreToast: dependency-free toasts in admin and front end (handle bhcore-toast).
+ * BHCoreToast.show(message, type = "info" | "success" | "error" | "warning", ms = 5000; 0 = manual close)
  */
 (function (window, document) {
     'use strict';

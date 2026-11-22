@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: BH MailPoet
- * Description: Bridges bh-crm's contact list into MailPoet subscriber lists, so MailPoet (not a hand-rolled sender) is the ecosystem's email/marketing delivery engine. Entirely inert if MailPoet isn't installed.
- * Version:     1.2.1
+ * Description: Copies People (CRM) contacts into a MailPoet list so newsletters reach them. Does nothing without MailPoet.
+ * Version:     1.2.2
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHMP_VER',  '1.2.1');
+define('BHMP_VER',  '1.2.2');
 
 define('BHMP_PATH', plugin_dir_path(__FILE__));
 define('BHMP_URL',  plugin_dir_url(__FILE__));

@@ -125,11 +125,8 @@ interface BHCMedia {
     on(event: string, handler: () => void): void;
 }
 
-/* ---- lesson step DOM helpers ----------------------------------------
- * Module-scoped so tests/unit/lesson-step-dom.test.ts can reach them via
- * window.BHCLessonStepDom. WHY: the live Etch theme blanks class="" off step
- * wrappers, so these key on data-step-* attrs (ETCH-COMPATIBILITY-NOTES.md).
- * ------------------------------------------------------------------- */
+/* ---- lesson step DOM helpers (exposed as window.BHCLessonStepDom for unit tests) ----
+ * WHY: the live Etch theme blanks class="" on step wrappers, so these key on data-step-* attrs. */
 var BHC_STEP_SELECTOR = '.bhc-step, [data-step-index]';
 
 function bhcStepClassName(type: string, done: boolean): string {
@@ -414,11 +411,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             }
         }
 
-        /* ---------------- one player + one adapter per video step ----------------
-         * Watch-progress, overlays and chapters all drive this one adapter. WHY: YouTube/
-         * Vimeo steps are Plyr provider embeds with no <video> element, so Plyr's API is
-         * used when present and the raw <video> only as a fallback.
-         */
+        /* ---- one player + adapter per video step, driving watch progress, overlays and chapters.
+         * WHY: YouTube/Vimeo steps have no <video>, so the Plyr API is used when present. ---- */
         var mediaAdapters: { el: HTMLElement; media: BHCMedia }[] = [];
 
         lesson.querySelectorAll<HTMLElement>('.bhc-step-video').forEach(function (el) {

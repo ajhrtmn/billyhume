@@ -2,18 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Kanban project tracker built on core's element system (BH_Element / BH_Content).
- *
- * Data model:
- * - A project is a row in BHCRM_Tables::projects() (name, columns_config JSON, scene).
- * - Its board is the 'bhcrm_project_board' element surface (context id = project id),
- *   one 'board' slot holding one 'bh/sticky-card' placement per card.
- * - WHY: a card's column is a plain config attr ('column'), not a slot per column —
- *   placements have a single fixed 'slot' key, and column sets are configurable per project.
- * - bh/sticky-card is a container; its BH_Content tree holds recursive 'bhcrm/sub-card' nodes.
- * - Roll-up completion is computed at render time (rollup_counts()), never stored; a parent's
- *   own 'done' flag is never auto-toggled by its children.
- * - kanban-board.js saves through core's generic ous/v1/elements placements REST routes.
+ * Kanban project tracker on the element system: a project row plus a board of bh/sticky-card
+ * placements. WHY: a card column is a config attr, not a slot, because columns vary per project.
+ * Sub-tasks are bhcrm/sub-card nodes; roll-up completion is computed at render, never stored.
  */
 class BHCRM_Projects {
     const DB_VERSION = '1.2';
@@ -193,7 +184,7 @@ class BHCRM_Projects {
     public static function render_boards(): void {
         echo '<div class="wrap">';
         echo '<h1>People &rsaquo; Project Tracker</h1>';
-        echo '<p class="description">Every project board across the CRM. Opening one lands on the same kanban board view reachable from a person\'s own profile — this is just a cross-person index, not a second board implementation.</p>';
+        echo ('<p class="description">' . BHCRM_Words::get('admin.projects.every_project_board_across_crm') . '</p>');
 
         // Projects need no owner; people are linked afterward on the board (render_people_panel()).
         $nonce = wp_create_nonce('bhcrm_project_create');
@@ -208,12 +199,12 @@ class BHCRM_Projects {
             foreach ($scene_suggestions as $s) echo '<option value="' . esc_attr($s) . '">';
             echo '</datalist>';
         }
-        echo '<button class="button button-primary">Create project</button>';
+        echo ('<button class="button button-primary">' . BHCRM_Words::get('admin.projects.create_project') . '</button>');
         echo '</form>';
 
         $rows = self::list_all();
         if (!$rows) {
-            echo '<p>No projects yet — create one above, then link people to it from the board.</p>';
+            echo ('<p>' . BHCRM_Words::get('admin.projects.no_projects_yet_create_one') . '</p>');
             echo '</div>';
             return;
         }
@@ -234,20 +225,20 @@ class BHCRM_Projects {
 
         foreach ($groups as $scene => $scene_rows) {
             echo '<h2>' . esc_html($scene !== '' ? $scene : 'Unsorted') . '</h2>';
-            echo '<table class="widefat striped"><thead><tr><th>Project</th><th>People</th><th>Cards</th><th>Updated</th><th></th></tr></thead><tbody>';
+            echo ('<table class="widefat striped"><thead><tr><th>' . BHCRM_Words::get('admin.projects.project') . '</th><th>' . BHCRM_Words::get('admin.projects.people') . '</th><th>' . BHCRM_Words::get('admin.projects.cards') . '</th><th>' . BHCRM_Words::get('admin.projects.updated') . '</th><th></th></tr></thead><tbody>');
             foreach ($scene_rows as $p) {
                 // Falls back to the legacy crm_person_id column when no links exist.
                 $linked = class_exists('BHCRM_Links') ? BHCRM_Links::people_for_project($p['id']) : [];
                 if ($linked) {
                     $labels = array_map(function ($l) {
-                        $name = $l['user'] ? $l['user']->display_name : ('User #' . $l['user_id']);
+                        $name = $l['user'] ? $l['user']->display_name : (BHCRM_Words::get('admin.projects.user') . $l['user_id']);
                         return esc_html($name) . ' <span class="description">(' . esc_html(BHCRM_Links::RELATIONS[$l['relation']] ?? $l['relation']) . ')</span>';
                     }, $linked);
                     $person_label = implode(', ', $labels);
                 } else {
                     $uid = (int) $p['crm_person_id'];
                     $user = $uid ? get_userdata($uid) : null;
-                    $person_label = $user ? esc_html($user->display_name) : '<span class="description">No one linked</span>';
+                    $person_label = $user ? esc_html($user->display_name) : ('<span class="description">' . BHCRM_Words::get('admin.projects.no_one_linked') . '</span>');
                 }
                 $board_uid = $linked ? $linked[0]['user_id'] : (int) $p['crm_person_id'];
                 $card_count = class_exists('BH_Element') ? count(BH_Element::get_placements('bhcrm_project_board', (int) $p['id'], 'board')) : 0;
@@ -258,7 +249,7 @@ class BHCRM_Projects {
                 echo '<td>' . $person_label . '</td>';
                 echo '<td>' . (int) $card_count . '</td>';
                 echo '<td>' . esc_html(mysql2date('M j, Y', $p['updated_at'])) . '</td>';
-                echo '<td><a class="button button-small" href="' . esc_url($board_url) . '">Open board</a></td>';
+                echo '<td><a class="button button-small" href="' . esc_url($board_url) . ('">' . BHCRM_Words::get('admin.projects.open_board') . '</a></td>');
                 echo '</tr>';
             }
             echo '</tbody></table>';
@@ -273,7 +264,7 @@ class BHCRM_Projects {
     public static function create(string $name, int $person_id, array $columns = [], string $scene = '') {
         global $wpdb;
         $name = sanitize_text_field((string) $name);
-        if ($name === '') $name = 'Untitled project';
+        if ($name === '') $name = BHCRM_Words::get('admin.projects.untitled_project');
         $columns = self::sanitize_columns($columns ?: self::DEFAULT_COLUMNS);
         $scene = sanitize_text_field((string) $scene);
 
@@ -466,9 +457,9 @@ class BHCRM_Projects {
     public static function register_element_surface(array $surfaces): array {
         $surfaces['bhcrm_project_board'] = [
             'group' => 'CRM',
-            'label' => 'Project tracker board',
+            'label' => BHCRM_Words::get('admin.projects.project_tracker_board'),
             'slots' => [
-                'board' => ['label' => 'Board'],
+                'board' => ['label' => BHCRM_Words::get('admin.projects.board')],
             ],
             'context' => ['type' => 'project', 'param' => 'project_id'],
             'preview_ctx' => function () { return ['project_id' => 0]; },
@@ -478,11 +469,11 @@ class BHCRM_Projects {
 
     private static function register_element_type(): void {
         BH_Element::register_type('bh/sticky-card', [
-            'label'    => 'Sticky card',
+            'label'    => BHCRM_Words::get('admin.projects.sticky_card'),
             'surfaces' => ['bhcrm_project_board'],
             'container' => true, // nested sub-tasks live in this placement's own BH_Content tree — see class docblock
             'schema' => [
-                'title'  => ['type' => 'string', 'default' => 'Untitled task', 'bindable' => false],
+                'title'  => ['type' => 'string', 'default' => BHCRM_Words::get('admin.projects.untitled_task'), 'bindable' => false],
                 'notes'  => ['type' => 'html',   'default' => '',              'bindable' => false],
                 'done'   => ['type' => 'bool',   'default' => false,           'bindable' => false],
                 // Plain grouping key, not a slot (see class docblock).
@@ -541,19 +532,16 @@ class BHCRM_Projects {
         return [$done, $total];
     }
 
-    /* =================================================================
-     * CRM person page integration — "Projects" section + board view.
-     * WHY: rendered via ?page=bh-crm&project_id=, not a standalone admin page;
-     * standalone pages have failed WP's page-hook resolution on this install.
-     * ================================================================= */
+    /* ---- CRM person page Projects section and board view.
+     * WHY: rendered via ?page=bh-crm&project_id=; standalone admin pages fail to resolve here. ---- */
 
     /** Called from BHCRM_People::render_detail($uid). */
     public static function render_projects_section(int $uid): void {
         $projects = self::list_for_person($uid);
 
-        echo '<h3>Projects</h3>';
+        echo ('<h3>' . BHCRM_Words::get('admin.projects.projects') . '</h3>');
         if ($projects) {
-            echo '<table class="widefat striped"><thead><tr><th>Name</th><th>Columns</th><th>Cards</th><th>Updated</th><th></th></tr></thead><tbody>';
+            echo ('<table class="widefat striped"><thead><tr><th>' . BHCRM_Words::get('admin.people.name') . '</th><th>' . BHCRM_Words::get('admin.projects.columns') . '</th><th>' . BHCRM_Words::get('admin.projects.cards') . '</th><th>' . BHCRM_Words::get('admin.projects.updated') . '</th><th></th></tr></thead><tbody>');
             foreach ($projects as $p) {
                 $card_count = class_exists('BH_Element') ? count(BH_Element::get_placements('bhcrm_project_board', (int) $p['id'], 'board')) : 0;
                 $board_url = add_query_arg(['user_id' => $uid, 'project_id' => $p['id']]);
@@ -562,20 +550,20 @@ class BHCRM_Projects {
                 echo '<td>' . esc_html(implode(', ', $p['columns_config'])) . '</td>';
                 echo '<td>' . (int) $card_count . '</td>';
                 echo '<td>' . esc_html(mysql2date('M j, Y', $p['updated_at'])) . '</td>';
-                echo '<td><a class="button button-small" href="' . esc_url($board_url) . '">Open board</a> ';
+                echo '<td><a class="button button-small" href="' . esc_url($board_url) . ('">' . BHCRM_Words::get('admin.projects.open_board') . '</a> ');
                 $del_nonce = wp_create_nonce('bhcrm_project_delete_' . $p['id']);
                 echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;">';
                 echo '<input type="hidden" name="action" value="bhcrm_project_delete">';
                 echo '<input type="hidden" name="project_id" value="' . (int) $p['id'] . '">';
                 echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
                 echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($del_nonce) . '">';
-                echo '<button class="button button-small" onclick="return confirm(\'Delete this project and every card on its board? This cannot be undone.\');">Delete</button>';
+                echo ('<button class="button button-small" onclick="return confirm(\'Delete this project and every card on its board? This cannot be undone.\');">' . BHCRM_Words::get('admin.projects.delete') . '</button>');
                 echo '</form></td>';
                 echo '</tr>';
             }
             echo '</tbody></table>';
         } else {
-            echo '<p class="description">No projects yet for this person.</p>';
+            echo ('<p class="description">' . BHCRM_Words::get('admin.projects.no_projects_yet_person') . '</p>');
         }
 
         $nonce = wp_create_nonce('bhcrm_project_create');
@@ -584,7 +572,7 @@ class BHCRM_Projects {
         echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
         echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
         echo '<input type="text" name="project_name" placeholder="New project name (e.g. \'Fenwick — full character commission\')" style="width:360px;max-width:100%;"> ';
-        echo '<button class="button button-primary">Create project</button>';
+        echo ('<button class="button button-primary">' . BHCRM_Words::get('admin.projects.create_project') . '</button>');
         echo '</form>';
     }
 
@@ -597,7 +585,7 @@ class BHCRM_Projects {
         $scene = sanitize_text_field(wp_unslash($_POST['project_scene'] ?? ''));
         $id = self::create($name, $uid, [], $scene);
 
-        $msg = $id ? "Created project #$id." : 'Failed to create project.';
+        $msg = $id ? "Created project #$id." : BHCRM_Words::get('admin.projects.failed_create_project');
         // Land on the new board; $uid is 0 when created from the Project Tracker index.
         $args = ['page' => 'bh-crm', 'bhcrm_msg' => rawurlencode($msg)];
         if ($id) $args['project_id'] = $id;
@@ -616,7 +604,7 @@ class BHCRM_Projects {
         $columns = array_filter(array_map('trim', explode("\n", $raw)));
         self::update_columns($project_id, $columns);
 
-        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $uid, 'project_id' => $project_id, 'bhcrm_msg' => 'Columns updated.'], admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $uid, 'project_id' => $project_id, 'bhcrm_msg' => BHCRM_Words::get('admin.projects.columns_updated')], admin_url('admin.php')));
         exit;
     }
 
@@ -628,7 +616,7 @@ class BHCRM_Projects {
         $uid = (int) ($_POST['user_id'] ?? 0);
         self::update_scene($project_id, wp_unslash($_POST['scene'] ?? ''));
 
-        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $uid, 'project_id' => $project_id, 'bhcrm_msg' => 'Scene updated.'], admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $uid, 'project_id' => $project_id, 'bhcrm_msg' => BHCRM_Words::get('admin.projects.scene_updated')], admin_url('admin.php')));
         exit;
     }
 
@@ -649,7 +637,7 @@ class BHCRM_Projects {
         }
         self::delete($project_id);
 
-        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $uid, 'bhcrm_msg' => 'Project deleted.'], admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $uid, 'bhcrm_msg' => BHCRM_Words::get('admin.projects.project_deleted')], admin_url('admin.php')));
         exit;
     }
 
@@ -665,7 +653,7 @@ class BHCRM_Projects {
         }
 
         if (!$project) {
-            echo '<p>Project not found.</p>';
+            echo ('<p>' . BHCRM_Words::get('admin.projects.project_not_found') . '</p>');
             return;
         }
 
@@ -673,19 +661,19 @@ class BHCRM_Projects {
 
         self::render_people_panel($project_id);
 
-        echo '<details style="margin-bottom:14px;"><summary style="cursor:pointer;">Edit columns</summary>';
+        echo ('<details style="margin-bottom:14px;"><summary style="cursor:pointer;">' . BHCRM_Words::get('admin.projects.edit_columns') . '</summary>');
         $nonce = wp_create_nonce('bhcrm_project_columns_' . $project_id);
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:8px;">';
         echo '<input type="hidden" name="action" value="bhcrm_project_save_columns">';
         echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '">';
         echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
         echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
-        echo '<p class="description">One column label per line, in the order they should appear on the board.</p>';
+        echo ('<p class="description">' . BHCRM_Words::get('admin.projects.one_column_label_per_line') . '</p>');
         echo '<textarea name="columns" rows="5" style="width:300px;max-width:100%;">' . esc_textarea(implode("\n", $project['columns_config'])) . '</textarea><br>';
         echo '<button class="button">Save columns</button>';
         echo '</form></details>';
 
-        echo '<details style="margin-bottom:14px;"><summary style="cursor:pointer;">Edit scene</summary>';
+        echo ('<details style="margin-bottom:14px;"><summary style="cursor:pointer;">' . BHCRM_Words::get('admin.projects.edit_scene') . '</summary>');
         $scene_nonce = wp_create_nonce('bhcrm_project_scene_' . $project_id);
         $scene_suggestions = self::distinct_scenes();
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:8px;">';
@@ -693,7 +681,7 @@ class BHCRM_Projects {
         echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '">';
         echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
         echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($scene_nonce) . '">';
-        echo '<p class="description">Purely organizational — groups this project under a heading on the Project Tracker index. Leave blank for "Unsorted".</p>';
+        echo ('<p class="description">' . BHCRM_Words::get('admin.projects.purely_organizational_groups_project_und') . '</p>');
         echo '<input type="text" name="scene" list="bhcrm-scene-suggestions" value="' . esc_attr($project['scene']) . '" style="width:220px;max-width:100%;"><br>';
         if ($scene_suggestions) {
             echo '<datalist id="bhcrm-scene-suggestions">';
@@ -703,7 +691,7 @@ class BHCRM_Projects {
         echo '<button class="button">Save scene</button>';
         echo '</form></details>';
 
-        echo '<noscript><p class="description">The kanban board requires JavaScript.</p></noscript>';
+        echo ('<noscript><p class="description">' . BHCRM_Words::get('admin.projects.kanban_board_requires_javascript') . '</p></noscript>');
         echo '<div id="bhcrm-kanban-board" class="bhcrm-kanban-board" data-loading="1"><p class="description">Loading board&hellip;</p></div>';
     }
 
@@ -712,17 +700,17 @@ class BHCRM_Projects {
         $linked = class_exists('BHCRM_Links') ? BHCRM_Links::people_for_project($project_id) : [];
 
         echo '<div class="bhy-card">';
-        echo '<h3>People</h3>';
+        echo ('<h3>' . BHCRM_Words::get('admin.projects.people') . '</h3>');
         if ($linked) {
             echo '<ul style="margin:0 0 12px;">';
             foreach ($linked as $l) {
-                $name = $l['user'] ? $l['user']->display_name : ('User #' . $l['user_id']);
+                $name = $l['user'] ? $l['user']->display_name : (BHCRM_Words::get('admin.projects.user') . $l['user_id']);
                 $remove_url = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_project_unlink&link_id=' . $l['link_id'] . '&project_id=' . (int) $project_id), 'bhcrm_project_unlink_' . $l['link_id']);
-                echo '<li>' . esc_html($name) . ' — ' . esc_html(self::relation_label($l['relation'])) . ' &middot; <a href="' . esc_url($remove_url) . '" onclick="return confirm(\'Remove this link?\');">Remove</a></li>';
+                echo '<li>' . esc_html($name) . ' — ' . esc_html(self::relation_label($l['relation'])) . ' &middot; <a href="' . esc_url($remove_url) . ('" onclick="return confirm(\'Remove this link?\');">' . BHCRM_Words::get('admin.card_log.remove') . '</a></li>');
             }
             echo '</ul>';
         } else {
-            echo '<p class="description">No one linked to this project yet.</p>';
+            echo ('<p class="description">' . BHCRM_Words::get('admin.projects.no_one_linked_project_yet') . '</p>');
         }
 
         $people_ids = class_exists('BHCRM_People') ? BHCRM_People::active_user_ids() : [];
@@ -742,7 +730,7 @@ class BHCRM_Projects {
                 echo '<option value="' . esc_attr($key) . '">' . esc_html($label) . '</option>';
             }
             echo '</select>';
-            echo '<button type="submit" class="button">Link person</button>';
+            echo ('<button type="submit" class="button">' . BHCRM_Words::get('admin.projects.link_person') . '</button>');
             echo '</form>';
         }
         echo '</div>';

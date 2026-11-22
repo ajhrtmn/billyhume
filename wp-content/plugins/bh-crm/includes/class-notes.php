@@ -67,7 +67,9 @@ class BHCRM_Notes {
         $wpdb->insert(self::table(), [
             'person_id' => $person_id,
             'author_id' => 0, // unknown — the old field never recorded authorship
-            'note' => "(Migrated from the old single-note field)\n\n" . $legacy,
+            'note' => BHCRM_Words::get('admin.notes.migrated_from_old_single_note') . '
+
+' . $legacy,
         ], ['%d', '%d', '%s']);
 
         delete_user_meta($person_id, '_bhcrm_notes');
@@ -154,19 +156,19 @@ class BHCRM_Notes {
     public static function render_editor(int $user_id): void {
         $notes = self::list_for_person($user_id);
 
-        echo '<h3>Notes</h3>';
+        echo ('<h3>' . BHCRM_Words::get('admin.notes.notes') . '</h3>');
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="bhcrm-note-form">';
         wp_nonce_field('bhcrm_save_note');
         echo '<input type="hidden" name="action" value="bhcrm_save_note">';
         echo '<input type="hidden" name="user_id" value="' . (int) $user_id . '">';
         echo '<textarea name="note" rows="4" placeholder="Add a note…" style="width:100%;max-width:600px;display:block;"></textarea>';
-        echo '<p><label>Remind me <input type="datetime-local" name="reminder_at" style="max-width:220px;"></label> ';
-        echo '<span class="description">Optional — leave blank for a plain note with no follow-up.</span></p>';
+        echo ('<p><label>' . BHCRM_Words::get('admin.notes.remind_me') . ' <input type="datetime-local" name="reminder_at" style="max-width:220px;"></label> ');
+        echo ('<span class="description">' . BHCRM_Words::get('admin.notes.optional_leave_blank_plain_note') . '</span></p>');
         echo '<p><button class="button button-primary">Add note</button></p>';
         echo '</form>';
 
         if (!$notes) {
-            echo '<p class="description">No notes yet.</p>';
+            echo ('<p class="description">' . BHCRM_Words::get('admin.notes.no_notes_yet') . '</p>');
             return;
         }
 
@@ -184,7 +186,7 @@ class BHCRM_Notes {
                 $dismissed = (int) $n['reminder_dismissed'] === 1;
                 echo '<div style="margin-top:4px;font-size:12px;">'
                    . '<span class="bhy-badge' . ($due && !$dismissed ? ' bhy-badge-warning' : '') . '">'
-                   . ($dismissed ? 'Reminder (done): ' : ($due ? 'Reminder due: ' : 'Reminder set for: '))
+                   . ($dismissed ? BHCRM_Words::get('admin.notes.reminder_done') . ' ' : ($due ? BHCRM_Words::get('admin.notes.reminder_due') . ' ' : BHCRM_Words::get('admin.notes.reminder_set') . ' '))
                    . esc_html($reminder_when) . '</span></div>';
             }
             echo '</li>';
@@ -208,10 +210,10 @@ class BHCRM_Notes {
         }
 
         if (class_exists('OUS_Toast')) {
-            OUS_Toast::queue($note_id ? 'Note added.' : 'Could not save note — please try again.', $note_id ? 'success' : 'error');
+            OUS_Toast::queue($note_id ? 'Note added.' : BHCRM_Words::get('admin.notes.could_not_save_note_please'), $note_id ? 'success' : 'error');
         }
 
-        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $user_id, 'bhcrm_msg' => rawurlencode($note_id ? 'Note added.' : 'Could not save note.')], admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $user_id, 'bhcrm_msg' => rawurlencode($note_id ? 'Note added.' : BHCRM_Words::get('admin.notes.could_not_save_note'))], admin_url('admin.php')));
         exit;
     }
 }

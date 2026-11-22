@@ -2,10 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Guided contest creation covering only the essentials (name, windows, categories,
- * votes, judging format); everything else stays on the full edit screen.
- * WHY: it fills $_POST with the edit screen's field names and calls wp_insert_post(),
- * so BH_AdminMetaboxes::save_contest_meta() stays the single save path.
+ * Guided contest creation for the essentials (name, windows, categories, votes, judging).
+ * WHY: fills $_POST with the edit screen field names and calls wp_insert_post(), so
+ * save_contest_meta() stays the single save path.
  */
 class BH_ContestWizard {
     public static function init(): void {
@@ -16,7 +15,7 @@ class BH_ContestWizard {
 
     public static function maybe_show_created_notice(): void {
         if (empty($_GET['bh_wizard_created']) || get_current_screen()->id !== 'bh_contest') return;
-        echo '<div class="notice notice-success is-dismissible"><p><strong>Contest created.</strong> The basics are set — rounds, Discord notifications, contact-field customization, and branding are all below with sensible defaults if you want to go further.</p></div>';
+        echo ('<div class="notice notice-success is-dismissible"><p><strong>' . BHCON_Words::get('admin.contest_wizard.contest_created') . '</strong> ' . BHCON_Words::get('admin.contest_wizard.basics_are_set_rounds_discord') . '</p></div>');
     }
 
     public static function add_menu(): void {
@@ -26,46 +25,46 @@ class BH_ContestWizard {
     public static function render(): void {
         if (!current_user_can('edit_posts')) wp_die('Not allowed.', '', ['response' => 403, 'back_link' => true]);
 
-        echo '<div class="wrap"><h1>New Contest — Guided Setup</h1>';
-        echo '<p class="description">Covers what every contest needs to run. Rounds, Discord notifications, contact-field customization, and branding all stay on the real edit screen with sensible defaults — reachable right after this, or any time later.</p>';
+        echo ('<div class="wrap"><h1>' . BHCON_Words::get('admin.contest_wizard.new_contest_guided_setup') . '</h1>');
+        echo ('<p class="description">' . BHCON_Words::get('admin.contest_wizard.covers_what_every_contest_needs') . '</p>');
 
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px;">';
         wp_nonce_field('bh_contest_wizard_save', 'bh_contest_wizard_nonce');
         echo '<input type="hidden" name="action" value="bh_contest_wizard_save">';
 
-        echo '<h2>1. Name</h2>';
+        echo ('<h2>' . BHCON_Words::get('admin.contest_wizard.1_name') . '</h2>');
         echo '<p><input type="text" name="wiz_title" style="width:100%;" placeholder="e.g. Summer Anthem Contest" required></p>';
 
-        echo '<h2>2. Submissions</h2>';
-        echo '<p><label><input type="checkbox" name="wiz_sub_always_open" value="1" checked id="wiz_sub_always"> Open the moment this contest is published (recommended)</label></p>';
+        echo ('<h2>' . BHCON_Words::get('admin.contest_wizard.2_submissions') . '</h2>');
+        echo ('<p><label><input type="checkbox" name="wiz_sub_always_open" value="1" checked id="wiz_sub_always"> ' . BHCON_Words::get('admin.contest_wizard.open_moment_contest_published_recommende') . '</label></p>');
         echo '<div id="wiz_sub_dates" style="display:none;">';
-        echo '<p>Opens: <input type="datetime-local" name="wiz_sub_start"></p>';
-        echo '<p>Closes: <input type="datetime-local" name="wiz_sub_end" id="wiz_sub_end"></p>';
+        echo ('<p>' . BHCON_Words::get('admin.admin_metaboxes.opens') . ' <input type="datetime-local" name="wiz_sub_start"></p>');
+        echo ('<p>' . BHCON_Words::get('admin.contest_wizard.closes') . ' <input type="datetime-local" name="wiz_sub_end" id="wiz_sub_end"></p>');
         echo '</div>';
 
-        echo '<h2>3. Voting</h2>';
-        echo '<p>Opens: <input type="datetime-local" name="wiz_vote_start" id="wiz_vote_start"> <button type="button" class="button button-small" id="wiz_vote_start_now">When submissions close</button></p>';
-        echo '<p>Closes: <input type="datetime-local" name="wiz_vote_end"></p>';
-        echo '<p class="description">Every voter gets ' . (int) BH_VOTE_BASE . ' base vote' . (BH_VOTE_BASE === 1 ? '' : 's') . ' per category, +' . (int) BH_VOTE_BONUS . ' more if they submitted a track — the site-wide default. Change per-contest any time from the real edit screen.</p>';
+        echo ('<h2>' . BHCON_Words::get('admin.contest_wizard.3_voting') . '</h2>');
+        echo ('<p>' . BHCON_Words::get('admin.admin_metaboxes.opens') . ' <input type="datetime-local" name="wiz_vote_start" id="wiz_vote_start"> <button type="button" class="button button-small" id="wiz_vote_start_now">' . BHCON_Words::get('admin.admin_metaboxes.when_submissions_close') . '</button></p>');
+        echo ('<p>' . BHCON_Words::get('admin.contest_wizard.closes') . ' <input type="datetime-local" name="wiz_vote_end"></p>');
+        echo ('<p class="description">' . BHCON_Words::get('admin.contest_wizard.every_voter_gets') . ' ') . (int) BH_VOTE_BASE . ' base vote' . (BH_VOTE_BASE === 1 ? '' : 's') . ' ' . BHCON_Words::get('admin.contest_wizard.per_category') . (int) BH_VOTE_BONUS . (' ' . BHCON_Words::get('admin.contest_wizard.more_if_they_submitted_track') . '</p>');
 
-        echo '<h2>4. Categories <span class="description">(optional)</span></h2>';
-        echo '<p class="description">One per line, e.g. "Best Vocals". Leave blank for a single, ordinary vote.</p>';
+        echo ('<h2>' . BHCON_Words::get('admin.contest_wizard.4_categories') . ' <span class="description">(optional)</span></h2>');
+        echo ('<p class="description">' . BHCON_Words::get('admin.contest_wizard.one_per_line_e_g') . '</p>');
         echo '<textarea name="wiz_categories" rows="4" style="width:100%;font-family:inherit;"></textarea>';
 
-        echo '<h2>5. Judging format</h2>';
+        echo ('<h2>' . BHCON_Words::get('admin.contest_wizard.5_judging_format') . '</h2>');
         echo '<p><select name="wiz_format" id="wiz_format">';
-        echo '<option value="public">Public voting (default)</option>';
-        echo '<option value="judges">Judges only</option>';
-        echo '<option value="hybrid">Hybrid — both, shown as two leaderboards</option>';
+        echo ('<option value="public">' . BHCON_Words::get('admin.contest_wizard.public_voting_default') . '</option>');
+        echo ('<option value="judges">' . BHCON_Words::get('admin.contest_wizard.judges_only') . '</option>');
+        echo ('<option value="hybrid">' . BHCON_Words::get('admin.contest_wizard.hybrid_both_shown_as_two') . '</option>');
         echo '</select></p>';
         echo '<div id="wiz_judges_fields" style="display:none;">';
-        echo '<p class="description">Rubric criteria, one per line — "Originality" (max 10) or "Originality:20" for a custom max.</p>';
+        echo ('<p class="description">' . BHCON_Words::get('admin.contest_wizard.rubric_criteria_one_per_line') . '</p>');
         echo '<textarea name="wiz_rubric" rows="3" style="width:100%;font-family:inherit;"></textarea>';
-        echo '<p class="description">Judges, one WordPress username per line — each needs an existing account.</p>';
+        echo ('<p class="description">' . BHCON_Words::get('admin.contest_wizard.judges_one_wordpress_username_per') . '</p>');
         echo '<textarea name="wiz_judges" rows="3" style="width:100%;font-family:inherit;"></textarea>';
         echo '</div>';
 
-        echo '<p style="margin-top:20px;"><button type="submit" class="button button-primary button-hero">Create contest</button></p>';
+        echo ('<p style="margin-top:20px;"><button type="submit" class="button button-primary button-hero">' . BHCON_Words::get('admin.contest_wizard.create_contest') . '</button></p>');
         echo '</form>';
 
         echo '<script>
@@ -76,11 +75,11 @@ class BH_ContestWizard {
 
     public static function handle_save(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('edit_posts', $_POST['bh_contest_wizard_nonce'] ?? '', 'bh_contest_wizard_save')) {
-            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+            wp_die(BHCON_Words::get('admin.contest_wizard.security_check_failed'), '', ['response' => 403, 'back_link' => true]);
         }
 
         $title = sanitize_text_field(wp_unslash($_POST['wiz_title'] ?? ''));
-        if ($title === '') wp_die('A contest name is required.', '', ['response' => 400, 'back_link' => true]);
+        if ($title === '') wp_die(BHCON_Words::get('admin.contest_wizard.contest_name_required'), '', ['response' => 400, 'back_link' => true]);
 
         // Feeds save_contest_meta() through $_POST (see class docblock).
         $_POST['bh_contest_nonce'] = wp_create_nonce('bh_save_contest');
@@ -120,7 +119,7 @@ class BH_ContestWizard {
         ], true);
 
         if (is_wp_error($new_id)) {
-            wp_die('Could not create the contest: ' . esc_html($new_id->get_error_message()), '', ['response' => 500, 'back_link' => true]);
+            wp_die(BHCON_Words::get('admin.contest_wizard.could_not_create_contest') . ' ' . esc_html($new_id->get_error_message()), '', ['response' => 500, 'back_link' => true]);
         }
 
         wp_safe_redirect(admin_url('post.php?post=' . $new_id . '&action=edit&bh_wizard_created=1'));

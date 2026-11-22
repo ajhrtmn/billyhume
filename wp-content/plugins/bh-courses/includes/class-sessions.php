@@ -2,10 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Instructor availability + booking: an instructor publishes open slots, a student books
- * one. FullCalendar (vendored) renders them, but the data model doesn't depend on it.
- * Single-instructor for now (see default_instructor_id()). Booking is an atomic conditional
- * UPDATE: the WHERE on the expected prior state is the concurrency guard.
+ * Instructor availability and booking (single instructor for now), shown with FullCalendar.
+ * Booking is one conditional UPDATE on the expected prior state: that WHERE is the concurrency guard.
  */
 class BHC_Sessions {
     const STATUSES = ['open' => 'Open', 'booked' => 'Booked', 'completed' => 'Completed', 'cancelled' => 'Cancelled'];
@@ -35,7 +33,7 @@ class BHC_Sessions {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        dbDelta('CREATE TABLE ' . self::table() . " (
+        dbDelta(BHC_Words::get('admin.sessions.create_table') . ' ' . self::table() . " (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             instructor_id bigint(20) unsigned NOT NULL,
             student_id bigint(20) unsigned NOT NULL DEFAULT 0,
@@ -66,7 +64,7 @@ class BHC_Sessions {
     public static function create_slot(string $starts_at, int $duration_minutes = 30, int $course_id = 0, string $notes = '', int $instructor_id = 0) {
         global $wpdb;
         $instructor_id = (int) $instructor_id ?: self::default_instructor_id();
-        if (!$instructor_id) return new WP_Error('no_instructor', 'No instructor account found.');
+        if (!$instructor_id) return new WP_Error('no_instructor', BHC_Words::get('admin.sessions.no_instructor_account_found'));
 
         $wpdb->insert(self::table(), [
             'instructor_id' => $instructor_id,
@@ -77,7 +75,7 @@ class BHC_Sessions {
             'notes' => sanitize_textarea_field($notes),
             'created_at' => current_time('mysql'),
         ]);
-        return $wpdb->insert_id ? (int) $wpdb->insert_id : new WP_Error('db_error', 'Could not create the slot.');
+        return $wpdb->insert_id ? (int) $wpdb->insert_id : new WP_Error('db_error', BHC_Words::get('admin.sessions.could_not_create_slot'));
     }
 
     /** @return array<string, mixed>|null */
@@ -131,14 +129,14 @@ class BHC_Sessions {
         }
         if (class_exists('OUS_Notifications') && $slot) {
             OUS_Notifications::notify(
-                (int) $student_id, 'session_booked', 'Session booked',
-                'Your session is confirmed for ' . $slot['starts_at'] . '.',
-                home_url('/account/?panel=sessions'), 'BH Courses'
+                (int) $student_id, 'session_booked', BHC_Words::get('admin.sessions.session_booked'),
+                BHC_Words::get('admin.sessions.session_confirmed') . ' ' . $slot['starts_at'] . '.',
+                home_url('/account/?panel=sessions'), BHC_Words::get('admin.crm_integration.bh_courses')
             );
             OUS_Notifications::notify(
-                (int) $slot['instructor_id'], 'session_booked', 'A student booked a session',
-                'A session on ' . $slot['starts_at'] . ' was just booked.',
-                admin_url('admin.php?page=bhc-sessions'), 'BH Courses'
+                (int) $slot['instructor_id'], 'session_booked', BHC_Words::get('admin.sessions.student_booked_session'),
+                'A session on ' . $slot['starts_at'] . ' ' . BHC_Words::get('admin.sessions.was_just_booked'),
+                admin_url('admin.php?page=bhc-sessions'), BHC_Words::get('admin.crm_integration.bh_courses')
             );
         }
         return true;
@@ -156,7 +154,7 @@ class BHC_Sessions {
 
         $hours_until_start = (strtotime($slot['starts_at']) - time()) / HOUR_IN_SECONDS;
         if ($hours_until_start < self::cancel_cutoff_hours()) {
-            return new WP_Error('too_late', 'This session starts within ' . self::cancel_cutoff_hours() . ' hours and can no longer be self-cancelled — contact your instructor.');
+            return new WP_Error('too_late', BHC_Words::get('admin.sessions.session_starts_within') . ' ' . self::cancel_cutoff_hours() . ' ' . BHC_Words::get('admin.sessions.hours_can_no_longer_self'));
         }
 
         $wpdb->query($wpdb->prepare(
@@ -167,9 +165,9 @@ class BHC_Sessions {
 
         if (class_exists('OUS_Notifications')) {
             OUS_Notifications::notify(
-                (int) $slot['instructor_id'], 'session_cancelled', 'A session was cancelled',
-                'The session on ' . $slot['starts_at'] . ' was cancelled by the student and is open again.',
-                admin_url('admin.php?page=bhc-sessions'), 'BH Courses'
+                (int) $slot['instructor_id'], 'session_cancelled', BHC_Words::get('admin.sessions.session_was_cancelled'),
+                BHC_Words::get('admin.sessions.session') . ' ' . $slot['starts_at'] . ' ' . BHC_Words::get('admin.sessions.was_cancelled_by_student_open'),
+                admin_url('admin.php?page=bhc-sessions'), BHC_Words::get('admin.crm_integration.bh_courses')
             );
         }
         return true;

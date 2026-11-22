@@ -2,10 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Pure, framework-agnostic colour math (no WordPress calls).
- * The metrics are NOT interchangeable: wcag_ratio() is the compliance
- * number reported; apca_lc() is what BHY_Contrast's resolver decides on;
- * OKLCH is for generating colours, not scoring them.
+ * Pure colour math (no WordPress). wcag_ratio() is the reported compliance number,
+ * apca_lc() is what the resolver decides on, OKLCH is for generating colours.
  */
 class BHY_Color {
 
@@ -209,7 +207,10 @@ class BHY_Color {
         return ['L' => $lab['L'], 'C' => $c, 'h' => $h];
     }
 
-    /** hex string -> OKLCH triple. @return array{L: float, C: float, h: float} */
+    /**
+     * hex string -> OKLCH triple.
+     * @return array{L: float, C: float, h: float}
+     */
     public static function hex_to_oklch(string $hex): array {
         return self::srgb_to_oklch(self::hex_to_rgb($hex));
     }

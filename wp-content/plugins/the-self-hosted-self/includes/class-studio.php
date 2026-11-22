@@ -3,10 +3,8 @@ if (!defined('ABSPATH')) exit;
 
 
 /**
- * BH_Studio: a visual authoring canvas built on @wordpress/block-editor and its
- * sibling packages (shipped in core, so nothing to vendor or build), storing
- * documents in BH_Content. Block types registered here work both in this
- * canvas (studio.js) and in the normal post editor.
+ * Visual authoring canvas on WordPress block-editor packages (nothing to vendor), storing
+ * documents in BH_Content. Block types work in this canvas and the normal post editor.
  */
 class BH_Studio {
     // Default block types, registered server-side (BH_Content schema/render) and
@@ -14,11 +12,11 @@ class BH_Studio {
     /** @return array<string, mixed> */
     public static function block_types(): array {
         return apply_filters('bh_studio_block_types', [
-            'bh/container' => ['tag' => 'section', 'category' => 'layout', 'label' => 'Container'],
-            'bh/heading'   => ['tag' => 'h2',      'category' => 'text',   'label' => 'Heading'],
-            'bh/text'      => ['tag' => 'p',       'category' => 'text',   'label' => 'Text'],
-            'bh/image'     => ['tag' => 'img',     'category' => 'media',  'label' => 'Image'],
-            'bh/button'    => ['tag' => 'a',       'category' => 'layout', 'label' => 'Button'],
+            'bh/container' => ['tag' => 'section', 'category' => 'layout', 'label' => OUS_Words::get('admin.studio.container')],
+            'bh/heading'   => ['tag' => 'h2',      'category' => 'text',   'label' => OUS_Words::get('admin.studio.heading')],
+            'bh/text'      => ['tag' => 'p',       'category' => 'text',   'label' => OUS_Words::get('admin.studio.text')],
+            'bh/image'     => ['tag' => 'img',     'category' => 'media',  'label' => OUS_Words::get('admin.studio.image')],
+            'bh/button'    => ['tag' => 'a',       'category' => 'layout', 'label' => OUS_Words::get('admin.studio.button')],
         ]);
     }
 
@@ -40,7 +38,7 @@ class BH_Studio {
      */
     public static function register_debug_section($tools): array {
         $tools['bh-studio'] = [
-            'label' => 'Content Studio',
+            'label' => OUS_Words::get('admin.studio.content_studio'),
             'render' => [self::class, 'render_debug_section'],
             'handle' => null,
             'reset' => null,
@@ -50,11 +48,11 @@ class BH_Studio {
     }
 
     public static function render_debug_section(): void {
-        echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=bh-studio')) . '">Open Content Studio</a></p>';
-        echo '<h4>Registered block types</h4>';
+        echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=bh-studio')) . ('">' . OUS_Words::get('admin.studio.open_content_studio') . '</a></p>');
+        echo ('<h4>' . OUS_Words::get('admin.studio.registered_block_types') . '</h4>');
         $studio_types = self::block_types();
         $content_types = class_exists('BH_Content') ? BH_Content::get_registered_types() : [];
-        echo '<table class="widefat striped"><thead><tr><th>Type</th><th>Label</th><th>Canvas (bh_studio_block_types)</th><th>BH_Content renderer registered</th></tr></thead><tbody>';
+        echo ('<table class="widefat striped"><thead><tr><th>' . OUS_Words::get('admin.api_docs.type') . '</th><th>' . OUS_Words::get('admin.portal.label') . '</th><th>' . OUS_Words::get('admin.studio.canvas_bh_studio_block_types') . '</th><th>' . OUS_Words::get('admin.studio.bh_content_renderer_registered') . '</th></tr></thead><tbody>');
         $all_types = array_unique(array_merge(array_keys($studio_types), $content_types));
         sort($all_types);
         foreach ($all_types as $type) {
@@ -132,14 +130,14 @@ class BH_Studio {
 
     /** @return \WP_REST_Response|\WP_Error */
     public static function rest_get(\WP_REST_Request $req) {
-        if (!class_exists('BH_Content')) return new \WP_Error('bh_studio_no_content', 'BH_Content is unavailable.', ['status' => 500]);
+        if (!class_exists('BH_Content')) return new \WP_Error('bh_studio_no_content', OUS_Words::get('admin.studio.bh_content_unavailable'), ['status' => 500]);
         $tree = BH_Content::get($req->get_param('context_type'), (int) $req->get_param('context_id'));
         return new \WP_REST_Response(['tree' => $tree, 'block_types' => self::block_types()], 200);
     }
 
     /** @return \WP_REST_Response|\WP_Error */
     public static function rest_save(\WP_REST_Request $req) {
-        if (!class_exists('BH_Content')) return new \WP_Error('bh_studio_no_content', 'BH_Content is unavailable.', ['status' => 500]);
+        if (!class_exists('BH_Content')) return new \WP_Error('bh_studio_no_content', OUS_Words::get('admin.studio.bh_content_unavailable'), ['status' => 500]);
         $body = json_decode($req->get_body(), true);
         $tree = is_array($body['tree'] ?? null) ? $body['tree'] : [];
         $saved = BH_Content::save($req->get_param('context_type'), (int) $req->get_param('context_id'), $tree);
@@ -193,7 +191,7 @@ class BH_Studio {
     }
 
     public static function render(): void {
-        BHY_UI::shell_open('Content Studio', 'A direct-manipulation canvas over real BH_Content blocks — semantic output, no absolute-positioned div soup. Everything below the toolbar is rendered by studio.js.');
+        BHY_UI::shell_open(OUS_Words::get('admin.studio.content_studio'), OUS_Words::get('admin.studio.direct_manipulation_canvas_over_real'));
         echo '<div id="bh-studio-root" style="border:1px solid #dcdcde;background:#fff;min-height:600px;"></div>';
         BHY_UI::shell_close();
     }

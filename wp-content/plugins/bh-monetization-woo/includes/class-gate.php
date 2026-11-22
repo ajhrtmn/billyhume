@@ -11,16 +11,9 @@ class BHM_Gate {
     }
 
     /**
-     * USAGE for any content type wanting to be paylocked:
-     *
-     *   update_post_meta($post_id, '_bhm_required_tier', $tier_id);
-     *   // ...and at render/serve time:
-     *   if (!BHM_Gate::user_has_tier_access(get_current_user_id(), $tier_id)) {
-     *       echo BHM_Gate::render_paywall_notice($tier_id);
-     *       return;
-     *   }
-     *
-     * No `_bhm_required_tier` meta means 0, which always passes: content is open by default.
+     * Paywall any content: set _bhm_required_tier, then at render time check
+     * user_has_tier_access() and print render_paywall_notice() when it fails.
+     * No tier set means 0, which always passes.
      */
     public static function get_required_tier(int $post_id): int {
         return (int) get_post_meta($post_id, '_bhm_required_tier', true);

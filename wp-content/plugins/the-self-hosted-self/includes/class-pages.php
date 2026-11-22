@@ -76,11 +76,8 @@ final class OUS_Pages {
     }
 
     /**
-     * Guarantees a page exists hosting $shortcode, creating it if not. Verifies
-     * the recorded page still exists and is published, and adopts an existing
-     * hand-made page before creating one.
-     * WHY $blocks: Gutenberg pages store block markup, not the shortcode, so a
-     * shortcode-only lookup creates duplicates.
+     * Makes sure a page hosting $shortcode exists: reuses the recorded or a hand-made page,
+     * else creates one. WHY $blocks: block pages store block markup, not the shortcode.
      *
      * @param array<string> $blocks block names that render the same thing
      * @return int page id, or 0 if creation failed

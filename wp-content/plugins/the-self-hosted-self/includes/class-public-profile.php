@@ -2,12 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Public half of BHI_Profiles: a presentation-only profile page (no social
- * graph) plus the logged-in user's edit form.
- *
- * [bh_profile]                    with ?bh_user=<slug-or-id>, that person's public
- *                                 profile; without it, the current user's edit form.
- * [bh_profile_link user_id="123"] link to someone's profile page.
+ * Public profile page (presentation only) and the current user edit form:
+ * [bh_profile] (with ?bh_user= shows that person) and [bh_profile_link user_id="123"].
  */
 class BHI_PublicProfile {
     public static function init(): void {
@@ -38,7 +34,7 @@ class BHI_PublicProfile {
     public static function register_portal_panel($panels): array {
         $panels[] = [
             'id' => 'profile',
-            'label' => __('Profile', 'the-self-hosted-self'),
+            'label' => OUS_Words::get('admin.public_profile.profile'),
             'icon' => 'dashicons-admin-users',
             'render' => [__CLASS__, 'render_portal_panel'],
             'priority' => 10,
@@ -55,7 +51,7 @@ class BHI_PublicProfile {
     public static function report_target_label($label, string $type, int $id): string {
         if ($type !== 'profile') return $label;
         $user = get_userdata($id);
-        return 'Profile: ' . ($user ? $user->display_name . ' (' . $user->user_email . ')' : 'User #' . $id);
+        return 'Profile: ' . ($user ? $user->display_name . ' (' . $user->user_email . ')' : OUS_Words::get('admin.public_profile.user') . $id);
     }
 
     public static function maybe_enqueue(): void {
@@ -116,14 +112,14 @@ class BHI_PublicProfile {
 
         if ($key === '') {
             if (!is_user_logged_in()) {
-                return '<p class="bhi-profile-notice">' . esc_html__('Log in to view or edit your profile.', 'the-self-hosted-self') . '</p>';
+                return '<p class="bhi-profile-notice">' . esc_html(OUS_Words::get('admin.public_profile.log_view_edit_profile')) . '</p>';
             }
             return self::render_edit_form(get_current_user_id());
         }
 
         // Public page disabled: every ?bh_user= lookup gets the same notice.
         if (!self::public_enabled()) {
-            return '<p class="bhi-profile-notice">' . esc_html__('Public profiles aren\'t available right now.', 'the-self-hosted-self') . '</p>';
+            return '<p class="bhi-profile-notice">' . esc_html(OUS_Words::get('admin.public_profile.public_profiles_aren_t_available')) . '</p>';
         }
 
         $user_id = ctype_digit($key) ? (int) $key : 0;
@@ -136,7 +132,7 @@ class BHI_PublicProfile {
         }
 
         if (!$user_id || !get_userdata($user_id)) {
-            return '<p class="bhi-profile-notice">' . esc_html__('This profile does not exist or is not public.', 'the-self-hosted-self') . '</p>';
+            return '<p class="bhi-profile-notice">' . esc_html(OUS_Words::get('admin.public_profile.profile_does_not_exist_not')) . '</p>';
         }
 
         return self::render_public_view($user_id);
@@ -144,7 +140,7 @@ class BHI_PublicProfile {
 
     private static function render_public_view(int $user_id): string {
         if (!self::public_enabled()) {
-            return '<p class="bhi-profile-notice">' . esc_html__('Public profiles aren\'t available right now.', 'the-self-hosted-self') . '</p>';
+            return '<p class="bhi-profile-notice">' . esc_html(OUS_Words::get('admin.public_profile.public_profiles_aren_t_available')) . '</p>';
         }
         $data = BHI_Profiles::get($user_id);
         $user = get_userdata($user_id);
@@ -216,13 +212,13 @@ class BHI_PublicProfile {
                     <li><?php echo esc_html($data['real_name']); ?></li>
                 <?php endif; ?>
                 <?php if ($data['discord_public'] && $data['discord_name']): ?>
-                    <li>Discord: <?php echo esc_html($data['discord_name']); ?></li>
+                    <li><?php echo OUS_Words::get('admin.public_profile.discord'); ?> <?php echo esc_html($data['discord_name']); ?></li>
                 <?php endif; ?>
                 <?php if ($data['twitch_public'] && $data['twitch_name']): ?>
-                    <li><a href="https://twitch.tv/<?php echo esc_attr($data['twitch_name']); ?>">Twitch</a></li>
+                    <li><a href="https://twitch.tv/<?php echo esc_attr($data['twitch_name']); ?>"><?php echo OUS_Words::get('admin.public_profile.twitch'); ?></a></li>
                 <?php endif; ?>
                 <?php if ($data['youtube_public'] && $data['youtube_name']): ?>
-                    <li><a href="https://youtube.com/<?php echo esc_attr($data['youtube_name']); ?>">YouTube</a></li>
+                    <li><a href="https://youtube.com/<?php echo esc_attr($data['youtube_name']); ?>"><?php echo OUS_Words::get('admin.public_profile.youtube'); ?></a></li>
                 <?php endif; ?>
             </ul>
             <?php if (get_current_user_id() !== $user_id && class_exists('BHI_Reports')): ?>
@@ -235,9 +231,9 @@ class BHI_PublicProfile {
 
     private static function render_edit_form(int $user_id): string {
         $data = BHI_Profiles::get($user_id);
-        $notice = isset($_GET['bhi_saved']) ? '<p class="bhi-profile-notice bhi-profile-notice--ok">' . esc_html__('Profile saved.', 'the-self-hosted-self') . '</p>' : '';
+        $notice = isset($_GET['bhi_saved']) ? '<p class="bhi-profile-notice bhi-profile-notice--ok">' . esc_html(OUS_Words::get('admin.public_profile.profile_saved')) . '</p>' : '';
         if (isset($_GET['bhi_deleted'])) {
-            $notice = '<p class="bhi-profile-notice bhi-profile-notice--ok">' . esc_html__('Your profile data has been cleared.', 'the-self-hosted-self') . '</p>';
+            $notice = '<p class="bhi-profile-notice bhi-profile-notice--ok">' . esc_html(OUS_Words::get('admin.public_profile.profile_data_has_been_cleared')) . '</p>';
         }
         if (isset($_GET['bhi_error'])) {
             $notice = '<p class="bhi-profile-notice bhi-profile-notice--error">' . esc_html(sanitize_text_field(wp_unslash($_GET['bhi_error']))) . '</p>';
@@ -251,28 +247,33 @@ class BHI_PublicProfile {
                 <?php wp_nonce_field('bhi_save_profile', 'bhi_profile_nonce'); ?>
                 <input type="hidden" name="_wp_http_referer" value="<?php echo esc_url(remove_query_arg(['bhi_saved', 'bhi_error'])); ?>" />
 
-                <label>Avatar
+                <label><?php echo OUS_Words::get('admin.public_profile.avatar'); ?>
+
                     <input type="file" name="avatar_file" accept="image/*" />
-                    <?php if ($data['avatar_id']): ?><span class="bhi-current">(current image set)</span><?php endif; ?>
+                    <?php if ($data['avatar_id']): ?><span class="bhi-current"><?php echo OUS_Words::get('admin.public_profile.current_image_set'); ?></span><?php endif; ?>
                 </label>
-                <label>Banner
+                <label><?php echo OUS_Words::get('admin.public_profile.banner'); ?>
+
                     <input type="file" name="banner_file" accept="image/*" />
-                    <?php if ($data['banner_id']): ?><span class="bhi-current">(current image set)</span><?php endif; ?>
+                    <?php if ($data['banner_id']): ?><span class="bhi-current"><?php echo OUS_Words::get('admin.public_profile.current_image_set'); ?></span><?php endif; ?>
                 </label>
-                <label>Bio
+                <label><?php echo OUS_Words::get('admin.public_profile.bio'); ?>
+
                     <textarea name="bio" rows="4" maxlength="2000"><?php echo esc_textarea($data['bio']); ?></textarea>
                 </label>
                 <?php if (self::public_enabled()): ?>
-                <label>Profile URL slug
+                <label><?php echo OUS_Words::get('admin.public_profile.profile_url_slug'); ?>
+
                     <input type="text" name="profile_slug" value="<?php echo esc_attr($data['profile_slug']); ?>" placeholder="your-name" />
                 </label>
                 <label class="bhi-checkbox">
                     <input type="checkbox" name="profile_public" value="1" <?php checked($data['profile_public'], 1); ?> />
-                    Make my profile page public
+                    <?php echo OUS_Words::get('admin.public_profile.make_my_profile_page_public'); ?>
+
                 </label>
 
                 <fieldset class="bhi-bio-links-field">
-                    <legend>Links</legend>
+                    <legend><?php echo OUS_Words::get('admin.public_profile.links'); ?></legend>
                     <div class="bhi-bio-links-rows" data-bhi-bio-links>
                         <?php
                         $links = $data['links'] ?: [];
@@ -285,35 +286,35 @@ class BHI_PublicProfile {
                             </div>
                         <?php endforeach; ?>
                     </div>
-                    <button type="button" class="bhi-btn bhi-btn--secondary" data-bhi-bio-link-add>+ Add link</button>
-                    <p class="bhi-current">Up to <?php echo (int) BHI_Profiles::MAX_LINKS; ?> buttons shown on your public profile page — a song, a store, a social link.</p>
+                    <button type="button" class="bhi-btn bhi-btn--secondary" data-bhi-bio-link-add><?php echo OUS_Words::get('admin.public_profile.add_link'); ?></button>
+                    <p class="bhi-current"><?php echo OUS_Words::get('admin.public_profile.up'); ?> <?php echo (int) BHI_Profiles::MAX_LINKS; ?> <?php echo OUS_Words::get('admin.public_profile.buttons_shown_public_profile_page'); ?></p>
                 </fieldset>
                 <?php endif; ?>
 
                 <fieldset>
-                    <legend>Real name</legend>
+                    <legend><?php echo OUS_Words::get('admin.public_profile.real_name'); ?></legend>
                     <input type="text" name="real_name" value="<?php echo esc_attr($data['real_name']); ?>" />
-                    <label class="bhi-checkbox"><input type="checkbox" name="real_name_public" value="1" <?php checked($data['real_name_public'], 1); ?> /> Show publicly</label>
+                    <label class="bhi-checkbox"><input type="checkbox" name="real_name_public" value="1" <?php checked($data['real_name_public'], 1); ?> /> <?php echo OUS_Words::get('admin.public_profile.show_publicly'); ?></label>
                 </fieldset>
                 <fieldset>
-                    <legend>Discord</legend>
+                    <legend><?php echo OUS_Words::get('admin.public_profile.discord_2'); ?></legend>
                     <input type="text" name="discord_name" value="<?php echo esc_attr($data['discord_name']); ?>" />
-                    <label class="bhi-checkbox"><input type="checkbox" name="discord_public" value="1" <?php checked($data['discord_public'], 1); ?> /> Show publicly</label>
+                    <label class="bhi-checkbox"><input type="checkbox" name="discord_public" value="1" <?php checked($data['discord_public'], 1); ?> /> <?php echo OUS_Words::get('admin.public_profile.show_publicly'); ?></label>
                 </fieldset>
                 <fieldset>
-                    <legend>Twitch</legend>
+                    <legend><?php echo OUS_Words::get('admin.public_profile.twitch'); ?></legend>
                     <input type="text" name="twitch_name" value="<?php echo esc_attr($data['twitch_name']); ?>" />
-                    <label class="bhi-checkbox"><input type="checkbox" name="twitch_public" value="1" <?php checked($data['twitch_public'], 1); ?> /> Show publicly</label>
+                    <label class="bhi-checkbox"><input type="checkbox" name="twitch_public" value="1" <?php checked($data['twitch_public'], 1); ?> /> <?php echo OUS_Words::get('admin.public_profile.show_publicly'); ?></label>
                 </fieldset>
                 <fieldset>
-                    <legend>YouTube</legend>
+                    <legend><?php echo OUS_Words::get('admin.public_profile.youtube'); ?></legend>
                     <input type="text" name="youtube_name" value="<?php echo esc_attr($data['youtube_name']); ?>" />
-                    <label class="bhi-checkbox"><input type="checkbox" name="youtube_public" value="1" <?php checked($data['youtube_public'], 1); ?> /> Show publicly</label>
+                    <label class="bhi-checkbox"><input type="checkbox" name="youtube_public" value="1" <?php checked($data['youtube_public'], 1); ?> /> <?php echo OUS_Words::get('admin.public_profile.show_publicly'); ?></label>
                 </fieldset>
 
-                <button type="submit" class="bhi-btn bhi-btn--primary">Save profile</button>
+                <button type="submit" class="bhi-btn bhi-btn--primary"><?php echo OUS_Words::get('admin.public_profile.save_profile'); ?></button>
                 <?php if (self::public_enabled() && $data['profile_public']): ?>
-                    <a class="bhi-view-link" href="<?php echo esc_url(self::profile_url($user_id)); ?>">View public page</a>
+                    <a class="bhi-view-link" href="<?php echo esc_url(self::profile_url($user_id)); ?>"><?php echo OUS_Words::get('admin.public_profile.view_public_page'); ?></a>
                 <?php endif; ?>
             </form>
 
@@ -322,8 +323,8 @@ class BHI_PublicProfile {
                 <input type="hidden" name="action" value="bhi_delete_profile_data" />
                 <?php wp_nonce_field('bhi_delete_profile_data', 'bhi_delete_nonce'); ?>
                 <input type="hidden" name="_wp_http_referer" value="<?php echo esc_url(remove_query_arg(['bhi_saved', 'bhi_error', 'bhi_deleted'])); ?>" />
-                <button type="submit" class="bhi-btn bhi-btn--danger">Delete my profile data</button>
-                <span class="bhi-current">Removes bio, images, slug, and handles. Purchase/entitlement/wallet history is kept separately (legal/financial record-keeping) regardless of this.</span>
+                <button type="submit" class="bhi-btn bhi-btn--danger"><?php echo OUS_Words::get('admin.public_profile.delete_my_profile_data'); ?></button>
+                <span class="bhi-current"><?php echo OUS_Words::get('admin.public_profile.removes_bio_images_slug_handles'); ?></span>
             </form>
         </div>
         <?php
@@ -331,9 +332,9 @@ class BHI_PublicProfile {
     }
 
     public static function handle_delete(): void {
-        if (!is_user_logged_in()) wp_die('Not logged in.');
+        if (!is_user_logged_in()) wp_die(OUS_Words::get('admin.public_profile.not_logged'));
         if (!isset($_POST['bhi_delete_nonce']) || !wp_verify_nonce($_POST['bhi_delete_nonce'], 'bhi_delete_profile_data')) {
-            wp_die('Security check failed.');
+            wp_die(OUS_Words::get('admin.media_wizard.security_check_failed'));
         }
         $referer = !empty($_POST['_wp_http_referer']) ? esc_url_raw($_POST['_wp_http_referer']) : home_url('/');
         BHI_Profiles::delete_personal_data(get_current_user_id());
@@ -342,9 +343,9 @@ class BHI_PublicProfile {
     }
 
     public static function handle_save(): void {
-        if (!is_user_logged_in()) wp_die('Not logged in.');
+        if (!is_user_logged_in()) wp_die(OUS_Words::get('admin.public_profile.not_logged'));
         if (!isset($_POST['bhi_profile_nonce']) || !wp_verify_nonce($_POST['bhi_profile_nonce'], 'bhi_save_profile')) {
-            wp_die('Security check failed.');
+            wp_die(OUS_Words::get('admin.media_wizard.security_check_failed'));
         }
 
         $user_id = get_current_user_id();
@@ -415,10 +416,10 @@ class BHI_PublicProfile {
         $file = $_FILES[$field];
         $type = wp_check_filetype($file['name']);
         if (!$type['type'] || strpos($type['type'], 'image/') !== 0) {
-            return new WP_Error('bad_type', 'Please upload an image file.');
+            return new WP_Error('bad_type', OUS_Words::get('admin.public_profile.please_upload_image_file'));
         }
         if ($file['size'] > 8 * 1024 * 1024) {
-            return new WP_Error('too_big', 'Image must be smaller than 8MB.');
+            return new WP_Error('too_big', OUS_Words::get('admin.public_profile.image_must_smaller_than_8mb'));
         }
 
         $grant_upload_cap = function ($allcaps) {

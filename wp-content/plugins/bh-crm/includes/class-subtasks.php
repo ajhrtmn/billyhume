@@ -2,13 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Nested kanban view for a sticky card's sub-tasks: every tree level renders as a full board.
- *
- * - Sub-tasks are 'bhcrm/sub-card' nodes in the card's BH_Content tree ('bh_element', content_context_id),
- *   each with a stable 'uid' attr; all levels share the project's columns_config.
- * - The viewed level is a uid path, carried as the comma-joined 'subtask_path' query arg.
- * - Sub-cards have no timestamps, so there is no stalled badge here; they can't be linked via
- *   BHCRM_Links either (its ids are integers, a node only has a string uid).
+ * Nested kanban for a card sub-tasks: every level is a full board sharing the project columns.
+ * The viewed level is a uid path in subtask_path. Sub-cards have no timestamps or integer ids,
+ * so no stalled badge and no BHCRM_Links.
  */
 class BHCRM_Subtasks {
     // Soft warning when a card's whole tree is big enough to be its own project; not a limit.
@@ -210,7 +206,7 @@ class BHCRM_Subtasks {
     public static function render(int $project_id, int $uid, int $card_id, array $path): void {
         $card = self::load_card($project_id, $card_id);
         if (!$card) {
-            echo '<p>Card not found.</p>';
+            echo ('<p>' . BHCRM_Words::get('admin.subtasks.card_not_found') . '</p>');
             return;
         }
         $content_id = (int) ($card['content_context_id'] ?: $card['id']);
@@ -222,7 +218,7 @@ class BHCRM_Subtasks {
 
         $whole_tree_count = self::total_node_count($tree);
         if ($whole_tree_count >= self::SIZE_WARNING_THRESHOLD) {
-            echo '<p class="description" style="color:var(--bhy-warning,#b45309);">&#9888; This card has ' . (int) $whole_tree_count . ' sub-tasks across every level — worth considering whether this has grown into its own separate project instead of one card\'s tree.</p>';
+            echo '<p class="description" style="color:var(--bhy-warning,#b45309);">&#9888; This card has ' . (int) $whole_tree_count . (' ' . BHCRM_Words::get('admin.subtasks.sub_tasks_across_every_level') . '</p>');
         }
 
         self::render_breadcrumb($project_id, $uid, $card_id, $card, $tree, $path);
@@ -369,7 +365,7 @@ class BHCRM_Subtasks {
         echo '<span class="bhcrm-subtask-save-status description"></span>';
 
         echo '<div class="bhcrm-kanban-card-actions">';
-        echo '<a class="button button-small" href="' . esc_url($base . '&subtask_path=' . urlencode($child_path_str)) . '">Open board (' . (int) $child_total . ') &rarr;</a>';
+        echo '<a class="button button-small" href="' . esc_url($base . '&subtask_path=' . urlencode($child_path_str)) . ('">' . BHCRM_Words::get('admin.subtasks.open_board')) . (int) $child_total . ') &rarr;</a>';
 
         $delete_url = wp_nonce_url($base . '&subtask_path=' . urlencode(self::path_to_string($path)), 'bhcrm_subtask_delete_' . $node_uid);
         // Two-click arm/confirm handled in subtasks.js; no native confirm().
@@ -379,7 +375,7 @@ class BHCRM_Subtasks {
         echo '<input type="hidden" name="subtask_path" value="' . esc_attr(self::path_to_string($path)) . '">';
         echo '<input type="hidden" name="node_uid" value="' . esc_attr($node_uid) . '">';
         wp_nonce_field('bhcrm_subtask_' . $node_uid);
-        echo '<button type="submit" class="button button-small bhcrm-subtask-delete-btn" style="color:#b32d2e;">Delete</button>';
+        echo ('<button type="submit" class="button button-small bhcrm-subtask-delete-btn" style="color:#b32d2e;">' . BHCRM_Words::get('admin.projects.delete') . '</button>');
         echo '</form>';
         echo '</div>';
         echo '</div>';
@@ -395,7 +391,7 @@ class BHCRM_Subtasks {
         echo '<input type="hidden" name="column" value="' . esc_attr($column) . '">';
         wp_nonce_field('bhcrm_subtask_add');
         echo '<input type="text" name="title" placeholder="+ Add card…" required>';
-        echo '<button type="submit" class="button button-small">Add</button>';
+        echo ('<button type="submit" class="button button-small">' . BHCRM_Words::get('admin.subtasks.add') . '</button>');
         echo '</form>';
     }
 
@@ -406,13 +402,13 @@ class BHCRM_Subtasks {
      */
     private static function render_bulk_add_form(int $project_id, int $uid, int $card_id, array $path, array $columns): void {
         $base = self::base_url($project_id, $uid, $card_id);
-        echo '<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:13px;">+ Add several at once</summary>';
+        echo ('<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:13px;">' . BHCRM_Words::get('admin.subtasks.add_several_at_once') . '</summary>');
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:8px;">';
         echo '<input type="hidden" name="action" value="bhcrm_subtask_bulk_add">';
         echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '"><input type="hidden" name="user_id" value="' . (int) $uid . '"><input type="hidden" name="card_id" value="' . (int) $card_id . '">';
         echo '<input type="hidden" name="subtask_path" value="' . esc_attr(self::path_to_string($path)) . '">';
         wp_nonce_field('bhcrm_subtask_bulk_add');
-        echo '<p class="description">One sub-task title per line, all added to:</p>';
+        echo ('<p class="description">' . BHCRM_Words::get('admin.subtasks.one_sub_task_title_per') . '</p>');
         echo '<p><select name="column">';
         foreach ($columns as $col) echo '<option value="' . esc_attr($col) . '">' . esc_html($col) . '</option>';
         echo '</select></p>';
@@ -433,7 +429,7 @@ class BHCRM_Subtasks {
             wp_die('Not allowed.');
         }
         $card = self::load_card($project_id, $card_id);
-        if (!$card) wp_die('Card not found.');
+        if (!$card) wp_die(BHCRM_Words::get('admin.subtasks.card_not_found'));
         return $card;
     }
 
@@ -510,7 +506,7 @@ class BHCRM_Subtasks {
         $card = self::require_access($project_id, $card_id);
 
         $layout = json_decode((string) wp_unslash($_POST['layout'] ?? ''), true);
-        if (!is_array($layout)) wp_send_json_error(['message' => 'No layout given.']);
+        if (!is_array($layout)) wp_send_json_error(['message' => BHCRM_Words::get('admin.subtasks.no_layout_given')]);
 
         $columns = self::project_columns($project_id);
 
@@ -559,7 +555,7 @@ class BHCRM_Subtasks {
         $content_id = (int) ($card['content_context_id'] ?: $card['id']);
         $tree = self::load_tree($content_id);
         $node = &self::find_node($tree, array_merge($path, [$node_uid]));
-        if ($node === null) wp_send_json_error(['message' => 'Sub-task not found.']);
+        if ($node === null) wp_send_json_error(['message' => BHCRM_Words::get('admin.subtasks.sub_task_not_found')]);
 
         if (isset($_POST['title'])) {
             $title = sanitize_text_field(wp_unslash($_POST['title']));

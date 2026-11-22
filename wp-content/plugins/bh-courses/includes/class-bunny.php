@@ -2,18 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The lesson editor's bridge to a Bunny Stream library, so an author
- * never leaves the editor: browse existing videos, create + resumably
- * upload a new one (tus-js-client hits Bunny directly with a signature
- * this endpoint mints — the API key never reaches the browser), and get
- * a signed preview URL for scrubbing chapters.
- *
- * All of this is optional enhancement: the bunny_stream video step works
- * with a hand-pasted GUID and BHY_MediaToken alone. These routes only do
- * anything once the Bunny *API Key* is also set (Media & CDN Setup),
- * hence BHY_MediaToken::bunny_api_configured() guards every one.
- *
- * Bunny video-management API: https://docs.bunny.net/reference/video_getvideolist
+ * Lesson editor bridge to Bunny Stream: browse videos, upload resumably straight to Bunny
+ * (this endpoint signs the upload; the API key never reaches the browser), preview for chapters.
+ * Optional: needs the Bunny API key; a pasted GUID works without it.
  */
 class BHC_Bunny {
 
@@ -54,7 +45,7 @@ class BHC_Bunny {
     public static function sync_chapters(string $guid, array $chapters) {
         if (!class_exists('BHY_MediaToken') || !BHY_MediaToken::bunny_api_configured()) return null;
         $guid = trim($guid);
-        if (!preg_match('/^[a-f0-9-]{20,64}$/i', $guid)) return new WP_Error('bhc_bunny_bad_guid', 'Not a valid Bunny GUID.');
+        if (!preg_match('/^[a-f0-9-]{20,64}$/i', $guid)) return new WP_Error('bhc_bunny_bad_guid', BHC_Words::get('admin.bunny.not_valid_bunny_guid'));
 
         $opt  = 'bhc_bunny_chapters_' . md5($guid);
         $hash = md5(self::CHAPTER_SYNC_SCHEMA . '|' . wp_json_encode($chapters));
@@ -171,7 +162,7 @@ class BHC_Bunny {
     /** @return \WP_REST_Response|\WP_Error */
     public static function upload_signature(\WP_REST_Request $req) {
         $sig = BHY_MediaToken::bunny_upload_signature((string) $req['guid']);
-        if (!$sig) return new WP_Error('bhc_bunny_bad_guid', 'Not a valid Bunny video GUID, or Bunny API is not configured.', ['status' => 400]);
+        if (!$sig) return new WP_Error('bhc_bunny_bad_guid', BHC_Words::get('admin.bunny.not_valid_bunny_video_guid'), ['status' => 400]);
         return new WP_REST_Response($sig, 200);
     }
 
@@ -200,7 +191,7 @@ class BHC_Bunny {
     /** @return \WP_REST_Response|\WP_Error */
     public static function embed_url(\WP_REST_Request $req) {
         $url = BHY_MediaToken::sign_bunny((string) $req['guid']);
-        if (!$url) return new WP_Error('bhc_bunny_bad_guid', 'Not a valid Bunny video GUID.', ['status' => 400]);
+        if (!$url) return new WP_Error('bhc_bunny_bad_guid', BHC_Words::get('admin.bunny.not_valid_bunny_video_guid_2'), ['status' => 400]);
         return new WP_REST_Response(['url' => $url], 200);
     }
 
@@ -233,7 +224,7 @@ class BHC_Bunny {
         $code = wp_remote_retrieve_response_code($res);
         $decoded = json_decode((string) wp_remote_retrieve_body($res), true);
         if ($code < 200 || $code >= 300) {
-            $msg = is_array($decoded) ? ($decoded['Message'] ?? $decoded['message'] ?? 'Bunny API error') : 'Bunny API error';
+            $msg = is_array($decoded) ? ($decoded['Message'] ?? $decoded['message'] ?? BHC_Words::get('admin.bunny.bunny_api_error')) : BHC_Words::get('admin.bunny.bunny_api_error');
             return new WP_Error('bhc_bunny_api', $msg . " (HTTP $code)", ['status' => 502]);
         }
         return is_array($decoded) ? $decoded : [];

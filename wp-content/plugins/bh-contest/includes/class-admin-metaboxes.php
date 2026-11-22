@@ -34,15 +34,15 @@ class BH_AdminMetaboxes {
         $pending_id = (int) get_post_meta($post->ID, '_bh_pending_audio_id', true);
 
         if ($cid && get_post($cid)) {
-            echo '<p><strong>Contest:</strong> <a href="' . esc_url(get_edit_post_link($cid)) . '">' . esc_html(get_the_title($cid)) . '</a></p>';
+            echo ('<p><strong>' . BHCON_Words::get('admin.admin_metaboxes.contest') . '</strong> <a href="') . esc_url(get_edit_post_link($cid)) . '">' . esc_html(get_the_title($cid)) . '</a></p>';
         }
         echo '<h4>Artist Name: ' . esc_html(get_post_meta($post->ID, '_bh_artist_name', true)) . '</h4>';
-        if ($note) echo '<p><strong>Note to Admin:</strong><br><em>' . esc_html($note) . '</em></p>';
+        if ($note) echo ('<p><strong>' . BHCON_Words::get('admin.admin_metaboxes.note_admin') . '</strong><br><em>') . esc_html($note) . '</em></p>';
 
-        echo '<p><strong>' . ($pending_id ? 'Currently live:' : 'Audio:') . '</strong></p>';
+        echo '<p><strong>' . ($pending_id ? BHCON_Words::get('admin.admin_metaboxes.currently_live') : 'Audio:') . '</strong></p>';
         echo $url
             ? "<audio controls src='" . esc_url($url) . "' style='width:100%;margin:0 0 15px;'></audio>"
-            : '<p>No audio attached.</p>';
+            : ('<p>' . BHCON_Words::get('admin.admin_metaboxes.no_audio_attached') . '</p>');
 
         if ($pending_id) {
             $pending_url = wp_get_attachment_url($pending_id);
@@ -51,16 +51,16 @@ class BH_AdminMetaboxes {
             $by_user = $replaced_by ? get_userdata($replaced_by) : null;
             echo '<div style="background:#fff8e5;border:1px solid #dba617;border-radius:4px;padding:10px 14px;margin-bottom:15px;">';
             echo '<p style="margin-top:0;"><strong>&#9888; Pending replacement</strong>'
-               . ($replaced_at ? ' — uploaded ' . esc_html(mysql2date('M j, Y g:ia', $replaced_at)) : '')
+               . ($replaced_at ? ' ' . BHCON_Words::get('admin.admin_metaboxes.uploaded') . ' ' . esc_html(mysql2date('M j, Y g:ia', $replaced_at)) : '')
                . ($by_user ? ' by ' . esc_html($by_user->display_name) : '') . '</p>';
             echo $pending_url
                 ? "<audio controls src='" . esc_url($pending_url) . "' style='width:100%;margin:0 0 10px;'></audio>"
-                : '<p>No audio attached.</p>';
+                : ('<p>' . BHCON_Words::get('admin.admin_metaboxes.no_audio_attached') . '</p>');
 
             $approve_url = wp_nonce_url(admin_url('admin-post.php?action=bh_approve_swap&submission_id=' . $post->ID), 'bh_approve_swap_' . $post->ID);
             $discard_url = wp_nonce_url(admin_url('admin-post.php?action=bh_discard_swap&submission_id=' . $post->ID), 'bh_discard_swap_' . $post->ID);
-            echo '<p style="margin-bottom:0;"><a class="button button-primary" href="' . esc_url($approve_url) . '">Approve replacement</a> '
-               . '<a class="button" href="' . esc_url($discard_url) . '" onclick="return confirm(\'Discard this replacement and keep the current file?\');">Discard replacement</a></p>';
+            echo '<p style="margin-bottom:0;"><a class="button button-primary" href="' . esc_url($approve_url) . ('">' . BHCON_Words::get('admin.admin_metaboxes.approve_replacement') . '</a> ')
+               . '<a class="button" href="' . esc_url($discard_url) . ('" onclick="return confirm(\'Discard this replacement and keep the current file?\');">' . BHCON_Words::get('admin.admin_metaboxes.discard_replacement') . '</a></p>');
             echo '</div>';
         }
 
@@ -68,24 +68,24 @@ class BH_AdminMetaboxes {
             $reason_code = get_post_meta($post->ID, '_bh_rejection_reason_code', true);
             $reason_note = get_post_meta($post->ID, '_bh_rejection_note', true);
             echo '<div style="background:#fbeaea;border:1px solid #b32d2e;border-radius:4px;padding:10px 14px;margin-bottom:15px;">';
-            echo '<p style="margin:0;"><strong>Rejected</strong> — ' . esc_html(BH_Admin::REJECTION_REASONS[$reason_code] ?? 'No reason recorded') . '</p>';
+            echo ('<p style="margin:0;"><strong>' . BHCON_Words::get('admin.admin_metaboxes.rejected') . '</strong> — ') . esc_html(BH_Admin::REJECTION_REASONS[$reason_code] ?? BHCON_Words::get('admin.admin_metaboxes.no_reason_recorded')) . '</p>';
             if ($reason_note) echo '<p style="margin:8px 0 0;"><em>' . esc_html($reason_note) . '</em></p>';
             echo '</div>';
         } else {
-            echo '<hr><p><strong>To Approve:</strong> set Status to <em>Published</em> and click Update.</p>';
+            echo ('<hr><p><strong>' . BHCON_Words::get('admin.admin_metaboxes.approve') . '</strong> ' . BHCON_Words::get('admin.admin_metaboxes.set_status_published_click_update') . '</p>');
 
             // WHY: no nested <form>; metaboxes sit inside the post-edit form, which
             // would swallow the submit. A fetch() POSTs to admin-post.php instead.
-            echo '<details><summary style="cursor:pointer;color:#b32d2e;">Reject this submission</summary>';
+            echo ('<details><summary style="cursor:pointer;color:#b32d2e;">' . BHCON_Words::get('admin.admin_metaboxes.reject_submission') . '</summary>');
             $reject_nonce = wp_create_nonce('bh_reject_submission_' . $post->ID);
             $box_id = 'bh-reject-box-' . (int) $post->ID;
             echo '<div id="' . esc_attr($box_id) . '" style="margin-top:10px;">';
-            echo '<p><label>Reason<br><select class="bh-reject-reason">';
+            echo ('<p><label>' . BHCON_Words::get('admin.admin_metaboxes.reason') . '<br><select class="bh-reject-reason">');
             foreach (BH_Admin::REJECTION_REASONS as $code => $label) {
                 echo '<option value="' . esc_attr($code) . '">' . esc_html($label) . '</option>';
             }
             echo '</select></label></p>';
-            echo '<p><label>Note to contestant (included in their notification)<br>'
+            echo ('<p><label>' . BHCON_Words::get('admin.admin_metaboxes.note_contestant_included_their_notificat') . '<br>')
                . '<textarea class="bh-reject-note" rows="3" style="width:100%;"></textarea></label></p>';
             echo '<button type="button" class="button bh-reject-submit" style="color:#b32d2e;border-color:#b32d2e;">Reject &amp; notify contestant</button>';
             echo ' <span class="bh-reject-status description"></span>';
@@ -147,7 +147,7 @@ class BH_AdminMetaboxes {
 
     public static function render_contest_charts_box(\WP_Post $post): void {
         if ($post->post_status === 'auto-draft' || !class_exists('BH_Charts')) {
-            echo '<p class="description">Charts appear here once the contest is saved and votes start coming in.</p>';
+            echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.charts_appear_here_once_contest') . '</p>');
             return;
         }
         BH_Charts::render_section((int) $post->ID, ['compact' => true, 'heading' => false]);
@@ -183,67 +183,67 @@ class BH_AdminMetaboxes {
         // ---- Submissions ----
         ob_start();
         echo '<p style="display:flex;align-items:center;justify-content:space-between;margin-top:0;"><span></span> <span id="bh_sub_dot"></span></p>';
-        echo '<p><label><input type="checkbox" id="bh_sub_always_open" name="bh_sub_always_open" value="1" ' . checked($sub_always_open, true, false) . '> Open submissions the moment this contest is published</label></p>';
+        echo '<p><label><input type="checkbox" id="bh_sub_always_open" name="bh_sub_always_open" value="1" ' . checked($sub_always_open, true, false) . ('> ' . BHCON_Words::get('admin.admin_metaboxes.open_submissions_moment_contest_publishe') . '</label></p>');
         echo '<div id="bh_sub_dates" style="' . ($sub_always_open ? 'display:none;' : '') . '">';
-        echo "<p>Opens: <input type='datetime-local' id='bh_sub_start' name='bh_sub_start' value='" . esc_attr($sub_start) . "'></p>";
+        echo ('<p>' . BHCON_Words::get('admin.admin_metaboxes.opens') . ' <input type=\'datetime-local\' id=\'bh_sub_start\' name=\'bh_sub_start\' value=\'') . esc_attr($sub_start) . "'></p>";
         echo "<p>Closes: &nbsp;<input type='datetime-local' id='bh_sub_end' name='bh_sub_end' value='" . esc_attr($sub_end) . "'></p>";
         echo '</div>';
         // Opt-in: a no-audio 'draft' reserves the entry but skips review and the bonus vote until finished.
         $allow_audio_optional = (bool) get_post_meta($post->ID, '_bh_allow_audio_optional', true);
-        echo '<p><label><input type="checkbox" name="bh_allow_audio_optional" value="1" ' . checked($allow_audio_optional, true, false) . '> Allow submitting without audio yet — a fan can reserve their entry with title/artist/contact info, then finish by uploading a file later (from their account portal) any time before submissions close</label></p>';
+        echo '<p><label><input type="checkbox" name="bh_allow_audio_optional" value="1" ' . checked($allow_audio_optional, true, false) . ('> ' . BHCON_Words::get('admin.admin_metaboxes.allow_submitting_without_audio_yet') . '</label></p>');
         $submissions_html = ob_get_clean();
-        echo class_exists('BHY_UI') ? BHY_UI::card($submissions_html, ['title' => 'Submissions']) : ('<h3>Submissions</h3>' . $submissions_html);
+        echo class_exists('BHY_UI') ? BHY_UI::card($submissions_html, ['title' => BHCON_Words::get('admin.admin_metaboxes.submissions')]) : (('<h3>' . BHCON_Words::get('admin.admin_metaboxes.submissions') . '</h3>') . $submissions_html);
 
         // ---- Contact info ----
         ob_start();
         $contact_cfg = BH_Helpers::contact_config($post->ID);
         $field_labels = [
-            'real_name' => 'Real name', 'discord_name' => 'Discord', 'twitch_name' => 'Twitch',
-            'youtube_name' => 'YouTube', 'typical_platform' => 'Typical platform (dropdown)', 'phone' => 'Phone',
+            'real_name' => BHCON_Words::get('admin.admin_metaboxes.real_name'), 'discord_name' => 'Discord', 'twitch_name' => 'Twitch',
+            'youtube_name' => 'YouTube', 'typical_platform' => BHCON_Words::get('admin.admin_metaboxes.typical_platform_dropdown'), 'phone' => 'Phone',
         ];
-        echo '<p class="description" style="margin-top:0;">Choose what this contest asks submitters for. Leave everything as-is for the default (all fields shown, real name + at least one handle required, phone optional).</p>';
+        echo ('<p class="description" style="margin-top:0;">' . BHCON_Words::get('admin.admin_metaboxes.choose_what_contest_asks_submitters') . '</p>');
         foreach ($field_labels as $key => $label) {
             $shown = in_array($key, $contact_cfg['show'], true);
             echo '<label style="display:block;margin:2px 0;"><input type="checkbox" class="bh-contact-show" data-field="' . esc_attr($key) . '" name="bh_contact_show[]" value="' . esc_attr($key) . '" ' . checked($shown, true, false) . '> ' . esc_html($label) . '</label>';
         }
-        echo '<p style="margin-top:10px;"><strong>Required</strong></p>';
-        echo '<label style="display:block;margin:2px 0;"><input type="checkbox" name="bh_require_real_name" value="1" ' . checked(!empty($contact_cfg['require_real_name']), true, false) . ' class="bh-contact-require" data-requires="real_name"> Real name</label>';
-        echo '<label style="display:block;margin:2px 0;"><input type="checkbox" name="bh_require_handle" value="1" ' . checked(!empty($contact_cfg['require_handle']), true, false) . '> At least one platform handle (Discord/Twitch/YouTube)</label>';
-        echo '<label style="display:block;margin:2px 0;"><input type="checkbox" name="bh_require_phone" value="1" ' . checked(!empty($contact_cfg['require_phone']), true, false) . ' class="bh-contact-require" data-requires="phone"> Phone</label>';
-        echo '<p class="description">A field can only be required if it\'s also shown above — unchecking "shown" for a required field will un-require it automatically.</p>';
+        echo ('<p style="margin-top:10px;"><strong>' . BHCON_Words::get('admin.admin_metaboxes.required') . '</strong></p>');
+        echo '<label style="display:block;margin:2px 0;"><input type="checkbox" name="bh_require_real_name" value="1" ' . checked(!empty($contact_cfg['require_real_name']), true, false) . (' class="bh-contact-require" data-requires="real_name"> ' . BHCON_Words::get('admin.admin_metaboxes.real_name') . '</label>');
+        echo '<label style="display:block;margin:2px 0;"><input type="checkbox" name="bh_require_handle" value="1" ' . checked(!empty($contact_cfg['require_handle']), true, false) . ('> ' . BHCON_Words::get('admin.admin_metaboxes.at_least_one_platform_handle') . '</label>');
+        echo '<label style="display:block;margin:2px 0;"><input type="checkbox" name="bh_require_phone" value="1" ' . checked(!empty($contact_cfg['require_phone']), true, false) . (' class="bh-contact-require" data-requires="phone"> ' . BHCON_Words::get('admin.admin_metaboxes.phone') . '</label>');
+        echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.field_can_only_required_if') . '</p>');
         $contact_html = ob_get_clean();
-        echo class_exists('BHY_UI') ? BHY_UI::card($contact_html, ['title' => 'Contact info collected at submission']) : ('<h3>Contact info collected at submission</h3>' . $contact_html);
+        echo class_exists('BHY_UI') ? BHY_UI::card($contact_html, ['title' => BHCON_Words::get('admin.admin_metaboxes.contact_info_collected_at_submission')]) : (('<h3>' . BHCON_Words::get('admin.admin_metaboxes.contact_info_collected_at_submission') . '</h3>') . $contact_html);
 
         // ---- Voting ----
         ob_start();
         echo '<p style="display:flex;align-items:center;justify-content:space-between;margin-top:0;"><span></span> <span id="bh_vote_dot"></span></p>';
-        echo "<p>Opens: <input type='datetime-local' id='bh_start' name='bh_start' value='" . esc_attr($start) . "'> <button type=\"button\" class=\"button button-small\" id=\"bh_vote_start_now\">When submissions close</button></p>";
+        echo ('<p>' . BHCON_Words::get('admin.admin_metaboxes.opens') . ' <input type=\'datetime-local\' id=\'bh_start\' name=\'bh_start\' value=\'') . esc_attr($start) . ('\'> <button type="button" class="button button-small" id="bh_vote_start_now">' . BHCON_Words::get('admin.admin_metaboxes.when_submissions_close') . '</button></p>');
         echo "<p>Closes: &nbsp;<input type='datetime-local' id='bh_end' name='bh_end' value='" . esc_attr($end) . "'></p>";
-        echo '<p style="margin-top:14px;">Votes per category: '
+        echo ('<p style="margin-top:14px;">' . BHCON_Words::get('admin.admin_metaboxes.votes_per_category') . ' ')
            . '<input type="number" name="bh_vote_base" min="0" max="20" style="width:56px;" value="' . esc_attr($base !== '' ? $base : BH_VOTE_BASE) . '"> base'
            . ' + <input type="number" name="bh_vote_bonus" min="0" max="20" style="width:56px;" value="' . esc_attr($bonus !== '' ? $bonus : BH_VOTE_BONUS) . '"> bonus for submitting</p>';
-        echo '<p class="description">Applies to every category on this contest independently (voting in 3 categories with 1+1 votes = up to 6 total). Leave blank for the site default. Bonus only counts once a submission is approved.</p>';
+        echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.applies_every_category_contest_independe') . '</p>');
         $voting_html = ob_get_clean();
-        echo class_exists('BHY_UI') ? BHY_UI::card($voting_html, ['title' => 'Voting']) : ('<h3>Voting</h3>' . $voting_html);
+        echo class_exists('BHY_UI') ? BHY_UI::card($voting_html, ['title' => BHCON_Words::get('admin.admin_metaboxes.voting')]) : (('<h3>' . BHCON_Words::get('admin.admin_metaboxes.voting') . '</h3>') . $voting_html);
 
         // ---- Results ----
         ob_start();
-        echo '<p style="margin-top:0;"><label><input type="checkbox" name="bh_results_published" value="1" ' . checked($pub, '1', false) . '> <strong>Publish Results to Public</strong></label></p>';
-        echo '<p><em>Check this only after the contest ends and you have audited the votes.</em></p>';
+        echo '<p style="margin-top:0;"><label><input type="checkbox" name="bh_results_published" value="1" ' . checked($pub, '1', false) . ('> <strong>' . BHCON_Words::get('admin.admin_metaboxes.publish_results_public') . '</strong></label></p>');
+        echo ('<p><em>' . BHCON_Words::get('admin.admin_metaboxes.check_only_after_contest_ends') . '</em></p>');
         if ($pub === '1') {
             $sent_at = get_post_meta($post->ID, '_bh_winner_notifications_sent_at', true);
             $send_url = wp_nonce_url(admin_url('admin-post.php?action=bh_send_winners&contest_id=' . $post->ID), 'bh_send_winners');
             echo '<p>';
             if ($sent_at) {
-                echo '<span class="description">Winner notifications sent ' . esc_html(mysql2date('M j, g:ia', $sent_at)) . '.</span> ';
-                echo '<a href="' . esc_url($send_url) . '" onclick="return confirm(\'Resend winner notifications? This posts to Discord and emails every winner again.\');">Resend</a>';
+                echo ('<span class="description">' . BHCON_Words::get('admin.admin_metaboxes.winner_notifications_sent') . ' ') . esc_html(mysql2date('M j, g:ia', $sent_at)) . '.</span> ';
+                echo '<a href="' . esc_url($send_url) . ('" onclick="return confirm(\'Resend winner notifications? This posts to Discord and emails every winner again.\');">' . BHCON_Words::get('admin.admin_metaboxes.resend') . '</a>');
             } else {
-                echo '<a href="' . esc_url($send_url) . '" class="button button-primary" onclick="return confirm(\'Send winner notifications now? This posts to Discord and emails every winner immediately — make sure the results above are actually final.\');">Send Winner Notifications</a>';
+                echo '<a href="' . esc_url($send_url) . ('" class="button button-primary" onclick="return confirm(\'Send winner notifications now? This posts to Discord and emails every winner immediately — make sure the results above are actually final.\');">' . BHCON_Words::get('admin.admin_metaboxes.send_winner_notifications') . '</a>');
             }
             echo '</p>';
         }
         $results_html = ob_get_clean();
-        echo class_exists('BHY_UI') ? BHY_UI::card($results_html, ['title' => 'Results']) : ('<h3>Results</h3>' . $results_html);
+        echo class_exists('BHY_UI') ? BHY_UI::card($results_html, ['title' => BHCON_Words::get('admin.admin_metaboxes.results')]) : (('<h3>' . BHCON_Words::get('admin.admin_metaboxes.results') . '</h3>') . $results_html);
 
         // ---- Discord ----
         ob_start();
@@ -252,16 +252,16 @@ class BH_AdminMetaboxes {
         echo '<p><input type="url" name="bh_discord_webhook" value="' . esc_attr($webhook) . '" placeholder="https://discord.com/api/webhooks/..." style="width:100%;max-width:480px;"></p>';
         if ($webhook) {
             $reveal_url = ($rp = (int) get_option('bh_reveal_page_id')) ? get_permalink($rp) : '';
-            echo '<p><strong>Announce to Discord</strong> <span class="description">— sends right away, independent of Save/Update</span></p>';
+            echo ('<p><strong>' . BHCON_Words::get('admin.admin_metaboxes.announce_discord') . '</strong> <span class="description">' . BHCON_Words::get('admin.admin_metaboxes.sends_right_away_independent_save') . '</span></p>');
             echo '<textarea id="bh_discord_message" rows="2" style="width:100%;max-width:480px;" placeholder="e.g. Going live for the results reveal in 5 minutes!"></textarea>';
             echo '<p style="margin:6px 0;">';
-            if ($reveal_url) echo '<button type="button" class="button button-small" id="bh_discord_preset_reveal">Fill: Going live for reveal</button> ';
+            if ($reveal_url) echo ('<button type="button" class="button button-small" id="bh_discord_preset_reveal">' . BHCON_Words::get('admin.admin_metaboxes.fill_going_live_reveal') . '</button> ');
             echo '</p>';
-            echo '<p><button type="button" class="button" id="bh_discord_send">Send to Discord</button> <span id="bh_discord_status" style="margin-left:8px;font-size:12px;"></span></p>';
+            echo ('<p><button type="button" class="button" id="bh_discord_send">' . BHCON_Words::get('admin.admin_metaboxes.send_discord') . '</button> <span id="bh_discord_status" style="margin-left:8px;font-size:12px;"></span></p>');
         }
         $discord_html = ob_get_clean();
         echo '<div class="bhc-settings-grid-full">';
-        echo class_exists('BHY_UI') ? BHY_UI::card($discord_html, ['title' => 'Discord notifications (optional)']) : ('<h3>Discord notifications (optional)</h3>' . $discord_html);
+        echo class_exists('BHY_UI') ? BHY_UI::card($discord_html, ['title' => BHCON_Words::get('admin.admin_metaboxes.discord_notifications_optional')]) : (('<h3>' . BHCON_Words::get('admin.admin_metaboxes.discord_notifications_optional') . '</h3>') . $discord_html);
         echo '</div>';
 
         echo '</div>'; // .bhc-settings-grid
@@ -302,12 +302,8 @@ class BH_AdminMetaboxes {
         </script>
         <script>
         (function () {
-            // Same bhy-badge markup BHY_UI::badge() itself renders
-            // server-side (the phase pill above uses it directly) —
-            // this one has to be built client-side since it recomputes
-            // live as the date fields change, but it should still look
-            // identical rather than being a second, ad-hoc status-pill
-            // style living right next to the real component.
+            // Built client-side (it updates live as dates change) with the same bhy-badge
+            // markup BHY_UI::badge() renders, so it looks identical.
             function dot(status) {
                 var live = status === 'open';
                 var label = status === 'open' ? 'Live now' : (status === 'upcoming' ? 'Not started' : (status === 'closed' ? 'Closed' : 'Not scheduled'));
@@ -332,11 +328,7 @@ class BH_AdminMetaboxes {
             var voteEnd = document.getElementById('bh_end');
             var voteDot = document.getElementById('bh_vote_dot');
 
-            // A "required" checkbox only makes sense if its field is
-            // also shown — unchecking "shown" un-checks "required"
-            // live, matching the same rule contact_config() enforces
-            // server-side, so the correction is visible immediately
-            // rather than only discovered after saving.
+            // Unchecking "shown" also unchecks "required", as contact_config() enforces on save.
             var handleFields = ['discord_name', 'twitch_name', 'youtube_name'];
             document.querySelectorAll('.bh-contact-show').forEach(function (showCb) {
                 showCb.addEventListener('change', function () {
@@ -344,10 +336,7 @@ class BH_AdminMetaboxes {
                     var requireCb = document.querySelector('.bh-contact-require[data-requires="' + showCb.dataset.field + '"]');
                     if (requireCb) requireCb.checked = false;
 
-                    // The composite "at least one handle" rule needs
-                    // ANY of the three to remain shown, not this one
-                    // specifically — only un-check it once all three
-                    // are gone.
+                    // "At least one handle" only needs one of the three shown.
                     if (handleFields.indexOf(showCb.dataset.field) !== -1) {
                         var anyHandleShown = handleFields.some(function (f) {
                             var cb = document.querySelector('.bh-contact-show[data-field="' + f + '"]');
@@ -377,11 +366,8 @@ class BH_AdminMetaboxes {
 
             var startNowBtn = document.getElementById('bh_vote_start_now');
             if (startNowBtn) startNowBtn.addEventListener('click', function () {
-                // "When submissions close" — copies the submission end
-                // date/time straight into the voting start field, since
-                // that's the overwhelmingly common intent (no gap
-                // between the two phases) and otherwise means manually
-                // re-typing a date you already entered two fields above.
+                // "When submissions close" copies the submission end into voting start,
+                // the usual intent.
                 if (subEnd && subEnd.value) { voteStart.value = subEnd.value; refreshVoteDot(); }
                 else if (subStart) { alert('Set a submissions close date first, or enter the voting start time directly.'); }
             });
@@ -397,9 +383,9 @@ class BH_AdminMetaboxes {
         wp_nonce_field('bh_save_contest', 'bh_contest_nonce');
         $cats = BH_Helpers::categories($post->ID);
         $text = implode("\n", array_map(fn($c) => $c['name'], $cats));
-        echo '<p class="description">One category per line, e.g. "Best Vocals". Leave empty for a single, ordinary vote — this is optional.</p>';
+        echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.one_category_per_line_e') . '</p>');
         echo '<textarea name="bh_categories" rows="5" style="width:100%;font-family:inherit;">' . esc_textarea($text) . '</textarea>';
-        echo '<p class="description">Voters get their normal 1 (or 2, if they submitted) vote in <em>each</em> category independently. All submissions are eligible in every category — there\'s no per-track assignment.</p>';
+        echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.voters_get_their_normal_1') . '</p>');
     }
 
     public static function render_contest_judging_box(\WP_Post $post): void {
@@ -414,20 +400,20 @@ class BH_AdminMetaboxes {
             if ($u) $judge_names[] = $u->user_login;
         }
 
-        echo '<p><label><strong>Format</strong><br><select name="bh_contest_format">';
-        echo '<option value="public"' . selected($format, 'public', false) . '>Public voting (default, unchanged)</option>';
-        echo '<option value="judges"' . selected($format, 'judges', false) . '>Judges only — a rubric score replaces public voting</option>';
-        echo '<option value="hybrid"' . selected($format, 'hybrid', false) . '>Hybrid — both run, shown as two separate leaderboards (Judges\' Pick / People\'s Choice)</option>';
+        echo ('<p><label><strong>' . BHCON_Words::get('admin.admin_metaboxes.format') . '</strong><br><select name="bh_contest_format">');
+        echo '<option value="public"' . selected($format, 'public', false) . ('>' . BHCON_Words::get('admin.admin_metaboxes.public_voting_default_unchanged') . '</option>');
+        echo '<option value="judges"' . selected($format, 'judges', false) . ('>' . BHCON_Words::get('admin.admin_metaboxes.judges_only_rubric_score_replaces') . '</option>');
+        echo '<option value="hybrid"' . selected($format, 'hybrid', false) . ('>' . BHCON_Words::get('admin.admin_metaboxes.hybrid_both_run_shown_as') . '</option>');
         echo '</select></label></p>';
 
-        echo '<p class="description">Rubric criteria, one per line — "Originality" (defaults to a max of 10) or "Originality:20" for a custom max. Only used when Format is Judges or Hybrid. Each criterion is normalized to a 0–100 scale and averaged, so a 5-criterion and a 3-criterion rubric land on the same footing — a submission\'s final score is the average across every judge who has actually submitted (not just drafted) a score for it.</p>';
+        echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.rubric_criteria_one_per_line') . '</p>');
         echo '<textarea name="bh_rubric" rows="4" style="width:100%;font-family:inherit;">' . esc_textarea($rubric_text) . '</textarea>';
 
-        echo '<p class="description">Judges, one WordPress username per line. Each must already have an account on this site — judges score from the front-end <code>[bh_judge_panel]</code> shortcode, not wp-admin.</p>';
+        echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.judges_one_wordpress_username_per') . '</p>');
         echo '<textarea name="bh_judges" rows="3" style="width:100%;font-family:inherit;">' . esc_textarea(implode("\n", $judge_names)) . '</textarea>';
 
         if ($post->post_status === 'publish' && $judge_ids) {
-            echo '<p class="description" style="margin-top:8px;">Judge panel shortcode: <code>[bh_judge_panel contest="' . esc_html($post->post_name) . '"]</code></p>';
+            echo ('<p class="description" style="margin-top:8px;">' . BHCON_Words::get('admin.admin_metaboxes.judge_panel_shortcode') . ' <code>[bh_judge_panel contest="') . esc_html($post->post_name) . '"]</code></p>';
         }
     }
 
@@ -438,17 +424,17 @@ class BH_AdminMetaboxes {
         $active = BH_Rounds::active_round_index($post->ID);
 
         echo '<p class="description">Leave at 1 round for a normal single-round contest (unchanged default behavior). 2+ rounds turns this into an elimination format — round 1 is the normal submission+voting window; round 2+ only re-votes/re-scores whoever survived the previous cut (leave a round\'s own submission dates blank unless you specifically want it to accept new entries too).</p>';
-        echo '<p><label><strong>Number of rounds</strong> <select id="bh_round_count" name="bh_round_count">';
+        echo ('<p><label><strong>' . BHCON_Words::get('admin.admin_metaboxes.number_rounds') . '</strong> <select id="bh_round_count" name="bh_round_count">');
         for ($i = 1; $i <= 4; $i++) echo '<option value="' . $i . '"' . selected($count, $i, false) . '>' . $i . '</option>';
         echo '</select></label></p>';
 
         if ($post->post_status === 'publish' && count($rounds) > 1) {
-            echo '<p><span class="bhy-badge bhy-badge-dot">Active round: ' . ((int) $active + 1) . ' of ' . count($rounds) . '</span></p>';
+            echo ('<p><span class="bhy-badge bhy-badge-dot">' . BHCON_Words::get('admin.admin_metaboxes.active_round') . ' ') . ((int) $active + 1) . ' of ' . count($rounds) . '</span></p>';
             if (isset($rounds[$active + 1])) {
-                echo '<p><button type="button" class="button button-primary" id="bh_advance_round" data-contest="' . (int) $post->ID . '" data-nonce="' . esc_attr(wp_create_nonce('bh_advance_round_' . $post->ID)) . '">Close round ' . ((int) $active + 1) . ' &amp; advance to round ' . ((int) $active + 2) . '</button> <span id="bh_advance_round_result" style="margin-left:8px;"></span></p>';
-                echo '<p class="description">Tallies the active round\'s votes/judge scores now, keeps the configured cut count, and opens the next round for the survivors. Cannot be undone from here.</p>';
+                echo '<p><button type="button" class="button button-primary" id="bh_advance_round" data-contest="' . (int) $post->ID . '" data-nonce="' . esc_attr(wp_create_nonce('bh_advance_round_' . $post->ID)) . ('">' . BHCON_Words::get('admin.admin_metaboxes.close_round') . ' ') . ((int) $active + 1) . ' &amp; advance to round ' . ((int) $active + 2) . '</button> <span id="bh_advance_round_result" style="margin-left:8px;"></span></p>';
+                echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.tallies_active_round_s_votes') . '</p>');
             } else {
-                echo '<p class="description">This is the final round — nothing left to advance to.</p>';
+                echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.final_round_nothing_left_advance') . '</p>');
             }
         }
 
@@ -456,14 +442,14 @@ class BH_AdminMetaboxes {
             $r = $rounds[$i] ?? [];
             $display = $i < $count ? '' : 'display:none;';
             echo '<div class="bh-round-block" data-round-index="' . $i . '" style="' . $display . 'border:1px solid #dcdcde;border-radius:4px;padding:10px;margin-bottom:10px;">';
-            echo '<p><strong>Round ' . ($i + 1) . '</strong></p>';
-            echo '<p><label>Name<br><input type="text" name="bh_round_name[]" value="' . esc_attr($r['name'] ?? ('Round ' . ($i + 1))) . '" style="width:100%;"></label></p>';
-            echo '<p><label>Submission opens (blank = no new entries this round)<br><input type="datetime-local" name="bh_round_sub_start[]" value="' . esc_attr(self::dt_for_input($r['sub_start'] ?? '')) . '"></label> ';
+            echo ('<p><strong>' . BHCON_Words::get('admin.admin_metaboxes.round') . ' ') . ($i + 1) . '</strong></p>';
+            echo ('<p><label>' . BHCON_Words::get('admin.admin_metaboxes.name') . '<br><input type="text" name="bh_round_name[]" value="') . esc_attr($r['name'] ?? ('Round ' . ($i + 1))) . '" style="width:100%;"></label></p>';
+            echo ('<p><label>' . BHCON_Words::get('admin.admin_metaboxes.submission_opens_blank_no_new') . '<br><input type="datetime-local" name="bh_round_sub_start[]" value="') . esc_attr(self::dt_for_input($r['sub_start'] ?? '')) . '"></label> ';
             echo '<label>closes<br><input type="datetime-local" name="bh_round_sub_end[]" value="' . esc_attr(self::dt_for_input($r['sub_end'] ?? '')) . '"></label></p>';
-            echo '<p><label>Voting opens<br><input type="datetime-local" name="bh_round_vote_start[]" value="' . esc_attr(self::dt_for_input($r['vote_start'] ?? '')) . '"></label> ';
+            echo ('<p><label>' . BHCON_Words::get('admin.admin_metaboxes.voting_opens') . '<br><input type="datetime-local" name="bh_round_vote_start[]" value="') . esc_attr(self::dt_for_input($r['vote_start'] ?? '')) . '"></label> ';
             echo '<label>closes<br><input type="datetime-local" name="bh_round_vote_end[]" value="' . esc_attr(self::dt_for_input($r['vote_end'] ?? '')) . '"></label></p>';
-            $cut_tip = class_exists('BHY_UI') ? BHY_UI::tip('Entries that do not advance are never deleted — they stay in Submissions, just excluded from later rounds\' voting.') : '';
-            echo '<p><label>Cut to (how many advance out of this round)' . $cut_tip . '<br><input type="number" min="1" name="bh_round_cut[]" value="' . esc_attr((string) ($r['cut_count'] ?? 8)) . '" style="width:80px;"></label></p>';
+            $cut_tip = class_exists('BHY_UI') ? BHY_UI::tip(BHCON_Words::get('admin.admin_metaboxes.entries_do_not_advance_are')) : '';
+            echo ('<p><label>' . BHCON_Words::get('admin.admin_metaboxes.cut_how_many_advance_out')) . $cut_tip . '<br><input type="number" min="1" name="bh_round_cut[]" value="' . esc_attr((string) ($r['cut_count'] ?? 8)) . '" style="width:80px;"></label></p>';
             echo '</div>';
         }
         ?>
@@ -508,14 +494,14 @@ class BH_AdminMetaboxes {
 
     public static function render_contest_shortcode_box(\WP_Post $post): void {
         if ($post->post_status !== 'publish') {
-            echo '<p class="description">Publish this contest to get its shortcode and page.</p>';
+            echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.publish_contest_get_its_shortcode') . '</p>');
             return;
         }
         $sc = BH_Helpers::shortcode_for($post->ID);
         echo '<input type="text" readonly value="' . esc_attr($sc) . '" onclick="this.select();" style="width:100%;font-family:monospace;font-size:12px;padding:6px;">';
-        echo '<p class="description">Paste into any page or post to embed this specific contest. Leaving out the <code>contest</code> attribute always falls back to whichever contest was published most recently — fine for one contest at a time, ambiguous once you\'re running more than one.</p>';
-        echo '<hr><p><strong>Page:</strong> ' . BH_AdminMenus::page_links_html($post->ID) . '</p>';
-        echo '<p class="description">A simple page with this shortcode was created automatically when you published. If you deleted it, "Create page" makes a new one.</p>';
+        echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.paste_into_any_page_post') . '</p>');
+        echo ('<hr><p><strong>' . BHCON_Words::get('admin.admin_metaboxes.page') . '</strong> ') . BH_AdminMenus::page_links_html($post->ID) . '</p>';
+        echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.simple_page_with_shortcode_was') . '</p>');
     }
 
     public static function render_contest_revisions_box(\WP_Post $post): void {
@@ -529,16 +515,16 @@ class BH_AdminMetaboxes {
         $label = get_post_meta($post->ID, '_bh_menu_label', true);
 
         if (!$has_page) {
-            echo '<p class="description">Publish this contest (and its auto-created page) first — a contest with nowhere real to send a visitor can\'t appear in the menu.</p>';
+            echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.publish_contest_its_auto_created') . '</p>');
             return;
         }
-        echo '<p><label><input type="checkbox" name="bh_show_in_menu" value="1"' . checked($checked, true, false) . '> Show under <strong>Contests</strong> in the site menu</label></p>';
-        echo '<p><label>Menu label (optional)<br><input type="text" name="bh_menu_label" value="' . esc_attr($label) . '" placeholder="' . esc_attr($post->post_title) . '" style="width:100%;"></label></p>';
+        echo '<p><label><input type="checkbox" name="bh_show_in_menu" value="1"' . checked($checked, true, false) . ('> ' . BHCON_Words::get('admin.admin_metaboxes.show_under_contests_site_menu') . '</label></p>');
+        echo ('<p><label>' . BHCON_Words::get('admin.admin_metaboxes.menu_label_optional') . '<br><input type="text" name="bh_menu_label" value="') . esc_attr($label) . '" placeholder="' . esc_attr($post->post_title) . '" style="width:100%;"></label></p>';
     }
 
     public static function render_contest_access_box(\WP_Post $post): void {
         echo '<p>' . OUS_Visibility::members_only_checkbox_field($post->ID) . '</p>';
-        echo '<p class="description">Off by default — this contest (and its voting/results data) is visible to anyone, logged in or not. Voting itself already requires an account regardless of this setting. Turn this on for a contest you genuinely want restricted to logged-in members only.</p>';
+        echo ('<p class="description">' . BHCON_Words::get('admin.admin_metaboxes.off_by_default_contest_its') . '</p>');
     }
 
     public static function render_contest_share_cards_box(\WP_Post $post): void {
@@ -546,7 +532,7 @@ class BH_AdminMetaboxes {
         $style = (class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style($stored_style)) ? $stored_style : 'brand';
         echo '<p class="description">Submitters get a "Now entered" and "Vote for me" image after submitting. <strong>Brand</strong> matches this site\'s own live colors; the <strong>Poster</strong> options are bolder, stand-alone looks.</p>';
         if (class_exists('BH_ShareCard')) {
-            echo '<p><label>Style<br><select name="bh_share_card_style">';
+            echo ('<p><label>' . BHCON_Words::get('admin.admin_metaboxes.style') . '<br><select name="bh_share_card_style">');
             foreach (BH_ShareCard::STYLES as $key => $label) {
                 echo '<option value="' . esc_attr($key) . '"' . selected($style, $key, false) . '>' . esc_html($label) . '</option>';
             }
@@ -567,8 +553,8 @@ class BH_AdminMetaboxes {
         </style>';
 
         echo '<p class="description">Off by default — this contest just uses the site-wide look from Settings &amp; Style. Turn this on to give '
-           . 'this one contest its own logo/brand text and accent colors (e.g. a sponsor or seasonal skin) without changing anything else site-wide.</p>';
-        echo '<p><label><input type="checkbox" id="bh_style_override" name="bh_style_override" value="1" ' . checked($on, '1', false) . '> <strong>Override site styling for this contest</strong></label></p>';
+           . (BHCON_Words::get('admin.admin_metaboxes.one_contest_its_own_logo') . '</p>');
+        echo '<p><label><input type="checkbox" id="bh_style_override" name="bh_style_override" value="1" ' . checked($on, '1', false) . ('> <strong>' . BHCON_Words::get('admin.admin_metaboxes.override_site_styling_contest') . '</strong></label></p>');
 
         echo '<div id="bh_style_fields" style="' . ($on ? '' : 'display:none;') . ' margin-top:12px;">';
 
@@ -581,14 +567,14 @@ class BH_AdminMetaboxes {
         echo '</div>';
         echo '<div>';
         echo '<input type="hidden" id="bh_contest_logo_id" name="bh_style_logo_id" value="' . esc_attr((string) $logo_id) . '">';
-        echo '<button type="button" class="button" id="bh_contest_logo_upload">Upload logo…</button> ';
-        echo '<button type="button" class="button" id="bh_contest_logo_remove" style="' . ($logo_url ? '' : 'display:none;') . '">Remove</button>';
+        echo ('<button type="button" class="button" id="bh_contest_logo_upload">' . BHCON_Words::get('admin.admin_metaboxes.upload_logo') . '</button> ');
+        echo '<button type="button" class="button" id="bh_contest_logo_remove" style="' . ($logo_url ? '' : 'display:none;') . ('">' . BHCON_Words::get('admin.admin_metaboxes.remove') . '</button>');
         echo '</div></div>';
 
         // Theme quick pick, limited to the fields a contest may override.
-        echo '<p><label for="bh_style_theme_pick"><strong>Quick pick from a theme</strong></label><br>';
+        echo ('<p><label for="bh_style_theme_pick"><strong>' . BHCON_Words::get('admin.admin_metaboxes.quick_pick_from_theme') . '</strong></label><br>');
         echo '<select id="bh_style_theme_pick" style="max-width:280px;">';
-        echo '<option value="">Choose a theme…</option>';
+        echo ('<option value="">' . BHCON_Words::get('admin.admin_metaboxes.choose_theme') . '</option>');
         foreach (BHY_Style::THEME_GROUPS as $group_label => $themes) {
             echo '<optgroup label="' . esc_attr($group_label) . '">';
             foreach ($themes as $name => $colors) {
@@ -599,30 +585,30 @@ class BH_AdminMetaboxes {
         }
         echo '</select></p>';
 
-        echo '<p style="margin-top:14px;"><strong>Brand text</strong> <span class="description">— leave either blank to use the site-wide text</span></p>';
+        echo ('<p style="margin-top:14px;"><strong>' . BHCON_Words::get('admin.admin_metaboxes.brand_text') . '</strong> <span class="description">' . BHCON_Words::get('admin.admin_metaboxes.leave_either_blank_use_site') . '</span></p>');
         echo '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">';
-        echo '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;">First part<input type="text" name="bh_style_brand1" value="' . esc_attr($g('brand_part1')) . '" placeholder="' . esc_attr($defaults['brand_part1']) . '" style="width:120px;"></label>';
-        echo '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;">Accent part<input type="text" name="bh_style_brand2" value="' . esc_attr($g('brand_part2')) . '" placeholder="' . esc_attr($defaults['brand_part2']) . '" style="width:120px;"></label>';
+        echo ('<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;">' . BHCON_Words::get('admin.admin_metaboxes.first_part') . '<input type="text" name="bh_style_brand1" value="') . esc_attr($g('brand_part1')) . '" placeholder="' . esc_attr($defaults['brand_part1']) . '" style="width:120px;"></label>';
+        echo ('<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;">' . BHCON_Words::get('admin.admin_metaboxes.accent_part') . '<input type="text" name="bh_style_brand2" value="') . esc_attr($g('brand_part2')) . '" placeholder="' . esc_attr($defaults['brand_part2']) . '" style="width:120px;"></label>';
         echo '</div>';
 
         echo '<p><strong>Base &amp; surfaces</strong></p>';
         echo '<div class="bh-cat-swatch-grid" style="margin-bottom:14px;">';
         BHY_UI::swatch_field('bh_style_bg', 'bh_style_bg', 'Background', $g('color_bg'), $defaults['color_bg']);
         BHY_UI::swatch_field('bh_style_surface', 'bh_style_surface', 'Surface', $g('color_surface'), $defaults['color_surface']);
-        BHY_UI::swatch_field('bh_style_surface_2', 'bh_style_surface_2', 'Surface (raised)', $g('color_surface_2'), $defaults['color_surface_2']);
+        BHY_UI::swatch_field('bh_style_surface_2', 'bh_style_surface_2', BHCON_Words::get('admin.admin_metaboxes.surface_raised'), $g('color_surface_2'), $defaults['color_surface_2']);
         BHY_UI::swatch_field('bh_style_border', 'bh_style_border', 'Border', $g('color_border'), $defaults['color_border']);
         BHY_UI::swatch_field('bh_style_text', 'bh_style_text', 'Text', $g('color_text'), $defaults['color_text']);
-        BHY_UI::swatch_field('bh_style_text_dim', 'bh_style_text_dim', 'Text (dim)', $g('color_text_dim'), $defaults['color_text_dim']);
+        BHY_UI::swatch_field('bh_style_text_dim', 'bh_style_text_dim', BHCON_Words::get('admin.admin_metaboxes.text_dim'), $g('color_text_dim'), $defaults['color_text_dim']);
         echo '</div>';
 
-        echo '<p><strong>Accent</strong></p>';
+        echo ('<p><strong>' . BHCON_Words::get('admin.admin_metaboxes.accent') . '</strong></p>');
         echo '<div class="bh-cat-swatch-grid" style="margin-bottom:14px;">';
         BHY_UI::swatch_field('bh_style_accent', 'bh_style_accent', 'Accent', $g('color_accent'), $defaults['color_accent']);
-        BHY_UI::swatch_field('bh_style_accent_soft', 'bh_style_accent_soft', 'Accent (soft)', $g('color_accent_soft'), $defaults['color_accent_soft']);
-        BHY_UI::swatch_field('bh_style_overlay', 'bh_style_overlay', 'Modal backdrop', $g('color_overlay'), $defaults['color_overlay']);
+        BHY_UI::swatch_field('bh_style_accent_soft', 'bh_style_accent_soft', BHCON_Words::get('admin.admin_metaboxes.accent_soft'), $g('color_accent_soft'), $defaults['color_accent_soft']);
+        BHY_UI::swatch_field('bh_style_overlay', 'bh_style_overlay', BHCON_Words::get('admin.admin_metaboxes.modal_backdrop'), $g('color_overlay'), $defaults['color_overlay']);
         echo '</div>';
 
-        echo '<p><strong>Category colors</strong> <span class="description">— blank falls through to site-wide</span></p>';
+        echo ('<p><strong>' . BHCON_Words::get('admin.admin_metaboxes.category_colors') . '</strong> <span class="description">' . BHCON_Words::get('admin.admin_metaboxes.blank_falls_through_site_wide') . '</span></p>');
         echo '<div class="bh-cat-swatch-grid">';
         for ($i = 1; $i <= 8; $i++) {
             BHY_UI::swatch_field('bh_style_cat_' . $i, 'bh_style_cat_' . $i, 'Category ' . $i, $g('cat_color_' . $i), $defaults['cat_color_' . $i]);

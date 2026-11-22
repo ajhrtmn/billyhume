@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: BH Courses
- * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.17.0
+ * Description: Courses for Billy Hume's site: lessons with video, text, quizzes and downloads, student progress, notes, sales pages and certificates. Sold through BH Monetization when it is active.
+ * Version:     0.17.1
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.17.0');
+define('BHC_VER',  '0.17.1');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));

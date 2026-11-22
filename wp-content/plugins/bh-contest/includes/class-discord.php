@@ -28,7 +28,7 @@ class BH_Discord {
         $cid = (int) $req->get_param('contest');
         $message = sanitize_textarea_field((string) $req->get_param('message'));
         if (!$cid || $message === '') {
-            return new WP_Error('bad_request', 'A contest and a message are both required.', ['status' => 400]);
+            return new WP_Error('bad_request', BHCON_Words::get('admin.discord.contest_message_are_both_required'), ['status' => 400]);
         }
         $sent = self::send($cid, $message, '', [], self::COLOR_ANNOUNCE);
         return new WP_REST_Response(['success' => (bool) $sent, 'sent' => (bool) $sent], 200);
@@ -71,7 +71,7 @@ class BH_Discord {
     public static function notify_submission(int $contest_id, string $title, string $artist, string $audio_url = '', bool $is_file_update = false): void {
         self::send(
             $contest_id,
-            $is_file_update ? '🔄 Entry file updated' : '🎵 New entry approved!',
+            $is_file_update ? BHCON_Words::get('admin.discord.entry_file_updated') : BHCON_Words::get('admin.discord.new_entry_approved'),
             "**{$title}** by {$artist}",
             [],
             self::COLOR_SUBMISSION,
@@ -83,7 +83,7 @@ class BH_Discord {
         $fields = [];
         self::send(
             $contest_id,
-            '🗳️ Voting is now open!',
+            BHCON_Words::get('admin.discord.voting_now_open'),
             '**' . get_the_title($contest_id) . '**',
             $fields,
             self::COLOR_VOTING
@@ -102,12 +102,12 @@ class BH_Discord {
 
         $overall = BH_Reveal::overall_results($contest_id);
         if ($overall) {
-            $fields[] = ['name' => '⭐ Overall', 'value' => self::medal_lines($overall), 'inline' => false];
+            $fields[] = ['name' => BHCON_Words::get('admin.discord.overall'), 'value' => self::medal_lines($overall), 'inline' => false];
         }
 
         self::send(
             $contest_id,
-            '🏆 Results are in!',
+            BHCON_Words::get('admin.discord.results_are'),
             '**' . get_the_title($contest_id) . '**',
             $fields,
             self::COLOR_RESULTS

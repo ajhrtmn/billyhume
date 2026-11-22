@@ -2,10 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Front-end user bar for logged-in users, docked at the bottom and styled with
- * --bh-* tokens (deliberately not a copy of the WP toolbar). Plugins add links
- * via `bhi_user_bar_links`: ['label' => string, 'url' => string, 'meta' =>
- * optional live micro-state]. Only contribute a link with something live to say.
+ * Logged-in user bar docked at the bottom, on --bh-* tokens. Plugins add links via
+ * bhi_user_bar_links ([label, url, meta]); only add one with something live to say.
  */
 class OUS_UserBar {
     public static function init(): void {
@@ -20,7 +18,7 @@ class OUS_UserBar {
      * @return array<int, array<string, mixed>>
      */
     public static function register_own_links($links): array {
-        $links[] = ['label' => 'Account', 'url' => home_url('/account/')];
+        $links[] = ['label' => OUS_Words::get('admin.user_bar.account'), 'url' => home_url('/account/')];
         $links[] = ['label' => 'Log out', 'url' => wp_logout_url(home_url())];
         return $links;
     }

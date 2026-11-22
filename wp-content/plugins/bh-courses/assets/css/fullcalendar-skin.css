@@ -1,8 +1,5 @@
-/* FullCalendar, themed through its own variable contract.
- *
- * FullCalendar 7 injects no CSS; skeleton.css and themes/classic are vendored and enqueued
- * with it. This maps its --fc-classic-* variables onto our tokens rather than overriding
- * internal selectors, so it survives FullCalendar DOM changes (THIRD-PARTY-SKINNING.md). */
+/* FullCalendar themed through its own --fc-classic-* variables mapped onto our tokens,
+ * not by overriding internal selectors, so it survives FullCalendar DOM changes. */
 #bhc-sessions-calendar {
     --fc-classic-background: var(--bhy-surface, #fff);
     --fc-classic-foreground: var(--bhy-ink, #1d2327);

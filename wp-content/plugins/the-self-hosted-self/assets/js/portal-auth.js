@@ -1,11 +1,7 @@
 "use strict";
 /**
- * Account portal auth UI: the logged-out login / create-account card
- * (BHI_Portal::login_html()) and the "confirm your email" resend button.
- * Talks to the bhi/v1 REST routes in class-auth.php. Config comes from
- * window.BHIPortalAuth, printed by BHI_Portal::maybe_enqueue_assets().
- *
- * Compiled by `npm run build:the-self-hosted-self` to assets/js/portal-auth.js.
+ * Account page auth UI: the log-in / create-account card and the email-confirmation
+ * resend button. Talks to the bhi/v1 REST routes; config comes from window.BHIPortalAuth.
  */
 (function () {
     var config = window.BHIPortalAuth;

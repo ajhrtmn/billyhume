@@ -2,12 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Email broadcast campaigns ("email everyone in segment X"); the
- * one-to-one event emails live in OUS_Notifications.
- * Segments are LIVE queries evaluated at send time, never a stored list.
- * Plugins add segments via the `bhcore_campaign_segments` filter:
- *   $segments['key'] = ['label' => '...', 'user_ids' => fn () => [...]];
- * Sending is one OUS_Jobs job per recipient, not a loop in the request.
+ * Email broadcasts ("email everyone in segment X"); one-to-one emails are OUS_Notifications.
+ * Segments are live queries added via bhcore_campaign_segments; sending is one OUS_Jobs
+ * job per recipient.
  */
 class OUS_Campaigns {
     public static function init(): void {
@@ -27,7 +24,7 @@ class OUS_Campaigns {
      */
     public static function register_builtin_segment($segments): array {
         $segments['all_subscribers'] = [
-            'label' => 'Everyone with an account',
+            'label' => OUS_Words::get('admin.campaigns.everyone_with_account'),
             'user_ids' => function () {
                 return get_users(['fields' => 'ID']);
             },
@@ -67,11 +64,11 @@ class OUS_Campaigns {
     public static function send_now(int $campaign_id) {
         global $wpdb;
         $campaign = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table() . " WHERE id = %d", $campaign_id), ARRAY_A);
-        if (!$campaign || $campaign['status'] !== 'draft') return new WP_Error('bad_state', 'This campaign has already been sent or does not exist.');
+        if (!$campaign || $campaign['status'] !== 'draft') return new WP_Error('bad_state', OUS_Words::get('admin.campaigns.campaign_has_already_been_sent'));
 
         $segments = self::segments();
         $segment = $segments[$campaign['segment_key']] ?? null;
-        if (!$segment || !is_callable($segment['user_ids'])) return new WP_Error('bad_segment', 'That segment no longer exists.');
+        if (!$segment || !is_callable($segment['user_ids'])) return new WP_Error('bad_segment', OUS_Words::get('admin.campaigns.segment_no_longer_exists'));
 
         $user_ids = array_unique(array_map('intval', call_user_func($segment['user_ids'])));
         $user_ids = array_filter($user_ids);
@@ -116,7 +113,7 @@ class OUS_Campaigns {
                 BH_Mail::send([
                     'user_id' => $user_id, 'subject' => $campaign['subject'],
                     'body' => wpautop(wp_kses_post($campaign['body'])), 'html' => true,
-                    'source' => 'OUS Campaigns', 'log_context' => ['campaign_id' => $campaign_id],
+                    'source' => OUS_Words::get('admin.campaigns.ous_campaigns'), 'log_context' => ['campaign_id' => $campaign_id],
                 ]);
             } else {
                 $user = get_userdata($user_id);
@@ -151,26 +148,26 @@ class OUS_Campaigns {
             $body = wp_unslash($_POST['body'] ?? '');
             $segment_key = wp_unslash($_POST['segment_key'] ?? '');
             if (trim($subject) === '' || trim($body) === '') {
-                $message = 'Subject and body are both required.';
+                $message = OUS_Words::get('admin.campaigns.subject_body_are_both_required');
             } elseif (!isset(self::segments()[$segment_key])) {
-                $message = 'Pick a valid segment.';
+                $message = OUS_Words::get('admin.campaigns.pick_valid_segment');
             } else {
                 $id = self::create($subject, $body, $segment_key, get_current_user_id());
-                $message = 'Campaign saved as a draft.';
+                $message = OUS_Words::get('admin.campaigns.campaign_saved_as_draft');
                 if (isset($_POST['ous_campaign_send_now'])) {
                     $result = self::send_now($id);
-                    $message = is_wp_error($result) ? $result->get_error_message() : 'Campaign is sending now.';
+                    $message = is_wp_error($result) ? $result->get_error_message() : OUS_Words::get('admin.campaigns.campaign_sending_now');
                 }
             }
         } elseif (isset($_POST['ous_campaign_send_id']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['ous_campaign_send_nonce'] ?? '')), 'ous_campaign_send')) {
             $result = self::send_now((int) $_POST['ous_campaign_send_id']);
-            $message = is_wp_error($result) ? $result->get_error_message() : 'Campaign is sending now.';
+            $message = is_wp_error($result) ? $result->get_error_message() : OUS_Words::get('admin.campaigns.campaign_sending_now');
         }
 
-        echo '<div class="wrap"><h1>Campaigns</h1>';
+        echo ('<div class="wrap"><h1>' . OUS_Words::get('admin.campaigns.campaigns') . '</h1>');
         if ($message) echo '<div class="notice notice-info"><p>' . esc_html($message) . '</p></div>';
 
-        echo '<h2>New campaign</h2>';
+        echo ('<h2>' . OUS_Words::get('admin.campaigns.new_campaign') . '</h2>');
         echo '<form method="post">';
         wp_nonce_field('ous_campaign_save', 'ous_campaign_nonce');
         echo '<table class="form-table"><tbody>';
@@ -178,20 +175,20 @@ class OUS_Campaigns {
         foreach (self::segments() as $key => $segment) {
             echo '<option value="' . esc_attr($key) . '">' . esc_html($segment['label']) . '</option>';
         }
-        echo '</select><p class="description">Evaluated live, right when you send — not a frozen list.</p></td></tr>';
-        echo '<tr><th><label for="subject">Subject</label></th><td><input type="text" class="regular-text" name="subject" id="subject" required></td></tr>';
-        echo '<tr><th><label for="body">Message</label></th><td><textarea name="body" id="body" rows="8" class="large-text" required></textarea></td></tr>';
+        echo ('</select><p class="description">' . OUS_Words::get('admin.campaigns.evaluated_live_right_when_send') . '</p></td></tr>');
+        echo ('<tr><th><label for="subject">' . OUS_Words::get('admin.campaigns.subject') . '</label></th><td><input type="text" class="regular-text" name="subject" id="subject" required></td></tr>');
+        echo ('<tr><th><label for="body">' . OUS_Words::get('admin.campaigns.message') . '</label></th><td><textarea name="body" id="body" rows="8" class="large-text" required></textarea></td></tr>');
         echo '</tbody></table>';
-        echo '<p><button type="submit" name="ous_campaign_action" value="save" class="button">Save as draft</button> ';
-        echo '<button type="submit" name="ous_campaign_send_now" value="1" class="button button-primary" onclick="return confirm(\'Send this campaign now to everyone currently in that segment?\');">Save and send now</button></p>';
+        echo ('<p><button type="submit" name="ous_campaign_action" value="save" class="button">' . OUS_Words::get('admin.campaigns.save_as_draft') . '</button> ');
+        echo ('<button type="submit" name="ous_campaign_send_now" value="1" class="button button-primary" onclick="return confirm(\'Send this campaign now to everyone currently in that segment?\');">' . OUS_Words::get('admin.campaigns.save_send_now') . '</button></p>');
         echo '</form>';
 
-        echo '<h2>Past campaigns</h2>';
+        echo ('<h2>' . OUS_Words::get('admin.campaigns.past_campaigns') . '</h2>');
         $campaigns = self::all_campaigns();
         if (!$campaigns) {
-            echo '<p>No campaigns yet.</p>';
+            echo ('<p>' . OUS_Words::get('admin.campaigns.no_campaigns_yet') . '</p>');
         } else {
-            echo '<table class="widefat striped"><thead><tr><th>Subject</th><th>Segment</th><th>Status</th><th>Recipients</th><th>Sent</th><th></th></tr></thead><tbody>';
+            echo ('<table class="widefat striped"><thead><tr><th>' . OUS_Words::get('admin.campaigns.subject') . '</th><th>' . OUS_Words::get('admin.campaigns.segment') . '</th><th>' . OUS_Words::get('admin.campaigns.status') . '</th><th>' . OUS_Words::get('admin.campaigns.recipients') . '</th><th>' . OUS_Words::get('admin.campaigns.sent') . '</th><th></th></tr></thead><tbody>');
             $segments = self::segments();
             foreach ($campaigns as $c) {
                 echo '<tr>';
@@ -221,13 +218,13 @@ class OUS_Campaigns {
      * @return array<string, mixed>
      */
     public static function register_test_suite($suites): array {
-        $suites['the-self-hosted-self-campaigns'] = ['label' => 'The Self-Hosted Self (Campaigns)', 'callback' => [self::class, 'run_tests']];
+        $suites['the-self-hosted-self-campaigns'] = ['label' => OUS_Words::get('admin.campaigns.self_hosted_self_campaigns'), 'callback' => [self::class, 'run_tests']];
         return $suites;
     }
 
     /** @return array<int, mixed> */
     public static function run_tests(): array {
-        if (!class_exists('OUS_Debug')) return [['name' => 'OUS_Debug not loaded', 'pass' => false, 'message' => 'Skipped.']];
+        if (!class_exists('OUS_Debug')) return [['name' => OUS_Words::get('admin.campaigns.ous_debug_not_loaded'), 'pass' => false, 'message' => OUS_Words::get('admin.campaigns.skipped')]];
         global $wpdb;
         $rows = [];
 
@@ -244,11 +241,11 @@ class OUS_Campaigns {
         };
         add_filter('bhcore_campaign_segments', $add_segment);
 
-        $campaign_id = self::create('Test subject', 'Test body', 'ous_campaign_suite_segment', $recipient);
+        $campaign_id = self::create(OUS_Words::get('admin.campaigns.test_subject'), OUS_Words::get('admin.campaigns.test_body'), 'ous_campaign_suite_segment', $recipient);
         $rows[] = OUS_TestRunner::assert_true($campaign_id > 0, 'create() inserts a new campaign row and returns its id');
 
         $before = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table() . " WHERE id = %d", $campaign_id), ARRAY_A);
-        $rows[] = OUS_TestRunner::assert_same('draft', $before['status'], 'A new campaign starts as a draft');
+        $rows[] = OUS_TestRunner::assert_same('draft', $before['status'], OUS_Words::get('admin.campaigns.new_campaign_starts_as_draft'));
 
         $result = self::send_now($campaign_id);
         $rows[] = OUS_TestRunner::assert_true($result === true, 'send_now() succeeds against a real registered segment');
@@ -261,7 +258,7 @@ class OUS_Campaigns {
         // depending on the queue draining in this request.
         self::send_one(['campaign_id' => $campaign_id, 'user_id' => $recipient]);
         $after = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table() . " WHERE id = %d", $campaign_id), ARRAY_A);
-        $rows[] = OUS_TestRunner::assert_same('sent', $after['status'], 'Status becomes "sent" once every enqueued recipient has actually been processed');
+        $rows[] = OUS_TestRunner::assert_same('sent', $after['status'], OUS_Words::get('admin.campaigns.status_becomes_sent_once_every'));
         $rows[] = OUS_TestRunner::assert_same(1, (int) $after['sent_count'], 'sent_count reflects exactly one processed recipient');
 
         $resend = self::send_now($campaign_id);
@@ -270,11 +267,11 @@ class OUS_Campaigns {
         // Opt-out: can't assert wp_mail() was skipped without a mock, so
         // assert the counting contract instead.
         update_user_meta($recipient, 'bhcore_notifications_email_optout', '1');
-        $campaign_id_2 = self::create('Test subject 2', 'Test body 2', 'ous_campaign_suite_segment', $recipient);
+        $campaign_id_2 = self::create(OUS_Words::get('admin.campaigns.test_subject_2'), OUS_Words::get('admin.campaigns.test_body_2'), 'ous_campaign_suite_segment', $recipient);
         self::send_now($campaign_id_2);
         self::send_one(['campaign_id' => $campaign_id_2, 'user_id' => $recipient]);
         $after2 = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table() . " WHERE id = %d", $campaign_id_2), ARRAY_A);
-        $rows[] = OUS_TestRunner::assert_same('sent', $after2['status'], 'An opted-out recipient is still counted as processed, so the campaign still reaches "sent" rather than hanging');
+        $rows[] = OUS_TestRunner::assert_same('sent', $after2['status'], OUS_Words::get('admin.campaigns.opted_out_recipient_still_counted'));
         delete_user_meta($recipient, 'bhcore_notifications_email_optout');
 
         remove_filter('bhcore_campaign_segments', $add_segment);

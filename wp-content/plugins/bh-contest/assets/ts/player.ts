@@ -1,8 +1,6 @@
 /**
- * The embedded contest player: track list, voting, playback, sign-up/login,
- * submission upload, share cards, and results.
- * Howl is declared locally with only the methods this file calls; response
- * shapes below are typed from what this file reads, not a full server contract.
+ * The contest player: track list, voting, playback, sign-up/login, submission upload,
+ * share cards and results. Response types cover only what this file reads.
  */
 
 interface BHPlayerWindow extends Window {
@@ -275,10 +273,8 @@ class BHPlayer {
         win._bhToastTimer = window.setTimeout(() => toastEl.classList.remove('show'), 3400);
     }
 
-    // Single fetch wrapper. The nonce is attached on every request, GET
-    // included — WordPress only recognizes a logged-in user on REST calls
-    // when a valid nonce is present. The resolved contest ID/slug for THIS
-    // instance is appended automatically unless the call already sets one.
+    // Single fetch wrapper: always sends the nonce (WordPress only sees a logged-in user on
+    // REST with one) and adds this player contest ID unless the call sets one.
     async req<T = Record<string, any>>(path: string, opts: RequestInit = {}): Promise<{ ok: boolean; body: T | Record<string, any> }> {
         const o: RequestInit = { ...opts, headers: { 'X-WP-Nonce': this.nonce, ...(opts.headers as Record<string, string> || {}) } };
         let url = this.api + path;

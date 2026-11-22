@@ -40,11 +40,8 @@ interface BhContentNode {
     var __ = wp.i18n ? wp.i18n.__ : function (s: string) { return s; };
 
     /* ---------------- block type registration ----------------
-     * Mirrors class-studio.php's block_types(): server registers for
-     * BH_Content's renderer/validator, client for the editor UI.
-     * WHY: supports.position is omitted on every block so free-form absolute
-     * positioning is never offered.
-     */
+     * Mirrors class-studio.php block_types(). WHY: supports.position is omitted
+     * on every block so free-form absolute positioning is never offered. */
     var COMMON_SUPPORTS = {
         html: false,
         position: false,

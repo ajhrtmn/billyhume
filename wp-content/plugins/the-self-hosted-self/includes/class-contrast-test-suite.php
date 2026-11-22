@@ -141,7 +141,7 @@ class OUS_ContrastTestSuite {
             // Every SPEC role is produced.
             $missing = [];
             foreach (array_keys(BHY_Contrast::spec()) as $role) {
-                if (!isset($css[$role])) $missing[] = $role;
+                if (!isset($css[(string) $role])) $missing[] = $role;
             }
             $r[] = OUS_TestRunner::assert_same('', implode(',', $missing), "[$name] every derived role is produced");
 
@@ -295,6 +295,7 @@ class OUS_ContrastTestSuite {
         ];
     }
 
+    /** @return array<string, mixed> */
     private static function near(string $name, float $actual, float $expected, float $tol): array {
         return OUS_TestRunner::assert_true(
             abs($actual - $expected) <= $tol,

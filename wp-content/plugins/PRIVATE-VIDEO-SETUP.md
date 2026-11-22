@@ -70,13 +70,7 @@ The list renders under the video and seeks on click.
 
 ## Notes
 
-- Both sources store only the id/key in the lesson — the library/secrets
-  are site-wide, so moving a course between sites is just a re-key.
-- An option only appears in the step editor once its provider is
-  configured.
-- If a link ever 403s in the player, it expired — reloading the lesson
-  mints a fresh one.
-- `BHY_MediaToken`'s signing is covered by the core Test Runner suite
-  (Site Tools → Debug Tools → Tests). The R2 signature is verified
-  byte-for-byte against the Worker's HMAC. End-to-end playback itself
-  can only be checked against a real bucket/library.
+- Lessons store only the video key or GUID; the secrets are site-wide.
+- A source only appears in the step editor once it is configured.
+- A 403 in the player means the link expired; reloading the lesson mints a new one.
+- Signing is covered by the core Test Runner; real playback can only be checked against a real bucket or library.

@@ -2,12 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Shared icon family for top-level admin menus: one ray fan from the bottom-left plus a
- * per-feature glyph in the upper-right, as base64 SVG data URIs.
- *
- * WHY: COLOR must be a literal '#a7aaad' (base64, not URL-encoded). WP recolors menu SVGs by
- * rewriting every fill="" and replacing whole style="" attributes, so every shape must be a
- * solid fill; hollow shapes use fill-rule="evenodd" path geometry, never strokes.
+ * Shared admin menu icon family as base64 SVG data URIs.
+ * WHY: WordPress recolors menu SVGs by rewriting fill and style attributes, so every
+ * shape is a solid fill (holes via fill-rule evenodd, never strokes) in literal #a7aaad.
  */
 class OUS_MenuIcons {
     const COLOR = '#a7aaad';

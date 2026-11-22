@@ -2,13 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Shared transactional-email send(): wraps wp_mail() and emits bhcore/email_sent on
- * success / logs a warning on failure, so call sites don't hand-roll that bookkeeping.
- *
- *   BH_Mail::send(['user_id' => $id, 'subject' => '...', 'body' => '...', 'source' => 'BH Auth']);
- *   // or 'to' => 'someone@example.com' when there is no account.
- *
- * Returns wp_mail()'s bool: true means handed to the transport, not delivered.
+ * Transactional email: wraps wp_mail(), emits bhcore/email_sent or logs a warning.
+ *   BH_Mail::send(['user_id' => $id (or 'to' => $email), 'subject' => ..., 'body' => ..., 'source' => ...]);
+ * Returns true when handed to the transport, not when delivered.
  */
 class BH_Mail {
     /**

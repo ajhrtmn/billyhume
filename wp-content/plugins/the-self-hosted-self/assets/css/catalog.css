@@ -14,18 +14,14 @@
     background: var(--bh-surface, #1e1b15);
     border: 1px solid var(--bh-border, #3d3527);
     border-radius: var(--bh-radius, 12px);
-    /* Rest state gets real depth so the grid reads as a stack of physical
-       cards rather than a table with lines. Elevation is the pair -- the
-       surface token above and this shadow -- which is why neither is
-       hardcoded here any more. */
+    /* Resting depth: the surface token plus this shadow make the grid read as
+       physical cards. */
     box-shadow: var(--bh-shadow-sm, 0 1px 2px rgba(0, 0, 0, .18));
     transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
 }
 
-/* Hover raises the card one full step of the scale rather than inventing a
-   one-off shadow. translateY, never scale: a scale reflows nothing but does
-   visibly nudge neighbours optically, and a 4px lift was enough to make the
-   courses grid feel alive already. */
+/* Hover lifts the card one step of the elevation scale. translateY, never
+   scale: scaling optically nudges neighbouring cards. */
 .ous-catalog-card:hover,
 .ous-catalog-card:focus-within {
     transform: translateY(-4px);

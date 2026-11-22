@@ -2,14 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Visibility registry for "built-in default + optional third-party enhancer" contracts.
- * Reports which implementation is active; does not enforce or switch anything.
- *
- *   OUS_Integration::register('email_broadcast', [
- *       'label' => 'Email broadcast / marketing',
- *       'builtin_class' => 'OUS_Campaigns',
- *       'enhancer_class' => 'BHMP_Sync', // optional
- *   ]);   // call on 'init' priority 20, after both classes could have loaded
+ * Reports which implementation is active for "built-in default + optional enhancer"
+ * contracts (register on init priority 20). Reporting only; it switches nothing.
  */
 class OUS_Integration {
     /** @var array<string, array<string, mixed>> */
@@ -62,7 +56,7 @@ class OUS_Integration {
      */
     public static function register_debug_section($tools): array {
         $tools['ous-integrations'] = [
-            'label'  => 'Integration Contracts',
+            'label'  => OUS_Words::get('admin.integration.integration_contracts'),
             'render' => [self::class, 'render_debug_section'],
             // Read-only report.
             'safe_in_production' => true,
@@ -73,14 +67,14 @@ class OUS_Integration {
 
     public static function render_debug_section(): void {
         if (!self::$contracts) {
-            echo '<p class="description">No integration contracts registered yet.</p>';
+            echo ('<p class="description">' . OUS_Words::get('admin.integration.no_integration_contracts_registered_yet') . '</p>');
             return;
         }
 
         echo '<p class="description">Every registered "always-works built-in default, optional third-party enhancement" pair — see CLAUDE.md\'s standing rule. This is a status report, not a settings screen: which implementation is active is decided entirely by whether the enhancer\'s class happens to be loaded, same as every other class_exists()-guarded cross-plugin touch in this ecosystem.</p>';
 
         echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr>'
-           . '<th>Contract</th><th>Built-in default</th><th>Enhancer (optional)</th><th>Active now</th>'
+           . ('<th>' . OUS_Words::get('admin.integration.contract') . '</th><th>' . OUS_Words::get('admin.integration.built_default') . '</th><th>' . OUS_Words::get('admin.integration.enhancer_optional') . '</th><th>Active now</th>')
            . '</tr></thead><tbody>';
 
         foreach (self::$contracts as $key => $contract) {
@@ -90,8 +84,8 @@ class OUS_Integration {
                 : '<span class="bhy-badge bhy-badge-neutral">' . esc_html($contract['builtin_class']) . ' (built-in)</span>';
 
             $enhancer_cell = $contract['enhancer_class']
-                ? esc_html($contract['enhancer_class']) . (class_exists($contract['enhancer_class']) ? '' : ' <span class="description">(not active)</span>')
-                : '<span class="description">— none registered</span>';
+                ? esc_html($contract['enhancer_class']) . (class_exists($contract['enhancer_class']) ? '' : (' <span class="description">' . OUS_Words::get('admin.integration.not_active') . '</span>'))
+                : ('<span class="description">' . OUS_Words::get('admin.integration.none_registered') . '</span>');
 
             echo '<tr>';
             echo '<td><strong>' . esc_html($contract['label']) . '</strong>';

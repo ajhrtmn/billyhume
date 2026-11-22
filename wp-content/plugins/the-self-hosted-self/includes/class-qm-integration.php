@@ -37,7 +37,7 @@ if (class_exists('QM_Collector')) {
         public $id = 'ous';
 
         public function name() {
-            return 'The Self-Hosted Self';
+            return OUS_Words::get('admin.qm_integration.self_hosted_self');
         }
 
         public function process() {
@@ -53,7 +53,7 @@ if (class_exists('QM_Collector')) {
 if (class_exists('QM_Output_Html')) {
     class OUS_QM_Output extends QM_Output_Html {
         public function name() {
-            return 'The Self-Hosted Self';
+            return OUS_Words::get('admin.qm_integration.self_hosted_self');
         }
 
         public function output() {
@@ -63,13 +63,13 @@ if (class_exists('QM_Output_Html')) {
             $this->before_non_tabular_output();
 
             if (!$rows) {
-                echo '<div class="qm-notice"><p>No The Self-Hosted Self log entries on this request.</p></div>';
+                echo ('<div class="qm-notice"><p>' . OUS_Words::get('admin.qm_integration.no_self_hosted_self_log') . '</p></div>');
                 $this->after_non_tabular_output();
                 return;
             }
 
             echo '<table class="qm-sortable-theads"><thead><tr>';
-            echo '<th>Level</th><th>Source</th><th>Message</th><th>Location</th>';
+            echo ('<th>' . OUS_Words::get('admin.debug_log.level') . '</th><th>' . OUS_Words::get('admin.debug_log.source') . '</th><th>' . OUS_Words::get('admin.campaigns.message') . '</th><th>' . OUS_Words::get('admin.qm_integration.location') . '</th>');
             echo '</tr></thead><tbody>';
             foreach ($rows as $row) {
                 $level = $row['level'] ?? 'info';
@@ -94,7 +94,7 @@ if (class_exists('QM_Output_Html')) {
                 if (($row['level'] ?? '') === 'error') { $has_error = true; break; }
             }
             $menu[] = $this->menu([
-                'title' => esc_html('The Self-Hosted Self' . ($count ? " ({$count})" : '')),
+                'title' => esc_html(OUS_Words::get('admin.qm_integration.self_hosted_self') . ($count ? " ({$count})" : '')),
             ]);
             return $menu;
         }

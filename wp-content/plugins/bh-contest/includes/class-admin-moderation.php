@@ -66,11 +66,11 @@ class BH_AdminModeration {
 
         if (!empty($_GET['bh_bulk_approved'])) {
             $n = (int) $_GET['bh_bulk_approved'];
-            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sprintf(_n('%d submission approved.', '%d submissions approved.', $n), $n)) . '</p></div>';
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sprintf(_n(BHCON_Words::get('admin.admin_moderation.d_submission_approved'), BHCON_Words::get('admin.admin_moderation.d_submissions_approved'), $n), $n)) . '</p></div>';
         }
         if (!empty($_GET['bh_bulk_rejected'])) {
             $n = (int) $_GET['bh_bulk_rejected'];
-            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sprintf(_n('%d submission rejected and notified.', '%d submissions rejected and notified.', $n), $n)) . '</p></div>';
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sprintf(_n(BHCON_Words::get('admin.admin_moderation.d_submission_rejected_notified'), BHCON_Words::get('admin.admin_moderation.d_submissions_rejected_notified'), $n), $n)) . '</p></div>';
         }
     }
 
@@ -86,7 +86,7 @@ class BH_AdminModeration {
             admin_url('admin-post.php?action=bh_quick_approve&submission_id=' . $post->ID),
             'bh_quick_approve_' . $post->ID
         );
-        $actions['bh_approve'] = '<a href="' . esc_url($url) . '">Approve</a>';
+        $actions['bh_approve'] = '<a href="' . esc_url($url) . ('">' . BHCON_Words::get('admin.admin_moderation.approve') . '</a>');
         return $actions;
     }
 
@@ -95,7 +95,7 @@ class BH_AdminModeration {
         if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_quick_approve_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
         $post = get_post($pid);
-        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
+        if (!$post || $post->post_type !== 'bh_submission') wp_die(BHCON_Words::get('admin.admin_moderation.submission_not_found'), '', ['back_link' => true]);
 
         wp_update_post(['ID' => $pid, 'post_status' => 'publish']);
         wp_safe_redirect(wp_get_referer() ?: admin_url('edit.php?post_type=bh_submission'));
@@ -146,7 +146,7 @@ class BH_AdminModeration {
         if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_approve_swap_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
         $post = get_post($pid);
-        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
+        if (!$post || $post->post_type !== 'bh_submission') wp_die(BHCON_Words::get('admin.admin_moderation.submission_not_found'), '', ['back_link' => true]);
 
         // Announce only if already published; first approval announces separately.
         $was_published = $post->post_status === 'publish';
@@ -172,7 +172,7 @@ class BH_AdminModeration {
         if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_discard_swap_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
         $post = get_post($pid);
-        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
+        if (!$post || $post->post_type !== 'bh_submission') wp_die(BHCON_Words::get('admin.admin_moderation.submission_not_found'), '', ['back_link' => true]);
 
         $pending = (int) get_post_meta($pid, '_bh_pending_audio_id', true);
         if ($pending) wp_delete_attachment($pending, true);
@@ -190,7 +190,7 @@ class BH_AdminModeration {
         if (!check_admin_referer('bh_reject_submission_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
         $post = get_post($pid);
-        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
+        if (!$post || $post->post_type !== 'bh_submission') wp_die(BHCON_Words::get('admin.admin_moderation.submission_not_found'), '', ['back_link' => true]);
 
         $reason_code = sanitize_key($_POST['reason_code'] ?? 'other');
         $note = sanitize_textarea_field(wp_unslash($_POST['note'] ?? ''));
@@ -222,15 +222,17 @@ class BH_AdminModeration {
         $cid = (int) get_post_meta($pid, '_bh_contest_id', true);
         if ($author && $author->user_email) {
             $contest_title = $cid ? get_the_title($cid) : 'the contest';
-            $subject = 'About your submission — ' . get_bloginfo('name');
+            $subject = BHCON_Words::get('admin.admin_moderation.about_submission') . ' ' . get_bloginfo('name');
             $reason_label = BH_Admin::REJECTION_REASONS[$reason_code];
             $body = "Hi {$author->user_login},\n\nYour submission \"{$post->post_title}\" for {$contest_title} wasn't accepted this time.\n\nReason: {$reason_label}"
                   . ($note ? "\n\nNote from the team: {$note}" : '')
-                  . "\n\nIf this was a mistake (e.g. the wrong file got attached), you can upload a replacement from your account portal while submissions are still open, and it'll be reviewed again.";
+                  . '
+
+' . BHCON_Words::get('admin.admin_moderation.if_was_mistake_e_g');
             if (class_exists('BH_Mail')) {
                 BH_Mail::send([
                     'to' => $author->user_email, 'user_id' => (int) $post->post_author, 'subject' => $subject, 'body' => $body,
-                    'source' => 'BH Contest Submission', 'log_context' => ['submission_id' => $pid],
+                    'source' => BHCON_Words::get('admin.admin_moderation.bh_contest_submission'), 'log_context' => ['submission_id' => $pid],
                 ]);
             } else {
                 wp_mail($author->user_email, $subject, $body);
@@ -252,7 +254,7 @@ class BH_AdminModeration {
             wp_send_json_error(['message' => 'Not allowed.'], 403);
         }
         if (!wp_verify_nonce($_POST['nonce'] ?? '', 'bh_advance_round_' . $cid)) {
-            wp_send_json_error(['message' => 'Security check failed — reload and try again.'], 403);
+            wp_send_json_error(['message' => BHCON_Words::get('admin.admin_moderation.security_check_failed_reload_try')], 403);
         }
         $result = BH_Rounds::advance_round($cid);
         if (is_wp_error($result)) {

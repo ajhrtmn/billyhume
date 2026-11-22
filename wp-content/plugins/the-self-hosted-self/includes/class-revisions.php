@@ -2,10 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_Revisions: full-state version history (JSON snapshot per save, not
- * pruned) for admin-built content outside wp_posts. Unlike OUS_Audit, which
- * keeps field-level diffs only. Object-agnostic: restore() hands the snapshot
- * back via an action; the consumer writes it.
+ * Full-state version history (a JSON snapshot per save) for admin-built content outside
+ * wp_posts; OUS_Audit keeps field diffs only. restore() hands the snapshot to the consumer.
  */
 class OUS_Revisions {
     const DB_VERSION = '1.0';
@@ -135,16 +133,13 @@ class OUS_Revisions {
      * ================================================================= */
 
     /**
-     * Version History list with Restore links to $restore_action (an admin-post
-     * handler the consumer registers).
-     * WHY: GET links with a nonce, not a <form>: it renders inside metaboxes,
-     * already inside <form id="post">, and nested forms hijack the page's submit.
-     * CSS `columns` masonry so it fits both wide and narrow side metaboxes.
+     * Version History list with Restore links to $restore_action.
+     * WHY: nonce GET links, not a form, because this renders inside the post edit form.
      */
     public static function render_history_panel(string $object_type, int $object_id, string $restore_action, string $nonce_action): void {
         $rows = self::history($object_type, $object_id);
         if (!$rows) {
-            echo '<p class="description">No earlier versions yet — one gets saved automatically each time this is saved.</p>';
+            echo ('<p class="description">' . OUS_Words::get('admin.revisions.no_earlier_versions_yet_one') . '</p>');
             return;
         }
 
@@ -158,10 +153,10 @@ class OUS_Revisions {
             // WHY: .bhy-card, not inline colors: admin styles theme cards by
             // class name, so inline styles would stay light-mode-only.
             echo '<div class="bhy-card" style="break-inside:avoid;">';
-            echo '<div style="font-weight:600;">Version #' . (int) $r['version'] . '</div>';
+            echo ('<div style="font-weight:600;">' . OUS_Words::get('admin.revisions.version')) . (int) $r['version'] . '</div>';
             echo '<div class="description" style="margin:2px 0;">' . esc_html(mysql2date('M j, Y g:ia', $r['created_at'])) . '</div>';
             echo '<div class="description" style="margin:0 0 8px;">' . ($user ? esc_html($user->display_name) : 'system') . ($r['label'] ? ' — ' . esc_html($r['label']) : '') . '</div>';
-            echo '<a class="button button-small" href="' . esc_url($restore_url) . '" onclick="return confirm(\'Restore this version? Your current version stays in history too.\');">Restore</a>';
+            echo '<a class="button button-small" href="' . esc_url($restore_url) . ('" onclick="return confirm(\'Restore this version? Your current version stays in history too.\');">' . OUS_Words::get('admin.revisions.restore') . '</a>');
             echo '</div>';
         }
         echo '</div>';
@@ -177,7 +172,7 @@ class OUS_Revisions {
      */
     public static function register_debug_section($tools): array {
         $tools['ous-revisions'] = [
-            'label'  => 'Version History (revisions)',
+            'label'  => OUS_Words::get('admin.revisions.version_history_revisions'),
             'render' => [self::class, 'render_debug_section'],
             'group'  => class_exists('OUS_Debug') ? OUS_Debug::GROUP_MONITORING : '',
         ];
@@ -188,13 +183,13 @@ class OUS_Revisions {
         global $wpdb;
         $rows = $wpdb->get_results('SELECT object_type, object_id, COUNT(*) as versions, MAX(created_at) as last_saved FROM ' . self::table() . ' GROUP BY object_type, object_id ORDER BY last_saved DESC LIMIT 50', ARRAY_A);
 
-        echo '<p class="description">Shared version-history service (OUS_Revisions) — every object with at least one snapshot. Admin-only.</p>';
+        echo ('<p class="description">' . OUS_Words::get('admin.revisions.shared_version_history_service_ous') . '</p>');
         if (!$rows) {
-            echo '<p>No revisions recorded yet.</p>';
+            echo ('<p>' . OUS_Words::get('admin.revisions.no_revisions_recorded_yet') . '</p>');
             return;
         }
 
-        echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>Object</th><th>Versions</th><th>Last saved</th></tr></thead><tbody>';
+        echo ('<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>' . OUS_Words::get('admin.audit.object') . '</th><th>' . OUS_Words::get('admin.revisions.versions') . '</th><th>Last saved</th></tr></thead><tbody>');
         foreach ($rows as $r) {
             echo '<tr>';
             echo '<td>' . esc_html($r['object_type']) . ' #' . (int) $r['object_id'] . '</td>';

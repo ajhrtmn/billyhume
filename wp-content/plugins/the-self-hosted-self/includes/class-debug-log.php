@@ -2,16 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Aggregate console: PHP fatals/uncaught exceptions, WordPress
- * doing_it_wrong/deprecated notices, explicit log() calls, and admin JS
- * errors land in one capped table shown on the Debug Tools page.
- *
- *   if (class_exists('OUS_DebugLog')) {
- *       OUS_DebugLog::log('error', 'Feed sync failed', ['feed_id' => $id], 'BH Streaming');
- *       OUS_DebugLog::log_exception($e, 'BH Streaming');
- *   }
- *
- * Levels: 'error', 'warning', 'info'.
+ * One capped log of PHP fatals, uncaught exceptions, WordPress notices, admin JS errors
+ * and explicit calls, shown in Debug Tools:
+ *   OUS_DebugLog::log('error'|'warning'|'info', $message, $context, $source);
  */
 class OUS_DebugLog {
     const MAX_ROWS = 1000;
@@ -127,10 +120,8 @@ class OUS_DebugLog {
         return self::$request_buffer;
     }
 
-    // Logs at most once per $seconds per $key, so per-request checks leave a
-    // trace without flooding the table.
-    // WHY: throttle key goes straight to wp_options via $wpdb, not
-    // transients, which can wedge on a broken persistent object cache.
+    // Logs at most once per $seconds per $key. WHY: the throttle key goes to wp_options
+    // directly, not transients, which can wedge on a broken object cache.
     /** @param array<mixed> $context */
     public static function log_throttled(string $level, string $key, int $seconds, string $message, array $context = [], string $source = ''): void {
         global $wpdb;
@@ -294,7 +285,7 @@ class OUS_DebugLog {
      */
     public static function register_debug_section($tools): array {
         $tools['bh-console'] = [
-            'label' => 'Console & Logs',
+            'label' => OUS_Words::get('admin.debug_log.console_logs'),
             'render' => [self::class, 'render_debug_section'],
             'handle' => [self::class, 'handle_debug_action'],
             'reset' => [self::class, 'reset_debug'],
@@ -390,18 +381,18 @@ class OUS_DebugLog {
         $last_failure = get_option('ous_debug_log_last_failure', null);
 
         echo '<div class="bhy-card" style="margin-bottom:16px;">';
-        echo '<h4 style="margin-top:0;">Logging health check</h4>';
-        echo '<p>Table <code>' . esc_html($table) . '</code>: ' . ($exists ? '<span class="ous-log-ok">exists</span>' : '<span class="ous-log-bad-strong">does NOT exist — no log() call anywhere in the ecosystem can be recorded</span>') . '</p>';
+        echo ('<h4 style="margin-top:0;">' . OUS_Words::get('admin.debug_log.logging_health_check') . '</h4>');
+        echo ('<p>' . OUS_Words::get('admin.debug_log.table') . ' <code>') . esc_html($table) . '</code>: ' . ($exists ? '<span class="ous-log-ok">exists</span>' : '<span class="ous-log-bad-strong">does NOT exist — no log() call anywhere in the ecosystem can be recorded</span>') . '</p>';
         if ($exists && $missing_cols) {
-            echo '<p class="ous-log-bad-strong">Missing column(s): ' . esc_html(implode(', ', $missing_cols)) . ' — the table exists but predates the current schema, so every insert() referencing these columns fails.</p>';
+            echo ('<p class="ous-log-bad-strong">' . OUS_Words::get('admin.debug_log.missing_column_s') . ' ') . esc_html(implode(', ', $missing_cols)) . ' — the table exists but predates the current schema, so every insert() referencing these columns fails.</p>';
         }
-        echo '<p>DB schema version — stored: <code>' . esc_html($db_version_stored) . '</code>, code expects: <code>' . esc_html($db_version_code) . '</code>'
-           . ($db_version_stored !== $db_version_code ? ' <span class="ous-log-bad-strong">— mismatch, migration has not run on this install</span>' : ' <span class="ous-log-ok">— up to date</span>')
+        echo ('<p>' . OUS_Words::get('admin.debug_log.db_schema_version_stored') . ' <code>') . esc_html($db_version_stored) . '</code>, code expects: <code>' . esc_html($db_version_code) . '</code>'
+           . ($db_version_stored !== $db_version_code ? (' <span class="ous-log-bad-strong">' . OUS_Words::get('admin.debug_log.mismatch_migration_has_not_run') . '</span>') : (' <span class="ous-log-ok">' . OUS_Words::get('admin.debug_log.up_date') . '</span>'))
            . '</p>';
         if ($last_failure && is_array($last_failure)) {
-            echo '<p class="ous-log-bad"><strong>Last recorded insert failure</strong> (' . esc_html($last_failure['at'] ?? '') . '): <code>' . esc_html($last_failure['error'] ?? '') . '</code></p>';
+            echo ('<p class="ous-log-bad"><strong>' . OUS_Words::get('admin.debug_log.last_recorded_insert_failure') . '</strong> (') . esc_html($last_failure['at'] ?? '') . '): <code>' . esc_html($last_failure['error'] ?? '') . '</code></p>';
         }
-        OUS_Debug::button('bh-console', 'health_check_insert', 'Run a test log entry now');
+        OUS_Debug::button('bh-console', 'health_check_insert', OUS_Words::get('admin.debug_log.run_test_log_entry_now'));
         echo '</div>';
     }
 
@@ -434,12 +425,12 @@ class OUS_DebugLog {
         echo '<input type="date" name="ous_log_since" value="' . esc_attr($filters['since']) . '">';
         echo '<input type="text" name="ous_log_request" placeholder="Request ID" value="' . esc_attr($filters['request_id']) . '" style="width:110px;font-family:monospace;">';
         if ($filters['show_muted']) echo '<input type="hidden" name="ous_log_show_muted" value="1">';
-        echo '<button type="submit" class="button">Filter</button>';
+        echo ('<button type="submit" class="button">' . OUS_Words::get('admin.debug_log.filter') . '</button>');
         if ($filters['level'] || $filters['source'] || $filters['user_id'] || $filters['since'] || $filters['request_id']) {
-            echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=ous-debug' . ($filters['show_muted'] ? '&ous_log_show_muted=1' : ''))) . '">Clear filters</a>';
+            echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=ous-debug' . ($filters['show_muted'] ? '&ous_log_show_muted=1' : ''))) . ('">' . OUS_Words::get('admin.debug_log.clear_filters') . '</a>');
         }
         if ($filters['request_id']) {
-            echo '<p class="description" style="width:100%;margin:4px 0 0;">Showing every logged event that happened during request <code>' . esc_html($filters['request_id']) . '</code> — the full sequence, across every plugin, that led up to (or followed from) any one row.</p>';
+            echo ('<p class="description" style="width:100%;margin:4px 0 0;">' . OUS_Words::get('admin.debug_log.showing_every_logged_event_happened') . ' <code>') . esc_html($filters['request_id']) . ('</code> ' . OUS_Words::get('admin.debug_log.full_sequence_across_every_plugin') . '</p>');
         }
         echo '</form>';
 
@@ -447,9 +438,9 @@ class OUS_DebugLog {
         $muted = self::muted_signatures();
         if ($muted) {
             $toggle_url = admin_url('admin.php?page=ous-debug' . ($filters['show_muted'] ? '' : '&ous_log_show_muted=1'));
-            echo '<details class="bhy-rail-section" style="margin-bottom:12px;"><summary style="cursor:pointer;">Muted (' . count($muted) . ') — '
+            echo ('<details class="bhy-rail-section" style="margin-bottom:12px;"><summary style="cursor:pointer;">' . OUS_Words::get('admin.debug_log.muted')) . count($muted) . ') — '
                . '<a href="' . esc_url($toggle_url) . '" onclick="event.stopPropagation();">' . ($filters['show_muted'] ? 'hide muted rows in the table below' : 'show muted rows in the table below') . '</a></summary>';
-            echo '<table class="widefat striped" style="margin-top:8px;"><thead><tr><th>Source</th><th>Message</th><th style="width:140px;">Muted</th><th style="width:80px;"></th></tr></thead><tbody>';
+            echo ('<table class="widefat striped" style="margin-top:8px;"><thead><tr><th>' . OUS_Words::get('admin.debug_log.source') . '</th><th>' . OUS_Words::get('admin.campaigns.message') . '</th><th style="width:140px;">' . OUS_Words::get('admin.debug_log.muted_2') . '</th><th style="width:80px;"></th></tr></thead><tbody>');
             foreach ($muted as $key => $m) {
                 echo '<tr><td>' . esc_html($m['source'] ?: '&#8212;') . '</td><td>' . esc_html($m['message']) . '</td>';
                 echo '<td>' . esc_html(human_time_diff(strtotime($m['muted_at']), current_time('timestamp')) . ' ago by ' . ($m['muted_by'] ?: 'unknown')) . '</td>';
@@ -471,23 +462,23 @@ class OUS_DebugLog {
         self::print_expand_script_once();
 
         if (!$rows) {
-            echo '<p class="description">No log entries match these filters. Nothing to triage — that\'s a good sign.</p>';
+            echo ('<p class="description">' . OUS_Words::get('admin.debug_log.no_log_entries_match_these') . '</p>');
         } else {
             // Plain-text dump of the visible rows, for pasting into a ticket.
             $dump_lines = [];
             foreach ($rows as $r) {
                 $location = $r['file'] ? (' (' . $r['file'] . ':' . $r['line'] . ($r['col'] ? ':' . $r['col'] : '') . ')') : '';
-                $line = '[' . strtoupper($r['level']) . ']' . (!empty($r['request_id']) ? '[req:' . $r['request_id'] . ']' : '') . ' ' . ($r['source'] ?: '(no source)') . ' — ' . $r['message'] . $location;
+                $line = '[' . strtoupper($r['level']) . ']' . (!empty($r['request_id']) ? '[req:' . $r['request_id'] . ']' : '') . ' ' . ($r['source'] ?: OUS_Words::get('admin.debug_log.no_source')) . ' — ' . $r['message'] . $location;
                 if ($r['context']) $line .= ' ' . $r['context'];
                 if ($r['url']) $line .= ' [' . $r['request_method'] . ' ' . $r['url'] . ']';
                 if ($r['trace']) $line .= ' trace=' . $r['trace'];
                 $line .= ' (' . $r['created_at'] . ')';
                 $dump_lines[] = $line;
             }
-            echo '<p><button type="button" class="button button-small" onclick="bhCopyToClipboard(\'ous-log-dump\', this)">Copy ' . count($rows) . ' log ' . (count($rows) === 1 ? 'entry' : 'entries') . '</button></p>';
+            echo ('<p><button type="button" class="button button-small" onclick="bhCopyToClipboard(\'ous-log-dump\', this)">' . OUS_Words::get('admin.api_docs.copy') . ' ') . count($rows) . ' log ' . (count($rows) === 1 ? 'entry' : 'entries') . '</button></p>';
             echo '<textarea id="ous-log-dump" style="position:absolute;left:-9999px;">' . esc_textarea(implode("\n", $dump_lines)) . '</textarea>';
 
-            echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th style="width:90px;">Level</th><th style="width:120px;">Source</th><th>Message</th><th style="width:80px;">User</th><th style="width:140px;">When</th><th style="width:130px;">Actions</th></tr></thead><tbody>';
+            echo ('<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th style="width:90px;">' . OUS_Words::get('admin.debug_log.level') . '</th><th style="width:120px;">' . OUS_Words::get('admin.debug_log.source') . '</th><th>' . OUS_Words::get('admin.campaigns.message') . '</th><th style="width:80px;">' . OUS_Words::get('admin.debug_log.user') . '</th><th style="width:140px;">' . OUS_Words::get('admin.audit.when') . '</th><th style="width:130px;">' . OUS_Words::get('admin.debug_log.actions') . '</th></tr></thead><tbody>');
             $i = 0;
             foreach ($rows as $r) {
                 $i++;
@@ -512,17 +503,17 @@ class OUS_DebugLog {
                 echo '<td>' . esc_html(human_time_diff(strtotime($r['created_at']), current_time('timestamp')) . ' ago') . '</td>';
                 // stopPropagation: keeps button clicks from toggling the detail row.
                 echo '<td onclick="event.stopPropagation();" style="white-space:nowrap;">';
-                OUS_Debug::button('bh-console', 'delete_log_row', 'Delete', "<input type='hidden' name='ous_log_row_id' value='" . esc_attr($r['id']) . "'>", 'Delete this one log entry? This cannot be undone.', false);
+                OUS_Debug::button('bh-console', 'delete_log_row', 'Delete', "<input type='hidden' name='ous_log_row_id' value='" . esc_attr($r['id']) . "'>", OUS_Words::get('admin.debug_log.delete_one_log_entry_cannot'), false);
                 OUS_Debug::button('bh-console', 'mute_log_signature', 'Mute', "<input type='hidden' name='ous_log_row_id' value='" . esc_attr($r['id']) . "'>", '', false);
                 echo '</td></tr>';
 
                 if ($has_detail) {
                     echo '<tr id="' . esc_attr($detail_id) . '" class="ous-log-detail-row" style="display:none;"><td colspan="6">';
-                    if ($r['url']) echo '<p style="margin:4px 0;"><strong>Request:</strong> ' . esc_html($r['request_method']) . ' <code>' . esc_html($r['url']) . '</code></p>';
-                    if ($r['context']) echo '<p style="margin:4px 0;"><strong>Context:</strong> <code>' . esc_html($r['context']) . '</code></p>';
+                    if ($r['url']) echo ('<p style="margin:4px 0;"><strong>' . OUS_Words::get('admin.debug_log.request') . '</strong> ') . esc_html($r['request_method']) . ' <code>' . esc_html($r['url']) . '</code></p>';
+                    if ($r['context']) echo ('<p style="margin:4px 0;"><strong>' . OUS_Words::get('admin.debug_log.context') . '</strong> <code>') . esc_html($r['context']) . '</code></p>';
                     if ($r['trace']) {
                         $trace = json_decode($r['trace'], true);
-                        echo '<p style="margin:4px 0;"><strong>Stack trace:</strong></p><ol style="margin:0 0 0 20px;font-family:monospace;font-size:12px;">';
+                        echo ('<p style="margin:4px 0;"><strong>' . OUS_Words::get('admin.debug_log.stack_trace') . '</strong></p><ol style="margin:0 0 0 20px;font-family:monospace;font-size:12px;">');
                         if (is_array($trace)) {
                             foreach ($trace as $frame) {
                                 $fn = $frame['function'] ?? '';
@@ -543,7 +534,7 @@ class OUS_DebugLog {
         }
 
         echo '<p style="margin-top:8px;">';
-        OUS_Debug::button('bh-console', 'clear_log', 'Clear log', '', 'Clear all logged console/error entries? This cannot be undone.', false);
+        OUS_Debug::button('bh-console', 'clear_log', OUS_Words::get('admin.debug_log.clear_log'), '', OUS_Words::get('admin.debug_log.clear_all_logged_console_error'), false);
         echo '</p>';
     }
 
@@ -551,30 +542,30 @@ class OUS_DebugLog {
         if ($action === 'clear_log') {
             global $wpdb;
             $wpdb->query("TRUNCATE TABLE " . self::table());
-            return 'Console/error log cleared.';
+            return OUS_Words::get('admin.debug_log.console_error_log_cleared');
         }
         // Permanent single-row delete; muting is the pattern-level option.
         if ($action === 'delete_log_row') {
             global $wpdb;
             $id = absint($_POST['ous_log_row_id'] ?? 0);
-            if (!$id) return 'No log entry specified.';
+            if (!$id) return OUS_Words::get('admin.debug_log.no_log_entry_specified');
             $deleted = $wpdb->delete(self::table(), ['id' => $id], ['%d']);
-            return $deleted ? 'Log entry deleted.' : 'That log entry was already gone.';
+            return $deleted ? OUS_Words::get('admin.debug_log.log_entry_deleted') : OUS_Words::get('admin.debug_log.log_entry_was_already_gone');
         }
         // WHY: source/message is read from the row server-side, never trusted
         // from a POSTed field.
         if ($action === 'mute_log_signature') {
             global $wpdb;
             $id = absint($_POST['ous_log_row_id'] ?? 0);
-            if (!$id) return 'No log entry specified.';
+            if (!$id) return OUS_Words::get('admin.debug_log.no_log_entry_specified');
             $row = $wpdb->get_row($wpdb->prepare("SELECT source, message FROM " . self::table() . " WHERE id = %d", $id), ARRAY_A);
-            if (!$row) return 'That log entry no longer exists.';
+            if (!$row) return OUS_Words::get('admin.debug_log.log_entry_no_longer_exists');
             self::mute_signature($row['source'], $row['message']);
             return 'Muted — future entries matching this exact source/message will be hidden by default (still logged, not deleted; use "Show muted" to bring them back into view).';
         }
         if ($action === 'unmute_log_signature') {
             $key = sanitize_text_field($_POST['ous_log_signature'] ?? '');
-            if (!$key) return 'No muted entry specified.';
+            if (!$key) return OUS_Words::get('admin.debug_log.no_muted_entry_specified');
             self::unmute_signature($key);
             return 'Unmuted.';
         }
@@ -584,21 +575,21 @@ class OUS_DebugLog {
             self::log('info', 'Manual health-check test entry from Debug Tools.', ['triggered_by' => wp_get_current_user()->user_login ?? ''], 'Debug Tools Health Check');
             $failure = get_option('ous_debug_log_last_failure', null);
             if ($failure) {
-                return 'Test insert FAILED: ' . $failure['error'];
+                return OUS_Words::get('admin.debug_log.test_insert_failed') . ' ' . $failure['error'];
             }
             $found = $wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*) FROM " . self::table() . " WHERE source = %s AND created_at >= %s",
                 'Debug Tools Health Check', gmdate('Y-m-d H:i:s', time() - 60)
             ));
-            return $found ? 'Test insert succeeded and was verified readable — logging is working.' : 'Insert reported no error, but the row could not be read back — investigate further.';
+            return $found ? OUS_Words::get('admin.debug_log.test_insert_succeeded_was_verified') : OUS_Words::get('admin.debug_log.insert_reported_no_error_but');
         }
-        return 'Unknown action.';
+        return OUS_Words::get('admin.debug_log.unknown_action');
     }
 
     public static function reset_debug(): string {
         global $wpdb;
         $wpdb->query("TRUNCATE TABLE " . self::table());
-        return 'Console/error log cleared.';
+        return OUS_Words::get('admin.debug_log.console_error_log_cleared');
     }
 
     // Real classes reading --bhy-* tokens instead of inline styles, which
