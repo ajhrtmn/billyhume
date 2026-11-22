@@ -7,14 +7,36 @@ if (!defined('ABSPATH')) exit;
  * itself, so a typo is visible on the page (and the test suite checks every key).
  */
 class OUS_Words {
+    const PROPS_PROVIDER = 'words.core';
+
     /** @var array<string, string>|null */
     private static ?array $words = null;
+    /** @var array<string, string>|null */
+    private static ?array $defaults = null;
+
+    /** @return array<string, string> words.php as written, before any saved changes */
+    public static function defaults(): array {
+        if (self::$defaults === null) {
+            $words = include OUS_PATH . 'words.php';
+            self::$defaults = is_array($words) ? $words : [];
+        }
+        return self::$defaults;
+    }
+
+    public static function register_props(): void {
+        BH_Props::register_provider(self::PROPS_PROVIDER, ['label' => 'Account page and site tools wording', 'defaults' => [self::class, 'defaults'], 'file' => OUS_PATH . 'words.php']);
+    }
+
+    public static function flush(): void {
+        self::$words = null;
+    }
 
     /** @return array<string, string> */
     public static function all(): array {
         if (self::$words === null) {
-            $words = include OUS_PATH . 'words.php';
-            // Filter so a site can override wording without editing the file.
+            $words = self::defaults();
+            // Changes saved through BH_Props (wp bh set …) sit on top of the file.
+            if (class_exists('BH_Props')) $words = BH_Props::apply(self::PROPS_PROVIDER, $words);
             self::$words = (array) apply_filters('ous_words', is_array($words) ? $words : []);
         }
         return self::$words;
@@ -50,3 +72,6 @@ class OUS_Words {
         return $text;
     }
 }
+
+add_action('bh_props_register', [OUS_Words::class, 'register_props']);
+add_action('bh_props_changed', [OUS_Words::class, 'flush']);

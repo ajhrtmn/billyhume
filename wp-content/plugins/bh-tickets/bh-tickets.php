@@ -2,14 +2,14 @@
 /**
  * Plugin Name: BH Tickets
  * Description: The Support page contact form, support tickets on the account page, and private course feedback, answered from wp-admin.
- * Version:     1.1.1
+ * Version:     1.1.2
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
-define('BHT_VER',  '1.1.1');
+define('BHT_VER',  '1.1.2');
 define('BHT_PATH', plugin_dir_path(__FILE__));
 define('BHT_URL',  plugin_dir_url(__FILE__));
 

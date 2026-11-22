@@ -2,6 +2,8 @@
 
 Newest first, one short entry per release. The full detail of each change is in git.
 
+1.1.2 - Wording is now a BH_Props provider: changes made with `wp bh set` (or the future admin screen) apply on top of words.php.
+
 1.1.1 - Admin-screen wording moved into `words.php`; output unchanged. Shorter comments.
 
 1.1.0 - Support form and Support tab wording moved into `words.php` (`BHT_Words`), including ticket status names. Core now lists the plugin itself.

@@ -2,6 +2,8 @@
 
 Newest first. Recent releases have their own line; older ones are summarized. The full detail of each change is in git.
 
+0.17.2 - Wording is now a BH_Props provider: changes made with `wp bh set` (or the future admin screen) apply on top of words.php.
+
 0.17.1 - Admin-screen wording (course, lesson and progress screens, sessions, Bunny tools) moved into `words.php`; output unchanged. Only non-admin words are sent to the browser. PHPStan fixes, shorter comments, CSS formatting and a condensed changelog.
 
 0.17.0 - Every button label, heading and message students see moved into `words.php` (about 210 entries, grouped by screen), read through `BHC_Words` in PHP and `bhcWord()` in the browser. Wording unchanged. A test fails if a key is missing.

@@ -2,6 +2,8 @@
 
 Newest first. Recent releases have their own line; older ones are summarized. The full detail of each change is in git.
 
+3.16.2 - Wording is now a BH_Props provider: changes made with `wp bh set` (or the future admin screen) apply on top of words.php.
+
 3.16.1 - Admin-screen wording (contest settings, wizard, Live Console, results, moderation, judging, reveal controls) moved into `words.php`; output unchanged. Only non-admin words are sent to the browser. PHPStan fixes, shorter comments, merged duplicate CSS selectors and a condensed changelog.
 
 3.16.0 - Every word voters and entrants see (player, log-in/sign-up box, submit and share boxes, results, Reveal Party, contest cards, archive, Contest Submissions tab) moved into `words.php` (`BHCON_Words` in PHP, `bhWord()` in the browser). `bh-common.js` is registered once and carries the words for every contest script. A test fails if a key is missing.

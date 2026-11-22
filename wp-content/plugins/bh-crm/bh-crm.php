@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH CRM
  * Description: People: everyone with an account, voted or bought something, with notes, tags, CSV export and a project board. Other plugins can add an activity section to a person.
- * Version:     2.4.27
+ * Version:     2.4.28
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHCRM_VER',  '2.4.27');
+define('BHCRM_VER',  '2.4.28');
 
 define('BHCRM_PATH', plugin_dir_path(__FILE__));
 define('BHCRM_URL',  plugin_dir_url(__FILE__));

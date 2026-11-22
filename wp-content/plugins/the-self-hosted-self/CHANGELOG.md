@@ -2,6 +2,8 @@
 
 Newest first. Recent releases have their own line; older ones are summarized. The full detail of each change is in git.
 
+3.22.2 - New BH_Props: a property registry where code files (each words.php) are the defaults and changes are stored as overrides, made only through commands: `wp bh providers|list|get|set|reset|export|import|bake`, the same over REST (bh/v1/props) for a future admin screen, and a read-only inspector in Debug Tools → Properties. Placeholders are checked, HTML is limited to safe inline tags, and every change is audit-logged. Tested end to end with WP-CLI on a lesson page.
+
 3.22.1 - GitHub Updates can read a private repository: paste a read-only fine-grained token in Debug Tools → GitHub Updates (or define BH_GITHUB_TOKEN); without one it works as before. Every admin-screen label and message moved into `words.php` (512 entries, grouped by screen; output unchanged, checked by diffing 32 pages before and after). Browser pages receive only the non-admin words (`for_browser()`). Fixed every PHPStan finding (types and three always-true checks), condensed long comments, expanded one-line CSS blocks so stylelint is clean, and condensed the changelog.
 
 3.22.0 - Rescoped to Billy's site. The admin menu is now **Site Tools**, listing the site's own plugins with status, version and update state. Removed the multi-plugin installer, "Install & Activate Everything", the setup wizard, the cross-plugin banner, the bundled plugin zips and their freshness panel, DMCA notices, the Storybook panel, the feedback reviewer role and the live-streaming steps of Media & CDN Setup. GitHub Updates registers plugins marked `github` (older peers marked `bundled_zip` keep updating). Account-page wording moved into `words.php` (`OUS_Words`).

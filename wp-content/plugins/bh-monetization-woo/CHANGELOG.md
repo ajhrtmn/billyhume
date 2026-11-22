@@ -2,6 +2,8 @@
 
 Newest first. Recent releases have their own line; older ones are summarized. The full detail of each change is in git.
 
+0.7.2 - Wording is now a BH_Props provider: changes made with `wp bh set` (or the future admin screen) apply on top of words.php.
+
 0.7.1 - Admin-screen wording (settings, tiers, gift access, storefront) moved into `words.php`; output unchanged. PHPStan fixes, shorter comments and a condensed changelog.
 
 0.7.0 - Rescoped to selling courses and supporter tiers: removed streaming-only track pricing, pay-per-play gating, auctions, the anchored purchase ledger and track downloads (course video downloads stay). The buy-button block lists courses. Customer-facing wording moved into `words.php` (`BHM_Words`). Wallet, referrals and storefront remain but are unused.
