@@ -17,8 +17,8 @@ class BHCON_Words {
     /** @return array<string, string> words.php as written, before any saved changes */
     public static function defaults(): array {
         if (self::$defaults === null) {
-            $words = include BH_PATH . 'words.php';
-            self::$defaults = is_array($words) ? $words : [];
+            // words.php returns its array; (array) keeps a broken file from fataling.
+            self::$defaults = (array) (include BH_PATH . 'words.php');
         }
         return self::$defaults;
     }
@@ -37,7 +37,7 @@ class BHCON_Words {
             $words = self::defaults();
             // Changes saved through BH_Props (wp bh set …) sit on top of the file.
             if (class_exists('BH_Props')) $words = BH_Props::apply(self::PROPS_PROVIDER, $words);
-            self::$words = (array) apply_filters('bhcon_words', is_array($words) ? $words : []);
+            self::$words = (array) apply_filters('bhcon_words', $words);
         }
         return self::$words;
     }

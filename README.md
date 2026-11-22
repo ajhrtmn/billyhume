@@ -22,7 +22,7 @@ Nothing reaches the real site until step 4.
 
 | You want to change… | It lives in… |
 |---|---|
-| Words on buttons and messages | Each plugin's `words.php` file (courses, contests, support, sales, and the account page). One file per plugin, every label in one list. |
+| Words on buttons and messages | Each plugin's `words.php` file (front end at the top, admin screens below). Claude can also change one without touching the file: `wp bh set words.courses:lesson.next_lesson "Keep going →"` (see `wp help bh`). |
 | Colors, fonts, rounding, spacing | wp-admin → **Appearance → Customize → Design Suite** (no code needed) |
 | Lessons, videos, quizzes, downloads | wp-admin → **Courses** |
 | Contests | wp-admin → **Contests** |

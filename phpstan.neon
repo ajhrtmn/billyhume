@@ -51,6 +51,9 @@ parameters:
         # file's own docblock.
         - phpstan-stubs/wp-post-nav-menu-item.stub.php
     scanFiles:
+        # WP-CLI is only loaded on the command line; these declare what wp bh uses.
+        - phpstan-stubs/wp-cli.stub.php
+        - phpstan-stubs/wp-cli-utils.stub.php
         # Real WooCommerce stub package (php-stubs/woocommerce-stubs) —
         # eliminates the large "Function wc_get_product not found"/"Class
         # WC_Product_Simple not found" false-positive class that was

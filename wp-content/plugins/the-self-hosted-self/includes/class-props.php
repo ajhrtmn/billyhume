@@ -72,7 +72,7 @@ class BH_Props {
      */
     public static function apply(string $provider, array $defaults): array {
         foreach (self::overrides($provider) as $key => $o) {
-            if (array_key_exists($key, $defaults) && isset($o['value'])) $defaults[$key] = (string) $o['value'];
+            if (array_key_exists($key, $defaults)) $defaults[$key] = (string) $o['value'];
         }
         return $defaults;
     }
@@ -126,7 +126,10 @@ class BH_Props {
 
     /* ---------------- commands (the only way values change) ---------------- */
 
-    /** Sets a property. $force skips the placeholder check. @return true|\WP_Error */
+    /**
+     * Sets a property. $force skips the placeholder check.
+     * @return true|\WP_Error
+     */
     public static function set(string $id, string $value, bool $force = false) {
         $parsed = self::parse($id);
         if (is_wp_error($parsed)) return $parsed;
@@ -147,7 +150,10 @@ class BH_Props {
         return true;
     }
 
-    /** Back to the code-file default. @return true|\WP_Error */
+    /**
+     * Back to the code-file default.
+     * @return true|\WP_Error
+     */
     public static function reset(string $id) {
         $parsed = self::parse($id);
         if (is_wp_error($parsed)) return $parsed;

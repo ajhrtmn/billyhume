@@ -2,8 +2,9 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * `wp bh …`: the command-line face of BH_Props. Every change goes through BH_Props commands,
- * so the CLI, REST and any future admin screen behave identically.
+ * Reads and changes site wording (properties) from the command line.
+ *
+ * Every change goes through BH_Props, so the CLI, REST and a future admin screen behave identically.
  */
 class BH_Props_CLI {
     public static function register(): void {
@@ -105,7 +106,7 @@ class BH_Props_CLI {
     }
 
     /**
-     * Puts a property (or every property of a provider) back to the code-file default.
+     * Puts a property (or a whole provider with --all) back to its default.
      *
      * ## OPTIONS
      * <id>
@@ -169,8 +170,9 @@ class BH_Props_CLI {
     }
 
     /**
-     * Writes a provider's changes into its code file (words.php) and clears them, so they
-     * can be committed to git. Run it on a local copy, not the live site.
+     * Writes a provider's changes into words.php so they can be committed to git.
+     *
+     * Clears the overrides it wrote. Run it on a local copy, not the live site.
      *
      * ## OPTIONS
      * <provider>

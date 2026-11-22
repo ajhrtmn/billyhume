@@ -38,6 +38,19 @@ The folder and class names (`the-self-hosted-self`, `OUS_*`, `BHI_*`, `BHY_*`) a
 
 Every plugin's `words.php` has the front-end wording at the top and the wp-admin screens' wording under **ADMIN SCREENS** (keys `admin.<file>.<words>`, grouped by the file that uses them). New wording goes there too, never hard-coded: PHP uses `BHC_Words` (courses), `BHCON_Words` (contest), `BHT_Words` (tickets), `BHM_Words` (sales), `BHCRM_Words` (CRM), `OUS_Words` (core), each with `get()` (plain), `e()` (escaped) and `html()` (with HTML placeholders); JavaScript uses `bhcWord('key')` / `bhWord('key')` and only receives the non-admin words (`for_browser()`). The courses and contest test suites fail if code asks for a key `words.php` doesn't have. Developer-only text (Debug Tools sections, demo seeds, log messages) stays in code.
 
+**Properties: change values without editing code (`wp bh`).** Each `words.php` is a provider in the core `BH_Props` registry: the file holds the defaults, and changes are stored as overrides that sit on top. Every change goes through one set of commands, the same for the command line, REST (`bh/v1/props`, for a future admin screen) and PHP. This is the direction for anything that should be adjustable (styles, per-course settings next): define it in a code file, register it as a provider, never add a one-off settings form.
+
+```bash
+wp bh providers                                   # what can be changed
+wp bh list words.courses --search="Next"          # find a property
+wp bh set words.courses:lesson.next_lesson "Keep going →"
+wp bh list --changed                              # everything that differs from the files
+wp bh reset words.courses:lesson.next_lesson      # back to the file's text
+wp bh bake words.courses                          # write changes into words.php to commit (local copy only)
+```
+
+`set` refuses text that drops a `{placeholder}` (use `--force` only if that's intended) and strips anything but simple inline HTML. Changes are audit-logged and shown read-only in Debug Tools → Properties (wording). On the local site, prefer editing `words.php` directly or `bake` before committing, so the code files stay the source of truth.
+
 ## Rules for code changes
 
 1. **Plugins never require each other**, except that everything needs the core. To use another plugin, do it inside a hook and check `class_exists()` first, with something sensible if it's missing.
