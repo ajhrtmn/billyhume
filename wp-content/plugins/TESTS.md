@@ -4,9 +4,9 @@ A real PHP runtime, MySQL and a running WordPress install are available locally 
 
 ## The four gates, in the order to run them
 
-**1. Test Runner (the primary one).** The Self-Hosted Self → Debug Tools → **Run all tests**. Executes every registered suite on the site's own PHP — no CLI, no Composer, no PHPUnit binary — because the live WordPress install already *is* a working PHP environment. Suites register via the `bhcore_test_suites` filter.
+**1. Test Runner (the primary one).** The Site Tools → Debug Tools → **Run all tests**. Executes every registered suite on the site's own PHP — no CLI, no Composer, no PHPUnit binary — because the live WordPress install already *is* a working PHP environment. Suites register via the `bhcore_test_suites` filter.
 
-From the command line (WP-CLI, in the site root): `wp eval 'echo json_encode(OUS_TestRunner::run_all());'`. Last full run (2026-11-07, plugins active on the local site): **479/479 passed**. With bh-registry active, its 10 verification tests fail because of a test bug listed in `OPEN.md`.
+From the command line (WP-CLI, in the site root): `wp eval 'echo json_encode(OUS_TestRunner::run_all());'`. Last full run (2026-11-22, all plugins active on the local site): **482/482 passed**. Each plugin with a `words.php` also checks that every wording key the code uses exists.
 
 **2. Static analysis.** Must stay at zero before any commit:
 
@@ -80,4 +80,4 @@ When you do write tests, **cover many cases — happy, unhappy, and edge — not
 
 ## Verification honesty
 
-If a change was reasoned through but never actually executed against a live install, **say so explicitly** — in the changelog and to whoever is reading the output. Do not imply something is confirmed working when it has only been argued for. Equally: browser-visible changes need measured verification (computed styles, `scrollHeight` vs `clientHeight`), not a screenshot glance. See `DESIGN-CRAFT.md` and the audit-method memory.
+If a change was reasoned through but never actually executed against a live install, **say so explicitly** — in the changelog and to whoever is reading the output. Do not imply something is confirmed working when it has only been argued for. Equally: browser-visible changes need measured verification (computed styles, `scrollHeight` vs `clientHeight`), not a screenshot glance. See `DESIGN-DIRECTION.md` and the audit-method memory.

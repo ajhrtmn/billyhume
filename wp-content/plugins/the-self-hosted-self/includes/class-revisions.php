@@ -155,7 +155,7 @@ class OUS_Revisions {
                 add_query_arg(['action' => $restore_action, 'object_id' => (int) $object_id, 'version' => (int) $r['version']], admin_url('admin-post.php')),
                 $nonce_action, 'ous_revisions_nonce'
             );
-            // WHY: .bhy-card, not inline colors: admin-skin.css themes cards by
+            // WHY: .bhy-card, not inline colors: admin styles theme cards by
             // class name, so inline styles would stay light-mode-only.
             echo '<div class="bhy-card" style="break-inside:avoid;">';
             echo '<div style="font-weight:600;">Version #' . (int) $r['version'] . '</div>';

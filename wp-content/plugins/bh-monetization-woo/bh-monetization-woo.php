@@ -1,27 +1,26 @@
 <?php
 /**
  * Plugin Name: BH Monetization (WooCommerce)
- * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.6.13
+ * Description: Sales for Billy's site through WooCommerce: course products, supporter tiers, gift access, launch coupons, tips, guest checkout and refund/fraud flagging. WooCommerce owns the cart and payments.
+ * Version:     0.7.0
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
- * Ecosystem: The Self-Hosted Self
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHM_VER',  '0.6.13');
+define('BHM_VER',  '0.7.0');
 
 define('BHM_PATH', plugin_dir_path(__FILE__));
 define('BHM_URL',  plugin_dir_url(__FILE__));
 
 /**
- * Zero monetization costs zero complexity: bh-streaming works without this plugin, WooCommerce is
+ * Courses work without this plugin; WooCommerce is
  * needed only once a monetization option is used, and WC Subscriptions is optional (tiers fall back
  * to one-time 30-day access).
  */
-foreach (['tables', 'money', 'activator', 'tiers', 'gate', 'post-gate', 'wallet', 'fraud', 'admin', 'product-sync', 'monetization-ui', 'play-gating', 'entitlements', 'gifts', 'gift-access', 'auto-coupons', 'guest-buyers', 'referrals', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks', 'anchoring', 'purchase-ledger', 'ledger-crm-integration', 'auctions', 'auction-admin', 'auction-frontend'] as $f) {
+foreach (['words', 'tables', 'money', 'activator', 'tiers', 'gate', 'post-gate', 'wallet', 'fraud', 'admin', 'product-sync', 'entitlements', 'gifts', 'gift-access', 'auto-coupons', 'guest-buyers', 'referrals', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks'] as $f) {
     require_once BHM_PATH . "includes/class-$f.php";
 }
 
@@ -50,8 +49,6 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHM_PostGate', 'init']);
     add_action('init',          ['BHM_Wallet', 'init']);
     add_action('init',          ['BHM_Admin', 'init']);
-    add_action('init',          ['BHM_MonetizationUI', 'init']);
-    add_action('init',          ['BHM_PlayGating', 'init']);
     add_action('init',          ['BHM_Entitlements', 'init']);
     add_action('init',          ['BHM_Gifts', 'init']);
     add_action('init',          ['BHM_Referrals', 'init']);
@@ -59,7 +56,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHM_Frontend', 'init']);
     add_action('init',          ['BHM_Blocks', 'init']);
     add_action('init',          ['BHM_StyleSurface', 'init']);
-    // Design tokens for .bhm-tier-card and .bhm-btn (also used by bh-streaming); defaults match the old hardcoded CSS.
+    // Design tokens for .bhm-tier-card and .bhm-btn; defaults match the old hardcoded CSS.
     if (class_exists('BHY_Style')) {
         add_filter('bhy_style_component_tokens', function ($components) {
             $components['tier_card'] = [
@@ -85,13 +82,6 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHM_Debug', 'init']);
     add_action('init',          ['BHM_MockCommerce', 'init']);
     add_action('init',          ['BHM_CRMIntegration', 'init']);
-    // Anchoring before the ledger: the ledger calls anchor_async() as soon as it writes a row.
-    add_action('init',          ['BHM_Anchoring', 'init']);
-    add_action('init',          ['BHM_PurchaseLedger', 'init']);
-    add_action('init',          ['BHM_LedgerCRMIntegration', 'init']);
-    add_action('init',          ['BHM_Auctions', 'init']);
-    add_action('init',          ['BHM_AuctionAdmin', 'init']);
-    add_action('init',          ['BHM_AuctionFrontend', 'init']);
     // Harmless if core's portal is absent.
     add_action('init',          ['BHM_PortalPanel', 'init']);
     add_action('init',          ['BHM_GiftAccess', 'init']);

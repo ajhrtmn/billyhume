@@ -104,9 +104,9 @@ class BHC_Downloads {
         }
         if ($file) {
             $lesson_id = self::course_has_file($course_id, $file);
-            if ($lesson_id === null || ($lesson_id && !BHC_Gate::lesson_is_open($uid, $lesson_id))) wp_die('This file is not available yet.', '', ['response' => 403]);
+            if ($lesson_id === null || ($lesson_id && !BHC_Gate::lesson_is_open($uid, $lesson_id))) wp_die(BHC_Words::e('downloads.not_yet'), '', ['response' => 403]);
             $path = (string) get_attached_file($file);
-            if (!$path || !file_exists($path)) wp_die('This file is missing. Please let us know through Support.', '', ['response' => 404]);
+            if (!$path || !file_exists($path)) wp_die(BHC_Words::e('downloads.file_missing'), '', ['response' => 404]);
             self::stream($path, basename($path), (string) (get_post_mime_type($file) ?: 'application/octet-stream'));
         }
         self::serve_zip($course_id, $uid);
@@ -156,11 +156,11 @@ class BHC_Downloads {
     }
 
     private static function serve_zip(int $course_id, int $uid): void {
-        if (!self::can_zip($course_id, $uid)) wp_die('Please download these files one at a time.', '', ['response' => 400]);
+        if (!self::can_zip($course_id, $uid)) wp_die(BHC_Words::e('downloads.zip_too_big'), '', ['response' => 400]);
         require_once ABSPATH . 'wp-admin/includes/file.php'; // wp_tempnam() on the front end
         $tmp = wp_tempnam('bhc-downloads');
         $zip = new ZipArchive();
-        if ($zip->open($tmp, ZipArchive::OVERWRITE) !== true) wp_die('Could not build the zip. Please download the files one at a time.', '', ['response' => 500]);
+        if ($zip->open($tmp, ZipArchive::OVERWRITE) !== true) wp_die(BHC_Words::e('downloads.zip_failed'), '', ['response' => 500]);
         foreach (self::zip_entries($course_id, $uid) as $e) {
             $zip->addFile($e['path'], $e['name']);
             // Audio and video are already compressed; storing is much faster on small hosts.
@@ -175,7 +175,7 @@ class BHC_Downloads {
 
     public static function render_link(int $course_id, string $class = 'bhc-btn bhc-btn-secondary'): string {
         if (!self::for_course($course_id)) return '';
-        return '<a class="' . esc_attr($class) . ' bhc-downloads-link" href="' . esc_url(self::url($course_id)) . '">&#8681; Downloads</a>';
+        return '<a class="' . esc_attr($class) . ' bhc-downloads-link" href="' . esc_url(self::url($course_id)) . '">&#8681; ' . BHC_Words::e('downloads.link') . '</a>';
     }
 
     /** One download row, also used by lesson Resource steps so both look the same. */
@@ -190,8 +190,8 @@ class BHC_Downloads {
         if (!empty($file['description'])) $out .= '<span class="bhc-file-desc">' . wp_kses_post($file['description']) . '</span>';
         $out .= '</span>';
         $out .= $open
-            ? '<a class="bhc-btn bhc-file-button" href="' . esc_url(self::file_url($course_id, $file['attachment_id'])) . '" aria-label="Download ' . esc_attr($name) . '">Download</a>'
-            : '<span class="bhc-file-button bhc-file-button-locked">&#128274; Locked</span>';
+            ? '<a class="bhc-btn bhc-file-button" href="' . esc_url(self::file_url($course_id, $file['attachment_id'])) . '" aria-label="' . esc_attr(BHC_Words::get('downloads.download_named', ['name' => $name])) . '">' . BHC_Words::e('downloads.download') . '</a>'
+            : '<span class="bhc-file-button bhc-file-button-locked">&#128274; ' . BHC_Words::e('downloads.locked') . '</span>';
         return $out . '</li>';
     }
 
@@ -199,14 +199,14 @@ class BHC_Downloads {
         ob_start();
         echo '<div class="bhc-downloads">';
         echo '<a class="ous-back-link" href="' . esc_url((string) get_permalink($course_id)) . '"><span aria-hidden="true">&larr;</span> ' . esc_html(get_the_title($course_id)) . '</a>';
-        echo '<div class="bhc-downloads-head"><h1>Downloads</h1>';
+        echo '<div class="bhc-downloads-head"><h1>' . BHC_Words::e('downloads.heading') . '</h1>';
         if ($uid && self::can_zip($course_id, $uid)) {
-            echo '<a class="bhc-btn" href="' . esc_url(add_query_arg('bhc_zip', $course_id, home_url('/'))) . '">&#8681; Download all (.zip)</a>';
+            echo '<a class="bhc-btn" href="' . esc_url(add_query_arg('bhc_zip', $course_id, home_url('/'))) . '">&#8681; ' . BHC_Words::e('downloads.zip') . '</a>';
         }
         echo '</div>';
         $groups = self::for_course($course_id);
         if (!$groups) {
-            echo '<p class="bhc-empty">This course has no downloads yet.</p></div>';
+            echo '<p class="bhc-empty">' . BHC_Words::e('downloads.none') . '</p></div>';
             return (string) ob_get_clean();
         }
         foreach ($groups as $lesson_id => $files) {
@@ -216,7 +216,7 @@ class BHC_Downloads {
                 echo '<h2><a href="' . esc_url((string) get_permalink($lesson_id)) . '">' . esc_html(get_the_title($lesson_id)) . '</a></h2>';
                 if (!$open) echo '<p class="bhc-drip-notice">&#128274; ' . BHC_Gate::drip_notice($uid, $lesson_id) . '</p>'; // already escaped
             } else {
-                echo '<h2>Course files</h2>';
+                echo '<h2>' . BHC_Words::e('downloads.course_files') . '</h2>';
             }
             echo '<ul class="bhc-file-list">';
             foreach ($files as $f) echo self::render_file($course_id, $f, $open);

@@ -238,7 +238,7 @@ class BHI_Portal {
     public static function register_overview_panel($panels): array {
         $panels[] = [
             'id' => 'overview',
-            'label' => 'Overview',
+            'label' => OUS_Words::get('portal.overview_tab'),
             'icon' => 'dashicons-dashboard',
             'render' => [self::class, 'render_overview_panel'],
             'priority' => 1,
@@ -254,7 +254,7 @@ class BHI_Portal {
         $user_id = get_current_user_id();
         $user = wp_get_current_user();
 
-        echo '<h1>Welcome back, ' . esc_html($user->display_name ?: $user->user_login) . '</h1>';
+        echo '<h1>' . OUS_Words::e('portal.welcome', ['name' => $user->display_name ?: $user->user_login]) . '</h1>';
 
         $shown_anything = false;
 
@@ -289,13 +289,13 @@ class BHI_Portal {
                 $tier = BHM_Tiers::get($active[0]['object_id']);
                 $label = $tier ? $tier['name'] : ('Tier #' . $active[0]['object_id']);
                 echo '<div class="bhi-portal-section bhi-overview-membership">';
-                echo '<h2>Membership</h2>';
+                echo '<h2>' . OUS_Words::e('portal.membership') . '</h2>';
                 echo '<p><span class="bhi-overview-tier-badge">' . esc_html($label) . '</span>';
                 if ($active[0]['expires_at']) {
                     // Access is a fixed-length grant unless real subscriptions are
                     // active; buying again before this date extends it.
-                    echo ' <span class="bhi-overview-dim">renews ' . esc_html(mysql2date('M j, Y', $active[0]['expires_at'])) . '</span>';
-                    echo '<span class="bhi-tip" tabindex="0" role="button" data-tip="This is when your current access period ends. Whether it re-charges automatically depends on how you paid — check Membership &amp; Wallet for the details." aria-label="This is when your current access period ends. Whether it re-charges automatically depends on how you paid — check Membership and Wallet for the details.">?</span>';
+                    echo ' <span class="bhi-overview-dim">' . OUS_Words::e('portal.renews', ['date' => mysql2date('M j, Y', $active[0]['expires_at'])]) . '</span>';
+                    echo '<span class="bhi-tip" tabindex="0" role="button" data-tip="' . esc_attr(OUS_Words::get('portal.renews_help')) . '" aria-label="' . esc_attr(OUS_Words::get('portal.renews_help')) . '">?</span>';
                 }
                 echo '</p>';
                 echo '</div>';
@@ -312,14 +312,14 @@ class BHI_Portal {
                 $shown_anything = true;
                 $percent = BHC_Progress::course_percent($user_id, $course_id);
                 echo '<div class="bhi-portal-section bhi-overview-course">';
-                echo '<h2>Continue learning</h2>';
+                echo '<h2>' . OUS_Words::e('portal.continue_learning') . '</h2>';
                 echo '<div class="bhi-portal-course-card">';
                 echo '<h3>' . esc_html(get_the_title($course_id)) . '</h3>';
                 echo '<div class="bhi-progress-row">';
                 echo '<div class="bhi-portal-progress-bar"><div class="bhi-portal-progress-fill" style="width:' . (int) $percent . '%;"></div></div>';
-                echo '<span class="bhi-datum bhi-progress-figure"><span class="bhi-datum-value">' . (int) $percent . '%</span><span class="bhi-datum-label">done</span></span>';
+                echo '<span class="bhi-datum bhi-progress-figure"><span class="bhi-datum-value">' . (int) $percent . '%</span><span class="bhi-datum-label">' . OUS_Words::e('portal.done') . '</span></span>';
                 echo '</div>';
-                echo '<p><a class="button" href="' . esc_url(get_permalink($course_id)) . '">Continue &rarr;</a></p>';
+                echo '<p><a class="button" href="' . esc_url(get_permalink($course_id)) . '">' . OUS_Words::e('portal.continue') . '</a></p>';
                 echo '</div></div>';
             }
         }
@@ -340,14 +340,14 @@ class BHI_Portal {
                     $votes = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . BH_Helpers::table() . ' WHERE submission_id = %d', $sub->ID));
                 }
                 echo '<div class="bhi-portal-section bhi-overview-contest">';
-                echo '<h2>Latest contest activity</h2>';
+                echo '<h2>' . OUS_Words::e('portal.contest_activity') . '</h2>';
                 echo '<p class="bhi-overview-contest-line">&ldquo;' . esc_html($sub->post_title) . '&rdquo;';
                 if ($contest_id) echo ' &middot; ' . esc_html(get_the_title($contest_id));
                 echo '</p>';
                 echo '<div class="bhi-datum bhi-contest-figure">'
                     . '<span class="bhi-datum-value">' . (int) $votes . '</span>'
-                    . '<span class="bhi-datum-label">vote' . ($votes === 1 ? '' : 's') . ' &middot; ' . esc_html(ucfirst($sub->post_status)) . '</span></div>';
-                echo '<p><a class="button" href="' . esc_url(home_url('/' . self::REWRITE_SLUG . '/submissions/')) . '">View submissions &rarr;</a></p>';
+                    . '<span class="bhi-datum-label">' . OUS_Words::e($votes === 1 ? 'portal.votes_one' : 'portal.votes') . ' &middot; ' . esc_html(ucfirst($sub->post_status)) . '</span></div>';
+                echo '<p><a class="button" href="' . esc_url(home_url('/' . self::REWRITE_SLUG . '/submissions/')) . '">' . OUS_Words::e('portal.view_submissions') . '</a></p>';
                 echo '</div>';
             }
         }
@@ -358,11 +358,11 @@ class BHI_Portal {
             if ($unread > 0) {
                 $shown_anything = true;
                 echo '<div class="bhi-portal-section bhi-overview-notifications">';
-                echo '<h2>Notifications</h2>';
+                echo '<h2>' . OUS_Words::e('portal.notifications') . '</h2>';
                 echo '<div class="bhi-datum bhi-notif-figure">'
                     . '<span class="bhi-datum-value">' . (int) $unread . '</span>'
-                    . '<span class="bhi-datum-label">unread notification' . ($unread === 1 ? '' : 's') . '</span></div>';
-                echo '<p><a class="button" href="' . esc_url(home_url('/' . self::REWRITE_SLUG . '/notifications/')) . '">View &rarr;</a></p>';
+                    . '<span class="bhi-datum-label">' . OUS_Words::e($unread === 1 ? 'portal.unread_one' : 'portal.unread') . '</span></div>';
+                echo '<p><a class="button" href="' . esc_url(home_url('/' . self::REWRITE_SLUG . '/notifications/')) . '">' . OUS_Words::e('portal.view') . '</a></p>';
                 echo '</div>';
             }
         }
@@ -370,9 +370,9 @@ class BHI_Portal {
         if (!$shown_anything) {
             echo '<div class="bhi-portal-empty bhi-portal-empty-hero">';
             echo '<span class="dashicons dashicons-star-filled"></span>';
-            echo '<p>Nothing to show yet — once you enroll in a course, submit to a contest, or pick up a supporter tier, it\'ll show up here.</p>';
-            if (post_type_exists('bh_course')) echo '<a class="button" href="' . esc_url(home_url('/courses/')) . '">Browse courses</a> ';
-            if (post_type_exists('bh_contest')) echo '<a class="button" href="' . esc_url(home_url('/contests/')) . '">See contests</a>';
+            echo '<p>' . OUS_Words::e('portal.empty') . '</p>';
+            if (post_type_exists('bh_course')) echo '<a class="button" href="' . esc_url(home_url('/courses/')) . '">' . OUS_Words::e('portal.browse_courses') . '</a> ';
+            if (post_type_exists('bh_contest')) echo '<a class="button" href="' . esc_url(home_url('/contests/')) . '">' . OUS_Words::e('portal.see_contests') . '</a>';
             echo '</div>';
         }
     }
@@ -430,6 +430,7 @@ class BHI_Portal {
             'redirectTo' => self::post_login_redirect(),
             // Only logged-in visitors get a REST nonce; a logged-out nonce is the same for everyone and protects nothing.
             'nonce' => is_user_logged_in() ? wp_create_nonce('wp_rest') : '',
+            'words' => OUS_Words::all(),
         ];
         wp_add_inline_script('ous-portal-auth', 'window.BHIPortalAuth = ' . wp_json_encode($config, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ';', 'before');
     }
@@ -472,35 +473,35 @@ class BHI_Portal {
 <div class="bhi-portal-login">
 <div class="bhi-login-card">
   <div class="bhi-login-brand"><?php echo esc_html(get_bloginfo('name')); ?></div>
-  <div class="bhi-login-sub"><?php echo $registration_open ? 'Log in or create your account' : 'Log in to your account'; ?></div>
+  <div class="bhi-login-sub"><?php echo OUS_Words::e($registration_open ? 'login.sub_with_signup' : 'login.sub'); ?></div>
 
   <?php if ($registration_open): ?>
   <div class="bhi-login-tabs" role="tablist">
-    <button type="button" class="bhi-login-tab is-active" data-panel="login" role="tab" aria-selected="true">Log in</button>
-    <button type="button" class="bhi-login-tab" data-panel="register" role="tab" aria-selected="false">Create account</button>
+    <button type="button" class="bhi-login-tab is-active" data-panel="login" role="tab" aria-selected="true"><?php echo OUS_Words::e('login.tab_login'); ?></button>
+    <button type="button" class="bhi-login-tab" data-panel="register" role="tab" aria-selected="false"><?php echo OUS_Words::e('login.tab_signup'); ?></button>
   </div>
   <?php endif; ?>
 
   <div class="bhi-login-error" id="bhi-login-error" role="alert" aria-live="assertive"></div>
 
   <form class="bhi-login-panel" id="bhi-login-panel-login" novalidate>
-    <div class="bhi-login-field"><label for="bhi-login-username">Username or email</label><input type="text" id="bhi-login-username" name="username" autocomplete="username" maxlength="100" required></div>
-    <div class="bhi-login-field"><label for="bhi-login-password">Password</label><input type="password" id="bhi-login-password" name="password" autocomplete="current-password" maxlength="200" required></div>
-    <div class="bhi-login-field" id="bhi-login-2fa-field" hidden><label for="bhi-login-2fa">6-digit code</label><input type="text" id="bhi-login-2fa" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
-    <label class="bhi-login-check"><input type="checkbox" id="bhi-login-remember" name="remember" checked> Keep me signed in</label>
-    <button type="submit" class="bhi-login-submit">Log in</button>
-    <div class="bhi-login-foot"><a href="<?php echo esc_url(wp_lostpassword_url(home_url('/' . self::REWRITE_SLUG . '/'))); ?>">Forgot your password?</a></div>
+    <div class="bhi-login-field"><label for="bhi-login-username"><?php echo OUS_Words::e('login.username_or_email'); ?></label><input type="text" id="bhi-login-username" name="username" autocomplete="username" maxlength="100" required></div>
+    <div class="bhi-login-field"><label for="bhi-login-password"><?php echo OUS_Words::e('login.password'); ?></label><input type="password" id="bhi-login-password" name="password" autocomplete="current-password" maxlength="200" required></div>
+    <div class="bhi-login-field" id="bhi-login-2fa-field" hidden><label for="bhi-login-2fa"><?php echo OUS_Words::e('login.code'); ?></label><input type="text" id="bhi-login-2fa" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
+    <label class="bhi-login-check"><input type="checkbox" id="bhi-login-remember" name="remember" checked> <?php echo OUS_Words::e('login.remember'); ?></label>
+    <button type="submit" class="bhi-login-submit"><?php echo OUS_Words::e('login.submit'); ?></button>
+    <div class="bhi-login-foot"><a href="<?php echo esc_url(wp_lostpassword_url(home_url('/' . self::REWRITE_SLUG . '/'))); ?>"><?php echo OUS_Words::e('login.forgot'); ?></a></div>
   </form>
 
   <?php if ($registration_open): ?>
   <form class="bhi-login-panel" id="bhi-login-panel-register" hidden novalidate>
-    <div class="bhi-login-field"><label for="bhi-reg-username">Username</label><input type="text" id="bhi-reg-username" name="username" autocomplete="username" maxlength="60" required>
-      <p class="bhi-login-hint">Letters, numbers, spaces, and . - _ @</p></div>
-    <div class="bhi-login-field"><label for="bhi-reg-email">Email</label><input type="email" id="bhi-reg-email" name="email" autocomplete="email" maxlength="100" required></div>
-    <div class="bhi-login-field"><label for="bhi-reg-password">Password</label><input type="password" id="bhi-reg-password" name="password" autocomplete="new-password" minlength="8" maxlength="200" required>
-      <p class="bhi-login-hint">At least 8 characters. A short phrase of a few words works well.</p></div>
+    <div class="bhi-login-field"><label for="bhi-reg-username"><?php echo OUS_Words::e('signup.username'); ?></label><input type="text" id="bhi-reg-username" name="username" autocomplete="username" maxlength="60" required>
+      <p class="bhi-login-hint"><?php echo OUS_Words::e('signup.username_hint'); ?></p></div>
+    <div class="bhi-login-field"><label for="bhi-reg-email"><?php echo OUS_Words::e('signup.email'); ?></label><input type="email" id="bhi-reg-email" name="email" autocomplete="email" maxlength="100" required></div>
+    <div class="bhi-login-field"><label for="bhi-reg-password"><?php echo OUS_Words::e('signup.password'); ?></label><input type="password" id="bhi-reg-password" name="password" autocomplete="new-password" minlength="8" maxlength="200" required>
+      <p class="bhi-login-hint"><?php echo OUS_Words::e('signup.password_hint'); ?></p></div>
     <div class="bhi-login-trap" aria-hidden="true"><label for="bhi-reg-<?php echo esc_attr($honeypot); ?>">Leave this empty</label><input type="text" id="bhi-reg-<?php echo esc_attr($honeypot); ?>" name="<?php echo esc_attr($honeypot); ?>" tabindex="-1" autocomplete="off"></div>
-    <button type="submit" class="bhi-login-submit">Create account</button>
+    <button type="submit" class="bhi-login-submit"><?php echo OUS_Words::e('signup.submit'); ?></button>
   </form>
   <?php endif; ?>
 </div>
@@ -543,8 +544,8 @@ class BHI_Portal {
         $user = wp_get_current_user();
         if (!$user->exists() || BHI_Auth::is_email_verified($user->ID)) return '';
         return '<div class="bhi-portal-verify" role="status">'
-            . '<p><strong>Confirm your email.</strong> We sent a link to ' . esc_html($user->user_email) . '. Some features, like voting, need a confirmed email.</p>'
-            . '<p><button type="button" class="bhi-portal-verify-resend">Send the link again</button> <span class="bhi-portal-verify-status" aria-live="polite"></span></p>'
+            . '<p><strong>' . OUS_Words::e('verify.title') . '</strong> ' . OUS_Words::e('verify.text', ['email' => $user->user_email]) . '</p>'
+            . '<p><button type="button" class="bhi-portal-verify-resend">' . OUS_Words::e('verify.resend') . '</button> <span class="bhi-portal-verify-status" aria-live="polite"></span></p>'
             . '</div>';
     }
 
@@ -641,7 +642,7 @@ class BHI_Portal {
             echo $panel_html;
         }
     } else {
-        echo '<p>Nothing to show here yet.</p>';
+        echo '<p>' . OUS_Words::e('portal.panel_empty') . '</p>';
     }
     ?>
   </main>

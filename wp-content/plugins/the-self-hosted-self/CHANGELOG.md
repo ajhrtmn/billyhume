@@ -1,11 +1,12 @@
 # Changelog — The Self-Hosted Self (the-self-hosted-self)
 
 Moved out of `the-self-hosted-self.php` on 2026-08-23. That file was 2,555 lines
-of which only 115 were code; the rest was this. See `CONVENTIONS.md` for
-why version history lives here and in git rather than in source.
+of which only 115 were code; the rest was this.
 
 Entries are newest-first, exactly as they were written in-file. Nothing
 has been reworded or dropped.
+
+3.22.0 - Rescoped to Billy's site. The admin menu is now **Site Tools**, showing the site's own plugins (courses, contests, sales, support, people, mailing list) with status, version and update state. Removed the multi-plugin installer, "Install & Activate Everything", the Guided Setup wizard, the cross-plugin banner, the bundled plugin zips (3.4 MB) and their Debug Tools freshness panel, DMCA notices, the Storybook panel, the reviewer role for the removed feedback plugin, and the live-streaming steps of Media & CDN Setup. GitHub Updates now registers plugins marked `github` in the registry (older peers that still say `bundled_zip` keep updating until they're upgraded). New `words.php` holds every word on the account page (log in, sign up, email confirmation, Overview), read through `OUS_Words`. Checked locally: Site Tools, Debug Tools, Media & CDN Setup and `/account/` load with no errors and 482/482 tests pass; not yet installed on the live site.
 
 3.21.55 - User bar: labels sit in their own span and the last link ("Continue: <course>") shrinks with an ellipsis, with the full title as a tooltip, instead of pushing the bar into a sideways scroll on phones. Portal course cards are flex columns with an actions row pinned to the bottom, so buttons line up across cards whatever the title length (styles for bh-courses' new Downloads link). 3.21.54 was a cache-busting step. Runtime-verified at phone width.
 

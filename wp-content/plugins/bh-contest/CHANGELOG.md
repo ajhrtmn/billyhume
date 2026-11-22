@@ -1,10 +1,12 @@
 # Changelog — BH Contest
 
-Moved out of `bh-contest.php` on 2026-08-23. See `CONVENTIONS.md` for why version history lives here and in git rather than in source.
+Moved out of `bh-contest.php` on 2026-08-23.
 
 Entries are newest-first, exactly as written in-file. Nothing reworded or dropped.
 
 ---
+
+3.16.0 - Every word voters and entrants see (the player, log-in/sign-up box, submit and share boxes, results, Reveal Party, contest cards, archive, Contest Submissions tab) now lives in `words.php`, read through `BHCON_Words` in PHP and `bhWord()` in the browser; the wording itself is unchanged. `bh-common.js` is now registered once and carries the words for every contest script. A new test fails if a key is missing. Checked locally on a player page, the archive, the reveal page and the contests page; no contest with real entries was available to click through.
 
 3.15.17 - The account portal's Contest Submissions tab only appears for users who have submitted to a contest; wp-admin still sees it so Portal Layout can order or hide it. Runtime-verified with a temporary submission: tab shown for an entrant, hidden otherwise.
 

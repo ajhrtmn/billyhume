@@ -1,65 +1,17 @@
-# The Self-Hosted Self
+# Site Core (the-self-hosted-self)
 
-The ecosystem core, plus its hub: shared accounts/profiles/email
-verification, shared design tokens with a Storybook-patterned live
-preview gallery, and one dashboard for installing and activating every
-peer plugin (BH Contest, BH Streaming, BH CRM, BH Registry, BH
-Monetization, BH Courses, BH Feedback, BH Video, BH Live) on top of it.
+The one plugin every other plugin on billyhume.net needs. Its wp-admin menu is **Site Tools**. The folder and class names are historical; don't rename them (the live site's updates and saved settings depend on them).
 
-## What it does
+## What it provides
 
-- **Shared identity**: registration, login, session, and email
-  verification that every peer plugin builds on instead of each
-  maintaining their own.
-- **Shared design tokens + Style gallery**: one place to set colors,
-  typography, and spacing; any plugin registers its own live-previewed
-  "story" into the same gallery via a filter (`bhy_style_surfaces`).
-- **A status dashboard**: shows every known plugin's state (not
-  installed / installed but inactive / active), with a version number
-  once active and a quick link into its own admin screens.
-- **Guided activation**: click "Activate" on anything, and its
-  dependencies get installed and activated first, automatically, in the
-  correct order. There's also an "Install & Activate Everything" button
-  for getting from zero to fully running in one click.
-- **Two install sources, handled transparently**: this plugin's own
-  siblings (bundled as inert zips inside its own folder — see below) get
-  extracted locally; a third-party dependency (WooCommerce, say) gets
-  installed live from WordPress.org using the same core APIs the
-  "Install Now" button in wp-admin itself uses.
-- **Extensible by design, in two ways**: a future plugin can register a
-  rich dashboard card via a filter (`ous_registered_plugins`) with zero
-  changes to this plugin's code, or opt into a minimal auto-discovered
-  card with zero code at all — just a `Ecosystem: The Self-Hosted Self` line in
-  its own plugin header.
+- **Accounts and the `/account/` page**: log in, sign up, email confirmation, optional two-factor codes, and the tabs other plugins add (My Courses, Contest Submissions, Support, Membership).
+- **Design Suite**: colors, fonts and spacing as design tokens, edited live in **Appearance → Customize → Design Suite**. See `../STYLE-SYSTEM.md`.
+- **Debug Tools** (Site Tools → Debug Tools): error log, Test Runner, job queue, API docs, GitHub Updates, and each plugin's own debug section.
+- **Shared services** other plugins call instead of building their own: notifications (`OUS_Notifications`), background jobs (`OUS_Jobs`), email (`BH_Mail`), event tracking (`BH_Event`), the WooCommerce bridge (`BH_Commerce`), block content (`BH_Content`/`BH_Studio`), table names (`OUS_Tables`).
+- **Site Tools overview**: each plugin's status, version and update state.
+- **GitHub Updates**: installs plugin updates from the `dev` branch on GitHub (see `../RUNBOOK-live-updates.md`).
+- **Wording** for the account page lives in `words.php` in this folder.
 
-## Important: this one is required
+## Dependencies
 
-**This is the one plugin everything else depends on.** BH Contest, BH
-Streaming, and BH CRM each check for it on `plugins_loaded` and show an
-admin notice (rather than fatal-erroring) if it's missing or inactive.
-The relationship is one-directional the other way, though: this plugin
-has no dependency on any of them, and works fine — just with an empty
-dashboard — with zero feature plugins installed.
-
-## Installation
-
-Two ways to get all ten plugins, depending on how you're deploying:
-
-1. **Standard "Upload Plugin" button** (wp-admin → Plugins → Add New →
-   Upload Plugin): upload this plugin's own zip. It's structurally a
-   single valid plugin — the other nine ship as inert zip files inside
-   its own folder — so the normal upload flow accepts it without
-   complaint. Once active, use the dashboard to install and activate the
-   rest.
-2. **FTP / server file manager**: extract the flat multi-folder bundle
-   directly into `wp-content/plugins/` — every plugin lands exactly
-   where WordPress expects, no dashboard step needed before they're all
-   visible in the Plugins list.
-
-Either way, activate this plugin **first** — every peer plugin
-requires it active before its own features light up.
-
-## License
-
-Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See
-[LICENSE](./LICENSE) for the full text.
+Every other plugin checks for this one on `plugins_loaded` and shows an admin notice instead of crashing if it's missing. This plugin never depends on any of them.

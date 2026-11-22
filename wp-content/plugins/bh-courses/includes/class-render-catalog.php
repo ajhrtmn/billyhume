@@ -81,8 +81,8 @@ class BHC_Render_Catalog {
         $catalog_page_id = (int) get_option('bhc_catalog_page_id', 0);
         if ($catalog_page_id && get_queried_object_id() === $catalog_page_id && is_main_query()) {
             echo '<header class="bhc-archive-header">'
-                . '<span class="bhc-archive-kicker">' . esc_html__('Course Catalog', 'bh-courses') . '</span>'
-                . '<h1 class="bhc-archive-title">' . esc_html__('Courses', 'bh-courses') . '</h1>'
+                . '<span class="bhc-archive-kicker">' . BHC_Words::e('catalog.kicker') . '</span>'
+                . '<h1 class="bhc-archive-title">' . BHC_Words::e('catalog.title') . '</h1>'
                 . '<div class="bhc-archive-rule" aria-hidden="true"></div>'
                 . '</header>';
         }
@@ -96,18 +96,18 @@ class BHC_Render_Catalog {
             // "Create your first course" CTA only for users who can.
             $zero_args = [
                 'reason' => 'zero',
-                'title' => 'No courses published yet',
-                'description' => 'Check back soon — new courses will show up here as they\'re published.',
+                'title' => BHC_Words::get('catalog.empty_title'),
+                'description' => BHC_Words::get('catalog.empty_text'),
             ];
             if (current_user_can('edit_posts')) {
-                $zero_args['cta_label'] = 'Create your first course';
+                $zero_args['cta_label'] = BHC_Words::get('catalog.empty_admin_cta');
                 $zero_args['cta_url'] = admin_url('post-new.php?post_type=bh_course');
             }
             echo class_exists('BHY_Style') ? BHY_Style::empty_state_html($is_filtered ? [
                 'reason' => 'filtered',
-                'title' => 'No courses match your filters',
+                'title' => BHC_Words::get('catalog.no_matches'),
                 'clear_url' => remove_query_arg(['bhc_s', 'bhc_category', 'bhc_topic', 'bhc_paged']),
-            ] : $zero_args) : '<p class="bhc-empty">No courses found' . ($is_filtered ? ' matching your filters.' : ' yet.') . '</p>';
+            ] : $zero_args) : '<p class="bhc-empty">' . BHC_Words::e($is_filtered ? 'catalog.no_matches' : 'catalog.empty_title') . '</p>';
         } else {
             echo '<div class="bhc-catalog ous-catalog-grid">';
             foreach ($query->posts as $course) {
@@ -148,7 +148,7 @@ class BHC_Render_Catalog {
         if ($locked && class_exists('BHC_Gate') && BHC_Gate::has_purchase_option($course->ID)) {
             // wc_price(), not BHM_Money::price(), which has no currency symbol. Safe to echo.
             $price_display = function_exists('wc_price') ? wc_price(BHC_Gate::purchase_price_cents($course->ID) / 100) : '$' . number_format(BHC_Gate::purchase_price_cents($course->ID) / 100, 2);
-            $buy_once_badge = '<span class="bhc-buy-once-badge">Buy once — ' . $price_display . '</span>';
+            $buy_once_badge = '<span class="bhc-buy-once-badge">' . BHC_Words::html('paywall.buy_button', ['price' => $price_display]) . '</span>';
         }
 
         // Title overlays the thumbnail; the scrim is a gradient for legibility.
@@ -249,17 +249,17 @@ class BHC_Render_Catalog {
             if (strpos($key, 'bhc_') === 0 || !is_scalar($value)) continue;
             echo '<input type="hidden" name="' . esc_attr($key) . '" value="' . esc_attr($value) . '">';
         }
-        echo '<input type="search" name="bhc_s" value="' . esc_attr($search) . '" placeholder="Search courses…" class="bhc-filter-search">';
+        echo '<input type="search" name="bhc_s" value="' . esc_attr($search) . '" placeholder="' . esc_attr(BHC_Words::get('catalog.search')) . '" class="bhc-filter-search">';
 
         if (!is_wp_error($categories) && $categories) {
-            echo '<select name="bhc_category" class="bhc-filter-select"><option value="">All categories</option>';
+            echo '<select name="bhc_category" class="bhc-filter-select"><option value="">' . BHC_Words::e('catalog.all_categories') . '</option>';
             foreach ($categories as $t) {
                 echo '<option value="' . esc_attr($t->slug) . '"' . selected($category, $t->slug, false) . '>' . esc_html($t->name) . '</option>';
             }
             echo '</select>';
         }
         if (!is_wp_error($topics) && $topics) {
-            echo '<select name="bhc_topic" class="bhc-filter-select"><option value="">All topics</option>';
+            echo '<select name="bhc_topic" class="bhc-filter-select"><option value="">' . BHC_Words::e('catalog.all_topics') . '</option>';
             foreach ($topics as $t) {
                 echo '<option value="' . esc_attr($t->slug) . '"' . selected($topic, $t->slug, false) . '>' . esc_html($t->name) . '</option>';
             }
@@ -267,12 +267,12 @@ class BHC_Render_Catalog {
         }
 
         echo '<select name="bhc_sort" class="bhc-filter-select">';
-        foreach (['newest' => 'Newest', 'alpha' => 'A–Z', 'popular' => 'Most popular', 'top_rated' => 'Highest rated'] as $key => $label) {
+        foreach (['newest' => BHC_Words::get('catalog.sort_newest'), 'alpha' => BHC_Words::get('catalog.sort_alpha'), 'popular' => BHC_Words::get('catalog.sort_popular'), 'top_rated' => BHC_Words::get('catalog.sort_rated')] as $key => $label) {
             echo '<option value="' . esc_attr($key) . '"' . selected($sort, $key, false) . '>' . esc_html($label) . '</option>';
         }
         echo '</select>';
 
-        echo '<button type="submit" class="bhc-btn bhc-btn-secondary">Filter</button>';
+        echo '<button type="submit" class="bhc-btn bhc-btn-secondary">' . BHC_Words::e('catalog.filter') . '</button>';
         echo '</form>';
         return ob_get_clean();
     }
@@ -283,7 +283,7 @@ class BHC_Render_Catalog {
         ob_start();
         echo '<nav class="bhc-pagination">';
         if ($page > 1) {
-            echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(add_query_arg('bhc_paged', $page - 1, $base)) . '">&larr; Previous</a>';
+            echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(add_query_arg('bhc_paged', $page - 1, $base)) . '">' . BHC_Words::e('catalog.previous') . '</a>';
         }
         // Windowed page links (current ±2, first/last) once there are more than 5 pages.
         if ($max_pages > 5) {
@@ -311,10 +311,10 @@ class BHC_Render_Catalog {
             }
             echo '</span>';
         } else {
-            echo '<span class="bhc-pagination-status">Page ' . (int) $page . ' of ' . (int) $max_pages . '</span>';
+            echo '<span class="bhc-pagination-status">' . BHC_Words::e('catalog.page_of', ['n' => (int) $page, 'total' => (int) $max_pages]) . '</span>';
         }
         if ($page < $max_pages) {
-            echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(add_query_arg('bhc_paged', $page + 1, $base)) . '">Next &rarr;</a>';
+            echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(add_query_arg('bhc_paged', $page + 1, $base)) . '">' . BHC_Words::e('catalog.next') . '</a>';
         }
         echo '</nav>';
         return ob_get_clean();

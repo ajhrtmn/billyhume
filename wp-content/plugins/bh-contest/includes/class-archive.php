@@ -80,14 +80,14 @@ class BH_Archive {
         <style><?php echo BHY_Style::inline_css(); ?></style>
         <div class="bh-container bh-archive" id="bh-archive-root">
             <div class="bh-header">
-                <div class="bh-brand">Archive</div>
+                <div class="bh-brand"><?php echo BHCON_Words::e('archive.title'); ?></div>
             </div>
             <div class="bh-archive-controls ous-catalog-controls">
-                <input type="text" id="bh-archive-search" placeholder="Search title or artist…">
-                <select id="bh-archive-filter"><option value="">All contests</option></select>
+                <input type="text" id="bh-archive-search" placeholder="<?php echo esc_attr(BHCON_Words::get('archive.search')); ?>">
+                <select id="bh-archive-filter"><option value=""><?php echo BHCON_Words::e('archive.all_contests'); ?></option></select>
             </div>
             <div id="bh-archive-grid" class="bh-archive-grid ous-catalog-grid">
-                <p class="bh-empty">Loading…</p>
+                <p class="bh-empty"><?php echo BHCON_Words::e('archive.loading'); ?></p>
             </div>
         </div>
         <?php

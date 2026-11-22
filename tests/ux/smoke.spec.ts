@@ -13,8 +13,8 @@ import { test, expect } from '@playwright/test';
  * dev install. This one only asks the crudest possible question against
  * the REAL LIVE SITE: did WordPress render a page at all, or did it
  * die? Read-only by construction — page.goto + text assertions, never
- * a form submit, never a login. Same posture as the ux-audit job
- * (storybook-audit.yml): the instance already exists in production.
+ * a form submit, never a login:
+ * the instance already exists in production.
  *
  * It is a CANARY, not a pre-deploy gate — by the time this runs on a
  * `master` push the FTP sync has usually already happened. A true gate

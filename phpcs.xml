@@ -25,16 +25,9 @@
     <file>wp-content/plugins/bh-contest</file>
     <file>wp-content/plugins/bh-courses</file>
     <file>wp-content/plugins/bh-crm</file>
-    <file>wp-content/plugins/bh-feedback</file>
-    <file>wp-content/plugins/bh-live</file>
     <file>wp-content/plugins/bh-mailpoet</file>
     <file>wp-content/plugins/bh-monetization-woo</file>
-    <file>wp-content/plugins/bh-registry</file>
-    <file>wp-content/plugins/bh-social</file>
-    <file>wp-content/plugins/bh-streaming</file>
     <file>wp-content/plugins/bh-tickets</file>
-    <file>wp-content/plugins/bh-video</file>
-    <file>wp-content/plugins/self-hosted-self-admin-skin</file>
 
     <exclude-pattern>*/vendor/*</exclude-pattern>
     <exclude-pattern>*/node_modules/*</exclude-pattern>

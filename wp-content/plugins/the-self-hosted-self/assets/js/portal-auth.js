@@ -12,7 +12,14 @@
     if (!config)
         return;
     var cfg = config;
-    var NETWORK_ERROR = 'Couldn\'t reach the site. Check your connection and try again.';
+    // Wording from the-self-hosted-self/words.php, with {placeholders} filled in.
+    function word(key, vars) {
+        var text = (cfg.words && cfg.words[key]) || key;
+        if (vars)
+            Object.keys(vars).forEach(function (name) { text = text.split('{' + name + '}').join(String(vars[name])); });
+        return text;
+    }
+    var NETWORK_ERROR = word('error.offline');
     function post(path, body) {
         var headers = { 'Content-Type': 'application/json' };
         if (cfg.nonce)
@@ -26,7 +33,7 @@
         }).then(function (res) {
             return res.json().then(function (data) { return { ok: res.ok, status: res.status, data: data || {} }; }, 
             // A non-JSON reply (a proxy error page, a PHP fatal) still needs a readable message.
-            function () { return { ok: false, status: res.status, data: { message: 'Something went wrong on our end (error ' + res.status + '). Please try again.' } }; });
+            function () { return { ok: false, status: res.status, data: { message: word('error.server', { code: res.status }) } }; });
         });
     }
     // Cache-buster: a full-page cache holding the logged-out HTML for this URL can't serve it back after login.
@@ -91,7 +98,7 @@
             var code = field('bhi-login-2fa');
             var remember = field('bhi-login-remember');
             if (!username || !password || !username.value.trim() || !password.value) {
-                showError('Enter your username or email and your password.');
+                showError(word('login.need_both'));
                 return;
             }
             var body = {
@@ -113,7 +120,7 @@
                     code.value = '';
                     code.focus();
                 }
-                showError(result.data.message || 'Login failed. Please try again.');
+                showError(result.data.message || word('login.failed_generic'));
             }, function () {
                 setBusy(form, false);
                 showError(NETWORK_ERROR);
@@ -131,7 +138,7 @@
             if (!username || !email || !password)
                 return;
             if (!username.value.trim() || !email.value.trim() || !password.value) {
-                showError('Fill in a username, email, and password.');
+                showError(word('signup.need_all'));
                 return;
             }
             var body = {
@@ -149,7 +156,7 @@
                     return;
                 }
                 setBusy(regForm, false);
-                showError(result.data.message || 'Could not create your account. Please try again.');
+                showError(result.data.message || word('signup.failed'));
             }, function () {
                 setBusy(regForm, false);
                 showError(NETWORK_ERROR);
@@ -164,11 +171,11 @@
         resendBtn.addEventListener('click', function () {
             resendBtn.disabled = true;
             if (resendStatus)
-                resendStatus.textContent = 'Sending…';
+                resendStatus.textContent = word('verify.sending');
             post('/resend-verification', {}).then(function (result) {
                 var message = result.ok
-                    ? 'Sent. Check your inbox (and spam folder).'
-                    : (result.data.message || 'Couldn\'t send the email. Please try again.');
+                    ? word('verify.sent')
+                    : (result.data.message || word('verify.send_failed'));
                 if (resendStatus)
                     resendStatus.textContent = message;
                 // Re-enable after the server-side 2-minute throttle would allow another send.

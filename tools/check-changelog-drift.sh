@@ -59,7 +59,7 @@ while IFS= read -r plugin; do
     | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
   # Newest entry is the first line matching the semver pattern anywhere
   # in the file, since entries are plain "X.Y.Z — description" paragraphs
-  # (see CONVENTIONS.md), not markdown headings.
+  # (see CLAUDE.md), not markdown headings.
   changelog_version=$(grep -m1 -oE "$SEMVER_RE" "$changelog" || true)
 
   if [ -z "$header_version" ]; then

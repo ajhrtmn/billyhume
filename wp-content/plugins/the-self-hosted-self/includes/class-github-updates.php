@@ -104,8 +104,8 @@ class OUS_GithubUpdates {
     }
 
     /**
-     * Auto-registers the ecosystem plugins this project authors (OUS_Registry entries with a
-     * 'bundled_zip'; never wporg plugins), then fires 'ous_github_updates_register' for the rest.
+     * Auto-registers this site's own plugins (OUS_Registry entries marked 'github'), then fires
+     * 'ous_github_updates_register' for the rest.
      */
     public static function load_sources(): void {
         $default_repo = apply_filters('ous_github_updates_default_repo', 'ajhrtmn/billyhume');
@@ -113,7 +113,8 @@ class OUS_GithubUpdates {
 
         if (class_exists('OUS_Registry')) {
             foreach (OUS_Registry::all() as $key => $info) {
-                if (empty($info['bundled_zip']) || empty($info['file'])) continue;
+                // WHY: 'bundled_zip' is how older peer versions still mark themselves until updated.
+                if ((empty($info['github']) && empty($info['bundled_zip'])) || empty($info['file'])) continue;
                 self::register($key, [
                     'type' => 'plugin',
                     'label' => $info['label'],
@@ -125,7 +126,7 @@ class OUS_GithubUpdates {
             }
         }
 
-        // Core has no OUS_Registry entry or bundled_zip, so register it explicitly.
+        // Core has no OUS_Registry entry, so register it explicitly.
         self::register('the-self-hosted-self', [
             'type' => 'plugin',
             'label' => 'The Self-Hosted Self (core)',
@@ -272,7 +273,7 @@ class OUS_GithubUpdates {
     }
 
     /**
-     * Shared with the Bundled Zip Freshness panel: when off (default), hide rows for ecosystem
+     * Shown on the GitHub Updates panel: when off (default), hide rows for ecosystem
      * plugins/themes not installed on this site.
      */
     public static function show_absent_rows(): bool {
@@ -476,7 +477,7 @@ class OUS_GithubUpdates {
 
         $status = get_option('ous_github_update_status', []);
 
-        // Hide rows for plugins not installed here by default; shared toggle with Bundled Zip Freshness.
+        // Hide rows for plugins not installed here by default.
         $show_absent = self::show_absent_rows();
         $absent = static function ($row): bool {
             return !$row || (empty($row['local_version']) && empty($row['update_available']));

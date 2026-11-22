@@ -28,9 +28,9 @@ class BHC_Notes {
      */
     public static function add(int $user_id, int $lesson_id, int $step, int $t, string $body) {
         $body = trim(mb_substr(sanitize_textarea_field($body), 0, self::MAX_LENGTH));
-        if ($body === '') return new WP_Error('empty', 'Write something first.');
+        if ($body === '') return new WP_Error('empty', BHC_Words::get('notes.empty'));
         $notes = self::get($user_id, $lesson_id);
-        if (count($notes) >= self::MAX_PER_LESSON) return new WP_Error('full', 'This lesson has the maximum number of notes. Delete some first.');
+        if (count($notes) >= self::MAX_PER_LESSON) return new WP_Error('full', BHC_Words::get('notes.full'));
         $note = ['id' => wp_generate_password(12, false, false), 'step' => $step, 't' => $step >= 0 ? max(0, $t) : -1, 'body' => $body, 'at' => time()];
         $notes[] = $note;
         update_user_meta($user_id, self::META_PREFIX . $lesson_id, $notes);
@@ -59,10 +59,10 @@ class BHC_Notes {
     private static function guard(): array {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();
-        if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
+        if (!$user_id) wp_send_json_error(['message' => BHC_Words::get('notes.login_required')], 401);
         $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
         if (get_post_type($lesson_id) !== 'bh_lesson' || !BHC_Gate::user_can_access_lesson($user_id, $lesson_id)) {
-            wp_send_json_error(['message' => 'Access required.'], 403);
+            wp_send_json_error(['message' => BHC_Words::get('notes.access_required')], 403);
         }
         return [$user_id, $lesson_id];
     }
@@ -83,7 +83,7 @@ class BHC_Notes {
     public static function ajax_delete(): void {
         [$user_id, $lesson_id] = self::guard();
         $deleted = self::delete($user_id, $lesson_id, preg_replace('/[^A-Za-z0-9]/', '', (string) ($_POST['note_id'] ?? '')));
-        $deleted ? wp_send_json_success() : wp_send_json_error(['message' => 'Note not found.'], 404);
+        $deleted ? wp_send_json_success() : wp_send_json_error(['message' => BHC_Words::get('notes.not_found')], 404);
     }
 
     public static function format_time(int $t): string {
@@ -100,7 +100,7 @@ class BHC_Notes {
             : '';
         return '<li data-bhc-note="' . esc_attr($note['id']) . '">' . $moment
             . '<p>' . nl2br(esc_html($note['body'])) . '</p>'
-            . '<button type="button" data-bhc-note-delete aria-label="Delete note">&times;</button></li>';
+            . '<button type="button" data-bhc-note-delete aria-label="' . esc_attr(BHC_Words::get('notes.delete')) . '">&times;</button></li>';
     }
 
     public static function render(int $user_id, int $lesson_id, bool $has_video): string {
@@ -108,14 +108,14 @@ class BHC_Notes {
         $notes = self::get($user_id, $lesson_id);
         ob_start();
         echo '<div data-bhc-notes data-lesson-id="' . (int) $lesson_id . '">';
-        echo '<h2>My notes</h2>';
-        echo '<p data-bhc-notes-hint>Only you can see these.' . ($has_video ? ' Bookmarked notes jump back to that moment in the video.' : '') . '</p>';
+        echo '<h2>' . BHC_Words::e('notes.heading') . '</h2>';
+        echo '<p data-bhc-notes-hint>' . BHC_Words::e('notes.private') . ($has_video ? ' ' . BHC_Words::e('notes.bookmark_hint') : '') . '</p>';
         echo '<form data-bhc-note-form>';
-        echo '<label for="bhc-note-body-' . (int) $lesson_id . '" class="screen-reader-text">New note</label>';
-        echo '<textarea id="bhc-note-body-' . (int) $lesson_id . '" name="body" rows="3" maxlength="' . self::MAX_LENGTH . '" placeholder="Write a note…" required></textarea>';
+        echo '<label for="bhc-note-body-' . (int) $lesson_id . '" class="screen-reader-text">' . BHC_Words::e('notes.new') . '</label>';
+        echo '<textarea id="bhc-note-body-' . (int) $lesson_id . '" name="body" rows="3" maxlength="' . self::MAX_LENGTH . '" placeholder="' . esc_attr(BHC_Words::get('notes.placeholder')) . '" required></textarea>';
         echo '<div data-bhc-note-actions>';
-        if ($has_video) echo '<label><input type="checkbox" name="stamp" checked> Bookmark the current video time</label>';
-        echo '<button type="submit" class="bhc-btn bhc-btn-secondary">Save note</button>';
+        if ($has_video) echo '<label><input type="checkbox" name="stamp" checked> ' . BHC_Words::e('notes.bookmark') . '</label>';
+        echo '<button type="submit" class="bhc-btn bhc-btn-secondary">' . BHC_Words::e('notes.save') . '</button>';
         echo '</div><p data-bhc-note-error role="alert" hidden></p></form>';
         echo '<ol data-bhc-note-list>';
         foreach ($notes as $note) echo self::render_note($note);

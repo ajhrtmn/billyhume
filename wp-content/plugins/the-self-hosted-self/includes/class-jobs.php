@@ -5,8 +5,8 @@ if (!defined('ABSPATH')) exit;
  * Shared async job queue on WP-Cron + MySQL (no external broker), delegating to Action
  * Scheduler when it is available.
  *
- *   OUS_Jobs::register('bhr_recheck_one_link', ['BHR_Links', 'recheck_one']);   // on 'init'
- *   OUS_Jobs::enqueue('bhr_recheck_one_link', ['link_id' => $id]);
+ *   OUS_Jobs::register('bhc_send_nudge', ['BHC_Nudges', 'send_one']);   // on 'init'
+ *   OUS_Jobs::enqueue('bhc_send_nudge', ['user_id' => $id]);
  *
  * A job with no registered handler never runs and is eventually logged as failed, never fatal.
  */

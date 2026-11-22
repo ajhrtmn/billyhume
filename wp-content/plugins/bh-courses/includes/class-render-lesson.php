@@ -13,7 +13,7 @@ class BHC_Render_Lesson {
 
         // Same login gate as the course page; a deep-linked lesson would otherwise bypass it.
         if ($course_id && !$uid && !OUS_Visibility::is_public($course_id)) {
-            return OUS_Visibility::render_login_notice(__('Log in to view this lesson.', 'bh-courses'));
+            return OUS_Visibility::render_login_notice(BHC_Words::get('lesson.login_required'));
         }
         // Tier access and drip are checked separately so a paid-up student sees
         // "opens in 3 days", not a supporter prompt.
@@ -27,7 +27,7 @@ class BHC_Render_Lesson {
         }
 
         $steps = BHC_Steps::get($lesson_id);
-        if (!$steps) return self::stop_notice($course_id, $lesson_id, $uid, 'This lesson is coming soon.', 'bhc-empty');
+        if (!$steps) return self::stop_notice($course_id, $lesson_id, $uid, BHC_Words::e('lesson.coming_soon'), 'bhc-empty');
 
         $completed = $uid ? BHC_Progress::completed_steps($uid, $lesson_id) : [];
         // Land on the first not-yet-completed step.
@@ -56,7 +56,7 @@ class BHC_Render_Lesson {
             echo '<div class="bhc-lesson-breadcrumb">';
             echo '<a href="' . esc_url(get_permalink($course_id)) . '">&larr; ' . esc_html(get_the_title($course_id)) . '</a>';
             if ($lesson_position) {
-                echo '<span class="bhc-lesson-position">Lesson ' . (int) $lesson_position . ' of ' . (int) $lesson_count . '</span>';
+                echo '<span class="bhc-lesson-position">' . BHC_Words::e('lesson.position', ['n' => (int) $lesson_position, 'total' => (int) $lesson_count]) . '</span>';
             }
             echo '</div>';
         }
@@ -72,13 +72,13 @@ class BHC_Render_Lesson {
         // Public lessons can be watched logged out; say up front that nothing is saved.
         if (!$uid) {
             $account = class_exists('BHI_Portal') ? home_url('/' . BHI_Portal::REWRITE_SLUG . '/') : wp_login_url((string) get_permalink($lesson_id));
-            echo '<p class="bhc-preview-note">You\'re previewing this lesson. <a href="' . esc_url($account) . '">Log in or create a free account</a> to save your progress and notes.</p>';
+            echo '<p class="bhc-preview-note">' . BHC_Words::html('lesson.preview_note', ['link' => '<a href="' . esc_url($account) . '">' . BHC_Words::e('lesson.preview_link') . '</a>']) . '</p>';
         }
 
         echo '<div class="bhc-lesson" data-lesson-id="' . (int) $lesson_id . '" data-step-count="' . count($steps) . '" data-start-index="' . (int) $start_index . '"'
             . ($next_lesson_id ? ' data-next-lesson-url="' . esc_url((string) get_permalink($next_lesson_id)) . '"' : '') . '>';
         // aria-live so the step counter change is announced.
-        echo '<div class="bhc-step-progress" role="status" aria-live="polite">Step <span class="bhc-step-current">' . ($start_index + 1) . '</span> of ' . count($steps) . '</div>';
+        echo '<div class="bhc-step-progress" role="status" aria-live="polite">' . BHC_Words::html('lesson.step_counter', ['n' => '<span class="bhc-step-current">' . ($start_index + 1) . '</span>', 'total' => (string) count($steps)]) . '</div>';
 
         // Type-tagged stepper; only completed/current steps are clickable, never ahead.
         echo '<div class="bhc-stepper" role="tablist">';
@@ -110,7 +110,7 @@ class BHC_Render_Lesson {
                 . '>';
             echo self::render_step($lesson_id, $i, $step, $is_done);
             // Back is client-side only; omitted on the first step.
-            if ($i > 0) echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) ($i - 1) . '">&larr; Back</button>';
+            if ($i > 0) echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) ($i - 1) . '">' . BHC_Words::e('step.back') . '</button>';
             echo '</div>';
         }
 
@@ -123,17 +123,17 @@ class BHC_Render_Lesson {
             foreach ($steps as $step) if ($step['type'] === 'quiz') $quiz_total++;
             echo '<div class="bhc-lesson-complete-banner">';
             echo '<div class="bhc-lesson-complete-icon">&#10003;</div>';
-            echo '<p class="bhc-lesson-complete-title">Lesson complete</p>';
-            $stats = count($steps) . ' of ' . count($steps) . ' steps';
-            if ($quiz_total > 0) $stats .= ' &middot; ' . $quiz_total . ' quiz' . ($quiz_total > 1 ? 'zes' : '') . ' passed';
+            echo '<p class="bhc-lesson-complete-title">' . BHC_Words::e('lesson.complete_title') . '</p>';
+            $stats = BHC_Words::e('lesson.complete_steps', ['total' => count($steps)]);
+            if ($quiz_total > 0) $stats .= ' &middot; ' . BHC_Words::e($quiz_total > 1 ? 'lesson.complete_quizzes' : 'lesson.complete_quiz', ['count' => $quiz_total]);
             echo '<p class="bhc-lesson-complete-stats">' . $stats . '</p>';
             echo '</div>';
             echo '<div class="bhc-lesson-next-actions">';
-            echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) (count($steps) - 1) . '">&larr; Back to lesson</button>';
-            echo '<a class="bhc-btn" href="' . esc_url(get_permalink($next_lesson_id)) . '">Next Lesson &rarr;</a>';
+            echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) (count($steps) - 1) . '">' . BHC_Words::e('lesson.back_to_lesson') . '</button>';
+            echo '<a class="bhc-btn" href="' . esc_url(get_permalink($next_lesson_id)) . '">' . BHC_Words::e('lesson.next_lesson') . '</a>';
             echo '</div>';
         } elseif ($course_id) {
-            echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) (count($steps) - 1) . '">&larr; Back to lesson</button>';
+            echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) (count($steps) - 1) . '">' . BHC_Words::e('lesson.back_to_lesson') . '</button>';
             // Course completion: the shared render_completion_screen(), same as the course page.
             if ($uid && class_exists('BHC_Render_Course')) {
                 echo BHC_Render_Course::render_completion_screen($uid, $course_id, true);
@@ -162,7 +162,7 @@ class BHC_Render_Lesson {
             $next = self::next_open_lesson($lesson_id, $uid);
             $out .= '<p class="bhc-lesson-next-actions">'
                 . '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url((string) get_permalink($course_id)) . '">&larr; ' . esc_html(get_the_title($course_id)) . '</a> '
-                . ($next ? '<a class="bhc-btn" href="' . esc_url((string) get_permalink($next)) . '">Next Lesson &rarr;</a>' : '')
+                . ($next ? '<a class="bhc-btn" href="' . esc_url((string) get_permalink($next)) . '">' . BHC_Words::e('lesson.next_lesson') . '</a>' : '')
                 . '</p>';
         }
         return $out . '</div>';
@@ -188,10 +188,10 @@ class BHC_Render_Lesson {
         $support = method_exists('OUS_Pages', 'url') ? OUS_Pages::url('bht_support') : null;
         if (!$next && !$support) return '';
         return '<div class="bhc-attempts-help" data-bhc-attempts-help' . ($visible ? '' : ' hidden') . '>'
-            . '<p>Out of tries for this quiz. You can keep going with the course, and if you\'d like another go, ask us.</p>'
+            . '<p>' . BHC_Words::e('quiz.out_of_tries_help') . '</p>'
             . '<p class="bhc-lesson-next-actions">'
-            . ($next ? '<a class="bhc-btn" href="' . esc_url((string) get_permalink($next)) . '">Next Lesson &rarr;</a> ' : '')
-            . ($support ? '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url($support) . '">Ask for help</a>' : '')
+            . ($next ? '<a class="bhc-btn" href="' . esc_url((string) get_permalink($next)) . '">' . BHC_Words::e('lesson.next_lesson') . '</a> ' : '')
+            . ($support ? '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url($support) . '">' . BHC_Words::e('quiz.ask_for_help') . '</a>' : '')
             . '</p></div>';
     }
 
@@ -234,13 +234,13 @@ class BHC_Render_Lesson {
         ob_start();
         if ($step['type'] === 'text') {
             echo '<div class="bhc-step-text">' . wp_kses_post($step['content']) . '</div>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? BHC_Words::e('step.completed') : BHC_Words::e('step.next')) . '</button>';
         } elseif ($step['type'] === 'image') {
             foreach ($step['attachment_ids'] as $attachment_id) {
                 echo wp_get_attachment_image($attachment_id, 'large', false, ['class' => 'bhc-step-image']);
             }
             if (!empty($step['caption'])) echo '<div class="bhc-step-caption bhc-step-text">' . wp_kses_post($step['caption']) . '</div>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? BHC_Words::e('step.completed') : BHC_Words::e('step.next')) . '</button>';
         } elseif ($step['type'] === 'video') {
             // Only sources driven through the media adapter are $trackable.
             $trackable = false;
@@ -261,7 +261,7 @@ class BHC_Render_Lesson {
                     echo '<div class="bhc-video-wrap"><video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . $annotations_attr . $chapters_attr . '></video></div>';
                     $trackable = true;
                 } else {
-                    echo '<p class="bhc-empty">Video file not found.</p>';
+                    echo '<p class="bhc-empty">' . BHC_Words::e('video.file_missing') . '</p>';
                 }
             } elseif ($step['source'] === 'signed_r2') {
                 // Private R2 + Worker with byte-range support: a real <video>, fully trackable.
@@ -272,7 +272,7 @@ class BHC_Render_Lesson {
                     echo '<div class="bhc-video-wrap"><video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . $annotations_attr . $chapters_attr . '></video></div>';
                     $trackable = true;
                 } else {
-                    echo '<p class="bhc-empty">' . esc_html__('This video needs signed-delivery setup finished in Media &amp; CDN Setup.', 'bh-courses') . '</p>';
+                    echo '<p class="bhc-empty">' . BHC_Words::e('video.needs_r2_setup') . '</p>';
                 }
             } elseif ($step['source'] === 'bunny_stream') {
                 // Private Bunny Stream iframe, driven via player.js, so chapters/annotations/
@@ -287,7 +287,7 @@ class BHC_Render_Lesson {
                         . '</div></div>';
                     $trackable = ($threshold > 0 || $annotations || $chapters);
                 } else {
-                    echo '<p class="bhc-empty">' . esc_html__('This video needs Bunny Stream setup finished in Media &amp; CDN Setup.', 'bh-courses') . '</p>';
+                    echo '<p class="bhc-empty">' . BHC_Words::e('video.needs_bunny_setup') . '</p>';
                 }
             } elseif ($step['source'] === 'cloudflare_stream') {
                 // Cloudflare Stream iframe embed; not trackable (cross-origin, no SDK).
@@ -295,7 +295,7 @@ class BHC_Render_Lesson {
                 if ($stream_uid) {
                     echo '<iframe class="bhc-step-video-embed" src="https://iframe.videodelivery.net/' . esc_attr($stream_uid) . '" style="border:none;" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen></iframe>';
                 } else {
-                    echo '<p class="bhc-empty">Cloudflare Stream video UID missing.</p>';
+                    echo '<p class="bhc-empty">' . BHC_Words::e('video.cloudflare_id_missing') . '</p>';
                 }
             } else {
                 // Plain external URL: Plyr provider, then a generic iframe embed, then a direct file.
@@ -330,11 +330,11 @@ class BHC_Render_Lesson {
                 $pct = $is_done ? 100 : max(0, min(100, (int) $watched));
                 echo '<div class="bhc-video-progress-note bhc-watch-gate' . ($is_done ? ' bhc-watch-gate--done' : '') . '" data-threshold="' . (int) $threshold . '">'
                     . '<div class="bhc-watch-gate-track"><span class="bhc-watch-gate-fill" style="width:' . $pct . '%;"></span></div>'
-                    . '<p class="bhc-watch-gate-label"><span class="bhc-watch-gate-pct">' . $pct . '%</span> watched' . ($is_done ? '' : ' &middot; completes at ' . (int) $threshold . '%') . '</p>'
+                    . '<p class="bhc-watch-gate-label">' . BHC_Words::html('video.watched', ['pct' => '<span class="bhc-watch-gate-pct">' . $pct . '%</span>']) . ($is_done ? '' : ' &middot; ' . BHC_Words::e('video.completes_at', ['threshold' => (int) $threshold])) . '</p>'
                     . '</div>';
-                echo '<button type="button" class="bhc-btn bhc-mark-complete" style="display:' . ($is_done ? '' : 'none') . ';" disabled>Completed</button>';
+                echo '<button type="button" class="bhc-btn bhc-mark-complete" style="display:' . ($is_done ? '' : 'none') . ';" disabled>' . BHC_Words::e('step.completed') . '</button>';
             } else {
-                echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
+                echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? BHC_Words::e('step.completed') : BHC_Words::e('step.next')) . '</button>';
             }
         } elseif ($step['type'] === 'quiz') {
             $uid = get_current_user_id();
@@ -369,15 +369,15 @@ class BHC_Render_Lesson {
                     echo '</fieldset>';
                 }
                 if ($already_passed) {
-                    echo '<p class="bhc-attempts-note bhc-quiz-passed-note">&#10003; You already passed this quiz.</p>';
+                    echo '<p class="bhc-attempts-note bhc-quiz-passed-note">' . BHC_Words::e('quiz.already_passed') . '</p>';
                 } elseif ($max_attempts > 0) {
-                    echo '<p class="bhc-attempts-note">' . ($exhausted ? 'No attempts remaining (' . $max_attempts . ' allowed).' : ($max_attempts - $attempts_used) . ' of ' . $max_attempts . ' attempts remaining.') . '</p>';
+                    echo '<p class="bhc-attempts-note">' . ($exhausted ? BHC_Words::e('quiz.no_attempts_left', ['max' => $max_attempts]) : BHC_Words::e('quiz.attempts_left', ['left' => $max_attempts - $attempts_used, 'max' => $max_attempts])) . '</p>';
                 }
                 if (!$already_passed) {
-                    echo '<button type="submit" class="bhc-btn bhc-submit-quiz"' . ($exhausted ? ' disabled' : '') . '>Submit answers</button>';
+                    echo '<button type="submit" class="bhc-btn bhc-submit-quiz"' . ($exhausted ? ' disabled' : '') . '>' . BHC_Words::e('quiz.submit') . '</button>';
                 }
                 // aria-live so the score is announced when courses.js fills it in.
-                echo '<div class="bhc-quiz-result" role="status" aria-live="polite" style="display:' . ($exhausted && !$already_passed ? '' : 'none') . '">' . ($exhausted && !$already_passed ? 'No attempts remaining.' : '') . '</div>';
+                echo '<div class="bhc-quiz-result" role="status" aria-live="polite" style="display:' . ($exhausted && !$already_passed ? '' : 'none') . '">' . ($exhausted && !$already_passed ? BHC_Words::e('quiz.no_attempts_short') : '') . '</div>';
                 echo '</form>';
                 if ($max_attempts > 0 && !$already_passed) echo self::attempts_help($lesson_id, $exhausted);
             }
@@ -388,15 +388,15 @@ class BHC_Render_Lesson {
                 // Same row as the Downloads page, through the access-checked link.
                 $file = ['attachment_id' => (int) $step['attachment_id'], 'label' => (string) $step['label'], 'description' => (string) ($step['description'] ?? '')];
                 echo '<ul class="bhc-file-list">' . BHC_Downloads::render_file($course_id, $file, true) . '</ul>';
-                echo '<p class="bhc-file-more"><a href="' . esc_url(BHC_Downloads::url($course_id)) . '">All downloads for this course &rarr;</a></p>';
+                echo '<p class="bhc-file-more"><a href="' . esc_url(BHC_Downloads::url($course_id)) . '">' . BHC_Words::e('downloads.all_for_course') . '</a></p>';
             } else {
-                echo '<p class="bhc-empty">This file is missing. Please let us know through Support.</p>';
+                echo '<p class="bhc-empty">' . BHC_Words::e('downloads.file_missing') . '</p>';
             }
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? BHC_Words::e('step.completed') : BHC_Words::e('step.next')) . '</button>';
         } elseif ($step['type'] === 'callout') {
             $variant = in_array($step['variant'] ?? '', BHC_Steps::CALLOUT_VARIANTS, true) ? $step['variant'] : 'tip';
             echo '<div class="bhc-step-callout bhc-callout-' . esc_attr($variant) . '">' . wp_kses_post($step['content']) . '</div>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? BHC_Words::e('step.completed') : BHC_Words::e('step.next')) . '</button>';
         } elseif ($step['type'] === 'checklist') {
             // Non-blocking self-check; items aren't persisted, only step completion.
             echo '<div class="bhc-step-checklist">';
@@ -406,26 +406,26 @@ class BHC_Render_Lesson {
                 echo '<li><label><input type="checkbox" class="bhc-checklist-check" data-item-index="' . (int) $i . '"> ' . esc_html($item) . '</label></li>';
             }
             echo '</ul></div>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? BHC_Words::e('step.completed') : BHC_Words::e('step.next')) . '</button>';
         } elseif ($step['type'] === 'chord-chart') {
             // esc_html() inside <pre>: a chord chart's alignment is the content.
             if (!empty($step['title'])) echo '<p class="bhc-chord-chart-title">' . esc_html($step['title']) . '</p>';
             echo '<pre class="bhc-chord-chart-content">' . esc_html($step['content']) . '</pre>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? BHC_Words::e('step.completed') : BHC_Words::e('step.next')) . '</button>';
         } elseif ($step['type'] === 'audio-compare') {
             $url_a = wp_get_attachment_url($step['attachment_id_a']);
             $url_b = wp_get_attachment_url($step['attachment_id_b']);
             if ($url_a && $url_b) {
-                echo '<p class="bhc-audio-compare-prompt">Play each and compare:</p>';
+                echo '<p class="bhc-audio-compare-prompt">' . BHC_Words::e('audio_compare.prompt') . '</p>';
                 echo '<div class="bhc-audio-compare-wrap">';
                 echo '<div class="bhc-audio-compare-clip"><p class="bhc-audio-compare-label">' . esc_html($step['label_a']) . '</p>' . wp_audio_shortcode(['src' => $url_a]) . '</div>';
                 echo '<div class="bhc-audio-compare-clip"><p class="bhc-audio-compare-label">' . esc_html($step['label_b']) . '</p>' . wp_audio_shortcode(['src' => $url_b]) . '</div>';
                 echo '</div>';
             } else {
-                echo '<p class="bhc-empty">One or both audio files not found.</p>';
+                echo '<p class="bhc-empty">' . BHC_Words::e('audio_compare.missing') . '</p>';
             }
             if (!empty($step['caption'])) echo '<div class="bhc-step-caption bhc-step-text">' . wp_kses_post($step['caption']) . '</div>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Next &rarr;') . '</button>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? BHC_Words::e('step.completed') : BHC_Words::e('step.next')) . '</button>';
         }
         return ob_get_clean();
     }
@@ -448,8 +448,8 @@ class BHC_Render_Lesson {
                 if ($ci === $correct_index) $classes[] = 'bhc-correct';
                 if ($ci === $chosen && !$q_correct) $classes[] = 'bhc-choice-incorrect';
                 $marker = '';
-                if ($ci === $correct_index) $marker = ' <span class="bhc-choice-marker">&#10003; Correct answer</span>';
-                elseif ($ci === $chosen) $marker = ' <span class="bhc-choice-marker">&#10007; Your answer</span>';
+                if ($ci === $correct_index) $marker = ' <span class="bhc-choice-marker">' . BHC_Words::e('quiz.correct_answer') . '</span>';
+                elseif ($ci === $chosen) $marker = ' <span class="bhc-choice-marker">' . BHC_Words::e('quiz.your_answer') . '</span>';
                 echo '<div class="' . esc_attr(implode(' ', $classes)) . '"><span class="bhc-choice-text">' . esc_html($choice) . '</span>' . $marker . '</div>';
             }
             echo '</fieldset>';
@@ -457,8 +457,8 @@ class BHC_Render_Lesson {
         // Same banner courses.js shows on a fresh pass.
         echo '<div class="bhc-quiz-result bhc-pass">';
         echo '<div class="bhc-quiz-pass-icon">&#10003;</div>';
-        echo '<div class="bhc-datum bhc-quiz-pass-figure"><span class="bhc-datum-value">' . $score . '%</span><span class="bhc-datum-label">quiz passed</span></div>';
-        echo '<p class="bhc-quiz-pass-sub">Nice work.</p>';
+        echo '<div class="bhc-datum bhc-quiz-pass-figure"><span class="bhc-datum-value">' . $score . '%</span><span class="bhc-datum-label">' . BHC_Words::e('quiz.passed_label') . '</span></div>';
+        echo '<p class="bhc-quiz-pass-sub">' . BHC_Words::e('quiz.passed_sub') . '</p>';
         echo '</div>';
         echo '</div>';
         return ob_get_clean();

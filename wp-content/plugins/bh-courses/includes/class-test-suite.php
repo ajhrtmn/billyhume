@@ -230,7 +230,36 @@ class BHC_TestSuite {
             $rows = array_merge($rows, self::run_completion_consistency_tests());
         }
 
+        $rows = array_merge($rows, self::run_words_tests());
+
         return $rows;
+    }
+
+    /**
+     * Every wording key the code asks for exists in words.php, so a renamed or deleted
+     * key is caught here instead of showing up as "lesson.next_lesson" on a student's screen.
+     * @return array<int, array<string, mixed>>
+     */
+    private static function run_words_tests(): array {
+        $words = BHC_Words::all();
+        $used = [];
+        $files = array_merge(glob(BHC_PATH . 'includes/*.php') ?: [], glob(BHC_PATH . 'assets/ts/*.ts') ?: []);
+        foreach ($files as $file) {
+            if (basename($file) === 'class-test-suite.php') continue;
+            // Every quoted key inside a BHC_Words / bhcWord call, including ternary picks.
+            preg_match_all('/(?:BHC_Words::(?:e|get|html)|bhcWord)\(([^;]*?)\)/', (string) file_get_contents($file), $calls);
+            foreach ($calls[1] as $args) {
+                preg_match_all("/'([a-z0-9_]+\.[a-z0-9_]+)'/", $args, $m);
+                $used = array_merge($used, $m[1]);
+            }
+        }
+        $missing = array_values(array_diff(array_unique($used), array_keys($words)));
+        return [
+            OUS_TestRunner::assert_true(count($used) > 100, 'words.php: found the wording keys used in the code (' . count(array_unique($used)) . ')'),
+            OUS_TestRunner::assert_same([], $missing, 'words.php has every key the code uses'),
+            OUS_TestRunner::assert_same('Lesson 2 of 5', BHC_Words::get('lesson.position', ['n' => 2, 'total' => 5]), 'BHC_Words::get() fills in {placeholders}'),
+            OUS_TestRunner::assert_same('no.such_key', BHC_Words::get('no.such_key'), 'A missing key shows the key itself, so it gets noticed'),
+        ];
     }
 
     /** @return array<int, array<string, mixed>> */

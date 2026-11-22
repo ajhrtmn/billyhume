@@ -2,7 +2,7 @@
    every front-end page); the shadow and rounded top corners make it read as docked
    site chrome rather than a browser toolbar. */
 
-/* Real bug, caught live: bh-contest/bh-streaming's own
+/* Real bug, caught live: bh-contest's own
    bottom bars need to know this bar's exact height to stack
    above it without a gap or an overlap — they were guessing
    56px (this bar's OWN body padding-bottom value below,
@@ -100,8 +100,8 @@
 body.bhi-has-user-bar { padding-bottom: 56px; }
 /* Real bug, caught live: the rounded top corners + lift
    shadow above assume this bar sits directly over ordinary
-   page content — correct on most pages, but on bh-contest/
-   bh-streaming pages with their own fixed bottom playback
+   page content — correct on most pages, but on bh-contest
+   pages with their own fixed bottom playback
    bar (already shifted up to sit above this one, see
    .bh-now-playing-bar / .bhs-nowplaying), the two read as
    two separate floating chrome pieces stacked with an

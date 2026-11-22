@@ -79,7 +79,7 @@ class BHM_Activator {
             KEY user_id (user_id)
         ) $charset;");
 
-        // Server-authored play record (unlike bh-streaming's gameable _bhs_play_count).
+        // Server-authored play record (a leftover of the removed streaming plugin).
         // paid=1 rows are wallet debits; paid=0 plays were covered by an entitlement.
         $play_log = BHM_Tables::play_log();
         dbDelta("CREATE TABLE $play_log (

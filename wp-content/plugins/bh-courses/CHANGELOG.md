@@ -1,8 +1,10 @@
 # Changelog — BH Courses
 
-Moved out of `bh-courses.php` on 2026-08-23. See `CONVENTIONS.md` for why version history lives here and in git rather than in source.
+Moved out of `bh-courses.php` on 2026-08-23.
 
 Entries are newest-first, exactly as written in-file. Nothing reworded or dropped.
+
+0.17.0 - Every button label, heading and message students see now lives in `words.php` (about 210 entries, grouped by screen), read through `BHC_Words` in PHP and `bhcWord()` in the browser; the wording itself is unchanged. A new test fails if the code asks for a key `words.php` doesn't have. Removed the plugin's own registry entry (core now lists it). Checked locally on lesson, course, catalog, sales and My Courses pages; not yet on the live site.
 
 0.16.57 - Fix: course progress could read over 100% (117% on the live Low End Theory). Completion rows are stored by step number and outlive edits, so a lesson trimmed from several steps to one still counted the old rows; completed_steps() now only counts steps the lesson still has, and course_percent() caps at 100. Regression tests added (trimmed lesson reads 100%, an added step shows what is left). Live-site layout, from AJ's phone screenshots: course output (notes panel, feedback, credits, Downloads groups, sales-page sections) uses div instead of section, because Automatic.css gives every top-level section page-section padding, flex and gaps, which blew up the notes panel; long lesson titles keep the completed check on the right instead of pushing it to its own line; the catalog page no longer repeats its heading; the design-token CSS is no longer printed a second time where core already prints it. The oversized catalog card on phones is a Design Suite custom CSS rule (min-width: 125%) on the live site, not code. Runtime-verified locally at phone width; Test Runner 502/502.
 

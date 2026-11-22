@@ -37,9 +37,6 @@ const SCREENS: Array<{ name: string; path: string; expectClean?: boolean }> = [
   // Tools' above. "Quiz editor" is the Gutenberg post-edit screen for
   // a real bh_lesson post, not a separate admin page.
   { name: 'Quiz editor (lesson post-edit)', path: '/wp-admin/post.php?post=262&action=edit' },
-  { name: 'bh-registry: Submissions', path: '/wp-admin/admin.php?page=bh-registry-review' },
-  { name: 'bh-registry: Peers',       path: '/wp-admin/admin.php?page=bh-registry-peers' },
-  { name: 'bh-streaming: Pro Wizard', path: '/wp-admin/admin.php?page=bhs-pro-wizard' },
   { name: 'bh-monetization-woo: Tier settings', path: '/wp-admin/admin.php?page=bhm-settings' },
   { name: 'bh-monetization-woo: Tier (post-edit)', path: '/wp-admin/post.php?post=338&action=edit' },
 ];

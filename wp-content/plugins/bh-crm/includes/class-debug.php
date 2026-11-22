@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Debug Tools section with project-tracker seed/reset, same contract as BHR_Debug.
+ * Debug Tools section with project-tracker seed/reset.
  * WHY: a Debug Tools section, not a standalone admin page; standalone pages have failed hook resolution on this install.
  */
 class BHCRM_Debug {

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH MailPoet
  * Description: Bridges bh-crm's contact list into MailPoet subscriber lists, so MailPoet (not a hand-rolled sender) is the ecosystem's email/marketing delivery engine. Entirely inert if MailPoet isn't installed.
- * Version:     1.2.0
+ * Version:     1.2.1
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHMP_VER',  '1.2.0');
+define('BHMP_VER',  '1.2.1');
 
 define('BHMP_PATH', plugin_dir_path(__FILE__));
 define('BHMP_URL',  plugin_dir_url(__FILE__));
@@ -54,26 +54,3 @@ add_action('plugins_loaded', function () {
     });
 }, 20); // after core's BHCORE_LOADED bootstrap
 
-// Self-registration on the ecosystem dashboard.
-add_filter('ous_registered_plugins', function ($plugins) {
-    $plugins['bh-mailpoet'] = [
-        'label'       => 'BH MailPoet',
-        'file'        => 'bh-mailpoet/bh-mailpoet.php',
-        'depends_on'  => ['mailpoet'],
-        'check_class' => 'BHMP_Sync',
-        'description' => 'Syncs bh-crm contacts into a MailPoet subscriber list, so MailPoet\'s own automations/newsletters have current data. Send/automation logic stays in MailPoet — this plugin only keeps list membership current.',
-        'dashboard_link' => 'admin.php?page=ous-debug',
-        'bundled_zip' => 'bh-mailpoet.zip',
-    ];
-    // MailPoet is a wordpress.org dependency; isset() avoids clobbering core's own entry.
-    if (!isset($plugins['mailpoet'])) {
-        $plugins['mailpoet'] = [
-            'label'       => 'MailPoet',
-            'file'        => 'mailpoet/mailpoet.php',
-            'wporg_slug'  => 'mailpoet',
-            'check_class' => '\MailPoet\API\API',
-            'description' => 'Required for BH MailPoet — self-hosted email/newsletter sending and automation, not reimplemented here.',
-        ];
-    }
-    return $plugins;
-});

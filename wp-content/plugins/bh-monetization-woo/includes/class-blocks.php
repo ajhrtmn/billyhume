@@ -70,11 +70,11 @@ class BHM_Blocks {
         ]);
     }
 
-    // Inspector picker: only tracks/releases with a purchase price, so nothing renders blank.
+    // Inspector picker: only courses with a purchase price, so nothing renders blank.
     /** @return \WP_REST_Response */
     public static function rest_purchasable_objects(\WP_REST_Request $req) {
         $q = new WP_Query([
-            'post_type' => ['bhs_track', 'bhs_release'],
+            'post_type' => ['bh_course'],
             'post_status' => 'publish',
             'posts_per_page' => -1,
             'meta_key' => '_bhm_purchase_price_cents',
@@ -87,7 +87,7 @@ class BHM_Blocks {
             $out[] = [
                 'id' => $p->ID,
                 'title' => $p->post_title,
-                'type' => $p->post_type === 'bhs_release' ? 'Album' : 'Track',
+                'type' => 'Course',
                 'price' => BHM_Money::display($cents),
             ];
         }

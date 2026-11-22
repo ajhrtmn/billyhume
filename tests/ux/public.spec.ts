@@ -5,7 +5,7 @@ import { audit, formatFindings, WIDTHS } from './audit';
  * Logged-out front end — no credentials needed, so this runs anywhere.
  *
  * This is the half of the ecosystem that fans actually see, and the half
- * DESIGN-CRAFT.md identifies as lagging the admin. Front-end pages don't
+ * DESIGN-DIRECTION.md identifies as lagging the admin. Front-end pages don't
  * carry the admin skin's theme toggle, so there's no theme dimension here.
  */
 const PAGES: Array<{ name: string; path: string }> = [
@@ -27,12 +27,10 @@ const PAGES: Array<{ name: string; path: string }> = [
   { name: 'Cart (empty)',      path: '/cart/' },
   { name: 'Blog post',         path: '/medium-title-test/' },
   { name: 'Search (results)',  path: '/?s=test' },
-  // 2026-08-26: continuing OPEN.md item 7 -- contest, streaming single,
+  // 2026-08-26: continuing OPEN.md item 7 -- contest single,
   // storefront checkout/account were still unaudited after the first
   // pass.
   { name: 'Contest (single)',  path: '/bh_contest/fall-anthem-showdown/' },
-  { name: 'Streaming track',   path: '/bhs_track/midnight-static/' },
-  { name: 'Streaming library', path: '/streaming/' },
   { name: 'Checkout',          path: '/checkout/' },
   { name: 'My account',        path: '/my-account/' },
   { name: 'Portal / account (logged out)', path: '/account/' },

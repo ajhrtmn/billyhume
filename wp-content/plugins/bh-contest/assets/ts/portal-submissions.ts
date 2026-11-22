@@ -45,7 +45,7 @@ interface BHSaveResponseBody {
 
                 btn.disabled = true;
                 const originalLabel = btn.textContent;
-                btn.textContent = 'Saving…';
+                btn.textContent = bhWord('portal.saving');
                 statusEl.textContent = '';
 
                 fetch(cfg.restUrl + 'submissions/edit-details?submission_id=' + encodeURIComponent(form.dataset.submissionId ?? ''), {
@@ -58,12 +58,12 @@ interface BHSaveResponseBody {
                         btn.textContent = originalLabel;
                         if (r.ok) {
                             // Toast via BHCoreToast, falling back to inline text.
-                            const msg = r.body.message || 'Saved.';
+                            const msg = r.body.message || bhWord('portal.saved');
                             if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'success'); }
                             else { statusEl.textContent = msg; statusEl.style.color = 'green'; }
                             setTimeout(() => { window.location.reload(); }, 1400);
                         } else {
-                            const errMsg = (r.body && r.body.message) || 'Save failed.';
+                            const errMsg = (r.body && r.body.message) || bhWord('portal.save_failed');
                             if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(errMsg, 'error'); }
                             else { statusEl.textContent = errMsg; statusEl.style.color = '#b32d2e'; }
                         }
@@ -71,7 +71,7 @@ interface BHSaveResponseBody {
                     .catch(() => {
                         btn.disabled = false;
                         btn.textContent = originalLabel;
-                        const msg = 'Save failed — check your connection and try again.';
+                        const msg = bhWord('portal.save_offline');
                         if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'error'); }
                         else { statusEl.textContent = msg; statusEl.style.color = '#b32d2e'; }
                     });
@@ -86,7 +86,7 @@ interface BHSaveResponseBody {
                 const statusEl = form.querySelector('.bh-replace-status') as HTMLElement;
                 const btn = form.querySelector('button[type=submit]') as HTMLButtonElement;
                 if (!fileInput.files || !fileInput.files.length) {
-                    statusEl.textContent = 'Choose a file first.';
+                    statusEl.textContent = bhWord('portal.choose_file');
                     return;
                 }
 
@@ -95,7 +95,7 @@ interface BHSaveResponseBody {
 
                 btn.disabled = true;
                 const originalLabel = btn.textContent;
-                btn.textContent = 'Uploading…';
+                btn.textContent = bhWord('portal.uploading');
                 statusEl.textContent = '';
 
                 fetch(cfg.restUrl + 'submissions/replace-audio?submission_id=' + encodeURIComponent(form.dataset.submissionId ?? ''), {
@@ -107,12 +107,12 @@ interface BHSaveResponseBody {
                         btn.disabled = false;
                         btn.textContent = originalLabel;
                         if (r.ok) {
-                            const msg = r.body.message || 'Uploaded — pending review.';
+                            const msg = r.body.message || bhWord('portal.uploaded');
                             if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'success'); }
                             else { statusEl.textContent = msg; statusEl.style.color = 'green'; }
                             setTimeout(() => { window.location.reload(); }, 1600);
                         } else {
-                            const errMsg = (r.body && r.body.message) || 'Upload failed.';
+                            const errMsg = (r.body && r.body.message) || bhWord('portal.upload_failed');
                             if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(errMsg, 'error'); }
                             else { statusEl.textContent = errMsg; statusEl.style.color = '#b32d2e'; }
                         }
@@ -120,7 +120,7 @@ interface BHSaveResponseBody {
                     .catch(() => {
                         btn.disabled = false;
                         btn.textContent = originalLabel;
-                        const msg = 'Upload failed — check your connection and try again.';
+                        const msg = bhWord('portal.upload_offline');
                         if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'error'); }
                         else { statusEl.textContent = msg; statusEl.style.color = '#b32d2e'; }
                     });

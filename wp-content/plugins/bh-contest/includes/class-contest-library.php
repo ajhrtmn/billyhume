@@ -60,7 +60,7 @@ class BH_Contest_Library {
             return $mk('past', -1, 'muted', __('Draft', 'bh-contest'));
         }
         if (get_post_meta($cid, '_bh_results_published', true) === '1') {
-            return $mk('past', 3, 'done', __('Results published', 'bh-contest'));
+            return $mk('past', 3, 'done', BHCON_Words::get('library.results_published'));
         }
 
         $now       = current_time('timestamp');
@@ -76,25 +76,25 @@ class BH_Contest_Library {
 
         if ($sub === 'open') {
             $s = $sub_end && ($sub_end - $now) < $soon_secs;
-            return $mk('open', 0, $s ? 'urgent' : 'live', __('Accepting submissions', 'bh-contest'), $sub_end, __('Submissions close', 'bh-contest'), $s);
+            return $mk('open', 0, $s ? 'urgent' : 'live', BHCON_Words::get('library.accepting'), $sub_end, BHCON_Words::get('library.submissions_close'), $s);
         }
         if ($vote === 'open') {
             $s = $vote_end && ($vote_end - $now) < $soon_secs;
-            return $mk('open', 1, $s ? 'urgent' : 'live', __('Voting open', 'bh-contest'), $vote_end, __('Voting closes', 'bh-contest'), $s);
+            return $mk('open', 1, $s ? 'urgent' : 'live', BHCON_Words::get('library.voting_open'), $vote_end, BHCON_Words::get('library.voting_closes'), $s);
         }
         if ($sub === 'upcoming') {
-            return $mk('upcoming', 0, 'soon', __('Submissions open soon', 'bh-contest'), $sub_start, __('Submissions open', 'bh-contest'));
+            return $mk('upcoming', 0, 'soon', BHCON_Words::get('library.submissions_soon'), $sub_start, BHCON_Words::get('library.submissions_open'));
         }
         if ($vote === 'upcoming') {
-            return $mk('upcoming', 1, 'soon', __('Voting opens soon', 'bh-contest'), $vote_start, __('Voting opens', 'bh-contest'));
+            return $mk('upcoming', 1, 'soon', BHCON_Words::get('library.voting_soon'), $vote_start, BHCON_Words::get('library.voting_opens'));
         }
         if ($sub === 'closed' && ($vote === 'unscheduled' || !$vote_start)) {
             // Submissions done, voting not on the calendar yet — still a
             // live concern (results pending), so it stays in "Open now".
-            return $mk('open', 1, 'soon', __('Submissions closed — voting to be scheduled', 'bh-contest'));
+            return $mk('open', 1, 'soon', BHCON_Words::get('library.between_rounds'));
         }
         if ($vote === 'closed') {
-            return $mk('past', 2, 'done', __('Voting closed — awaiting results', 'bh-contest'));
+            return $mk('past', 2, 'done', BHCON_Words::get('library.awaiting_results'));
         }
         // No windows configured at all (older contests): quietly open.
         return $mk('open', 0, 'live', __('Open', 'bh-contest'));
@@ -133,7 +133,7 @@ class BH_Contest_Library {
             if (get_post_meta($cid, '_bh_results_published', true) === '1' && class_exists('BH_Reveal')) {
                 $top = BH_Reveal::overall_results($cid);
                 if (!empty($top[0]['id'])) {
-                    $out[] = ['dashicons-awards', get_the_title((int) $top[0]['id']) ?: __('Winner announced', 'bh-contest')];
+                    $out[] = ['dashicons-awards', get_the_title((int) $top[0]['id']) ?: BHCON_Words::get('library.winner_announced')];
                 }
             }
             $out[] = ['dashicons-groups', sprintf(__('%s votes cast', 'bh-contest'), self::fmt(BH_Helpers::vote_count($cid)))];
@@ -201,7 +201,7 @@ class BH_Contest_Library {
                 }
                 if ($rows) {
                     return '<ol class="bh-contest-podium">' . $rows . '</ol>'
-                        . '<span class="bh-contest-card-more">' . esc_html__('See full results', 'bh-contest') . ' &rarr;</span>';
+                        . '<span class="bh-contest-card-more">' . BHCON_Words::e('library.see_results') . ' &rarr;</span>';
                 }
             }
         }
@@ -213,11 +213,11 @@ class BH_Contest_Library {
             $voters  = BH_Helpers::voter_count($cid);
             $ratio   = min(100, (int) round($voters / $entries * 100));
             return $chips
-                . '<div class="bh-contest-momentum" title="' . esc_attr__('Voter turnout relative to the field', 'bh-contest') . '">'
+                . '<div class="bh-contest-momentum" title="' . esc_attr(BHCON_Words::get('library.turnout_hint')) . '">'
                 . '<div class="bh-contest-momentum-track"><span style="width:' . $ratio . '%;"></span></div>'
                 . '<span class="bh-contest-momentum-label">' . esc_html(sprintf(__('%s voting', 'bh-contest'), self::fmt($voters))) . '</span>'
                 . '</div>'
-                . '<span class="bh-contest-card-more">' . esc_html__('Cast your votes', 'bh-contest') . ' &rarr;</span>';
+                . '<span class="bh-contest-card-more">' . BHCON_Words::e('library.cast_votes') . ' &rarr;</span>';
         }
 
         // Submissions — the field, plus the call to join it.
@@ -225,7 +225,7 @@ class BH_Contest_Library {
             $entries = class_exists('BH_Helpers') ? BH_Helpers::submission_count($cid) : 0;
             return $chips
                 . '<span class="bh-contest-card-more">'
-                . esc_html(sprintf(__('Be entry #%d', 'bh-contest'), $entries + 1)) . ' &rarr;</span>';
+                . BHCON_Words::e('library.be_entry', ['n' => $entries + 1]) . ' &rarr;</span>';
         }
 
         // Upcoming — when it opens.
@@ -247,7 +247,7 @@ class BH_Contest_Library {
             'posts_per_page' => -1, 'orderby' => 'date', 'order' => 'DESC',
         ]);
         if (!$contests) {
-            return '<p class="bh-empty">' . esc_html__('No contests yet — check back soon.', 'bh-contest') . '</p>';
+            return '<p class="bh-empty">' . BHCON_Words::e('library.none') . '</p>';
         }
 
         $groups = ['open' => [], 'upcoming' => [], 'past' => []];
@@ -269,11 +269,11 @@ class BH_Contest_Library {
         usort($groups['open'], $by_deadline);
         usort($groups['upcoming'], $by_deadline);
 
-        $stage_names = [__('Submissions', 'bh-contest'), __('Voting', 'bh-contest'), __('Results', 'bh-contest')];
+        $stage_names = [BHCON_Words::get('library.stage_submissions'), BHCON_Words::get('library.stage_voting'), BHCON_Words::get('library.stage_results')];
         $section_titles = [
-            'open'     => __('Open now', 'bh-contest'),
-            'upcoming' => __('Starting soon', 'bh-contest'),
-            'past'     => __('Wrapped', 'bh-contest'),
+            'open'     => BHCON_Words::get('library.group_open'),
+            'upcoming' => BHCON_Words::get('library.group_upcoming'),
+            'past'     => BHCON_Words::get('library.group_past'),
         ];
 
         $total = count($groups['open']) + count($groups['upcoming']) + count($groups['past']);
@@ -360,7 +360,7 @@ class BH_Contest_Library {
                 echo '</div>';
 
                 // ---- lifecycle track ----
-                echo '<ol class="bh-contest-track" aria-label="' . esc_attr__('Contest progress', 'bh-contest') . '">';
+                echo '<ol class="bh-contest-track" aria-label="' . esc_attr(BHCON_Words::get('library.progress_label')) . '">';
                 foreach ($stage_names as $i => $name) {
                     $state = $life['stage'] < 0 ? 'todo'
                         : ($i < $life['stage'] ? 'done' : ($i === $life['stage'] ? 'current' : 'todo'));

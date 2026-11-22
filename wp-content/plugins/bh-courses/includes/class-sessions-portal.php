@@ -36,43 +36,43 @@ class BHC_SessionsPortal {
         $mine = BHC_Sessions::for_student($user_id);
         $upcoming = array_filter($mine, fn($r) => $r['status'] === 'booked' && strtotime($r['starts_at']) >= time());
 
-        echo '<h3>Your upcoming sessions</h3>';
+        echo '<h3>' . BHC_Words::e('sessions.upcoming') . '</h3>';
         if (!$upcoming) {
-            echo '<p>Nothing booked yet.</p>';
+            echo '<p>' . BHC_Words::e('sessions.none_booked') . '</p>';
         } else {
-            echo '<table class="widefat striped"><thead><tr><th>Start</th><th>Duration</th><th></th></tr></thead><tbody>';
+            echo '<table class="widefat striped"><thead><tr><th>' . BHC_Words::e('sessions.start') . '</th><th>' . BHC_Words::e('sessions.duration') . '</th><th></th></tr></thead><tbody>';
             foreach ($upcoming as $r) {
                 $hours_left = (strtotime($r['starts_at']) - time()) / HOUR_IN_SECONDS;
-                echo '<tr><td>' . esc_html($r['starts_at']) . '</td><td>' . (int) $r['duration_minutes'] . ' min</td><td>';
+                echo '<tr><td>' . esc_html($r['starts_at']) . '</td><td>' . (int) $r['duration_minutes'] . ' ' . BHC_Words::e('sessions.minutes') . '</td><td>';
                 if ($hours_left >= BHC_Sessions::cancel_cutoff_hours()) {
                     echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">';
                     echo '<input type="hidden" name="action" value="bhc_cancel_slot">';
                     echo '<input type="hidden" name="slot_id" value="' . (int) $r['id'] . '">';
                     wp_nonce_field('bhc_cancel_slot_' . $r['id']);
-                    echo '<button class="button button-small" onclick="return confirm(\'Cancel this session?\');">Cancel</button>';
+                    echo '<button class="button button-small" onclick="return confirm(' . esc_attr(wp_json_encode(BHC_Words::get('sessions.cancel_confirm'))) . ');">' . BHC_Words::e('sessions.cancel') . '</button>';
                     echo '</form>';
                 } else {
-                    echo '<span class="description">Too close to start to self-cancel — contact your instructor.</span>';
+                    echo '<span class="description">' . BHC_Words::e('sessions.too_late_to_cancel') . '</span>';
                 }
                 echo '</td></tr>';
             }
             echo '</table>';
         }
 
-        echo '<h3>Book a session</h3>';
+        echo '<h3>' . BHC_Words::e('sessions.book_heading') . '</h3>';
         $open = BHC_Sessions::open_slots();
         if (!$open) {
-            echo '<p>No open slots right now.</p>';
+            echo '<p>' . BHC_Words::e('sessions.no_slots') . '</p>';
             return;
         }
-        echo '<table class="widefat striped"><thead><tr><th>Start</th><th>Duration</th><th></th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr><th>' . BHC_Words::e('sessions.start') . '</th><th>' . BHC_Words::e('sessions.duration') . '</th><th></th></tr></thead><tbody>';
         foreach ($open as $r) {
-            echo '<tr><td>' . esc_html($r['starts_at']) . '</td><td>' . (int) $r['duration_minutes'] . ' min</td><td>';
+            echo '<tr><td>' . esc_html($r['starts_at']) . '</td><td>' . (int) $r['duration_minutes'] . ' ' . BHC_Words::e('sessions.minutes') . '</td><td>';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">';
             echo '<input type="hidden" name="action" value="bhc_book_slot">';
             echo '<input type="hidden" name="slot_id" value="' . (int) $r['id'] . '">';
             wp_nonce_field('bhc_book_slot_' . $r['id']);
-            echo '<button class="button button-primary button-small">Book</button>';
+            echo '<button class="button button-primary button-small">' . BHC_Words::e('sessions.book') . '</button>';
             echo '</form></td></tr>';
         }
         echo '</table>';
@@ -83,7 +83,7 @@ class BHC_SessionsPortal {
         if (!is_user_logged_in() || !check_admin_referer('bhc_book_slot_' . $slot_id)) wp_die('Not allowed.');
 
         $ok = BHC_Sessions::claim($slot_id, get_current_user_id());
-        $msg = $ok ? 'Session booked!' : 'That slot was just taken — pick another.';
+        $msg = BHC_Words::get($ok ? 'sessions.booked' : 'sessions.taken');
         wp_safe_redirect(add_query_arg(['panel' => 'sessions', 'bhc_msg' => rawurlencode($msg)], home_url('/account/')));
         exit;
     }
@@ -93,7 +93,7 @@ class BHC_SessionsPortal {
         if (!is_user_logged_in() || !check_admin_referer('bhc_cancel_slot_' . $slot_id)) wp_die('Not allowed.');
 
         $result = BHC_Sessions::self_cancel($slot_id, get_current_user_id());
-        $msg = is_wp_error($result) ? $result->get_error_message() : ($result ? 'Session cancelled.' : 'Could not cancel that session.');
+        $msg = is_wp_error($result) ? $result->get_error_message() : BHC_Words::get($result ? 'sessions.cancelled' : 'sessions.cancel_failed');
         wp_safe_redirect(add_query_arg(['panel' => 'sessions', 'bhc_msg' => rawurlencode($msg)], home_url('/account/')));
         exit;
     }

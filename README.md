@@ -1,45 +1,51 @@
-# The Self-Hosted Self
+# billyhume.net
 
-**Digital infrastructure you own, not rent.** A self-hosted WordPress plugin ecosystem that gives an independent musician what big platforms rent back one subscription at a time — a streaming catalog, contests, courses, a fan CRM, monetization — as software they own outright, on hosting they control. No ads, ever, and no middleman between an artist and their audience. The full philosophy is in [`VISION.md`](wp-content/plugins/VISION.md).
+Billy Hume's website: a WordPress site for **courses** (video lessons, quizzes, downloads, sales pages) and **music contests** (submissions, voting, the live Reveal Party), with checkout through WooCommerce.
 
-This repository is Billy Hume's live site (billyhume.net): a complete WordPress install. The ecosystem's own code is under [`wp-content/plugins/`](wp-content/plugins/) and [`wp-content/themes/the-self-hosted-self-theme/`](wp-content/themes/the-self-hosted-self-theme/); everything else is stock WordPress or third-party plugins.
+This folder is the whole WordPress install. Billy's own code is in [`wp-content/plugins/`](wp-content/plugins/) (7 plugins) and the theme in [`wp-content/themes/the-self-hosted-self-theme/`](wp-content/themes/the-self-hosted-self-theme/). Everything else is standard WordPress or third-party plugins.
+
+## Start here (Billy)
+
+You work on the site by asking Claude, on your own computer, with a local copy of the site running in the **Local** app.
+
+1. Open **Local** and start the **billyhume** site. It runs at **http://billyhume.local**.
+2. Open Claude in this folder and say what you want in plain words, for example:
+   - "Change the 'Next Lesson →' button to say 'Keep going →'."
+   - "Make the course cards less rounded."
+   - "The contest vote button should say 'Pick this one'."
+3. Claude makes the change, checks it in the browser, and tells you where to look.
+4. When you're happy, ask Claude to **commit**. When you want it on the real site, ask Claude to **push dev**, then in the live site's wp-admin go to **Site Tools → Debug Tools → GitHub Updates**, click **Check now**, then **Update now**, then **Caching → Purge All**.
+
+Nothing reaches the real site until step 4.
+
+## Where things are
+
+| You want to change… | It lives in… |
+|---|---|
+| Words on buttons and messages | Each plugin's `words.php` file (courses, contests, support, sales, and the account page). One file per plugin, every label in one list. |
+| Colors, fonts, rounding, spacing | wp-admin → **Appearance → Customize → Design Suite** (no code needed) |
+| Lessons, videos, quizzes, downloads | wp-admin → **Courses** |
+| Contests | wp-admin → **Contests** |
+| Page layouts (home page, sales pages) | **Etch** on the live site |
+| Errors, logs, tests | wp-admin → **Site Tools → Debug Tools** |
 
 ## The plugins
 
-One required core plus optional peers. Each peer depends only on the core, never on another peer, so any subset works on its own.
-
 | Plugin | What it does |
 | --- | --- |
-| [`the-self-hosted-self`](wp-content/plugins/the-self-hosted-self/README.md) | Core: accounts, login and the fan portal; design tokens and the Design Suite; Debug Tools, jobs, logs and the Test Runner; one dashboard to install and switch on everything else. |
-| [`bh-streaming`](wp-content/plugins/bh-streaming/README.md) | Personal streaming library: catalog, playlists, likes, lyrics, an RSS/Podcasting 2.0 feed, installable as an app. |
-| [`bh-contest`](wp-content/plugins/bh-contest/README.md) | Music contests: submissions, voting, judging, and a live results reveal for streaming. |
-| `bh-courses` | Courses of multistep lessons (text, media, quizzes) with progress tracking and optional supporter-tier gating. |
-| [`bh-monetization-woo`](wp-content/plugins/bh-monetization-woo/README.md) | Supporter tiers, purchases, tips, gifts and pay-per-play, backed by WooCommerce. |
-| `bh-crm` | People list on shared identity: notes, tags, CSV export, activity timeline, and a project kanban board. |
-| [`bh-registry`](wp-content/plugins/bh-registry/README.md) | Decentralized artist-link directory (ActivityPub / RSS links only, never media). |
-| `bh-live` | Live streaming via self-hosted Owncast or Cloudflare Stream, with chat and OBS overlays. |
-| `bh-video` | Standalone video catalog and player. |
-| `bh-feedback` | Paid track feedback from reviewers, paid with wallet credit. |
-| `bh-tickets` | Support tickets opened from the fan portal. |
-| `bh-social` | Cross-posting and stats for social platforms. |
-| `bh-mailpoet` | Syncs CRM contacts into MailPoet lists (inert without MailPoet). |
+| `the-self-hosted-self` | The core everything else needs: accounts and the `/account/` page, the Design Suite, Debug Tools, logs, tests, email, background jobs, GitHub Updates. Shown in wp-admin as **Site Tools**. |
+| `bh-courses` | Courses, lessons, quizzes, video, notes, downloads, sales pages, certificates. |
+| `bh-contest` | Contests: submissions, voting, judging, the live results reveal. |
+| `bh-monetization-woo` | Selling through WooCommerce: course products, supporter tiers, gifts, launch coupons, tips. |
+| `bh-tickets` | The Support page contact form and private course feedback. |
+| `bh-crm` | People: everyone with an account, with notes and tags. |
+| `bh-mailpoet` | Copies People into a MailPoet mailing list. |
 
-`self-hosted-self-admin-skin` is experimental and stays deactivated.
+## For developers
 
-## How it's built
+- **Plain WordPress on the server.** The live site is a straight copy of these files: PHP and MySQL only, no build step on the server.
+- **TypeScript at build time.** Browser code is written in `assets/ts/*.ts` and compiled into the committed `assets/js/*.js` with `npm run build:all` (run `npm ci` once first).
+- **Checks:** `npm run check`, `php -l`, and **Debug Tools → Run all tests**. See [`TESTS.md`](wp-content/plugins/TESTS.md).
+- **Rules** for changing the code: [`CLAUDE.md`](CLAUDE.md). A plain tour of the code: [`CODEBASE-WALKTHROUGH.md`](wp-content/plugins/CODEBASE-WALKTHROUGH.md). Shipping: [`RUNBOOK-live-updates.md`](wp-content/plugins/RUNBOOK-live-updates.md).
 
-- **Plain WordPress at runtime.** The live site is a verbatim file sync: PHP and WordPress only, no Composer install, no npm, no bundler. FPDF is the one vendored library.
-- **TypeScript at build time.** Browser code is written in `assets/ts/*.ts` and compiled with `tsc` into the committed `assets/js/*.js` (`npm run build:all`). Styles are plain CSS in `assets/css/`.
-- **Checks:** `npm run check` (TypeScript build, Stylelint, accent-contrast check, Vitest), `php -l`, and the in-admin Test Runner. See [`TESTS.md`](wp-content/plugins/TESTS.md).
-
-## Working on it locally
-
-1. Create a site in [Local](https://localwp.com/) and replace its `app/public` folder with this repository (keep Local's own `wp-config.php`).
-2. `npm ci` for the build and check tools.
-3. Work on the `dev` branch. Pushing `dev` is what reaches the live site; see [`RUNBOOK-live-updates.md`](wp-content/plugins/RUNBOOK-live-updates.md).
-
-Rules for changing the code (for people and AI assistants alike) are in [`CLAUDE.md`](CLAUDE.md). A guided tour of the code is in [`CODEBASE-WALKTHROUGH.md`](wp-content/plugins/CODEBASE-WALKTHROUGH.md).
-
-## License
-
-AGPL-3.0: anyone who runs a modified version as a network service must publish their changes, so improvements stay with the self-hosting community. See [`wp-content/plugins/README.md`](wp-content/plugins/README.md#license).
+License: AGPL-3.0 (see [`wp-content/plugins/LICENSE`](wp-content/plugins/LICENSE)).

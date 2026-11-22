@@ -9,14 +9,8 @@ parameters:
         - wp-content/plugins/bh-courses
         - wp-content/plugins/bh-crm
         - wp-content/plugins/bh-monetization-woo
-        - wp-content/plugins/bh-registry
-        - wp-content/plugins/bh-streaming
         - wp-content/plugins/bh-mailpoet
         - wp-content/plugins/bh-tickets
-        - wp-content/plugins/bh-video
-        - wp-content/plugins/bh-live
-        - wp-content/plugins/bh-feedback
-        - wp-content/plugins/bh-social
     excludePaths:
         - */vendor/*
         - */tests/*
@@ -121,15 +115,6 @@ parameters:
         # first.
         -
             message: "#Strict comparison using !== between '' and '' will always evaluate to false#"
-        # Same $wpdb->last_error stub gap as above, the plain-truthy-check
-        # variant (`if ($wpdb->last_error)` rather than `!== ''`) — scoped
-        # to this one file/line rather than the generic "If condition is
-        # always false" message ecosystem-wide, since that phrasing is
-        # common enough to risk masking a genuinely different dead-code
-        # bug elsewhere.
-        -
-            message: '#If condition is always false#'
-            path: wp-content/plugins/bh-social/includes/class-activator.php
         # add_option()'s 4th arg ($autoload) — the stub types this
         # strictly as bool|null, but WP core's real implementation
         # (wp_determine_option_autoload_value(), wp-includes/option.php)
@@ -166,27 +151,17 @@ parameters:
         # guards at every call site — a real, correct optional-dependency
         # pattern, not a bug. MailPoet itself isn't installed in this
         # analysis environment (same reasoning already applied to the
-        # WC_Log_Handler_Interface/BHL_*/Advanced_Media_Offloader unknown-
+        # WC_Log_Handler_Interface/Advanced_Media_Offloader unknown-
         # class noise elsewhere in this config), so PHPStan can't resolve
         # the class at all. Scoped to that one namespace, not a blanket
         # "ignore unknown classes" rule.
         -
             message: '#(MailPoet\\|Call to method \w+\(\) on an unknown class MailPoet\\)#'
             path: wp-content/plugins/bh-mailpoet/includes/class-sync.php
-        # class-media-wizard.php's bh-live integration (BHL_EngineRegistry,
-        # BHL_OwncastEngine, BHL_CloudflareStreamEngine, BHL_FlyProvisioner,
-        # BHL_WorkersChat) and Advanced Media Offloader integration are both
-        # real, correct optional-dependency patterns — every call site is
-        # guarded by class_exists() at call time (this ecosystem's own
-        # standing convention, see CLAUDE.md). Neither bh-live nor Advanced
-        # Media Offloader is in phpstan.neon's scanned `paths` (bh-live
-        # isn't part of this repo's own plugin set the way bh-contest/
-        # bh-crm/etc. are, and Advanced Media Offloader is a genuine
-        # third-party WordPress.org plugin, not authored here), so PHPStan
-        # can't resolve either — same class of noise as the MailPoet rule
-        # above, not real bugs.
+        # Advanced Media Offloader is an optional WordPress.org plugin, called only
+        # behind class_exists() and not installed for analysis.
         -
-            message: '#(unknown class BHL_\w+|BHL_\w+ not found|Advanced_Media_Offloader)#'
+            message: '#Advanced_Media_Offloader#'
             path: wp-content/plugins/the-self-hosted-self/includes/class-media-wizard.php
         # WC_Product_Subscription is a WooCommerce Subscriptions class (a
         # separate paid extension, not core WooCommerce) — this code path

@@ -143,16 +143,16 @@ class BHC_Gate {
     public static function drip_notice(int $user_id, int $lesson_id): string {
         $on_date = self::drip_on_date($lesson_id);
         if ($on_date !== null) {
-            return 'This lesson opens on ' . esc_html(date_i18n(get_option('date_format'), self::on_date_timestamp_utc($on_date))) . '.';
+            return BHC_Words::e('drip.opens_on', ['date' => date_i18n(get_option('date_format'), self::on_date_timestamp_utc($on_date))]);
         }
         $after_days = self::drip_after_days($lesson_id);
         $course_id = BHC_PostTypes::course_for_lesson($lesson_id);
         $enrolled_at = BHC_Progress::enrolled_at($user_id, $course_id);
         if ($after_days !== null && $enrolled_at) {
             $opens = strtotime($enrolled_at . ' UTC') + $after_days * DAY_IN_SECONDS;
-            return 'This lesson opens ' . esc_html(human_time_diff(time(), $opens)) . ' from now.';
+            return BHC_Words::e('drip.opens_in', ['time' => human_time_diff(time(), $opens)]);
         }
-        return 'This lesson isn\'t available yet.';
+        return BHC_Words::e('drip.not_yet');
     }
 
     // Builds the purchase notice directly, since BHM_Gate's tier-shaped notice has no CTA
@@ -177,11 +177,11 @@ class BHC_Gate {
                 if ($buy_url) {
                     // "Or ... no tier required" only reads right next to a tier offer.
                     $title = $tier_notice
-                        ? 'Or buy this course outright for <strong>' . $price_display . '</strong> — yours to keep, no supporter tier required.'
-                        : 'Get this course for <strong>' . $price_display . '</strong> — buy once, yours to keep.';
+                        ? BHC_Words::html('paywall.buy_title_with_tier', ['price' => '<strong>' . $price_display . '</strong>'])
+                        : BHC_Words::html('paywall.buy_title', ['price' => '<strong>' . $price_display . '</strong>']);
                     $buy_notice = '<div class="bhc-paywall bhc-paywall-purchase">'
                         . '<p class="bhc-paywall-title">' . $title . '</p>'
-                        . '<a class="bhc-btn bhc-btn-buy-once" href="' . esc_url($buy_url) . '">Buy once — ' . $price_display . '</a>'
+                        . '<a class="bhc-btn bhc-btn-buy-once" href="' . esc_url($buy_url) . '">' . BHC_Words::html('paywall.buy_button', ['price' => $price_display]) . '</a>'
                         . '</div>';
                 }
             }
@@ -191,6 +191,6 @@ class BHC_Gate {
             // Both together read as two options ("Or buy it outright").
             return $tier_notice . $buy_notice;
         }
-        return '<div class="bhc-paywall"><p>This content requires supporter access.</p></div>';
+        return '<div class="bhc-paywall"><p>' . BHC_Words::e('paywall.supporters_only') . '</p></div>';
     }
 }

@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Content-based related products (same approach as BHS_Recommendations), deliberately not
+ * Content-based related products, deliberately not
  * purchase-history based. Shared terms score: collection x3, category x2, tag x1.
  */
 class BHM_Recommendations {

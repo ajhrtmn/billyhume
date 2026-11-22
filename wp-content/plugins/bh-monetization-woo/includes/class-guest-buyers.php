@@ -42,9 +42,9 @@ class BHM_GuestBuyers {
         if (!$grants) return $text;
         $account = class_exists('BHI_Portal') ? home_url('/' . BHI_Portal::REWRITE_SLUG . '/') : wp_login_url();
         $email = $order->get_billing_email();
-        return $text . ' <strong>Your purchase is in your account.</strong> '
-            . 'Log in as ' . esc_html($email) . ' to start. If this is your first purchase, we\'ve emailed you a link to set your password. '
-            . '<a href="' . esc_url($account) . '">Go to your account &rarr;</a>';
+        return $text . ' <strong>' . BHM_Words::e('receipt.title') . '</strong> '
+            . BHM_Words::e('receipt.text', ['email' => $email]) . ' '
+            . '<a href="' . esc_url($account) . '">' . BHM_Words::e('receipt.link') . '</a>';
     }
 
     public static function product_grants_access(int $product_id): bool {

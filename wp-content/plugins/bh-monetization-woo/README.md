@@ -1,102 +1,24 @@
 # BH Monetization (WooCommerce)
 
-Supporter tiers, outright purchase, tips, and pay-per-play for
-`bh-streaming` — all backed by WooCommerce, never a parallel payments
-stack. Depends only on `the-self-hosted-self`. Never requires `bh-streaming` to
-exist, and `bh-streaming` never requires this plugin — see "Independence"
-below.
+Selling on billyhume.net, backed by WooCommerce (never a parallel payments system). WooCommerce owns the cart, checkout and payment; this plugin turns a completed order into **access** and keeps products in sync.
 
-## The Patreon-lite foundation
+## What it does
 
-Supporter tiers (`bhm_tier` posts) aren't just for bh-streaming. Any
-post type from any plugin can paylock itself with one line —
-`update_post_meta($id, '_bhm_required_tier', $tier_id)` — and check
-access with `BHM_Gate::user_has_tier_access($user_id, $tier_id, $id)`.
-`bhm_extra_entitlement_check` is the escape hatch for a future plugin's
-own entitlement types (mirroring `bh-crm`'s own extension-point
-pattern). This groundwork has a real consumer now: `bh-courses` gates
-its lessons/courses this exact same way (`_bhm_required_tier` on its
-own CPT + `BHM_Gate::user_has_tier_access()`), with zero changes
-needed here.
+- **Course products**: a course with a price gets a matching WooCommerce product (`BHM_ProductSync`). Paying for it grants access through an entitlement row; access is never re-derived from order status.
+- **Supporter tiers** (`bhm_tier` posts, ranked by price): monthly/annual, with WooCommerce Subscriptions if installed, otherwise a one-time 30-day purchase. Any content can require a tier (`BHM_Gate`, `BHM_PostGate`).
+- **Gift access**: an admin box on a course that grants it to someone as a real $0 order, so it uses the same path as a sale.
+- **Gift memberships**: buy a tier for someone else's email; they claim it with a code.
+- **Launch coupons**: WooCommerce coupons marked "apply automatically" (e.g. first 10 buyers get 30% off), shown as a launch price on sales pages.
+- **Guest checkout**: a buyer without an account gets one at checkout, so the purchase always lands on an account they can log into.
+- **Refund handling and fraud flags**: refunds and chargebacks revoke access; repeated buy-and-refund patterns are flagged for a human, never auto-blocked.
+- **Tip jar and buy buttons** (blocks and shortcodes).
 
-## Independence
+Wording people see lives in `words.php` in this folder.
 
-- `bh-streaming` exposes `bhs_track_monetization_ui`/`_save` (actions),
-  `bhs_track_access_allowed`/`bhs_track_play_allowed` (filters), and
-  `bhs_track_lock_notice`/`bhs_track_play_denied_message` (filters).
-  Every one of them is a no-op with a safe default if this plugin isn't
-  active — bh-streaming never mentions WooCommerce, prices, or tiers.
-- This plugin only hooks into those bh-streaming extension points
-  `if (class_exists('BHS_Admin'))`, checked safely inside `init()` (see
-  every other plugin in this ecosystem for why never at file-parse
-  time). Delete bh-streaming, and this plugin's own tiers/purchases/
-  wallet keep working — there's just nothing to gate.
+## Leftovers
 
-## WooCommerce Subscriptions (a real, honest caveat)
+The **wallet** (prepaid credit), **referrals** and **storefront collections** were built for a streaming plugin that has since been removed. They still work but nothing on the site uses them; see `../OPEN.md`.
 
-WooCommerce core has **no recurring billing of its own** — that's
-WooCommerce Subscriptions, a separate, official, paid extension.
-Treated as a further *optional* dependency: detected via
-`class_exists('WC_Subscriptions')`, never required. Without it, a
-supporter tier sells as a **one-time, 30-day** grant instead of true
-recurring billing — the admin UI says this plainly rather than
-pretending to offer automatic renewal it can't enforce.
+## Testing
 
-## Externally-aggregated tracks are never monetizable
-
-A track bh-streaming pulled in from another artist's own feed
-(`_bhs_source = 'external'`), or a local file import (no ownership
-check), is not this site's content to sell, gate, or charge per-play —
-that would misdirect a fan's money away from whoever actually made it.
-`BHM_MonetizationUI::is_non_catalog_track()` is checked in the UI
-(fields don't render), the save handler (a crafted POST can't set
-monetization meta on one either), and the play-gating hooks (these
-always pass through).
-
-## Pay-per-play: an actual server-authoritative ledger
-
-`_bhs_play_count` on bh-streaming is a cheap, unauthenticated vanity
-counter — never something a payout should be computed from. This
-plugin's own `bhm_play_log` table is the real record: every allowed
-play (paid or not) gets a row, written server-side at the moment
-bh-streaming's `/tracks/{id}/play` endpoint actually fires — not at
-catalog-listing time, which would charge a listener just for loading
-the page. Debits happen atomically against `bhm_wallet` (an
-`INSERT ... ON DUPLICATE KEY UPDATE`, not a read-then-write, so
-concurrent plays can't race into an incorrect balance).
-
-**Not built (flagged explicitly, not silently skipped):** a full
-royalty-split payout engine (e.g. dividing a subscription pool by
-relative plays across an artist's whole catalog) is real, useful, and
-a natural next step on top of `bhm_play_log` — but it's genuinely
-separate scope from this plugin's job of gating and charging correctly.
-
-## Fraud/abuse: what this plugin does and doesn't do
-
-Real AML/KYC/fraud detection is the payment gateway's job — Stripe,
-PayPal, etc. are the regulated money-services businesses here, with
-their own compliance and fraud-detection systems. This plugin doesn't
-pretend to replace that. What it *does* take responsibility for:
-
-- The tip jar's amount is clamped server-side (`TIP_MIN_CENTS`/
-  `TIP_MAX_CENTS` in `class-frontend.php`) and the price is actually
-  applied via `woocommerce_before_calculate_totals` — not just cosmetic.
-- A refunded or cancelled WooCommerce order actually **revokes**
-  whatever it granted (`BHM_Entitlements::on_order_reversed()`) — a
-  chargeback can't leave a fraudster with permanent access or wallet
-  credit while the artist eats the loss.
-- Every grant and every wallet delta is a real, timestamped, server-
-  written row (`bhm_entitlements`, `bhm_wallet_ledger`) — a genuine
-  audit trail if something needs investigating after the fact.
-
-## Testing without real money
-
-**The Self-Hosted Self → Debug Tools → BH Monetization** (locked outside
-`wp_get_environment_type() !== 'production'`, same as every other
-plugin's debug section) mints test tiers, entitlements, and wallet
-credit directly, plus a "simulate a refund" button that exercises the
-exact same revocation code path a real chargeback would, and a
-"simulate tier order" button that drives a REAL WooCommerce order
-through `update_status('completed')` — the actual production code
-path, not a shortcut around it — for testing the true end-to-end flow
-without a real payment gateway.
+Debug Tools → BH Monetization creates test tiers, entitlements and orders with no real payment. The Test Runner suite covers tier exclusivity, gift access, referrals and wallet holds against real, tagged, cleaned-up rows. `tests-integration/` holds a PHPUnit suite that runs against a real database in CI.

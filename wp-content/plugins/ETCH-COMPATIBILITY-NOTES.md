@@ -24,7 +24,7 @@ Direct quote, https://docs.etchwp.com/gutenberg/passthrough:
 
 > "Etch is architected to work with any and all third party blocks, from checkout systems, to forms, to facets... When Etch detects a block that's not a core Gutenberg block, it essentially 'passes it through' to the front-end without attempting to parse it. And in Etch, you'll simply see a placeholder element. This allows you to use these blocks without breaking their functionality."
 
-Concretely, for every block already built this session — `bhm/buy`, `bhm/tip-jar`, `bhm/tiers` (bh-monetization-woo), `bh/contest-player`, `bh/results-reveal`, `bh/archive` (bh-contest), `bhs/player` (bh-streaming), `bhc/catalog`, `bhc/course` (bh-courses) — this means:
+Concretely, for every block already built this session — `bhm/buy`, `bhm/tip-jar`, `bhm/tiers` (bh-monetization-woo), `bh/contest-player`, `bh/results-reveal`, `bh/archive` (bh-contest), `bhc/catalog`, `bhc/course` (bh-courses) — this means:
 
 - **The real, published front-end page**: works exactly as it does anywhere else in WordPress. `render_callback` fires, `ServerSideRender`'s output is what a visitor sees, full functionality (voting, purchasing, playback, etc.) — completely unaffected by Etch being involved anywhere in the page's construction.
 - **Inside Etch's own visual canvas, while Billy's dev is building**: the block shows as a generic placeholder box, not a live visual preview of what it actually looks like. This is the one real, current gap — cosmetic only, not functional.

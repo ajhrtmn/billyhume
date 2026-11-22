@@ -1,16 +1,7 @@
 name: Checks (PHPStan, PHPUnit, PHPCS, TypeScript, Stylelint, Vitest)
 
-# Fires on every push/PR against dev and master — the two branches real
-# work lands on. Deliberately NOT on `stable` (deploy-ftp.yml already
-# owns that branch, and by the time something reaches `stable` it's
-# already been checked here on dev/master first).
-#
-# Before this workflow existed, every check in this file (composer
-# phpstan, composer test, tsc per plugin) only ever ran because a
-# session happened to remember to run it by hand — a real gap between
-# "we have the tooling" and "the tooling actually protects anything."
-# This closes that gap: a failing PHPStan/PHPUnit/tsc run now fails the
-# GitHub check on the PR/push itself, same as any other CI gate.
+# Runs on every push/PR against dev and master, so a failing check shows on
+# GitHub instead of depending on someone remembering to run it by hand.
 on:
   push:
     branches:
@@ -64,12 +55,7 @@ jobs:
         continue-on-error: true
         run: bash tools/phpcs-changed.sh origin/${{ github.base_ref || 'master' }}
 
-  # Cheap, fast, no PHP/Node setup needed — catches the class of drift
-  # this repo has hit at least twice: deploy-ftp.yml's PLUGIN_FOLDERS
-  # silently falling out of step with tools/ecosystem-plugins.txt (most
-  # recently self-hosted-self-admin-skin, shipped for a full session
-  # while absent from the deploy list, found only by reading both files
-  # side by side).
+  # Catches deploy-ftp.yml's PLUGIN_FOLDERS drifting from tools/ecosystem-plugins.txt.
   repo-consistency:
     runs-on: ubuntu-latest
     steps:
@@ -103,20 +89,8 @@ jobs:
       - name: "CHANGELOG.md matches plugin Version: header (advisory)"
         run: bash tools/check-changelog-drift.sh
 
-  # The single highest-value gap named by this ecosystem's own docs
-  # (docs/archive/TOOLING-EVALUATION.md, OPEN.md): the money paths (BHM_Wallet's
-  # atomic debit here first, more to follow) were deliberately untested
-  # because a hand-stubbed $wpdb can only confirm a query STRING looks
-  # right, never that a real database actually enforces it. Real
-  # WordPress + real MySQL via @wordpress/env, which ubuntu-latest's
-  # bundled Docker runs natively -- no new runtime dependency, dev/CI
-  # only, same posture as every other tool in this file.
-  #
-  # continue-on-error while this graduates: built and verified locally
-  # this same session (including deliberately breaking the atomic guard
-  # this suite exists to catch, and confirming it fails), but this is
-  # its first run in GitHub's own runner environment specifically, which
-  # is a real, if small, unknown until proven here at least once.
+  # bh-monetization-woo's money paths against real WordPress + MySQL via
+  # @wordpress/env (a hand-stubbed $wpdb can't prove a query really guards).
   db-integration-tests:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -142,65 +116,9 @@ jobs:
           npx @wordpress/env run tests-cli bash -c \
             "cd /var/www/html/wp-content/plugins/bh-monetization-woo/tests-integration && WP_TESTS_DIR=/wordpress-phpunit vendor/bin/phpunit -c phpunit.xml"
 
-  # Screenshot-diffs the real Storybook build against committed Linux
-  # baselines -- see tests/ux/storybook-visual.spec.ts's own docblock.
-  # continue-on-error while this graduates, same posture and same reason
-  # as db-integration-tests above: built and verified this same session
-  # (including deliberately regressing a fixture and confirming it fails,
-  # then reverting and confirming a clean pass), but this is its first
-  # run in GitHub's own runner environment specifically. Runs on
-  # ubuntu-latest deliberately -- the baselines are named *-linux.png and
-  # will not match any other platform's font rendering.
-  storybook-visual:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Set up PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          coverage: none
-      - name: npm install
-        run: npm ci
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-      - name: Storybook visual regression
-        # PW_STORYBOOK gates playwright.config.ts's webServer block -- see
-        # that file's own comment for why it can't be unconditional.
-        env:
-          PW_STORYBOOK: '1'
-        run: npx playwright test --project=storybook
-
-  # Post-deploy smoke canary — the single highest-value CI gap named by
-  # the 2026-08-30 tech-debt audit. `master` auto-deploys to live via
-  # deploy-ftp.yml, and this session every regression that reached a
-  # human (a PHP fatal from an unescaped quote in a CSS-in-PHP string, a
-  # white-screen step container, a bundle frozen at an old version by a
-  # host page-cache) would have been caught here first.
-  #
-  # It points at the REAL LIVE SITE rather than provisioning a parallel
-  # WordPress instance — same call, and same read-only-by-construction
-  # safety (page.goto + text assertions only, no login, no form submit),
-  # as the ux-audit job in storybook-audit.yml. Default target is the
-  # Bluehost production site; override with the SMOKE_BASE_URL repo
-  # variable, or SMOKE_EXTRA_PATHS for extra URLs on a given run.
-  #
-  # This is a CANARY, not a pre-deploy GATE: on a `master` push the FTP
-  # sync has usually already run by the time this fires, so it tells you
-  # prod broke rather than stopping the break. A true gate needs
-  # @wordpress/env with the plugins activated and pages seeded — the
-  # db-integration-tests level of effort, tracked as the follow-up.
-  #
-  # continue-on-error while it graduates, same posture as
-  # db-integration-tests / storybook-visual above: the spec was written
-  # and run locally against the live site the same session it was added,
-  # but this is its first run from GitHub's own runners.
+  # Post-deploy smoke canary: loads the live site's public pages read-only
+  # (page.goto + text checks, no login, no form submit) and fails if one breaks.
+  # Override the target with the SMOKE_BASE_URL repo variable.
   smoke:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -251,9 +169,6 @@ jobs:
       - name: Build bh-contest
         run: npm run build:bh-contest
       - name: Build bh-crm
-        run: npm run build:bh-crm
-      - name: Build bh-streaming
-        run: npm run build:bh-streaming
       - name: Build bh-courses
         run: npm run build:bh-courses
 
@@ -265,14 +180,3 @@ jobs:
 
       - name: Unit tests (Vitest)
         run: npm run test:unit
-
-  # The logged-out UX audit used to sit here, disabled ("enable once CI
-  # provisions a WordPress instance to audit"). It never needed a
-  # provisioned instance -- one already exists in production, and
-  # tests/ux/public.spec.ts is read-only by construction (page.goto +
-  # measurement, never a form submit). Moved to its own workflow,
-  # storybook-audit.yml, which points it at the real live site instead of
-  # standing up a parallel install, and pairs it with the Storybook build
-  # job -- both are heavier/more occasional than this file's always-run
-  # gates, and both are also runnable on demand (workflow_dispatch, or
-  # the "Trigger via GitHub Actions" button in Design Suite).

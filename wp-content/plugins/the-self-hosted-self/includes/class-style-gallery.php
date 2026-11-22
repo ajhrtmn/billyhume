@@ -146,10 +146,6 @@ class BHY_Gallery {
             echo '<p class="description">Same Component tokens as below, previewed against the actual site — and its own Custom CSS section (with the exact same rule builder as the one on this page, further down) so you never have to leave it. Inside it: <strong>click</strong> any styled element (a card, badge, button…) to jump straight to its controls; <strong>right-click</strong> for a menu of every matching component at that point (useful when one is nested inside another), plus "Add custom rule for this element" and "Copy CSS selector". Its own Close (X) button brings you back here.</p>';
         }
 
-        // Dev-tool panel hidden from Design Suite; set true to bring it back.
-        $show_storybook_panel = false;
-        if ($show_storybook_panel && class_exists('BH_Storybook_Panel')) BH_Storybook_Panel::render();
-
         echo '<div class="bhy-layout">';
         self::render_sidebar($grouped);
         self::render_canvas($surfaces, $s);
@@ -555,7 +551,7 @@ class BHY_Gallery {
             // Logo upload — wp.media() is already enqueued on this page
             // (BHY_Gallery::enqueue_media()), reused here rather than a
             // new asset. Same upload-button/preview/clear shape
-            // bh-streaming's own artwork picker uses.
+            // other media pickers use.
             (function () {
                 var uploadBtn = document.getElementById('bhy-logo-upload');
                 var clearBtn = document.getElementById('bhy-logo-clear');

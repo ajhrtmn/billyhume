@@ -6,19 +6,12 @@
 # Both are gitignored, so git could not revert either. One canonical list,
 # read by every tool, is the fix; a per-script allowlist is the bug.
 #
-# Deliberately matches deploy-ftp.yml's PLUGIN_FOLDERS plus the admin skin.
+# Deliberately matches deploy-ftp.yml's PLUGIN_FOLDERS.
 # Keep the two in step.
 the-self-hosted-self
 bh-contest
 bh-courses
 bh-crm
-bh-feedback
-bh-live
 bh-mailpoet
 bh-monetization-woo
-bh-registry
-bh-social
-bh-streaming
 bh-tickets
-bh-video
-self-hosted-self-admin-skin

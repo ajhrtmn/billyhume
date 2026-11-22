@@ -1,10 +1,12 @@
 # Changelog — BH Monetization (WooCommerce)
 
-Moved out of `bh-monetization-woo.php` on 2026-08-23. See `CONVENTIONS.md` for why version history lives here and in git rather than in source.
+Moved out of `bh-monetization-woo.php` on 2026-08-23.
 
 Entries are newest-first, exactly as written in-file. Nothing reworded or dropped.
 
 ---
+
+0.7.0 - Rescoped to selling courses and supporter tiers. Removed the streaming-only pieces: track/release pricing UI, pay-per-play gating, auctions, the Bitcoin-anchored purchase ledger and its CRM/portal sections, the track-purchase debug action, and track/release downloads (course video downloads stay). The buy-button block now lists courses. Wording people see (receipt message, tiers page, paywall, tip jar, Membership & Wallet tab) moved into `words.php` via `BHM_Words`. Removed the plugin's own registry entry (core now lists it). Wallet, referrals and storefront remain but are unused; see `OPEN.md`.
 
 0.6.13 - Members who log in or land on WooCommerce's My account dashboard (e.g. after a password reset) go to the Account portal; order, download and password pages, and staff, are unchanged. A signed-out buyer on the order-received page is told their purchase is in their account and how to get in (order recognised by the receipt link's key). Runtime-verified over HTTP, including a tampered key.
 

@@ -18,19 +18,19 @@ class BHC_Feedback {
         if (!$uid || !BHC_Progress::enrolled_at($uid, $course_id)) return '';
         ob_start();
         echo '<div class="bhc-feedback" id="bhc-feedback">';
-        echo '<h2>Send feedback</h2>';
+        echo '<h2>' . BHC_Words::e('feedback.heading') . '</h2>';
         if (isset($_GET['bhc_feedback'])) {
             $sent = $_GET['bhc_feedback'] === 'sent';
-            echo '<p class="bhc-feedback-result" role="status">' . ($sent ? 'Thanks, your feedback was sent.' : 'That didn\'t send. Please wait a minute and try again.') . '</p>';
+            echo '<p class="bhc-feedback-result" role="status">' . BHC_Words::e($sent ? 'feedback.sent' : 'feedback.failed') . '</p>';
         }
-        echo '<p class="description">Tell us what\'s working and what isn\'t. Only the course team sees this.</p>';
+        echo '<p class="description">' . BHC_Words::e('feedback.intro') . '</p>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="bhc_course_feedback">';
         echo '<input type="hidden" name="course_id" value="' . (int) $course_id . '">';
         wp_nonce_field('bhc_course_feedback_' . $course_id);
-        echo '<label for="bhc-feedback-message" class="screen-reader-text">Your feedback</label>';
+        echo '<label for="bhc-feedback-message" class="screen-reader-text">' . BHC_Words::e('feedback.label') . '</label>';
         echo '<textarea id="bhc-feedback-message" name="message" rows="4" maxlength="' . self::MAX_LENGTH . '" required></textarea>';
-        echo '<p><button type="submit" class="bhc-btn bhc-btn-secondary">Send feedback</button></p>';
+        echo '<p><button type="submit" class="bhc-btn bhc-btn-secondary">' . BHC_Words::e('feedback.send') . '</button></p>';
         echo '</form></div>';
         return (string) ob_get_clean();
     }

@@ -43,7 +43,7 @@ class BHC_Render_Landing {
 
         $content = (string) get_post_field('post_content', $course_id);
         if (trim($content) !== '') {
-            echo '<div class="bhc-landing-section bhc-landing-about"><h2>About the course</h2>' . apply_filters('the_content', $content) . '</div>';
+            echo '<div class="bhc-landing-section bhc-landing-about"><h2>' . BHC_Words::e('landing.about') . '</h2>' . apply_filters('the_content', $content) . '</div>';
         }
         echo self::contents($course_id);
         echo self::testimonials((string) get_post_meta($course_id, '_bhc_landing_testimonials', true));
@@ -75,7 +75,7 @@ class BHC_Render_Landing {
         if ($tagline !== '') $out .= '<p class="bhc-landing-tagline">' . esc_html($tagline) . '</p>';
         $count = BHC_PostTypes::lesson_count($course_id);
         $duration = BHC_PostTypes::duration_note($course_id);
-        $out .= '<p class="bhc-landing-meta">' . (int) $count . ' lesson' . ($count === 1 ? '' : 's') . ($duration ? ' &middot; ' . esc_html($duration) : '') . '</p>';
+        $out .= '<p class="bhc-landing-meta">' . BHC_Words::e($count === 1 ? 'course.lesson_count_one' : 'course.lesson_count', ['count' => (int) $count]) . ($duration ? ' &middot; ' . esc_html($duration) : '') . '</p>';
         $out .= self::cta($course_id, $uid);
         $out .= '</div></header>';
         return $out;
@@ -86,7 +86,7 @@ class BHC_Render_Landing {
         $has_access = $uid && BHC_Gate::user_can_access_course($uid, $course_id);
         if ($has_access) {
             $cta = BHC_Render_Course::render_continue_cta($uid, $course_id, BHC_Progress::course_percent($uid, $course_id));
-            return '<div class="bhc-landing-cta">' . ($cta ?: '<a class="bhc-btn" href="' . esc_url((string) get_permalink($course_id)) . '">Go to the course &rarr;</a>') . '</div>';
+            return '<div class="bhc-landing-cta">' . ($cta ?: '<a class="bhc-btn" href="' . esc_url((string) get_permalink($course_id)) . '">' . BHC_Words::e('landing.go_to_course') . '</a>') . '</div>';
         }
         $out = '<div class="bhc-landing-cta">';
         $product_id = (int) get_post_meta($course_id, '_bhm_purchase_wc_product_id', true);
@@ -97,21 +97,20 @@ class BHC_Render_Landing {
             if (is_array($offer) && function_exists('wc_price')) {
                 $price = '<del>' . wc_price($offer['regular']) . '</del> ' . wc_price($offer['price']);
             }
-            $out .= '<a class="bhc-btn bhc-btn-buy-once" href="' . esc_url(add_query_arg('add-to-cart', $product_id, wc_get_cart_url())) . '">Get the course' . ($price ? ' &mdash; ' . $price : '') . '</a>';
+            $out .= '<a class="bhc-btn bhc-btn-buy-once" href="' . esc_url(add_query_arg('add-to-cart', $product_id, wc_get_cart_url())) . '">' . ($price ? BHC_Words::html('landing.buy_with_price', ['price' => $price]) : BHC_Words::e('landing.buy')) . '</a>';
             if (is_array($offer)) {
                 $out .= '<p class="bhc-landing-offer">' . (!empty($offer['remaining'])
-                    ? 'Launch price for the next ' . (int) $offer['remaining'] . ' buyer' . ((int) $offer['remaining'] === 1 ? '' : 's') . '.'
-                    : 'Launch price, applied at checkout.') . '</p>';
+                    ? BHC_Words::e((int) $offer['remaining'] === 1 ? 'landing.offer_one_left' : 'landing.offer_left', ['count' => (int) $offer['remaining']])
+                    : BHC_Words::e('landing.offer')) . '</p>';
             }
         } elseif (self::is_free($course_id)) {
             $first = BHC_PostTypes::lesson_order($course_id)[0] ?? 0;
-            $out .= '<a class="bhc-btn" href="' . esc_url((string) get_permalink($first ?: $course_id)) . '">Start free &rarr;</a>';
+            $out .= '<a class="bhc-btn" href="' . esc_url((string) get_permalink($first ?: $course_id)) . '">' . BHC_Words::e('landing.start_free') . '</a>';
         } else {
-            $out .= '<a class="bhc-btn" href="' . esc_url((string) get_permalink($course_id)) . '">View the course &rarr;</a>';
+            $out .= '<a class="bhc-btn" href="' . esc_url((string) get_permalink($course_id)) . '">' . BHC_Words::e('landing.view_course') . '</a>';
         }
         if (!$uid) {
-            $out .= '<p class="bhc-landing-login">' . (self::is_free($course_id) ? 'Already started?' : 'Already bought it?')
-                . ' <a href="' . esc_url(wp_login_url((string) get_permalink($course_id))) . '">Log in</a> to pick up where you left off.</p>';
+            $out .= '<p class="bhc-landing-login">' . BHC_Words::html(self::is_free($course_id) ? 'landing.login_free' : 'landing.login_paid', ['link' => '<a href="' . esc_url(wp_login_url((string) get_permalink($course_id))) . '">' . BHC_Words::e('landing.login_link') . '</a>']) . '</p>';
         }
         return $out . '</div>';
     }
@@ -136,7 +135,7 @@ class BHC_Render_Landing {
                 ? '<li class="bhc-landing-module"><h3>' . esc_html($group['title']) . '</h3><ol>' . $lessons . '</ol></li>'
                 : $lessons;
         }
-        return $items === '' ? '' : '<div class="bhc-landing-section bhc-landing-contents"><h2>What&rsquo;s inside</h2><ol class="bhc-landing-lessons">' . $items . '</ol></div>';
+        return $items === '' ? '' : '<div class="bhc-landing-section bhc-landing-contents"><h2>' . BHC_Words::e('landing.contents') . '</h2><ol class="bhc-landing-lessons">' . $items . '</ol></div>';
     }
 
     /** @return array<int, string[]> blank-line separated blocks, each as trimmed lines */
@@ -161,7 +160,7 @@ class BHC_Render_Landing {
             $items .= '<figure class="bhc-landing-quote"><blockquote><p>' . implode('<br>', array_map('esc_html', $lines)) . '</p></blockquote>'
                 . ($who !== '' ? '<figcaption>' . esc_html($who) . '</figcaption>' : '') . '</figure>';
         }
-        return $items === '' ? '' : '<div class="bhc-landing-section bhc-landing-testimonials"><h2>What students say</h2><div class="bhc-landing-quotes">' . $items . '</div></div>';
+        return $items === '' ? '' : '<div class="bhc-landing-section bhc-landing-testimonials"><h2>' . BHC_Words::e('landing.testimonials') . '</h2><div class="bhc-landing-quotes">' . $items . '</div></div>';
     }
 
     private static function faq(string $text): string {
@@ -171,17 +170,17 @@ class BHC_Render_Landing {
             $items .= '<details class="bhc-landing-faq-item"><summary>' . esc_html($question) . '</summary>'
                 . ($lines ? '<p>' . implode('<br>', array_map('esc_html', $lines)) . '</p>' : '') . '</details>';
         }
-        return $items === '' ? '' : '<div class="bhc-landing-section bhc-landing-faq"><h2>Questions</h2>' . $items . '</div>';
+        return $items === '' ? '' : '<div class="bhc-landing-section bhc-landing-faq"><h2>' . BHC_Words::e('landing.faq') . '</h2>' . $items . '</div>';
     }
 
     private static function fine_print(): string {
         $links = [];
         $terms_id = (int) get_option('woocommerce_terms_page_id', 0);
-        if ($terms_id && get_post_status($terms_id) === 'publish') $links[] = '<a href="' . esc_url((string) get_permalink($terms_id)) . '">Terms of sale</a>';
+        if ($terms_id && get_post_status($terms_id) === 'publish') $links[] = '<a href="' . esc_url((string) get_permalink($terms_id)) . '">' . BHC_Words::e('landing.terms') . '</a>';
         $privacy = get_privacy_policy_url();
-        if ($privacy) $links[] = '<a href="' . esc_url($privacy) . '">Privacy</a>';
+        if ($privacy) $links[] = '<a href="' . esc_url($privacy) . '">' . BHC_Words::e('landing.privacy') . '</a>';
         $support = method_exists('OUS_Pages', 'url') ? OUS_Pages::url('bht_support') : null;
-        if ($support) $links[] = '<a href="' . esc_url($support) . '">Questions? Contact us</a>';
+        if ($support) $links[] = '<a href="' . esc_url($support) . '">' . BHC_Words::e('landing.contact') . '</a>';
         return $links ? '<p class="bhc-landing-fine-print">' . implode(' &middot; ', $links) . '</p>' : '';
     }
 }

@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) exit;
  *
  * - Fixes: changes made, at an optional timestamp_seconds (e.g. a spot in a mix), resolvable.
  * - Feedback: notes from others, keyed by free-text author_name (authors often have no account).
- * - Idea Drop attachments: a link to the person's own bh-streaming track (no copy), or a media upload (a copy).
+ * - Idea Drop attachments: media uploads (older rows may link to a since-removed track library).
  * All keyed by card_placement_id (core placement id, no FK).
  */
 class BHCRM_CardLog {
@@ -18,7 +18,6 @@ class BHCRM_CardLog {
         add_action('admin_post_bhcrm_card_add_fix', [self::class, 'handle_add_fix']);
         add_action('admin_post_bhcrm_card_toggle_fix', [self::class, 'handle_toggle_fix']);
         add_action('admin_post_bhcrm_card_add_feedback', [self::class, 'handle_add_feedback']);
-        add_action('admin_post_bhcrm_card_link_track', [self::class, 'handle_link_track']);
         add_action('admin_post_bhcrm_card_upload_file', [self::class, 'handle_upload_file']);
         add_action('admin_post_bhcrm_card_remove_attachment', [self::class, 'handle_remove_attachment']);
     }
@@ -158,20 +157,8 @@ class BHCRM_CardLog {
     }
 
     /* =================================================================
-     * Idea Drop (track links + uploads)
+     * Idea Drop (uploads)
      * ================================================================= */
-
-    /** @return int|false */
-    public static function add_track_link(int $card_id, int $track_post_id, int $added_by) {
-        global $wpdb;
-        $track_post_id = (int) $track_post_id;
-        if (!$track_post_id || get_post_type($track_post_id) !== 'bhs_track') return false;
-        $ok = $wpdb->insert(self::attachments_table(), [
-            'card_placement_id' => (int) $card_id, 'kind' => 'track_link',
-            'track_post_id' => $track_post_id, 'added_by' => (int) $added_by,
-        ]);
-        return $ok ? (int) $wpdb->insert_id : false;
-    }
 
     /** @return int|false */
     public static function add_upload(int $card_id, int $wp_attachment_id, int $added_by) {
@@ -249,7 +236,7 @@ class BHCRM_CardLog {
                 if ($a['kind'] === 'track_link') {
                     $track = get_post((int) $a['track_post_id']);
                     $label = $track ? $track->post_title : ('Track #' . $a['track_post_id'] . ' (deleted)');
-                    echo '&#127925; ' . esc_html($label) . ' <span class="description">(linked from your streaming library — no copy made)</span>';
+                    echo '&#127925; ' . esc_html($label) . ' <span class="description">(linked track)</span>';
                 } else {
                     $url = wp_get_attachment_url((int) $a['wp_attachment_id']);
                     $filename = $url ? basename($url) : ('Attachment #' . $a['wp_attachment_id'] . ' (deleted)');
@@ -270,34 +257,13 @@ class BHCRM_CardLog {
             echo '</ul>';
         }
 
-        // Track picker scoped to this person's own imports; needs bh-streaming and a non-zero $uid.
-        if (class_exists('BHS_Import') && $uid) {
-            $tracks = BHS_Import::imports_for_user($uid);
-            if ($tracks) {
-                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-bottom:10px;">';
-                wp_nonce_field('bhcrm_card_link_track_' . $card_id);
-                echo '<input type="hidden" name="action" value="bhcrm_card_link_track">';
-                echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '">';
-                echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
-                echo '<input type="hidden" name="card_id" value="' . (int) $card_id . '">';
-                echo '<select name="track_post_id"><option value="">Link one of their tracks…</option>';
-                foreach ($tracks as $t) {
-                    echo '<option value="' . (int) $t->ID . '">' . esc_html($t->post_title) . '</option>';
-                }
-                echo '</select> <button class="button">Link track</button>';
-                echo '</form>';
-            } else {
-                echo '<p class="description">This person has no tracks imported into the streaming library yet to link.</p>';
-            }
-        }
-
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" enctype="multipart/form-data">';
         wp_nonce_field('bhcrm_card_upload_file_' . $card_id);
         echo '<input type="hidden" name="action" value="bhcrm_card_upload_file">';
         echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '">';
         echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
         echo '<input type="hidden" name="card_id" value="' . (int) $card_id . '">';
-        echo '<label>Or upload a file directly (a real copy, not a link): <input type="file" name="upload_file"></label> ';
+        echo '<label>Upload a file: <input type="file" name="upload_file"></label> ';
         echo '<button class="button">Upload</button>';
         echo '</form>';
 
@@ -420,16 +386,6 @@ class BHCRM_CardLog {
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_card_add_feedback_' . $card_id)) wp_die('Bad nonce.');
 
         self::add_feedback($card_id, wp_unslash($_POST['author_name'] ?? ''), wp_unslash($_POST['note'] ?? ''));
-        self::redirect_to_card((int) ($_POST['project_id'] ?? 0), (int) ($_POST['user_id'] ?? 0), $card_id);
-    }
-
-    public static function handle_link_track(): void {
-        if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
-        $card_id = (int) ($_POST['card_id'] ?? 0);
-        if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_card_link_track_' . $card_id)) wp_die('Bad nonce.');
-
-        $track_post_id = (int) ($_POST['track_post_id'] ?? 0);
-        if ($track_post_id) self::add_track_link($card_id, $track_post_id, get_current_user_id());
         self::redirect_to_card((int) ($_POST['project_id'] ?? 0), (int) ($_POST['user_id'] ?? 0), $card_id);
     }
 

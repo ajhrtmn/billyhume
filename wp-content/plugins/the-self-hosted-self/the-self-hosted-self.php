@@ -1,15 +1,15 @@
 <?php
 /**
- * Plugin Name: The Self-Hosted Self
- * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.21.55
+ * Plugin Name: Site Core (The Self-Hosted Self)
+ * Description: The required base for Billy Hume's site: accounts and the member portal, the Design Suite (colors, fonts, spacing), Debug Tools, logs, tests, email, background jobs and GitHub Updates. The Courses, Contests, Sales, Support, People and Mailing-list plugins all build on it.
+ * Version:     3.22.0
  * Requires PHP: 8.2
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('OUS_VER', '3.21.55');
+define('OUS_VER', '3.22.0');
 
 define('OUS_PATH', plugin_dir_path(__FILE__));
 define('OUS_URL',  plugin_dir_url(__FILE__));
@@ -20,10 +20,9 @@ define('BHCORE_LOADED', true);
 
 /**
  * WHY one plugin: identity (BHI_*) and style (BHY_*) live in core so
- * dependents never race PHP's alphabetical plugin-load order. Contest and
- * Streaming stay separate plugins.
+ * dependents never race PHP's alphabetical plugin-load order.
  */
-foreach (['tables', 'pages', 'registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'member-hardening', 'identity-activator', 'style', 'color', 'contrast', 'ui', 'style-gallery', 'customizer', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce-provider', 'commerce-provider-woocommerce', 'commerce-providers', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'visibility', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element', 'contrast-test-suite', 'design-suite', 'storybook-panel', 'block-style', 'share-card', 'media-wizard', 'media-token', 'seo', 'metrics', 'user-bar', 'campaigns', 'privacy', 'dmca', 'dmca-notices', 'mail', 'integration', 'hypermedia', 'github-updates'] as $f) {
+foreach (['words', 'tables', 'pages', 'registry', 'dashboard', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'member-hardening', 'identity-activator', 'style', 'color', 'contrast', 'ui', 'style-gallery', 'customizer', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce-provider', 'commerce-provider-woocommerce', 'commerce-providers', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'visibility', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element', 'contrast-test-suite', 'design-suite', 'block-style', 'share-card', 'media-wizard', 'media-token', 'seo', 'metrics', 'user-bar', 'campaigns', 'privacy', 'mail', 'integration', 'hypermedia', 'github-updates'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -50,8 +49,6 @@ add_action('init',          ['OUS_Metrics', 'init']);
 add_action('rest_api_init', ['BHI_Reports', 'register_routes']);
 add_action('init',          ['BHI_TwoFactor', 'init']);
 add_action('init',          ['OUS_Privacy', 'init']);
-add_action('init',          ['OUS_DMCA', 'init']);
-add_action('init',          ['OUS_DMCA_Notices', 'init']);
 
 add_filter('cron_schedules', ['OUS_Jobs', 'register_cron_schedule']);
 
@@ -118,7 +115,6 @@ add_action('init', function () {
     OUS_WCLogBridge::init();
 }, 5);
 add_action('init',          ['OUS_Search', 'init']);
-add_action('init',          ['OUS_SetupWizard', 'init']);
 add_action('init',          ['OUS_PortalLayout', 'init']);
 add_action('init',          ['OUS_AdminLayout', 'init']);
 add_action('init',          ['OUS_DebugLog', 'init']);
@@ -136,7 +132,6 @@ add_action('init',          ['OUS_CodebaseDocs', 'init']);
 BH_Event::init();
 BH_Identity::init();
 OUS_Toast::init();
-BH_Storybook_Panel::init();
 
 // Placement storage behind the bh-crm project board.
 add_action('init',          ['BH_Element', 'init']);
@@ -161,13 +156,7 @@ add_action('admin_menu',    ['OUS_Dashboard', 'add_menu']);
 add_action('admin_menu',    ['BH_Design_Suite', 'add_menu']);
 add_action('init',          ['OUS_MenuMerge', 'init']);
 add_action('init',          ['OUS_Debug', 'init']);
-add_filter('ous_debug_tools', ['OUS_Registry', 'register_debug_section']);
 add_action('admin_post_ous_activate', ['OUS_Dashboard', 'handle_activate']);
-add_action('admin_post_ous_activate_all', ['OUS_Dashboard', 'handle_activate_all']);
-add_action('admin_post_ous_activate_file', ['OUS_Dashboard', 'handle_activate_file']);
-add_action('admin_post_ous_install',  ['OUS_Dashboard', 'handle_install']);
-add_action('init',          ['OUS_Banner', 'init']);
-add_action('admin_head',    ['OUS_Banner', 'maybe_print']);
 add_action('admin_enqueue_scripts', ['OUS_Dashboard', 'enqueue_assets']);
 
 add_action('init', ['BH_Content', 'init']);

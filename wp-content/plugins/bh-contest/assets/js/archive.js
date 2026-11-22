@@ -23,7 +23,7 @@
             return true;
         });
         if (!tracks.length) {
-            grid.innerHTML = '<p class="bh-empty">No tracks match.</p>';
+            grid.innerHTML = '<p class="bh-empty">' + bhWordEsc('archive.no_matches') + '</p>';
             return;
         }
         grid.innerHTML = tracks.map((t) => {
@@ -60,7 +60,7 @@
         render();
     })
         .catch(() => {
-        grid.innerHTML = '<p class="bh-empty">Could not load the archive right now.</p>';
+        grid.innerHTML = '<p class="bh-empty">' + bhWordEsc('archive.load_failed') + '</p>';
     });
     search.addEventListener('input', render);
     filter.addEventListener('change', render);

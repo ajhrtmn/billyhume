@@ -17,7 +17,6 @@ final class OUS_Tables {
         'campaigns'          => 'bhcore_campaigns',
         'content'            => 'bhcore_content',
         'debug_log'          => 'bhcore_debug_log',
-        'dmca_notices'       => 'bhcore_dmca_notices',
         'element_placements' => 'bhcore_element_placements',
         'events'             => 'bhcore_events',
         'jobs'               => 'bhcore_jobs',
@@ -37,7 +36,6 @@ final class OUS_Tables {
     public static function campaigns(): string { return self::name('campaigns'); }
     public static function content(): string { return self::name('content'); }
     public static function debug_log(): string { return self::name('debug_log'); }
-    public static function dmca_notices(): string { return self::name('dmca_notices'); }
     public static function element_placements(): string { return self::name('element_placements'); }
     public static function events(): string { return self::name('events'); }
     public static function jobs(): string { return self::name('jobs'); }

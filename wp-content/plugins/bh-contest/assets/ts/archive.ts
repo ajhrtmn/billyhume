@@ -48,7 +48,7 @@ interface BHArchiveWindow extends Window {
         });
 
         if (!tracks.length) {
-            grid.innerHTML = '<p class="bh-empty">No tracks match.</p>';
+            grid.innerHTML = '<p class="bh-empty">' + bhWordEsc('archive.no_matches') + '</p>';
             return;
         }
 
@@ -87,7 +87,7 @@ interface BHArchiveWindow extends Window {
             render();
         })
         .catch(() => {
-            grid.innerHTML = '<p class="bh-empty">Could not load the archive right now.</p>';
+            grid.innerHTML = '<p class="bh-empty">' + bhWordEsc('archive.load_failed') + '</p>';
         });
 
     search.addEventListener('input', render);

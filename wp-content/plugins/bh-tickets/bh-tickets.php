@@ -2,18 +2,18 @@
 /**
  * Plugin Name: BH Tickets
  * Description: In-house support/issue ticketing, built on bh-crm's own identity model — a fan opens a ticket from their account portal, staff triage from wp-admin. No third-party helpdesk dependency.
- * Version:     1.0.6
+ * Version:     1.1.0
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
-define('BHT_VER',  '1.0.6');
+define('BHT_VER',  '1.1.0');
 define('BHT_PATH', plugin_dir_path(__FILE__));
 define('BHT_URL',  plugin_dir_url(__FILE__));
 
-foreach (['tables', 'activator', 'tickets', 'replies', 'admin', 'portal', 'support', 'debug', 'test-suite'] as $f) {
+foreach (['words', 'tables', 'activator', 'tickets', 'replies', 'admin', 'portal', 'support', 'debug', 'test-suite'] as $f) {
     require_once BHT_PATH . "includes/class-$f.php";
 }
 
@@ -53,15 +53,3 @@ add_action('plugins_loaded', function () {
     add_filter('bh_crm_activity_summary', ['BHT_Tickets', 'register_crm_activity'], 10, 2);
 });
 
-add_filter('ous_registered_plugins', function ($plugins) {
-    $plugins['bh-tickets'] = [
-        'label' => 'BH Tickets',
-        'file' => 'bh-tickets/bh-tickets.php',
-        'depends_on' => [],
-        'check_class' => 'BHT_Tickets',
-        'description' => 'In-house support/issue ticketing built on bh-crm\'s own identity model — no third-party helpdesk dependency.',
-        'dashboard_link' => 'admin.php?page=bh-tickets',
-        'bundled_zip' => 'bh-tickets.zip',
-    ];
-    return $plugins;
-});

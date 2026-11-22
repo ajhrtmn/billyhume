@@ -216,35 +216,8 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql11);
 
-        // DMCA notice intake/tracking (class-dmca-notices.php), admin-entered. Its own table because
-        // claimant identity, attestation, and counter-notice deadline need real columns.
-        $dmca_notices = OUS_Tables::dmca_notices();
-        $sql12 = "CREATE TABLE $dmca_notices (
-            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-            claimant_name varchar(190) NOT NULL DEFAULT '',
-            claimant_email varchar(190) NOT NULL DEFAULT '',
-            claimant_address text,
-            target_type varchar(40) NOT NULL DEFAULT '',
-            target_id bigint(20) unsigned NOT NULL DEFAULT 0,
-            target_url text,
-            work_description text,
-            infringing_description text,
-            sworn_statement tinyint(1) NOT NULL DEFAULT 0,
-            status varchar(20) NOT NULL DEFAULT 'received',
-            counter_notice_deadline datetime DEFAULT NULL,
-            counter_notice_received_at datetime DEFAULT NULL,
-            admin_note text,
-            created_by bigint(20) unsigned NOT NULL DEFAULT 0,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            resolved_at datetime DEFAULT NULL,
-            PRIMARY KEY  (id),
-            KEY target (target_type, target_id),
-            KEY status (status)
-        ) $charset;";
-        dbDelta($sql12);
-
         if ($wpdb->last_error) return false;
-        foreach ([$table, $reports, $notifications, $jobs, $debug_log, $content, $events, $element_placements, $campaigns, $dmca_notices] as $name) {
+        foreach ([$table, $reports, $notifications, $jobs, $debug_log, $content, $events, $element_placements, $campaigns] as $name) {
             if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $name)) !== $name) return false;
         }
         return true;

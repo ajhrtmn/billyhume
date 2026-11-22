@@ -20,7 +20,7 @@ class BHM_Frontend {
         add_action('woocommerce_before_calculate_totals', [self::class, 'apply_tip_price']);
         add_filter('woocommerce_add_cart_item_data', [self::class, 'apply_tip_amount'], 10, 2);
         // Pay-what-you-want purchases: same price-override shape as the tip jar,
-        // keyed to _bhm_purchase_pwyw/_bhm_purchase_price_cents (BHM_MonetizationUI::save_object()).
+        // keyed to _bhm_purchase_pwyw/_bhm_purchase_price_cents.
         add_action('woocommerce_before_calculate_totals', [self::class, 'apply_purchase_price']);
         add_filter('woocommerce_add_cart_item_data', [self::class, 'apply_purchase_amount'], 10, 2);
 
@@ -108,9 +108,9 @@ class BHM_Frontend {
             if (!$tier) continue;
 
             echo '<div class="bhm-thankyou-banner">';
-            echo '<h2>&#127881; You\'re now supporting at ' . esc_html($tier['name']) . '!</h2>';
+            echo '<h2>' . BHM_Words::e('tiers.thanks_title', ['tier' => $tier['name']]) . '</h2>';
             if ($tier['benefits'] || !empty($tier['benefits_list'])) {
-                echo '<p>Here\'s what that unlocks:</p>';
+                echo '<p>' . BHM_Words::e('tiers.thanks_unlocks') . '</p>';
                 if (!empty($tier['benefits_list'])) {
                     echo '<ul>';
                     foreach ($tier['benefits_list'] as $benefit) echo '<li>' . esc_html($benefit) . '</li>';
@@ -120,7 +120,7 @@ class BHM_Frontend {
                 }
             }
             if (class_exists('BHI_Portal')) {
-                echo '<p><a class="bhm-btn" href="' . esc_url(home_url('/' . BHI_Portal::REWRITE_SLUG . '/membership/')) . '">Manage your membership &rarr;</a></p>';
+                echo '<p><a class="bhm-btn" href="' . esc_url(home_url('/' . BHI_Portal::REWRITE_SLUG . '/membership/')) . '">' . BHM_Words::e('tiers.manage') . '</a></p>';
             }
             echo '</div>';
             return; // one order realistically carries at most one tier line item — first match is enough
@@ -175,10 +175,10 @@ class BHM_Frontend {
         $star = '<svg class="bhm-tiers-empty-icon" viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.79l-5.2 2.73.99-5.8-4.21-4.1 5.82-.85z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
         $body = $commerce_ready
-            ? '<p class="bhm-tiers-empty-lead">Supporter tiers aren\'t open yet.</p>'
-              . '<p class="bhm-tiers-empty-note">This is where you\'ll be able to back the music directly &mdash; a recurring pledge in exchange for members-only perks. Check back soon.</p>'
-            : '<p class="bhm-tiers-empty-lead">Supporter tiers aren\'t available yet.</p>'
-              . '<p class="bhm-tiers-empty-note">The store connection still needs to be finished before tiers can go live.</p>';
+            ? '<p class="bhm-tiers-empty-lead">' . BHM_Words::e('tiers.empty_lead') . '</p>'
+              . '<p class="bhm-tiers-empty-note">' . BHM_Words::e('tiers.empty_note') . '</p>'
+            : '<p class="bhm-tiers-empty-lead">' . BHM_Words::e('tiers.unavailable_lead') . '</p>'
+              . '<p class="bhm-tiers-empty-note">' . BHM_Words::e('tiers.unavailable_note') . '</p>';
 
         $admin = '';
         if (current_user_can('edit_posts')) {
@@ -187,7 +187,7 @@ class BHM_Frontend {
         }
 
         return '<div class="bhm-tiers-empty">' . $star
-             . '<h2 class="bhm-tiers-empty-title">Supporter tiers</h2>'
+             . '<h2 class="bhm-tiers-empty-title">' . BHM_Words::e('tiers.title') . '</h2>'
              . $body . $admin . '</div>';
     }
 
@@ -217,7 +217,7 @@ class BHM_Frontend {
             echo '<h3>' . esc_html($t['name']) . '</h3>';
             // Without WC Subscriptions a tier is a one-time 30-day purchase; say which.
             $has_subscriptions = class_exists('BH_Commerce') && BH_Commerce::has_subscriptions();
-            echo '<span class="bhm-billing-badge">' . ($has_subscriptions ? 'Recurring — billed monthly' : 'One-time — 30 days access') . '</span>';
+            echo '<span class="bhm-billing-badge">' . BHM_Words::e($has_subscriptions ? 'tiers.billing_recurring' : 'tiers.billing_one_time') . '</span>';
             echo '<div class="bhm-tier-price">$' . esc_html(BHM_Money::display($t['price_cents'])) . '/mo</div>';
             if (!empty($t['annual_price_cents'])) {
                 // Savings shown only when annual is genuinely cheaper than 12x monthly.
@@ -239,25 +239,25 @@ class BHM_Frontend {
                 echo '</ul>';
             }
             if ($active) {
-                echo '<span class="bh-badge bhm-badge">Your current tier</span>';
+                echo '<span class="bh-badge bhm-badge">' . BHM_Words::e('tiers.current') . '</span>';
                 echo self::render_subscription_controls($user_id, $t['id']);
             } elseif ($t['wc_product_id']) {
                 // Label only; tier switching is reconciled server-side (BHM_Gate::handle_tier_downgrade()).
-                $join_label = $user_has_any_tier ? 'Switch to this tier' : 'Join monthly';
-                $annual_label = $user_has_any_tier ? 'Switch (annual)' : 'Join annually';
+                $join_label = BHM_Words::get($user_has_any_tier ? 'tiers.switch' : 'tiers.join_monthly');
+                $annual_label = BHM_Words::get($user_has_any_tier ? 'tiers.switch_annual' : 'tiers.join_annually');
                 echo '<a class="bhm-btn" href="' . esc_url(self::add_to_cart_url($t['wc_product_id'])) . '">' . esc_html($join_label) . '</a>';
                 if (!empty($t['wc_product_id_annual'])) {
                     echo ' <a class="bhm-btn bhm-btn-secondary" href="' . esc_url(self::add_to_cart_url($t['wc_product_id_annual'])) . '">' . esc_html($annual_label) . '</a>';
                 }
 
                 // Gift this tier: a <details> so no JS is needed to reveal the form.
-                echo '<details class="bhm-tier-gift"><summary class="bhm-btn bhm-btn-secondary">&#127873; Gift this tier</summary>';
+                echo '<details class="bhm-tier-gift"><summary class="bhm-btn bhm-btn-secondary">&#127873; ' . BHM_Words::e('tiers.gift') . '</summary>';
                 // WHY: a GET form drops its action's query string, so add-to-cart goes in a hidden field.
                 echo '<form method="get" action="' . esc_url(wc_get_cart_url()) . '">';
                 echo '<input type="hidden" name="add-to-cart" value="' . (int) $t['wc_product_id'] . '">';
                 echo '<input type="hidden" name="bhm_gift" value="1">';
-                echo '<input type="email" name="bhm_gift_email" placeholder="Recipient\'s email" required>';
-                echo '<button type="submit" class="bhm-btn bhm-btn-secondary">Send gift</button>';
+                echo '<input type="email" name="bhm_gift_email" placeholder="' . esc_attr(BHM_Words::get('tiers.gift_email')) . '" required>';
+                echo '<button type="submit" class="bhm-btn bhm-btn-secondary">' . BHM_Words::e('tiers.gift_send') . '</button>';
                 echo '</form></details>';
             }
             echo '</div>';
@@ -284,12 +284,12 @@ class BHM_Frontend {
         $out .= wp_nonce_field('bhm_manage_subscription_' . $sub_id, '_wpnonce', true, false);
 
         if ($status === 'on-hold') {
-            $out .= '<p class="description">Your subscription is paused — you\'ll keep your account, but supporter access is off until you resume.</p>';
+            $out .= '<p class="description">' . BHM_Words::e('subscription.paused') . '</p>';
             if ($subscription->can_be_updated_to('active')) {
-                $out .= '<button type="submit" name="bhm_sub_action" value="resume" class="bhm-btn">Resume subscription</button>';
+                $out .= '<button type="submit" name="bhm_sub_action" value="resume" class="bhm-btn">' . BHM_Words::e('subscription.resume') . '</button>';
             }
         } elseif ($subscription->can_be_updated_to('on-hold')) {
-            $out .= '<button type="submit" name="bhm_sub_action" value="pause" class="bhm-btn bhm-btn-secondary" onclick="return confirm(\'Pause your subscription? You\\\'ll lose supporter access until you resume it.\');">Pause subscription</button>';
+            $out .= '<button type="submit" name="bhm_sub_action" value="pause" class="bhm-btn bhm-btn-secondary" onclick="return confirm(' . esc_attr(wp_json_encode(BHM_Words::get('subscription.pause_confirm'))) . ');">' . BHM_Words::e('subscription.pause') . '</button>';
         }
         $out .= '</form>';
         return $out;
@@ -363,8 +363,8 @@ class BHM_Frontend {
                     <button type="button" class="bhm-amount-chip" data-amount="<?php echo esc_attr((string) $amt); ?>">$<?php echo esc_html((string) $amt); ?></button>
                 <?php endforeach; ?>
             </div>
-            <label>Send a tip: $<input type="number" step="1" min="<?php echo esc_attr((string) (self::TIP_MIN_CENTS / 100)); ?>" max="<?php echo esc_attr((string) (self::TIP_MAX_CENTS / 100)); ?>" name="bhm_tip_amount" value="5" class="bhm-amount-input"></label>
-            <button type="submit" class="bhm-btn">Send Tip</button>
+            <label><?php echo BHM_Words::e('tip.label'); ?> $<input type="number" step="1" min="<?php echo esc_attr((string) (self::TIP_MIN_CENTS / 100)); ?>" max="<?php echo esc_attr((string) (self::TIP_MAX_CENTS / 100)); ?>" name="bhm_tip_amount" value="5" class="bhm-amount-input"></label>
+            <button type="submit" class="bhm-btn"><?php echo BHM_Words::e('tip.send'); ?></button>
         </form>
         <?php
         return ob_get_clean();
@@ -450,14 +450,14 @@ class BHM_Frontend {
                         <button type="button" class="bhm-amount-chip" data-amount="<?php echo esc_attr((string) $amt); ?>">$<?php echo esc_html((string) $amt); ?></button>
                     <?php endforeach; ?>
                 </div>
-                <label>Name your price (min $<?php echo esc_html(BHM_Money::display($price_cents)); ?>): $
+                <label><?php echo BHM_Words::e('buy.name_price', ['min' => BHM_Money::display($price_cents)]); ?> $
                     <input type="number" step="1" min="<?php echo esc_attr((string) ($price_cents / 100)); ?>" max="<?php echo esc_attr((string) (self::PURCHASE_MAX_CENTS / 100)); ?>" name="bhm_purchase_amount" value="<?php echo esc_attr((string) ($price_cents / 100)); ?>" class="bhm-amount-input">
                 </label>
-                <button type="submit" class="bhm-btn">Buy</button>
+                <button type="submit" class="bhm-btn"><?php echo BHM_Words::e('buy.button'); ?></button>
             </form>
             <?php
         } else {
-            echo '<a class="bhm-btn" href="' . esc_url(self::add_to_cart_url($product_id)) . '">Buy for $' . esc_html(BHM_Money::display($price_cents)) . '</a>';
+            echo '<a class="bhm-btn" href="' . esc_url(self::add_to_cart_url($product_id)) . '">' . BHM_Words::e('buy.for_price', ['price' => BHM_Money::display($price_cents)]) . '</a>';
         }
         return ob_get_clean();
     }

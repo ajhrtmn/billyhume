@@ -77,7 +77,7 @@ class BHC_PortalPanel {
     public static function register_panel($panels): array {
         $panels[] = [
             'id' => 'courses',
-            'label' => 'My Courses',
+            'label' => BHC_Words::get('portal.tab'),
             'icon' => 'dashicons-welcome-learn-more',
             'render' => [self::class, 'render'],
             'priority' => 30,
@@ -91,7 +91,7 @@ class BHC_PortalPanel {
         $earned = BHC_Achievements::all_for_user($user_id);
         if (!$earned) return;
 
-        echo '<h3 class="bhi-portal-achievements-heading">Achievements</h3>';
+        echo '<h3 class="bhi-portal-achievements-heading">' . BHC_Words::e('portal.achievements') . '</h3>';
         echo '<div class="bhi-portal-achievements">';
         foreach ($earned as $row) {
             $meta = BHC_Achievements::LABELS[$row['achievement_key']] ?? null;
@@ -131,10 +131,10 @@ class BHC_PortalPanel {
 
     public static function render(): void {
         $user_id = get_current_user_id();
-        echo '<h1>My Courses</h1>';
+        echo '<h1>' . BHC_Words::e('portal.heading') . '</h1>';
 
         if (!class_exists('BHC_Progress')) {
-            echo '<p>Course progress is unavailable right now.</p>';
+            echo '<p>' . BHC_Words::e('portal.unavailable') . '</p>';
             return;
         }
 
@@ -144,8 +144,8 @@ class BHC_PortalPanel {
         if (!$course_ids) {
             echo '<div class="bhi-portal-empty">'
                . '<span class="dashicons dashicons-welcome-learn-more"></span>'
-               . '<p>You\'re not enrolled in any courses yet.</p>'
-               . '<a class="button" href="' . esc_url(home_url('/courses/')) . '">Browse courses &rarr;</a>'
+               . '<p>' . BHC_Words::e('portal.none') . '</p>'
+               . '<a class="button" href="' . esc_url(home_url('/courses/')) . '">' . BHC_Words::e('portal.browse') . '</a>'
                . '</div>';
             return;
         }
@@ -172,15 +172,15 @@ class BHC_PortalPanel {
             echo '<div class="bhi-progress-row">';
             echo '<div class="bhi-portal-progress-bar"><div class="bhi-portal-progress-fill" style="width:' . (int) $percent . '%;"></div></div>';
             echo '<span class="bhi-datum bhi-progress-figure"><span class="bhi-datum-value">' . (int) $percent . '%</span>'
-                . '<span class="bhi-datum-label">' . ($completed ? '&#10003; complete' : 'done') . '</span></span>';
+                . '<span class="bhi-datum-label">' . BHC_Words::e($completed ? 'portal.complete' : 'portal.done') . '</span></span>';
             echo '</div>';
             if (!$accessible) {
-                echo '<p class="bhi-portal-course-locked">&#128274; Access has lapsed — <a href="' . esc_url((string) get_permalink($course_id)) . '">view options</a></p>';
+                echo '<p class="bhi-portal-course-locked">&#128274; ' . BHC_Words::html('portal.lapsed', ['link' => '<a href="' . esc_url((string) get_permalink($course_id)) . '">' . BHC_Words::e('portal.lapsed_link') . '</a>']) . '</p>';
             } else {
                 // Same Start / Continue / Review rule as the catalog card.
                 $cta = class_exists('BHC_Render_Course') ? BHC_Render_Course::render_continue_cta($user_id, $course_id, (int) $percent) : '';
                 $downloads = class_exists('BHC_Downloads') ? BHC_Downloads::render_link($course_id, 'bhi-portal-course-downloads') : '';
-                echo '<p class="bhi-portal-course-actions">' . ($cta !== '' ? $cta : '<a class="bhc-btn bhc-continue-btn" href="' . esc_url((string) get_permalink($course_id)) . '">View course &rarr;</a>') . $downloads . '</p>';
+                echo '<p class="bhi-portal-course-actions">' . ($cta !== '' ? $cta : '<a class="bhc-btn bhc-continue-btn" href="' . esc_url((string) get_permalink($course_id)) . '">' . BHC_Words::e('portal.view_course') . '</a>') . $downloads . '</p>';
             }
             echo '</div>';
         }

@@ -37,7 +37,6 @@ class BHM_Debug {
         echo '<h4>Entitlements (simulated purchases)</h4>';
         OUS_Debug::button('bh-monetization-woo', 'grant_top_tier', 'Grant yourself the top tier (30 days)');
         OUS_Debug::button('bh-monetization-woo', 'revoke_all_tiers', 'Revoke all your tier entitlements');
-        OUS_Debug::button('bh-monetization-woo', 'simulate_track_purchase', 'Simulate buying the first monetized track you own the rights to test with', '<input type="number" name="track_id" placeholder="Track ID" style="width:100px;">');
 
         echo '<h4>Wallet (pay-per-play)</h4>';
         OUS_Debug::button('bh-monetization-woo', 'credit_wallet', 'Credit your wallet $10.00 (no real charge)');
@@ -156,12 +155,6 @@ class BHM_Debug {
                 ));
                 foreach ($rows as $row) BHM_Entitlements::revoke_entitlement_by_id($row->id, 'debug_revoke_all');
                 return count($rows) . ' tier/subscription entitlement(s) removed for your account (via the real revoke path — event fired + notification sent for each).';
-
-            case 'simulate_track_purchase':
-                $track_id = (int) ($post['track_id'] ?? 0);
-                if (!$track_id || get_post_type($track_id) !== 'bhs_track') return 'Enter a real bhs_track post ID first.';
-                BHM_Entitlements::debug_grant_purchase($uid, $track_id, 'track');
-                return 'Granted a simulated purchase entitlement for track #' . $track_id . ' (via the real grant path).';
 
             case 'credit_wallet':
                 BHM_Wallet::credit($uid, 1000, 'test_credit_' . self::SEED_TAG);

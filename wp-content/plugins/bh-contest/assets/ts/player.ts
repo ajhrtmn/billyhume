@@ -290,7 +290,7 @@ class BHPlayer {
         // Name the real cause of a 401/403, but only when the server sent no
         // specific message of its own (e.g. "contest not open yet").
         if (!res.ok && (res.status === 401 || res.status === 403) && !body.message) {
-            body.message = 'Your session has expired — please log in again.';
+            body.message = bhWord('auth.session_expired');
         }
         return { ok: res.ok, body };
     }
@@ -316,11 +316,11 @@ class BHPlayer {
                     <div class="bh-header-actions">
                         <button class="bh-results-btn bh-btn bh-btn-results" style="display:none;">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M5 4h14v2h2v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 16.9V19h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 13H7a4 4 0 0 1-4-4V6h2V4zm0 4H4.9A2 2 0 0 0 5 8.9V8zm14 0v.9a2 2 0 0 0 .1-.9H19z"/></svg>
-                            Results
+                            ${bhWordEsc('results.button')}
                         </button>
-                        <button class="bh-submit-btn bh-btn bh-btn-primary" style="display:none;">Submit a Song</button>
-                        <button class="bh-login-btn bh-btn bh-btn-outline">Log In</button>
-                        <button type="button" class="bh-logout-btn bh-btn bh-btn-outline" style="display:none;">Log Out</button>
+                        <button class="bh-submit-btn bh-btn bh-btn-primary" style="display:none;">${bhWordEsc('submit.button')}</button>
+                        <button class="bh-login-btn bh-btn bh-btn-outline">${bhWordEsc('auth.login_button')}</button>
+                        <button type="button" class="bh-logout-btn bh-btn bh-btn-outline" style="display:none;">${bhWordEsc('auth.logout_button')}</button>
                     </div>
                 </div>
 
@@ -333,7 +333,7 @@ class BHPlayer {
                      page was showing a live-looking UI for a contest
                      that had already ended. See loadTracks()'s
                      voting_open handling and renderTrackRows(). -->
-                <div class="bh-voting-closed-banner" style="display:none;">Voting has closed for this contest.</div>
+                <div class="bh-voting-closed-banner" style="display:none;">${bhWordEsc('vote.closed_banner')}</div>
                 <!-- Audit fix (2026-07-25): a voter previously had no
                      persistent way to see votes remaining in the active
                      category — only a post-vote toast that disappeared.
@@ -341,12 +341,12 @@ class BHPlayer {
                 <div class="bh-votes-remaining" style="display:none;"></div>
 
 
-                <div class="bh-tracklist">Loading tracks…</div>
+                <div class="bh-tracklist">${bhWordEsc('tracks.loading')}</div>
 
                 <div class="bh-now-playing-bar">
                     <div class="bh-np-track">
                         <div class="bh-disc bh-np-disc"></div>
-                        <div class="bh-np-info">Select a track</div>
+                        <div class="bh-np-info">${bhWordEsc('player.select_track')}</div>
                     </div>
                     <div class="bh-scrubber-container">
                         <span class="bh-time bh-time-elapsed">0:00</span>
@@ -362,105 +362,105 @@ class BHPlayer {
 
                 <div class="bh-modal bh-auth-modal"><div class="bh-modal-content">
                     <span class="bh-close" data-close="auth">&times;</span>
-                    <h2 class="bh-auth-title">Log In</h2>
-                    <input type="text" class="bh-user" placeholder="Username" autocomplete="username">
+                    <h2 class="bh-auth-title">${bhWordEsc('auth.login_title')}</h2>
+                    <input type="text" class="bh-user" placeholder="${bhWordEsc('auth.username')}" autocomplete="username">
                     <div class="bh-pass-wrap">
-                        <input type="password" class="bh-pass" placeholder="Password" autocomplete="current-password">
-                        <button type="button" class="bh-pass-toggle" aria-label="Show password" aria-pressed="false">&#128065;</button>
+                        <input type="password" class="bh-pass" placeholder="${bhWordEsc('auth.password')}" autocomplete="current-password">
+                        <button type="button" class="bh-pass-toggle" aria-label="${bhWordEsc('auth.show_password')}" aria-pressed="false">&#128065;</button>
                     </div>
-                    <input type="email" class="bh-email" placeholder="Email (sign up only)" style="display:none;" autocomplete="email">
+                    <input type="email" class="bh-email" placeholder="${bhWordEsc('auth.email')}" style="display:none;" autocomplete="email">
                     <div class="bh-reg-extra" style="display:none;">
-                        <small>Optional — helps us credit you if you ever submit a track. Skip anything you'd rather not share.</small>
+                        <small>${bhWordEsc('auth.signup_extra_hint')}</small>
                         <div class="bh-field-row">
-                            <input type="text" class="bh-reg-realname" placeholder="Real name">
-                            <label class="bh-pub-toggle"><input type="checkbox" class="bh-reg-realname-pub"> public</label>
+                            <input type="text" class="bh-reg-realname" placeholder="${bhWordEsc('profile.real_name')}">
+                            <label class="bh-pub-toggle"><input type="checkbox" class="bh-reg-realname-pub"> ${bhWordEsc('profile.public')}</label>
                         </div>
                         <div class="bh-field-row">
-                            <input type="text" class="bh-reg-discord" placeholder="Discord username">
-                            <label class="bh-pub-toggle"><input type="checkbox" class="bh-reg-discord-pub"> public</label>
+                            <input type="text" class="bh-reg-discord" placeholder="${bhWordEsc('profile.discord')}">
+                            <label class="bh-pub-toggle"><input type="checkbox" class="bh-reg-discord-pub"> ${bhWordEsc('profile.public')}</label>
                         </div>
                         <div class="bh-field-row">
-                            <input type="text" class="bh-reg-twitch" placeholder="Twitch username">
-                            <label class="bh-pub-toggle"><input type="checkbox" class="bh-reg-twitch-pub"> public</label>
+                            <input type="text" class="bh-reg-twitch" placeholder="${bhWordEsc('profile.twitch')}">
+                            <label class="bh-pub-toggle"><input type="checkbox" class="bh-reg-twitch-pub"> ${bhWordEsc('profile.public')}</label>
                         </div>
                         <div class="bh-field-row">
-                            <input type="text" class="bh-reg-youtube" placeholder="YouTube channel">
-                            <label class="bh-pub-toggle"><input type="checkbox" class="bh-reg-youtube-pub"> public</label>
+                            <input type="text" class="bh-reg-youtube" placeholder="${bhWordEsc('profile.youtube')}">
+                            <label class="bh-pub-toggle"><input type="checkbox" class="bh-reg-youtube-pub"> ${bhWordEsc('profile.public')}</label>
                         </div>
                         <select class="bh-reg-platform">
-                            <option value="">Where do you usually watch?</option>
+                            <option value="">${bhWordEsc('profile.platform_question')}</option>
                             <option value="youtube">YouTube</option>
                             <option value="twitch">Twitch</option>
                         </select>
                     </div>
                     <input type="text" class="bh-website bh-hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
-                    <button class="bh-auth-submit bh-btn bh-btn-primary">Continue</button>
-                    <p><a href="#" class="bh-toggle-auth">Need an account? Sign up</a></p>
+                    <button class="bh-auth-submit bh-btn bh-btn-primary">${bhWordEsc('auth.continue')}</button>
+                    <p><a href="#" class="bh-toggle-auth">${bhWordEsc('auth.switch_to_signup')}</a></p>
                 </div></div>
 
                 <div class="bh-modal bh-submit-modal"><div class="bh-modal-content">
                     <span class="bh-close" data-close="submit">&times;</span>
-                    <h2>Submit Your Track</h2>
-                    <input type="text" class="bh-sub-title" placeholder="Song title">
-                    <input type="text" class="bh-sub-artist" placeholder="Artist name">
-                    <small class="bh-sub-fan-note">We need your real name and at least one way to reach you, so we can credit you properly.</small>
+                    <h2>${bhWordEsc('submit.title')}</h2>
+                    <input type="text" class="bh-sub-title" placeholder="${bhWordEsc('submit.song_title')}">
+                    <input type="text" class="bh-sub-artist" placeholder="${bhWordEsc('submit.artist')}">
+                    <small class="bh-sub-fan-note">${bhWordEsc('submit.contact_hint')}</small>
                     <div class="bh-field-row" data-field="real_name">
-                        <input type="text" class="bh-sub-realname" placeholder="Real name">
-                        <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-realname-pub"> public</label>
+                        <input type="text" class="bh-sub-realname" placeholder="${bhWordEsc('profile.real_name')}">
+                        <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-realname-pub"> ${bhWordEsc('profile.public')}</label>
                     </div>
                     <div class="bh-field-row" data-field="discord_name">
-                        <input type="text" class="bh-sub-discord" placeholder="Discord username">
-                        <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-discord-pub"> public</label>
+                        <input type="text" class="bh-sub-discord" placeholder="${bhWordEsc('profile.discord')}">
+                        <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-discord-pub"> ${bhWordEsc('profile.public')}</label>
                     </div>
                     <div class="bh-field-row" data-field="twitch_name">
-                        <input type="text" class="bh-sub-twitch" placeholder="Twitch username">
-                        <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-twitch-pub"> public</label>
+                        <input type="text" class="bh-sub-twitch" placeholder="${bhWordEsc('profile.twitch')}">
+                        <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-twitch-pub"> ${bhWordEsc('profile.public')}</label>
                     </div>
                     <div class="bh-field-row" data-field="youtube_name">
-                        <input type="text" class="bh-sub-youtube" placeholder="YouTube channel">
-                        <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-youtube-pub"> public</label>
+                        <input type="text" class="bh-sub-youtube" placeholder="${bhWordEsc('profile.youtube')}">
+                        <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-youtube-pub"> ${bhWordEsc('profile.public')}</label>
                     </div>
-                    <input type="tel" class="bh-sub-phone" data-field="phone" placeholder="Phone number (optional — for prize contact only, never shared)">
+                    <input type="tel" class="bh-sub-phone" data-field="phone" placeholder="${bhWordEsc('submit.phone')}">
                     <select class="bh-sub-platform" data-field="typical_platform">
-                        <option value="">Where do you usually watch?</option>
+                        <option value="">${bhWordEsc('profile.platform_question')}</option>
                         <option value="youtube">YouTube</option>
                         <option value="twitch">Twitch</option>
                     </select>
-                    <textarea class="bh-sub-note" placeholder="Note to admins (optional)" rows="3"></textarea>
+                    <textarea class="bh-sub-note" placeholder="${bhWordEsc('submit.note')}" rows="3"></textarea>
                     <label class="bh-file-label">
-                        <span class="bh-file-label-text">Choose an audio file…</span>
+                        <span class="bh-file-label-text">${bhWordEsc('submit.choose_file')}</span>
                         <input type="file" class="bh-sub-file bh-file-input" accept=".mp3,.m4a,audio/mpeg,audio/mp4">
                     </label>
-                    <small class="bh-file-hint">MP3 or M4A · Max 20MB</small>
-                    <button class="bh-upload-btn bh-btn bh-btn-primary">Upload</button>
+                    <small class="bh-file-hint">${bhWordEsc('submit.file_hint')}</small>
+                    <button class="bh-upload-btn bh-btn bh-btn-primary">${bhWordEsc('submit.upload')}</button>
                 </div></div>
 
                 <div class="bh-modal bh-share-modal"><div class="bh-modal-content">
                     <span class="bh-close" data-close="share">&times;</span>
-                    <h2>You're in! &#127881;</h2>
+                    <h2>${bhWordEsc('share.title')}</h2>
                     <p class="bh-share-next"></p>
-                    <p>Grab a shareable image to spread the word.</p>
+                    <p>${bhWordEsc('share.intro')}</p>
                     <div class="bh-share-cards">
                         <a class="bh-share-card-link" data-share="entered" href="#" target="_blank" rel="noopener">
-                            <img class="bh-share-card-thumb" data-share-img="entered" alt="Now entered — shareable image">
-                            <span>Get "I entered" image</span>
+                            <img class="bh-share-card-thumb" data-share-img="entered" alt="${bhWordEsc('share.entered_alt')}">
+                            <span>${bhWordEsc('share.entered_button')}</span>
                         </a>
                         <a class="bh-share-card-link" data-share="vote" href="#" target="_blank" rel="noopener">
-                            <img class="bh-share-card-thumb" data-share-img="vote" alt="Vote for me — shareable image">
-                            <span>Get "Vote for me" image</span>
+                            <img class="bh-share-card-thumb" data-share-img="vote" alt="${bhWordEsc('share.vote_alt')}">
+                            <span>${bhWordEsc('share.vote_button')}</span>
                         </a>
                     </div>
-                    <p class="bh-share-hint">Pair the "Vote for me" image with this link when you post:</p>
+                    <p class="bh-share-hint">${bhWordEsc('share.link_hint')}</p>
                     <div class="bh-share-link-row">
                         <a class="bh-share-contest-link" href="#" target="_blank" rel="noopener"></a>
-                        <button type="button" class="bh-copy-link-btn" data-copy-target=".bh-share-contest-link" title="Copy link">Copy</button>
+                        <button type="button" class="bh-copy-link-btn" data-copy-target=".bh-share-contest-link" title="${bhWordEsc('share.copy_link')}">${bhWordEsc('share.copy')}</button>
                     </div>
                 </div></div>
 
                 <div class="bh-modal bh-results-modal"><div class="bh-modal-content">
                     <span class="bh-close" data-close="results">&times;</span>
-                    <h2>Results</h2>
-                    <div class="bh-results-body">Loading…</div>
+                    <h2>${bhWordEsc('results.title')}</h2>
+                    <div class="bh-results-body">${bhWordEsc('results.loading')}</div>
                 </div></div>
             </div>`;
         this.bind();
@@ -491,7 +491,7 @@ class BHPlayer {
         this.q<HTMLInputElement>('.bh-sub-file').addEventListener('change', e => {
             const target = e.target as HTMLInputElement;
             const f = target.files ? target.files[0] : undefined;
-            this.q('.bh-file-label-text').textContent = f ? f.name : 'Choose an audio file…';
+            this.q('.bh-file-label-text').textContent = f ? f.name : bhWord('submit.choose_file');
         });
 
         this.enhanceSelect(this.q<HTMLSelectElement>('.bh-reg-platform'));
@@ -518,7 +518,7 @@ class BHPlayer {
                 const showing = input.type === 'text';
                 input.type = showing ? 'password' : 'text';
                 passToggle.setAttribute('aria-pressed', String(!showing));
-                passToggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+                passToggle.setAttribute('aria-label', bhWord(showing ? 'auth.show_password' : 'auth.hide_password'));
                 passToggle.innerHTML = showing ? '&#128065;' : '&#128683;';
             };
         }
@@ -533,7 +533,7 @@ class BHPlayer {
                 if (!text || !navigator.clipboard) return;
                 navigator.clipboard.writeText(text).then(() => {
                     const original = copyBtn.textContent || '';
-                    copyBtn.textContent = 'Copied!';
+                    copyBtn.textContent = bhWord('share.copied');
                     copyBtn.classList.add('is-copied');
                     setTimeout(() => { copyBtn.textContent = original; copyBtn.classList.remove('is-copied'); }, 1500);
                 }).catch(() => {
@@ -566,10 +566,10 @@ class BHPlayer {
 
     setAuthMode(isLogin: boolean): void {
         this.isLogin = isLogin;
-        this.q('.bh-auth-title').innerText = isLogin ? 'Log In' : 'Sign Up';
+        this.q('.bh-auth-title').innerText = bhWord(isLogin ? 'auth.login_title' : 'auth.signup_title');
         this.q<HTMLElement>('.bh-email').style.display = isLogin ? 'none' : 'block';
         this.q('.bh-reg-extra').style.display = isLogin ? 'none' : 'flex';
-        this.q('.bh-toggle-auth').innerText = isLogin ? 'Need an account? Sign up' : 'Have an account? Log in';
+        this.q('.bh-toggle-auth').innerText = bhWord(isLogin ? 'auth.switch_to_signup' : 'auth.switch_to_login');
     }
 
     // Shared by the sign-up form and the submit form — appends whichever
@@ -679,18 +679,18 @@ class BHPlayer {
         }
 
         btn.disabled = true;
-        btn.innerText = this.isLogin ? 'Logging in…' : 'Creating account…';
+        btn.innerText = bhWord(this.isLogin ? 'auth.logging_in' : 'auth.creating_account');
 
         const { ok, body } = await this.reqIdentity<BHAuthResponse>(this.isLogin ? 'login' : 'register', { method: 'POST', body: fd });
         if (ok) {
-            this.toast(this.isLogin ? 'Welcome back!' : 'Account created — you\'re now signed in.');
+            this.toast(bhWord(this.isLogin ? 'auth.welcome_back' : 'auth.account_created'));
             // WHY: reload, because the new session cookie makes the current REST
             // nonce stale, so even a "fetch fresh nonce" request would be rejected.
             // The delay lets the toast be read first.
             setTimeout(() => window.location.reload(), 1400);
             return;
         }
-        this.toast(body.message || 'Authentication failed.', true);
+        this.toast(body.message || bhWord('auth.failed'), true);
         btn.disabled = false;
         btn.innerText = label;
     }
@@ -699,7 +699,7 @@ class BHPlayer {
         const btn = this.q<HTMLButtonElement>('.bh-logout-btn');
         btn.disabled = true;
         await this.reqIdentity('logout', { method: 'POST' });
-        this.toast('Logged out.');
+        this.toast(bhWord('auth.logged_out'));
         // Reload for a matching nonce, same as auth().
         setTimeout(() => window.location.reload(), 1400);
     }
@@ -737,14 +737,14 @@ class BHPlayer {
         // Audio is optional only when this contest allows submitting without it.
         if (!title || !artist || (!file && !this.allowAudioOptional)) {
             this.toast(this.allowAudioOptional
-                ? 'Add a song title and artist name.'
-                : 'Add a song title, artist name, and an audio file.', true);
+                ? bhWord('submit.need_title')
+                : bhWord('submit.need_title_and_file'), true);
             return;
         }
-        if (file && file.size > this.maxBytes) { this.toast('That file is over 20MB. Please choose a smaller one.', true); return; }
+        if (file && file.size > this.maxBytes) { this.toast(bhWord('submit.file_too_big'), true); return; }
 
         btn.disabled = true;
-        btn.innerText = file ? 'Uploading… please wait' : 'Saving…';
+        btn.innerText = bhWord(file ? 'submit.uploading' : 'submit.saving');
 
         const fd = new FormData();
         fd.append('title', title); fd.append('artist', artist); fd.append('note', note);
@@ -756,19 +756,19 @@ class BHPlayer {
             this.q('.bh-submit-modal').style.display = 'none';
             this.qa<HTMLInputElement | HTMLTextAreaElement>('.bh-sub-title, .bh-sub-artist, .bh-sub-note, .bh-sub-file, .bh-sub-realname, .bh-sub-discord, .bh-sub-twitch, .bh-sub-youtube, .bh-sub-phone')
                 .forEach(el => { el.value = ''; });
-            this.q('.bh-file-label-text').textContent = 'Choose an audio file…';
+            this.q('.bh-file-label-text').textContent = bhWord('submit.choose_file');
             if (body.needs_audio) {
                 // No share cards until real audio exists.
-                this.toast(body.message || 'Submission started! Attach your audio file from your account portal to finish.');
+                this.toast(body.message || bhWord('submit.started'));
             } else {
-                this.toast('Track submitted! It will appear once an admin approves it.');
+                this.toast(bhWord('submit.done'));
                 this.showShareModal(body);
             }
         } else {
-            this.toast(body.message || 'Upload failed. Check the file and try again.', true);
+            this.toast(body.message || bhWord('submit.failed'), true);
         }
         btn.disabled = false;
-        btn.innerText = 'Upload';
+        btn.innerText = bhWord('submit.upload');
     }
 
     // Fills the share modal from the submit response's card URLs; guarded so
@@ -782,10 +782,10 @@ class BHPlayer {
                 const d = new Date(body.vote_end.replace(' ', 'T'));
                 const label = isNaN(d.getTime()) ? null : d.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
                 nextEl.textContent = label
-                    ? `Voting closes ${label} — winners are announced live at the Reveal Party.`
-                    : 'Watch for the Reveal Party once voting closes — that\'s when winners are announced.';
+                    ? bhWord('share.next_with_date', { date: label })
+                    : bhWord('share.next');
             } else {
-                nextEl.textContent = 'Watch for the Reveal Party once voting closes — that\'s when winners are announced.';
+                nextEl.textContent = bhWord('share.next');
             }
         }
         this.q<HTMLAnchorElement>('[data-share="entered"]').href = body.entered_card_url;
@@ -802,7 +802,7 @@ class BHPlayer {
     async loadTracks(page: number): Promise<void> {
         const list = this.q('.bh-tracklist');
         const { ok, body } = await this.req<BHTracksResponse>(`tracks?page=${page}`);
-        if (!ok) { list.innerHTML = '<div class="bh-empty">Could not load tracks.</div>'; return; }
+        if (!ok) { list.innerHTML = '<div class="bh-empty">' + bhWordEsc('tracks.load_failed') + '</div>'; return; }
 
         // WHY: lock to the resolved ID so a newly published contest can't swap
         // what an untargeted embed shows mid-session.
@@ -830,7 +830,7 @@ class BHPlayer {
         this.applyContactFields();
 
         this.tracks = body.tracks || [];
-        if (!this.tracks.length) { list.innerHTML = '<div class="bh-empty">No tracks yet. Be the first to submit!</div>'; return; }
+        if (!this.tracks.length) { list.innerHTML = '<div class="bh-empty">' + bhWordEsc('tracks.none') + '</div>'; return; }
 
         this.renderTrackRows();
     }
@@ -846,14 +846,14 @@ class BHPlayer {
         });
 
         const parts: string[] = [];
-        if (cfg.require_real_name) parts.push('your real name');
-        if (cfg.require_handle) parts.push('at least one way to reach you (Discord, Twitch, or YouTube)');
-        if (cfg.require_phone) parts.push('a phone number');
+        if (cfg.require_real_name) parts.push(bhWord('submit.need_real_name'));
+        if (cfg.require_handle) parts.push(bhWord('submit.need_handle'));
+        if (cfg.require_phone) parts.push(bhWord('submit.need_phone'));
         const hint = this.q('.bh-sub-fan-note');
         if (hint) {
             hint.textContent = parts.length
-                ? 'We need ' + parts.join(' and ') + ' before you can submit.'
-                : 'Optional — fill in whatever you\'d like below.';
+                ? bhWord('submit.need_these', { items: parts.join(bhWord('submit.list_and')) })
+                : bhWord('submit.all_optional');
         }
     }
 
@@ -890,8 +890,8 @@ class BHPlayer {
         if (left === undefined || this.voteLimit === null) { el.style.display = 'none'; return; }
         el.style.display = '';
         el.textContent = left > 0
-            ? `${left} vote${left === 1 ? '' : 's'} left${this.voteLimit ? ` of ${this.voteLimit}` : ''}`
-            : 'No votes left in this category';
+            ? bhWord(this.voteLimit ? (left === 1 ? 'vote.left_of_one' : 'vote.left_of') : (left === 1 ? 'vote.left_one' : 'vote.left'), { count: left, limit: this.voteLimit ?? '' })
+            : bhWord('vote.none_left');
         el.classList.toggle('bh-votes-remaining--empty', left <= 0);
     }
 
@@ -917,7 +917,7 @@ class BHPlayer {
                 </div>
                 <button class="bh-vote-btn ${voted ? 'voted' : ''}" data-id="${t.id}" id="vote-${t.id}" style="--bh-cat-color:${color}"${disabled ? ' disabled' : ''}>
                     <svg class="bh-check" viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
-                    <span>${voted ? 'Voted' : (votingClosed ? 'Closed' : 'Vote')}</span>
+                    <span>${bhWordEsc(voted ? 'vote.voted' : (votingClosed ? 'vote.closed' : 'vote.button'))}</span>
                 </button>
             </div>`;
         }).join('');
@@ -926,7 +926,7 @@ class BHPlayer {
     play(index: number): void {
         if (this.sound) this.sound.stop();
         const t = this.tracks[index];
-        if (!t || !t.src) { this.toast('This track has no audio file.', true); return; }
+        if (!t || !t.src) { this.toast(bhWord('player.no_audio'), true); return; }
 
         this.playingIndex = index;
         this.q('.bh-np-info').innerHTML = `<strong>${this.esc(t.title)}</strong><br><small>${this.esc(t.artist)}</small>`;
@@ -971,7 +971,7 @@ class BHPlayer {
         if (!this.loggedIn) {
             this.setAuthMode(true);
             this.q('.bh-auth-modal').style.display = 'flex';
-            this.toast('Log in to vote.');
+            this.toast(bhWord('vote.login_required'));
             return;
         }
         const track = this.tracks.find(t => String(t.id) === String(id));
@@ -979,7 +979,7 @@ class BHPlayer {
         if (btn) btn.disabled = true;
 
         const catName = this.activeCategoryName();
-        const catSuffix = catName ? ` for ${catName}` : '';
+        const catSuffix = catName ? bhWord('vote.for_category', { category: catName }) : '';
 
         const { ok, body } = await this.req<BHVoteResponse>('vote', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -989,17 +989,17 @@ class BHPlayer {
         if (ok && body.action === 'added') {
             // WHY: write to this.tracks too; renderTrackRows() rebuilds from it on tab switch.
             if (track) { track.votes = track.votes || {}; track.votes[this.activeCategory] = true; }
-            if (btn) { btn.classList.add('voted'); const span = btn.querySelector('span'); if (span) span.textContent = 'Voted'; }
+            if (btn) { btn.classList.add('voted'); const span = btn.querySelector('span'); if (span) span.textContent = bhWord('vote.voted'); }
             const votesLeft = body.votes_left ?? 0;
             this.toast(votesLeft > 0
-                ? `Vote counted${catSuffix} — ${votesLeft} vote${votesLeft === 1 ? '' : 's'} left.`
-                : `Vote counted${catSuffix} — that was your last vote here.`);
+                ? bhWord(votesLeft === 1 ? 'vote.counted_one_left' : 'vote.counted', { category: catSuffix, count: votesLeft })
+                : bhWord('vote.counted_last', { category: catSuffix }));
         } else if (ok) {
             if (track && track.votes) track.votes[this.activeCategory] = false;
-            if (btn) { btn.classList.remove('voted'); const span = btn.querySelector('span'); if (span) span.textContent = 'Vote'; }
-            this.toast(`Vote removed${catSuffix} — you can pick another track.`);
+            if (btn) { btn.classList.remove('voted'); const span = btn.querySelector('span'); if (span) span.textContent = bhWord('vote.button'); }
+            this.toast(bhWord('vote.removed', { category: catSuffix }));
         } else {
-            this.toast(body.message || 'Could not record your vote.', true);
+            this.toast(body.message || bhWord('vote.failed'), true);
         }
         if (ok && body.votes_left !== undefined) {
             this.votesRemaining = this.votesRemaining || {};
@@ -1013,14 +1013,14 @@ class BHPlayer {
     /* ---------- results ---------- */
     async loadResults(): Promise<void> {
         const out = this.q('.bh-results-body');
-        out.innerHTML = 'Loading…';
+        out.innerHTML = bhWordEsc('results.loading');
         this.q('.bh-results-modal').style.display = 'flex';
 
         const { ok, body } = await this.req<BHResultsResponse>('results');
-        if (!ok) { out.innerHTML = `<p class="bh-results-empty">${this.esc(body.message || 'Results are not available yet.')}</p>`; return; }
+        if (!ok) { out.innerHTML = `<p class="bh-results-empty">${this.esc(body.message || bhWord('results.not_ready'))}</p>`; return; }
 
         const cats = body.categories || [];
-        if (!cats.length) { out.innerHTML = '<p class="bh-results-empty">No votes have been cast yet.</p>'; return; }
+        if (!cats.length) { out.innerHTML = '<p class="bh-results-empty">' + bhWordEsc('results.no_votes') + '</p>'; return; }
 
         this._resultsCats = cats;
         this._resultsFormat = body.format || 'public';
@@ -1086,8 +1086,8 @@ class BHPlayer {
             // Hybrid contests get two labeled leaderboards, never a blended score.
             // In 'judges' format, `results` itself is the rubric score.
             if (activeCat.judge_results) {
-                body = `<h4 class="bh-results-subhead">Judges' Pick</h4>${this.renderResultsList(activeCat.judge_results, 'score')}`
-                     + `<h4 class="bh-results-subhead">People's Choice</h4>${this.renderResultsList(activeCat.results)}`;
+                body = `<h4 class="bh-results-subhead">${bhWordEsc('results.judges_pick')}</h4>${this.renderResultsList(activeCat.judge_results, 'score')}`
+                     + `<h4 class="bh-results-subhead">${bhWordEsc('results.peoples_choice')}</h4>${this.renderResultsList(activeCat.results)}`;
             } else {
                 body = this.renderResultsList(activeCat.results, this._resultsFormat === 'judges' ? 'score' : 'votes');
             }

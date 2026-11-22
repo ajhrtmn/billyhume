@@ -24,7 +24,7 @@ class BHC_Render_Course {
             if ($catalog) {
                 echo '<a class="ous-back-link bhc-back-to-catalog" href="' . esc_url($catalog) . '">'
                     . '<span aria-hidden="true">&larr;</span> '
-                    . esc_html__('All courses', 'bh-courses') . '</a>';
+                    . BHC_Words::e('course.all_courses') . '</a>';
             }
         }
         echo '<div class="bhc-course-header">';
@@ -41,16 +41,16 @@ class BHC_Render_Course {
         if ($instructor) {
             $inst_name = $instructor->display_name ?: $instructor->user_login;
             echo '<div class="bhc-course-instructor-row">' . self::instructor_avatar($instructor, $inst_name)
-                . '<div><span class="bhc-course-instructor-label">Taught by</span><span class="bhc-course-instructor-name">' . esc_html($inst_name) . '</span></div></div>';
+                . '<div><span class="bhc-course-instructor-label">' . BHC_Words::e('course.taught_by') . '</span><span class="bhc-course-instructor-name">' . esc_html($inst_name) . '</span></div></div>';
         }
 
         echo '<div class="bhc-course-meta">';
-        echo '<span>' . (int) $lesson_count . ' lesson' . ($lesson_count === 1 ? '' : 's') . '</span>';
+        echo '<span>' . BHC_Words::e($lesson_count === 1 ? 'course.lesson_count_one' : 'course.lesson_count', ['count' => (int) $lesson_count]) . '</span>';
         if ($duration) echo '<span>' . esc_html($duration) . '</span>';
         if (class_exists('BHC_Reviews') && BHC_Reviews::enabled_for($course_id)) {
             $rating = BHC_Reviews::average_rating($course_id);
             if ($rating['count'] > 0) {
-                echo '<span class="bhc-course-rating">' . self::render_stars($rating['average']) . ' <span class="bhc-rating-number">' . esc_html((string) $rating['average']) . '</span> <span class="bhc-rating-count">(' . (int) $rating['count'] . ' review' . ($rating['count'] === 1 ? '' : 's') . ')</span></span>';
+                echo '<span class="bhc-course-rating">' . self::render_stars($rating['average']) . ' <span class="bhc-rating-number">' . esc_html((string) $rating['average']) . '</span> <span class="bhc-rating-count">(' . BHC_Words::e($rating['count'] === 1 ? 'reviews.count_one' : 'reviews.count', ['count' => (int) $rating['count']]) . ')</span></span>';
             }
         }
         echo '</div>';
@@ -142,7 +142,7 @@ class BHC_Render_Course {
         echo self::render_course_header($course_id, $uid, $locked);
         if ($locked) {
             if ($requires_login) {
-                echo OUS_Visibility::render_login_notice(__('Log in to view this course.', 'bh-courses'));
+                echo OUS_Visibility::render_login_notice(BHC_Words::get('course.login_required'));
                 // Say what it takes to get in, not just "log in", when the course is paid or tiered.
                 if (BHC_Gate::required_tier($course_id) || BHC_Gate::has_purchase_option($course_id)) echo BHC_Gate::render_paywall_notice($course_id);
             } else {
@@ -150,7 +150,7 @@ class BHC_Render_Course {
             }
             // Locked: a syllabus of lesson titles only (no content or permalinks).
             if ($lesson_ids) {
-                echo '<div class="bhc-syllabus-preview"><h4>What you\'ll learn</h4><ol class="bhc-lesson-list bhc-lesson-list-preview">';
+                echo '<div class="bhc-syllabus-preview"><h4>' . BHC_Words::e('course.syllabus_heading') . '</h4><ol class="bhc-lesson-list bhc-lesson-list-preview">';
                 foreach ($lesson_ids as $lesson_id) {
                     if (get_post_status($lesson_id) !== 'publish') continue;
                     echo '<li><span>' . esc_html(get_the_title($lesson_id)) . '</span>' . self::lesson_description($lesson_id) . '</li>';
@@ -168,11 +168,11 @@ class BHC_Render_Course {
             if (!$just_enrolled) {
                 if ($uid) {
                     $percent = BHC_Progress::course_percent($uid, $course_id);
-                    echo '<div class="bhc-progress-bar bhc-progress-bar-large"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label"><span class="bhc-progress-pct">' . (int) $percent . '%</span> complete</p>';
+                    echo '<div class="bhc-progress-bar bhc-progress-bar-large"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label"><span class="bhc-progress-pct">' . (int) $percent . '%</span> ' . BHC_Words::e('progress.complete') . '</p>';
                     // Only shown once a quiz has been scored (null until then).
                     $quiz_average = BHC_Progress::course_quiz_average($uid, $course_id);
                     if ($quiz_average !== null) {
-                        echo '<p class="bhc-mastery-label">Mastery: ' . (int) $quiz_average . '%</p>';
+                        echo '<p class="bhc-mastery-label">' . BHC_Words::e('progress.mastery', ['pct' => (int) $quiz_average]) . '</p>';
                     }
                 }
                 echo self::render_grouped_lesson_list($course_id, $uid, null, false);
@@ -183,7 +183,7 @@ class BHC_Render_Course {
         if (!$locked) echo BHC_Feedback::render_form($course_id, $uid);
         $credits = (string) get_post_meta($course_id, '_bhc_credits', true);
         if (trim(wp_strip_all_tags($credits)) !== '') {
-            echo '<div class="bhc-course-credits"><h2>Credits</h2>' . wpautop(wp_kses_post($credits)) . '</div>';
+            echo '<div class="bhc-course-credits"><h2>' . BHC_Words::e('course.credits_heading') . '</h2>' . wpautop(wp_kses_post($credits)) . '</div>';
         }
         echo '</div>';
         return ob_get_clean();
@@ -201,21 +201,21 @@ class BHC_Render_Course {
     private static function render_reviews_section(int $course_id, int $uid): string {
         ob_start();
         echo '<div class="bhc-reviews-section" id="bhc-reviews">';
-        echo '<h2>Reviews</h2>';
+        echo '<h2>' . BHC_Words::e('reviews.heading') . '</h2>';
 
         $reviews = BHC_Reviews::reviews_for_course($course_id, 'approved');
         if (!$reviews) {
-            echo '<p class="description">No reviews yet.</p>';
+            echo '<p class="description">' . BHC_Words::e('reviews.none') . '</p>';
         } else {
             echo '<div class="bhc-review-list">';
             foreach ($reviews as $review) {
                 $reviewer = get_userdata((int) $review['user_id']);
-                $name = $reviewer ? ($reviewer->display_name ?: $reviewer->user_login) : 'A student';
+                $name = $reviewer ? ($reviewer->display_name ?: $reviewer->user_login) : BHC_Words::get('reviews.anonymous');
                 echo '<div class="bhc-review">';
                 echo '<div class="bhc-review-head">' . self::render_stars((int) $review['rating']) . ' <strong>' . esc_html($name) . '</strong>';
                 echo $review['completed_at_review']
-                    ? ' <span class="bh-badge bhc-review-badge bhc-review-badge-completed">Completed the course</span>'
-                    : ' <span class="bh-badge bhc-review-badge bhc-review-badge-enrolled">Enrolled</span>';
+                    ? ' <span class="bh-badge bhc-review-badge bhc-review-badge-completed">' . BHC_Words::e('reviews.badge_completed') . '</span>'
+                    : ' <span class="bh-badge bhc-review-badge bhc-review-badge-enrolled">' . BHC_Words::e('reviews.badge_enrolled') . '</span>';
                 echo '</div>';
                 if ($review['body']) echo '<p class="bhc-review-body">' . esc_html($review['body']) . '</p>';
                 echo '<p class="bhc-review-date">' . esc_html(date_i18n(get_option('date_format'), strtotime($review['created_at']))) . '</p>';
@@ -229,23 +229,23 @@ class BHC_Render_Course {
             echo '<div class="bhc-review-form-wrap">';
             if ($mine) {
                 if ($mine['status'] === 'pending') {
-                    echo '<p class="bhc-review-status-note">Your review is awaiting approval.</p>';
+                    echo '<p class="bhc-review-status-note">' . BHC_Words::e('reviews.pending') . '</p>';
                 } elseif ($mine['status'] === 'rejected') {
-                    echo '<p class="bhc-review-status-note bhc-review-status-rejected">Your review wasn\'t approved. You can edit and resubmit it below.</p>';
+                    echo '<p class="bhc-review-status-note bhc-review-status-rejected">' . BHC_Words::e('reviews.rejected') . '</p>';
                 } else {
-                    echo '<p class="bhc-review-status-note">Your review is live below — thanks for sharing it! You can still edit it any time.</p>';
+                    echo '<p class="bhc-review-status-note">' . BHC_Words::e('reviews.live') . '</p>';
                 }
             }
             echo '<form class="bhc-review-form" data-course-id="' . (int) $course_id . '">';
-            echo '<fieldset><legend>' . ($mine ? 'Edit your review' : 'Leave a review') . '</legend>';
+            echo '<fieldset><legend>' . BHC_Words::e($mine ? 'reviews.edit_heading' : 'reviews.leave_heading') . '</legend>';
             echo '<div class="bhc-review-star-picker" role="radiogroup" aria-label="Rating">';
             for ($i = 5; $i >= 1; $i--) {
                 $checked = $mine && (int) $mine['rating'] === $i;
-                echo '<label class="bhc-review-star-choice"><input type="radio" name="rating" value="' . $i . '"' . ($checked ? ' checked' : '') . ' required> <span aria-hidden="true">&#9733;</span><span class="screen-reader-text">' . $i . ' star' . ($i === 1 ? '' : 's') . '</span></label>';
+                echo '<label class="bhc-review-star-choice"><input type="radio" name="rating" value="' . $i . '"' . ($checked ? ' checked' : '') . ' required> <span aria-hidden="true">&#9733;</span><span class="screen-reader-text">' . BHC_Words::e($i === 1 ? 'reviews.stars_one' : 'reviews.stars', ['count' => $i]) . '</span></label>';
             }
             echo '</div>';
-            echo '<textarea class="bhc-review-textarea" placeholder="What did you think? (optional)" rows="3">' . esc_textarea($mine['body'] ?? '') . '</textarea>';
-            echo '<button type="submit" class="bhc-btn bhc-btn-secondary bhc-review-submit">' . ($mine ? 'Update review' : 'Submit review') . '</button>';
+            echo '<textarea class="bhc-review-textarea" placeholder="' . esc_attr(BHC_Words::get('reviews.placeholder')) . '" rows="3">' . esc_textarea($mine['body'] ?? '') . '</textarea>';
+            echo '<button type="submit" class="bhc-btn bhc-btn-secondary bhc-review-submit">' . BHC_Words::e($mine ? 'reviews.update' : 'reviews.submit') . '</button>';
             echo '<div class="bhc-review-form-result" role="status" aria-live="polite"></div>';
             echo '</fieldset></form>';
             echo '</div>';
@@ -266,7 +266,7 @@ class BHC_Render_Course {
         echo '<nav class="bhc-course-sidebar" aria-label="Course lessons">';
         echo '<a class="bhc-sidebar-course-link" href="' . esc_url(get_permalink($course_id)) . '">' . esc_html(get_the_title($course_id)) . '</a>';
         if ($uid) {
-            echo '<div class="bhc-progress-bar"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label"><span class="bhc-progress-pct">' . (int) $percent . '%</span> complete</p>';
+            echo '<div class="bhc-progress-bar"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label"><span class="bhc-progress-pct">' . (int) $percent . '%</span> ' . BHC_Words::e('progress.complete') . '</p>';
         }
         echo self::render_grouped_lesson_list($course_id, $uid, $current_lesson_id, true);
         echo BHC_Downloads::render_link($course_id, 'bhc-sidebar-downloads');
@@ -305,7 +305,7 @@ class BHC_Render_Course {
         $html = '<li class="' . $classes . '">';
         if ($open && $step_count === 0) {
             // Nothing to open yet: no dead-end link.
-            $html .= '<span>' . esc_html(get_the_title($lesson_id)) . '</span> <span class="bhc-drip-notice">Coming soon</span>';
+            $html .= '<span>' . esc_html(get_the_title($lesson_id)) . '</span> <span class="bhc-drip-notice">' . BHC_Words::e('lesson.coming_soon_short') . '</span>';
         } elseif ($open) {
             $html .= '<a href="' . esc_url(get_permalink($lesson_id)) . '"' . ($is_current ? ' aria-current="page"' : '') . '>' . esc_html(get_the_title($lesson_id)) . '</a>';
         } else {
@@ -316,7 +316,7 @@ class BHC_Render_Course {
         if (!$is_sidebar && $open && $uid && $step_count && !$complete) {
             $html .= ' <span class="bhc-lesson-progress"><b>' . (int) $done_count . '</b>/' . (int) $step_count . '</span>';
         }
-        if ($complete) $html .= ' <span class="bhc-check" aria-label="Lesson complete">&#10003;</span>';
+        if ($complete) $html .= ' <span class="bhc-check" aria-label="' . esc_attr(BHC_Words::get('lesson.complete_title')) . '">&#10003;</span>';
         if (!$is_sidebar) $html .= self::lesson_description($lesson_id);
         $html .= '</li>';
         return ['html' => $html, 'complete' => $complete, 'is_current' => $is_current];
@@ -354,14 +354,13 @@ class BHC_Render_Course {
     public static function render_continue_cta(int $uid, int $course_id, int $percent): string {
         $target_lesson = BHC_Progress::first_incomplete_lesson($uid, $course_id);
         if ($target_lesson) {
-            $label = $percent > 0 ? 'Continue' : 'Start';
-            return '<a class="bhc-btn bhc-continue-btn" href="' . esc_url(get_permalink($target_lesson)) . '">' . esc_html($label) . ' &rarr;</a>';
+            return '<a class="bhc-btn bhc-continue-btn" href="' . esc_url(get_permalink($target_lesson)) . '">' . BHC_Words::e($percent > 0 ? 'course.continue' : 'course.start') . '</a>';
         }
         // Nothing to resume: only offer "Review" when actually complete.
         if ($percent >= 100) {
             $lesson_ids = BHC_PostTypes::lesson_order($course_id);
             if ($lesson_ids) {
-                return '<a class="bhc-btn bhc-btn-secondary bhc-continue-btn" href="' . esc_url(get_permalink($lesson_ids[0])) . '">Review course</a>';
+                return '<a class="bhc-btn bhc-btn-secondary bhc-continue-btn" href="' . esc_url(get_permalink($lesson_ids[0])) . '">' . BHC_Words::e('course.review') . '</a>';
             }
         }
         return '';
@@ -391,28 +390,28 @@ class BHC_Render_Course {
         // WHY: '.bhc-completion' is the selector courses.js fires confetti on.
         echo '<div class="bhc-completion">';
         echo '<div class="bhc-completion-badge" aria-hidden="true">&#127942;</div>';
-        echo '<h2 class="bhc-completion-title">Course complete' . ($with_distinction ? ' — with distinction' : '') . '!</h2>';
-        echo '<p class="bhc-completion-sub">You finished <strong>' . esc_html(get_the_title($course_id)) . '</strong>.</p>';
+        echo '<h2 class="bhc-completion-title">' . BHC_Words::e($with_distinction ? 'completion.title_distinction' : 'completion.title') . '</h2>';
+        echo '<p class="bhc-completion-sub">' . BHC_Words::html('completion.sub', ['course' => '<strong>' . esc_html(get_the_title($course_id)) . '</strong>']) . '</p>';
 
         echo '<div class="bhc-completion-stats">';
-        echo '<div class="bhc-completion-stat"><span class="bhc-completion-stat-num">' . (int) $lesson_count . '</span><span class="bhc-completion-stat-label">lesson' . ($lesson_count === 1 ? '' : 's') . ' completed</span></div>';
+        echo '<div class="bhc-completion-stat"><span class="bhc-completion-stat-num">' . (int) $lesson_count . '</span><span class="bhc-completion-stat-label">' . BHC_Words::e($lesson_count === 1 ? 'completion.lessons_one' : 'completion.lessons') . '</span></div>';
         if ($quizzes_passed > 0) {
-            echo '<div class="bhc-completion-stat"><span class="bhc-completion-stat-num">' . (int) $quizzes_passed . '</span><span class="bhc-completion-stat-label">quiz' . ($quizzes_passed === 1 ? '' : 'zes') . ' passed</span></div>';
+            echo '<div class="bhc-completion-stat"><span class="bhc-completion-stat-num">' . (int) $quizzes_passed . '</span><span class="bhc-completion-stat-label">' . BHC_Words::e($quizzes_passed === 1 ? 'completion.quizzes_one' : 'completion.quizzes') . '</span></div>';
         }
         if ($enrolled_at && $completed_at) {
             $days = max(1, (int) round((strtotime($completed_at) - strtotime($enrolled_at)) / DAY_IN_SECONDS));
-            echo '<div class="bhc-completion-stat"><span class="bhc-completion-stat-num">' . $days . '</span><span class="bhc-completion-stat-label">day' . ($days === 1 ? '' : 's') . ' start to finish</span></div>';
+            echo '<div class="bhc-completion-stat"><span class="bhc-completion-stat-num">' . $days . '</span><span class="bhc-completion-stat-label">' . BHC_Words::e($days === 1 ? 'completion.days_one' : 'completion.days') . '</span></div>';
         }
         echo '</div>';
 
         if ($has_certificate || $has_share_card) {
             echo '<div class="bhc-completion-actions">';
             if ($has_certificate) {
-                echo '<a class="bhc-btn bhc-btn-primary" href="' . esc_url(BHC_Certificates::download_url($course_id)) . '">Download certificate' . ($with_distinction ? ' (with distinction)' : '') . '</a>';
+                echo '<a class="bhc-btn bhc-btn-primary" href="' . esc_url(BHC_Certificates::download_url($course_id)) . '">' . BHC_Words::e($with_distinction ? 'completion.certificate_distinction' : 'completion.certificate') . '</a>';
             }
             if ($has_share_card) {
                 // download attribute saves the PNG directly.
-                echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(BHC_ShareCards::card_url($uid, $course_id)) . '" target="_blank" rel="noopener" download>Get share image</a>';
+                echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(BHC_ShareCards::card_url($uid, $course_id)) . '" target="_blank" rel="noopener" download>' . BHC_Words::e('completion.share_image') . '</a>';
             }
             echo '</div>';
         }
@@ -423,10 +422,10 @@ class BHC_Render_Course {
 
         echo '<div class="bhc-completion-next-steps">';
         $archive_url = get_post_type_archive_link('bh_course');
-        if ($archive_url) echo '<a href="' . esc_url($archive_url) . '">Browse more courses</a>';
+        if ($archive_url) echo '<a href="' . esc_url($archive_url) . '">' . BHC_Words::e('completion.browse_more') . '</a>';
         echo (class_exists('BHC_Reviews') && BHC_Reviews::enabled_for($course_id))
-            ? ' &middot; <a href="#bhc-reviews">Leave a review</a>'
-            : ' &middot; <a href="' . esc_url((string) get_permalink($course_id)) . '#bhc-feedback">Send feedback</a>';
+            ? ' &middot; <a href="#bhc-reviews">' . BHC_Words::e('completion.leave_review') . '</a>'
+            : ' &middot; <a href="' . esc_url((string) get_permalink($course_id)) . '#bhc-feedback">' . BHC_Words::e('completion.send_feedback') . '</a>';
         echo '</div>';
         echo '</div>';
         return ob_get_clean();
@@ -439,8 +438,8 @@ class BHC_Render_Course {
     private static function render_orientation_screen(int $uid, int $course_id, array $lesson_ids): string {
         ob_start();
         echo '<div class="bhc-orientation">';
-        echo '<p class="bhc-orientation-eyebrow">You\'re in</p>';
-        echo '<h2 class="bhc-orientation-title">Here\'s what\'s ahead</h2>';
+        echo '<p class="bhc-orientation-eyebrow">' . BHC_Words::e('orientation.eyebrow') . '</p>';
+        echo '<h2 class="bhc-orientation-title">' . BHC_Words::e('orientation.title') . '</h2>';
         $content = get_post_field('post_content', $course_id);
         if ($content) {
             echo '<div class="bhc-orientation-description">' . wp_kses_post(get_the_excerpt($course_id) ?: wp_trim_words(wp_strip_all_tags($content), 40)) . '</div>';
@@ -456,7 +455,7 @@ class BHC_Render_Course {
         // first_incomplete_lesson() so "Start" never links to a drip-locked lesson.
         $start_lesson = BHC_Progress::first_incomplete_lesson($uid, $course_id);
         if ($start_lesson) {
-            echo '<a class="bhc-btn bhc-orientation-start" href="' . esc_url(get_permalink($start_lesson)) . '">Start &rarr;</a>';
+            echo '<a class="bhc-btn bhc-orientation-start" href="' . esc_url(get_permalink($start_lesson)) . '">' . BHC_Words::e('course.start') . '</a>';
         }
         echo '</div>';
         return ob_get_clean();

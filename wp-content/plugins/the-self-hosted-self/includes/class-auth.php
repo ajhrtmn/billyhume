@@ -170,7 +170,7 @@ class BHI_Auth {
         $username = trim((string) $req->get_param('username'));
         $password = (string) $req->get_param('password');
         if ($username === '' || $password === '' || strlen($username) > self::EMAIL_MAX || strlen($password) > self::PASSWORD_MAX) {
-            return new WP_Error('login_failed', 'Invalid username or password.', ['status' => 401]);
+            return new WP_Error('login_failed', OUS_Words::get('login.failed'), ['status' => 401]);
         }
 
         $ip = self::client_ip();
@@ -179,7 +179,7 @@ class BHI_Auth {
         // OUS_ReliableStore, not transients: a throttle whose counter silently fails to persist fails open.
         if ((int) OUS_ReliableStore::get($account_key, 0) >= self::LOGIN_MAX_FAILS
             || (int) OUS_ReliableStore::get($ip_key, 0) >= self::LOGIN_MAX_FAILS_PER_IP) {
-            return new WP_Error('locked_out', 'Too many failed attempts. Please try again in 15 minutes.', ['status' => 429]);
+            return new WP_Error('locked_out', OUS_Words::get('login.locked_out'), ['status' => 429]);
         }
 
         // Optional 2FA: BHI_TwoFactor::gate_login() reads the code from $_POST inside the 'authenticate' chain.
@@ -192,14 +192,14 @@ class BHI_Auth {
         if (is_wp_error($user)) {
             // Password was right but no code yet: prompt for it without counting a failure.
             if ($user->get_error_code() === 'bhcore_2fa_required' && $code === '') {
-                return new WP_Error('requires_2fa', 'Enter the 6-digit code from your authenticator app.', ['status' => 401, 'requires_2fa' => true]);
+                return new WP_Error('requires_2fa', OUS_Words::get('login.code_needed'), ['status' => 401, 'requires_2fa' => true]);
             }
             OUS_ReliableStore::increment($account_key, self::LOCKOUT_SECONDS);
             OUS_ReliableStore::increment($ip_key, self::LOCKOUT_SECONDS);
             if ($user->get_error_code() === 'bhcore_2fa_required') {
-                return new WP_Error('invalid_2fa', 'That code didn\'t match. Try the newest code from your app.', ['status' => 401, 'requires_2fa' => true]);
+                return new WP_Error('invalid_2fa', OUS_Words::get('login.code_wrong'), ['status' => 401, 'requires_2fa' => true]);
             }
-            return new WP_Error('login_failed', 'Invalid username or password.', ['status' => 401]);
+            return new WP_Error('login_failed', OUS_Words::get('login.failed'), ['status' => 401]);
         }
 
         OUS_ReliableStore::delete($account_key);
@@ -221,27 +221,27 @@ class BHI_Auth {
 
     /** Returns '' when acceptable, otherwise a message for the person signing up. */
     public static function username_problem(string $username): string {
-        if ($username === '') return 'Choose a username.';
-        if (strlen($username) > self::USERNAME_MAX) return 'Usernames can be at most ' . self::USERNAME_MAX . ' characters.';
+        if ($username === '') return OUS_Words::get('signup.need_username');
+        if (strlen($username) > self::USERNAME_MAX) return OUS_Words::get('signup.username_too_long', ['max' => self::USERNAME_MAX]);
         // Reject rather than silently rewrite (sanitize_user() would turn "José" into "Jose").
         if (sanitize_user($username, true) !== $username) {
-            return 'Usernames can use only letters (a–z), numbers, spaces, and . - _ @';
+            return OUS_Words::get('signup.username_bad_chars');
         }
         return '';
     }
 
     /** Returns '' when acceptable, otherwise a message for the person signing up. */
     public static function password_problem(string $password, string $username = '', string $email = ''): string {
-        if (strlen($password) < self::PASSWORD_MIN) return 'Use a password of at least ' . self::PASSWORD_MIN . ' characters.';
-        if (strlen($password) > self::PASSWORD_MAX) return 'Passwords can be at most ' . self::PASSWORD_MAX . ' characters.';
+        if (strlen($password) < self::PASSWORD_MIN) return OUS_Words::get('signup.password_too_short', ['min' => self::PASSWORD_MIN]);
+        if (strlen($password) > self::PASSWORD_MAX) return OUS_Words::get('signup.password_too_long', ['max' => self::PASSWORD_MAX]);
         $lower = strtolower($password);
         if (in_array($lower, self::COMMON_PASSWORDS, true) || count(array_unique(str_split($lower))) <= 2) {
-            return 'That password is too easy to guess. Try a short phrase of a few words.';
+            return OUS_Words::get('signup.password_weak');
         }
         $local_part = strtolower((string) strstr($email, '@', true));
         foreach ([strtolower($username), $local_part, strtolower($email)] as $personal) {
             if (strlen($personal) >= 4 && strpos($lower, $personal) !== false) {
-                return 'Your password shouldn\'t contain your username or email.';
+                return OUS_Words::get('signup.password_has_name');
             }
         }
         return '';
@@ -252,7 +252,7 @@ class BHI_Auth {
         $bad_origin = self::guard_origin($req);
         if ($bad_origin) return $bad_origin;
         if (!self::registration_open()) {
-            return new WP_Error('registration_closed', 'New accounts aren\'t being accepted right now.', ['status' => 403]);
+            return new WP_Error('registration_closed', OUS_Words::get('signup.closed'), ['status' => 403]);
         }
 
         $ip = self::client_ip();
@@ -260,12 +260,12 @@ class BHI_Auth {
         $throttle_key = 'bhi_reg_throttle_' . md5($ip);
         if (OUS_ReliableStore::increment($attempt_key, HOUR_IN_SECONDS) > self::REG_ATTEMPT_THROTTLE
             || (int) OUS_ReliableStore::get($throttle_key, 0) >= self::REG_THROTTLE) {
-            return new WP_Error('throttled', 'Too many sign-ups from this connection. Please try again later.', ['status' => 429]);
+            return new WP_Error('throttled', OUS_Words::get('signup.throttled'), ['status' => 429]);
         }
 
         // Honeypot: a visually hidden field people never see. Same error a person would get, so bots learn nothing.
         if (trim((string) $req->get_param(self::HONEYPOT_FIELD)) !== '') {
-            return new WP_Error('invalid', 'Please check the form and try again.', ['status' => 400]);
+            return new WP_Error('invalid', OUS_Words::get('signup.invalid'), ['status' => 400]);
         }
 
         $username = trim((string) $req->get_param('username'));
@@ -275,14 +275,14 @@ class BHI_Auth {
 
         $problem = self::username_problem($username);
         if ($problem === '' && ($email === '' || $email !== $email_raw || !is_email($email) || strlen($email) > self::EMAIL_MAX)) {
-            $problem = 'Enter a valid email address.';
+            $problem = OUS_Words::get('signup.bad_email');
         }
         if ($problem === '') $problem = self::password_problem($password, $username, $email);
         if ($problem !== '') return new WP_Error('invalid', $problem, ['status' => 400]);
 
-        if (username_exists($username)) return new WP_Error('username_taken', 'That username is already in use.', ['status' => 409]);
+        if (username_exists($username)) return new WP_Error('username_taken', OUS_Words::get('signup.username_taken'), ['status' => 409]);
         if (email_exists($email)) {
-            return new WP_Error('email_taken', 'That email already has an account. Try logging in, or reset your password.', ['status' => 409]);
+            return new WP_Error('email_taken', OUS_Words::get('signup.email_taken'), ['status' => 409]);
         }
 
         $id = wp_create_user($username, $password, $email);
@@ -292,7 +292,7 @@ class BHI_Auth {
                     'username' => $username, 'wp_error' => $id->get_error_message(),
                 ], 'BHI_Auth');
             }
-            return new WP_Error('create_failed', 'Could not create your account. Please try again.', ['status' => 500]);
+            return new WP_Error('create_failed', OUS_Words::get('signup.failed'), ['status' => 500]);
         }
 
         OUS_ReliableStore::increment($throttle_key, HOUR_IN_SECONDS);
@@ -399,7 +399,7 @@ class BHI_Auth {
 
         $throttle_key = 'bhi_resend_verify_' . $uid;
         if (OUS_ReliableStore::get($throttle_key)) {
-            return new WP_Error('throttled', 'Please wait a couple of minutes before requesting another email.', ['status' => 429]);
+            return new WP_Error('throttled', OUS_Words::get('verify.wait'), ['status' => 429]);
         }
         OUS_ReliableStore::set($throttle_key, 1, 2 * MINUTE_IN_SECONDS);
 
@@ -412,11 +412,11 @@ class BHI_Auth {
     public static function maybe_print_auth_notice(): void {
         if (isset($_GET['bhi_verified'])) {
             $ok = $_GET['bhi_verified'] === '1';
-            $msg = $ok ? 'Email confirmed — thanks!' : 'That confirmation link is invalid or has expired. You can request a new one from your account page.';
+            $msg = OUS_Words::get($ok ? 'verify.confirmed' : 'verify.link_bad');
             $param = 'bhi_verified';
         } elseif (isset($_GET['bhi_welcome']) && is_user_logged_in()) {
             $ok = true;
-            $msg = 'Welcome! Your account is ready. We emailed you a link to confirm your address.';
+            $msg = OUS_Words::get('signup.welcome');
             $param = 'bhi_welcome';
         } else {
             return;

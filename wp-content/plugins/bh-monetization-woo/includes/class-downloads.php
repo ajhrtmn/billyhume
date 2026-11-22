@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Attaches a purchase's files (BHS_API::qualities_for() encodes, booklets, course videos) as
+ * Attaches a course purchase's uploaded lesson videos as
  * WooCommerce downloadable files, so delivery uses WooCommerce's own secure download URLs.
  */
 class BHM_Downloads {
@@ -58,7 +58,7 @@ class BHM_Downloads {
         $product->set_downloads($downloads);
 
         // Course videos are large, so bound redistribution with WooCommerce's own limit/expiry
-        // (filterable). Track/release downloads stay at WooCommerce's unlimited default.
+        // (filterable).
         if ($object_type === 'bh_course') {
             $product->set_download_limit((int) apply_filters('bhm_course_download_limit', 8, $object_id));
             $product->set_download_expiry((int) apply_filters('bhm_course_download_expiry_days', 180, $object_id));
@@ -91,38 +91,10 @@ class BHM_Downloads {
         }
     }
 
-    // label => url: a track's encodes, a release's tracks (title-prefixed), or a course's lesson videos.
+    // label => url for a course's lesson videos; nothing for other purchase types.
     /** @return array<string, string> */
     private static function gather_files(int $object_id, string $object_type): array {
-        if ($object_type === 'bh_course') {
-            return self::course_lesson_video_files($object_id);
-        }
-
-        if (!class_exists('BHS_API')) return [];
-
-        if ($object_type === 'bhs_release') {
-            $track_ids = get_posts([
-                'post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => -1,
-                'meta_key' => '_bhs_release_id', 'meta_value' => (string) $object_id, 'fields' => 'ids',
-            ]);
-            $out = [];
-            foreach ($track_ids as $tid) {
-                $title = get_the_title($tid);
-                foreach (self::track_files($tid) as $label => $url) {
-                    $out[$title . ' — ' . $label] = $url;
-                }
-            }
-
-            // The album's own booklet, in addition to per-track ones.
-            if (class_exists('BHS_Booklet')) {
-                $release_booklet_url = BHS_Booklet::ensure_url($object_id);
-                if ($release_booklet_url) $out['Digital Booklet (Album)'] = $release_booklet_url;
-            }
-
-            return $out;
-        }
-
-        return self::track_files($object_id);
+        return $object_type === 'bh_course' ? self::course_lesson_video_files($object_id) : [];
     }
 
     // Uploaded lesson videos only; embeds (Stream/YouTube/Vimeo) have no file to download.
@@ -146,28 +118,6 @@ class BHM_Downloads {
                 $out[$label] = $url;
             }
         }
-        return $out;
-    }
-
-    /** @return array<string, string> */
-    private static function track_files(int $track_id): array {
-        $qualities = BHS_API::qualities_for($track_id);
-        $out = [];
-        foreach ($qualities as $label => $info) {
-            $out[$label] = $info['url'];
-        }
-        // No encodes: fall back to the plain audio file.
-        if (!$out) {
-            $default_url = BHS_API::audio_url_for($track_id);
-            if ($default_url) $out['standard'] = $default_url;
-        }
-
-        // Bonus PDF booklet; ensure_url() returns '' when there's nothing to include.
-        if (class_exists('BHS_Booklet')) {
-            $booklet_url = BHS_Booklet::ensure_url($track_id);
-            if ($booklet_url) $out['Digital Booklet'] = $booklet_url;
-        }
-
         return $out;
     }
 }

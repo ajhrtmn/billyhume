@@ -23,15 +23,15 @@ class BHT_Support {
         $logged_in = is_user_logged_in();
         $status = isset($_GET['bht_support']) ? sanitize_key(wp_unslash($_GET['bht_support'])) : '';
         $messages = [
-            'sent' => $logged_in ? 'Thanks, we got your message. Replies show up under Support in your account.' : 'Thanks, we got your message and will reply by email.',
-            'invalid' => 'Please fill in every field with a real email address.',
-            'limit' => 'Too many messages from this connection. Please try again in an hour.',
-            'error' => 'That didn\'t send. Please try again.',
+            'sent' => BHT_Words::get($logged_in ? 'support.sent_member' : 'support.sent_guest'),
+            'invalid' => BHT_Words::get('support.invalid'),
+            'limit' => BHT_Words::get('support.limit'),
+            'error' => BHT_Words::get('support.error'),
         ];
 
         ob_start();
         echo '<div class="bht-support" id="bht-support">';
-        echo '<h2>Contact us</h2>';
+        echo '<h2>' . BHT_Words::e('support.heading') . '</h2>';
         if (isset($messages[$status])) {
             echo '<p class="bht-support-result" role="status">' . esc_html($messages[$status]) . '</p>';
         }
@@ -40,17 +40,17 @@ class BHT_Support {
         echo '<input type="hidden" name="return_to" value="' . esc_attr((string) get_permalink()) . '">';
         wp_nonce_field('bht_support_message');
         if (!$logged_in) {
-            echo '<p><label>Your name<br><input type="text" name="name" maxlength="100" required autocomplete="name"></label></p>';
-            echo '<p><label>Your email<br><input type="email" name="email" maxlength="200" required autocomplete="email"></label></p>';
+            echo '<p><label>' . BHT_Words::e('support.name') . '<br><input type="text" name="name" maxlength="100" required autocomplete="name"></label></p>';
+            echo '<p><label>' . BHT_Words::e('support.email') . '<br><input type="email" name="email" maxlength="200" required autocomplete="email"></label></p>';
             // WHY: honeypot; hidden from people, filled in by most bots.
             echo '<p class="bht-support-hp" aria-hidden="true" style="position:absolute;left:-9999px;"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label></p>';
         }
-        echo '<p><label>Subject<br><input type="text" name="subject" maxlength="150" required></label></p>';
-        echo '<p><label>Message<br><textarea name="body" rows="6" maxlength="' . self::MAX_LENGTH . '" required></textarea></label></p>';
-        echo '<p><button type="submit" class="button">Send message</button></p>';
+        echo '<p><label>' . BHT_Words::e('support.subject') . '<br><input type="text" name="subject" maxlength="150" required></label></p>';
+        echo '<p><label>' . BHT_Words::e('support.message') . '<br><textarea name="body" rows="6" maxlength="' . self::MAX_LENGTH . '" required></textarea></label></p>';
+        echo '<p><button type="submit" class="button">' . BHT_Words::e('support.send') . '</button></p>';
         echo '</form>';
         if ($logged_in) {
-            echo '<p class="bht-support-tickets"><a href="' . esc_url(add_query_arg('panel', 'tickets', home_url('/account/'))) . '">See your past messages &rarr;</a></p>';
+            echo '<p class="bht-support-tickets"><a href="' . esc_url(add_query_arg('panel', 'tickets', home_url('/account/'))) . '">' . BHT_Words::e('support.past_messages') . '</a></p>';
         }
         echo '</div>';
         return (string) ob_get_clean();

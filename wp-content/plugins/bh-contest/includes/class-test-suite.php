@@ -36,8 +36,36 @@ class BH_TestSuite {
         if (class_exists('BH_Rounds')) {
             $rows = array_merge($rows, self::run_rounds_tests());
         }
+        $rows = array_merge($rows, self::run_words_tests());
 
         return $rows;
+    }
+
+    /**
+     * Every wording key the code asks for exists in words.php, so a renamed or deleted
+     * key is caught here instead of showing up as "vote.button" on a voter's screen.
+     * @return array<int, array<string, mixed>>
+     */
+    private static function run_words_tests(): array {
+        $key = '[a-z0-9_]+\.[a-z0-9_]+';
+        $used = [];
+        $files = array_merge(glob(BH_PATH . 'includes/*.php') ?: [], glob(BH_PATH . 'assets/ts/*.ts') ?: []);
+        foreach ($files as $file) {
+            if (basename($file) === 'class-test-suite.php') continue;
+            $src = (string) file_get_contents($file);
+            // Every quoted key inside a BHCON_Words / bhWord call, including ternary picks.
+            preg_match_all('/(?:BHCON_Words::(?:e|get|html)|bhWord(?:Esc)?)\(([^;]*?)\)/', $src, $calls);
+            foreach ($calls[1] as $args) {
+                preg_match_all("/'($key)'/", $args, $m);
+                $used = array_merge($used, $m[1]);
+            }
+        }
+        $used = array_unique($used);
+        $missing = array_values(array_diff($used, array_keys(BHCON_Words::all())));
+        return [
+            OUS_TestRunner::assert_true(count($used) > 100, 'words.php: found the wording keys used in the code (' . count($used) . ')'),
+            OUS_TestRunner::assert_same([], $missing, 'words.php has every key the code uses'),
+        ];
     }
 
     /* ---------- BH_Reveal::medal_tier_count()/medal_slice() — pure logic, via reflection ---------- */

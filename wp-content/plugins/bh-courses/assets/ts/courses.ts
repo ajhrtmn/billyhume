@@ -8,9 +8,23 @@ interface BHCDataGlobal {
     ajaxUrl: string;
     loggedIn?: boolean;
     supportUrl?: string;
+    words?: Record<string, string>;
 }
 
 declare const BHCData: BHCDataGlobal;
+
+/** Wording from bh-courses/words.php, with {placeholders} filled in. Plain text: escape before innerHTML. */
+function bhcWord(key: string, vars?: Record<string, string | number>): string {
+    var text = (typeof BHCData !== 'undefined' && BHCData.words && BHCData.words[key]) || key;
+    if (vars) Object.keys(vars).forEach(function (name) { text = text.split('{' + name + '}').join(String(vars[name])); });
+    return text;
+}
+
+function bhcEsc(s: string): string {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
 declare const BHCoreToast: { show(message: string, type: string): void } | undefined;
 
 interface BHCConfettiOpts {
@@ -134,8 +148,8 @@ function bhcReassertStepClass(el: HTMLElement): void {
  */
 function bhcSessionMessage(action: string): string {
     return (typeof BHCData !== 'undefined' && BHCData.loggedIn)
-        ? 'This page has been open a while, so it needs a refresh. Reload the page (everything up to now is saved) and ' + action + ' again.'
-        : 'Log in to ' + action + '. Your account keeps your place across devices.';
+        ? bhcWord('session.expired', { action: action })
+        : bhcWord('session.logged_out', { action: action });
 }
 
 /** One plain message under a video that could not load (shown once per video). */
@@ -146,12 +160,12 @@ function bhcShowVideoError(videoEl: Element): void {
     box.setAttribute('data-bhc-video-error', '');
     box.setAttribute('role', 'alert');
     box.className = 'bhc-video-error';
-    box.appendChild(document.createTextNode('This video couldn’t load. Check your connection and refresh the page. '));
+    box.appendChild(document.createTextNode(bhcWord('video.load_failed') + ' '));
     var support = typeof BHCData !== 'undefined' ? BHCData.supportUrl : '';
     if (support) {
         var a = document.createElement('a');
         a.href = support;
-        a.textContent = 'If it keeps happening, let us know.';
+        a.textContent = bhcWord('video.load_failed_link');
         box.appendChild(a);
     }
     wrap.parentElement.insertBefore(box, wrap.nextSibling);
@@ -207,13 +221,13 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             var submitBtn = form!.querySelector('button[type="submit"]') as HTMLButtonElement;
             var rating = form!.querySelector('input[name="rating"]:checked') as HTMLInputElement | null;
             if (!rating) {
-                resultBox.textContent = 'Choose a star rating first.';
+                resultBox.textContent = bhcWord('reviews.choose_rating');
                 return;
             }
 
             var originalLabel = submitBtn.textContent;
             submitBtn.disabled = true;
-            submitBtn.textContent = 'Submitting…';
+            submitBtn.textContent = bhcWord('reviews.submitting');
             resultBox.textContent = '';
 
             var body = new URLSearchParams({
@@ -230,17 +244,17 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     submitBtn.disabled = false;
                     submitBtn.textContent = originalLabel;
                     if (!res.success) {
-                        resultBox.textContent = (res.data && res.data.message) || 'Could not submit your review.';
+                        resultBox.textContent = (res.data && res.data.message) || bhcWord('reviews.failed');
                         return;
                     }
-                    resultBox.textContent = (res.data && res.data.message) || 'Thanks for your review!';
-                    submitBtn.textContent = 'Update review';
-                    if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show((res.data && res.data.message) || 'Review submitted.', 'success'); }
+                    resultBox.textContent = (res.data && res.data.message) || bhcWord('reviews.thanks');
+                    submitBtn.textContent = bhcWord('reviews.update');
+                    if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show((res.data && res.data.message) || bhcWord('reviews.submitted'), 'success'); }
                 })
                 .catch(function () {
                     submitBtn.disabled = false;
                     submitBtn.textContent = originalLabel;
-                    resultBox.textContent = 'Could not reach the server — check your connection and try again.';
+                    resultBox.textContent = bhcWord('error.offline');
                 });
         });
     });
@@ -292,7 +306,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
         if (nextLessonUrl && stepCount > 0) {
             var lastStepBtn = lesson.querySelector<HTMLButtonElement>('[data-step-index="' + (stepCount - 1) + '"] .bhc-mark-complete');
             if (lastStepBtn) {
-                lastStepBtn.textContent = 'Next Lesson →';
+                lastStepBtn.textContent = bhcWord('lesson.next_lesson');
                 if (lastStepBtn.disabled) { lastStepBtn.disabled = false; lastStepBtn.dataset.bhcGoNext = '1'; }
             }
         }
@@ -545,7 +559,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 if (resumeAt < d - 10) {
                     media!.seek(resumeAt);
                     var m = Math.floor(resumeAt / 60), s = resumeAt % 60;
-                    if (typeof BHCoreToast !== 'undefined') BHCoreToast!.show('Picking up at ' + m + ':' + (s < 10 ? '0' : '') + s + '.', 'info');
+                    if (typeof BHCoreToast !== 'undefined') BHCoreToast!.show(bhcWord('video.resuming', { time: m + ':' + (s < 10 ? '0' : '') + s }), 'info');
                 }
             }
 
@@ -651,12 +665,12 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     fetch(BHCData.ajaxUrl, { method: 'POST', body: body })
                         .then(function (r) { return r.json(); })
                         .then(function (res: BHCAjaxResponse<{ note: { id: string; step: number; t: number; body: string } }>) {
-                            if (!res.success || !res.data) { showNoteError((res.data as unknown as { message?: string })?.message || 'Could not save the note.'); return; }
+                            if (!res.success || !res.data) { showNoteError((res.data as unknown as { message?: string })?.message || bhcWord('notes.save_failed')); return; }
                             noteList!.appendChild(noteItem(res.data.note));
                             textarea.value = '';
                             showNoteError('');
                         })
-                        .catch(function () { showNoteError('Could not save the note. Check your connection.'); })
+                        .catch(function () { showNoteError(bhcWord('notes.save_offline')); })
                         .then(function () { submit.disabled = false; });
                 });
 
@@ -679,12 +693,12 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     if (target.closest('[data-bhc-note-delete]')) {
                         // No undo exists, so a stray tap on the small × must not lose a note.
                         var preview = (li.querySelector('p')?.textContent || '').slice(0, 60);
-                        if (!window.confirm('Delete this note?\n\n“' + preview + '”')) return;
+                        if (!window.confirm(bhcWord('notes.delete_confirm') + '\n\n“' + preview + '”')) return;
                         var del = new URLSearchParams({ action: 'bhc_delete_note', nonce: BHCData.nonce, lesson_id: lessonId, note_id: li.dataset.bhcNote ?? '' });
                         fetch(BHCData.ajaxUrl, { method: 'POST', body: del })
                             .then(function (r) { return r.json(); })
-                            .then(function (res: BHCAjaxResponse<unknown>) { if (res.success) li!.remove(); else showNoteError('Could not delete the note.'); })
-                            .catch(function () { showNoteError('Could not delete the note. Check your connection.'); });
+                            .then(function (res: BHCAjaxResponse<unknown>) { if (res.success) li!.remove(); else showNoteError(bhcWord('notes.delete_failed')); })
+                            .catch(function () { showNoteError(bhcWord('notes.delete_offline')); });
                     }
                 });
             }
@@ -722,7 +736,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                             var pctEl = note.querySelector('.bhc-watch-gate-pct') as HTMLElement | null;
                             if (pctEl) pctEl.textContent = '100%';
                             var label = note.querySelector('.bhc-watch-gate-label') as HTMLElement | null;
-                            if (label) label.innerHTML = '<span class="bhc-watch-gate-pct">100%</span> watched';
+                            if (label) label.innerHTML = bhcEsc(bhcWord('video.watched')).replace('{pct}', '<span class="bhc-watch-gate-pct">100%</span>');
                         }
                         var btn = step.querySelector('.bhc-mark-complete') as HTMLButtonElement | null;
                         // WHY: this fires at the watch threshold, usually mid-video, so the student
@@ -735,7 +749,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                             else { btn.textContent = index === stepCount - 1 ? 'Finish →' : 'Next →'; btn.dataset.bhcAdvance = '1'; }
                         }
                         step.classList.add('bhc-step-done');
-                        if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show('Step complete.', 'success'); }
+                        if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show(bhcWord('step.complete_toast'), 'success'); }
                         markStepDone(index);
                         updateSidebarProgress(res.data);
                     });
@@ -857,7 +871,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                             var continueBtn = document.createElement('button');
                             continueBtn.type = 'button';
                             continueBtn.className = 'bhc-btn bhc-video-overlay-continue';
-                            continueBtn.textContent = correct ? 'Correct — continue' : 'Continue';
+                            continueBtn.textContent = bhcWord(correct ? 'video.overlay_correct' : 'video.overlay_continue');
                             continueBtn.addEventListener('click', dismiss);
                             overlay!.querySelector('.bhc-video-overlay-card')!.appendChild(continueBtn);
                             continueBtn.focus();
@@ -867,7 +881,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     overlay.innerHTML =
                         '<div class="bhc-video-overlay-card">' +
                         '<p class="bhc-video-overlay-text">' + escText(a.payload.text) + '</p>' +
-                        '<button type="button" class="bhc-btn bhc-video-overlay-continue">Continue</button>' +
+                        '<button type="button" class="bhc-btn bhc-video-overlay-continue">' + bhcEsc(bhcWord('video.overlay_continue')) + '</button>' +
                         '</div>';
                     overlay.querySelector('.bhc-video-overlay-continue')!.addEventListener('click', dismiss);
                 }
@@ -976,7 +990,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     marker.type = 'button';
                     marker.className = 'bhc-plyr-chapter-marker';
                     marker.style.left = ((chapter.time / duration) * 100) + '%';
-                    marker.title = (chapter.title || 'Chapter ' + (i + 1)) + ' — ' + formatTime(chapter.time);
+                    marker.title = (chapter.title || bhcWord('video.chapter', { n: i + 1 })) + ' — ' + formatTime(chapter.time);
                     marker.setAttribute('aria-label', 'Jump to chapter: ' + (chapter.title || 'Chapter ' + (i + 1)));
                     marker.addEventListener('click', function (e) {
                         // The progress bar is itself a seek control; stop the click scrubbing too.
@@ -994,7 +1008,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             container.className = 'bhc-video-chapters';
             var heading = document.createElement('p');
             heading.className = 'bhc-video-chapters-heading';
-            heading.textContent = 'Chapters';
+            heading.textContent = bhcWord('video.chapters');
             container.appendChild(heading);
             var list = document.createElement('ol');
             list.className = 'bhc-video-chapter-list';
@@ -1006,7 +1020,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                 item.className = 'bhc-video-chapter-item';
                 item.innerHTML = '<button type="button" class="bhc-video-chapter-item-btn">'
                     + '<span class="bhc-video-chapter-item-time">' + formatTime(chapter.time) + '</span>'
-                    + '<span class="bhc-video-chapter-item-title">' + escText(chapter.title || 'Chapter ' + (i + 1)) + '</span>'
+                    + '<span class="bhc-video-chapter-item-title">' + escText(chapter.title || bhcWord('video.chapter', { n: i + 1 })) + '</span>'
                     + '</button>';
                 item.querySelector('button')!.addEventListener('click', function () { seekTo(chapter.time, item); });
                 list.appendChild(item);
@@ -1076,22 +1090,22 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                         if (res === -1 || res === '-1' || res === 0 || res === '0') {
                             btn.disabled = false;
                             btn.textContent = originalLabel;
-                            var expiredMsg = bhcSessionMessage('save your progress');
+                            var expiredMsg = bhcSessionMessage(bhcWord('session.action_progress'));
                             if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show(expiredMsg, 'error'); } else { alert(expiredMsg); }
                             return;
                         }
                         if (!res.success) {
                             btn.disabled = false;
                             btn.textContent = originalLabel;
-                            var errMsg = (res.data && res.data.message) ? res.data.message : 'Something went wrong.';
+                            var errMsg = (res.data && res.data.message) ? res.data.message : bhcWord('error.generic');
                             // BHCoreToast is called directly (AJAX, no redirect for OUS_Toast);
                             // falls back to alert() if core's toast script isn't loaded.
                             if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show(errMsg, 'error'); } else { alert(errMsg); }
                             return;
                         }
-                        btn.textContent = 'Completed';
+                        btn.textContent = bhcWord('step.completed');
                         step.classList.add('bhc-step-done');
-                        if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show('Step complete.', 'success'); }
+                        if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show(bhcWord('step.complete_toast'), 'success'); }
                         markStepDone(index);
                         updateSidebarProgress(res.data);
                         if (index === stepCount - 1 && nextLessonUrl) { window.location.href = nextLessonUrl; return; }
@@ -1099,13 +1113,13 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     })
                     .catch(function () {
                         if (attempt < 2) {
-                            btn.textContent = 'Retrying…';
+                            btn.textContent = bhcWord('step.retrying');
                             setTimeout(function () { submitMarkComplete(attempt + 1); }, 500 * Math.pow(2, attempt) + Math.random() * 200);
                             return;
                         }
                         btn.disabled = false;
                         btn.textContent = originalLabel;
-                        var msg = 'Could not reach the server — check your connection and try again.';
+                        var msg = bhcWord('error.offline');
                         if (typeof BHCoreToast !== 'undefined') { BHCoreToast!.show(msg, 'error'); } else { alert(msg); }
                     });
             }
@@ -1136,8 +1150,8 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     if (ci === correctIndex) classes.push('bhc-correct');
                     if (ci === chosen && !qCorrect) classes.push('bhc-choice-incorrect');
                     var marker = '';
-                    if (ci === correctIndex) marker = ' <span class="bhc-choice-marker">&#10003; Correct answer</span>';
-                    else if (ci === chosen) marker = ' <span class="bhc-choice-marker">&#10007; Your answer</span>';
+                    if (ci === correctIndex) marker = ' <span class="bhc-choice-marker">' + bhcEsc(bhcWord('quiz.correct_answer')) + '</span>';
+                    else if (ci === chosen) marker = ' <span class="bhc-choice-marker">' + bhcEsc(bhcWord('quiz.your_answer')) + '</span>';
                     html += '<div class="' + classes.join(' ') + '"><span class="bhc-choice-text">' + escapeHtml(choice) + '</span>' + marker + '</div>';
                 });
                 html += '</fieldset>';
@@ -1184,7 +1198,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
             var quizSubmitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement | null;
             var quizSubmitLabel = quizSubmitBtn ? quizSubmitBtn.textContent : '';
             // Change the label too; disabled alone isn't reliably announced by screen readers.
-            if (quizSubmitBtn) { quizSubmitBtn.disabled = true; quizSubmitBtn.textContent = 'Submitting…'; }
+            if (quizSubmitBtn) { quizSubmitBtn.disabled = true; quizSubmitBtn.textContent = bhcWord('quiz.submitting'); }
 
             var body = new URLSearchParams({ action: 'bhc_submit_quiz', nonce: BHCData.nonce, lesson_id: lessonId, step_index: String(index) });
             var formData = new FormData(form);
@@ -1206,7 +1220,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                         if (quizSubmitBtn) { quizSubmitBtn.disabled = false; quizSubmitBtn.textContent = quizSubmitLabel; }
                         resultBox.style.display = '';
                         resultBox.className = 'bhc-quiz-result bhc-fail';
-                        resultBox.textContent = bhcSessionMessage('submit this quiz');
+                        resultBox.textContent = bhcSessionMessage(bhcWord('session.action_quiz'));
                         return;
                     }
                     if (!res.success) {
@@ -1215,7 +1229,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                         var data = res.data || ({} as BHCQuizSubmitResult & { message?: string });
                         resultBox.style.display = '';
                         resultBox.className = 'bhc-quiz-result bhc-fail';
-                        resultBox.textContent = data.message || 'Something went wrong.';
+                        resultBox.textContent = data.message || bhcWord('error.generic');
                         if (data.max_attempts) {
                             form.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button[type="submit"]').forEach(function (el) { el.disabled = true; });
                             showAttemptsHelp();
@@ -1227,7 +1241,9 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     resultBox.className = 'bhc-quiz-result ' + (result.passed ? 'bhc-pass' : 'bhc-fail');
                     var attemptsNote = '';
                     if (result.max_attempts) {
-                        attemptsNote = result.passed ? '' : ((result.attempts_remaining ?? 0) > 0 ? ' (' + result.attempts_remaining + ' attempt' + (result.attempts_remaining === 1 ? '' : 's') + ' remaining)' : ' (no attempts remaining)');
+                        attemptsNote = result.passed ? '' : ' ' + ((result.attempts_remaining ?? 0) > 0
+                            ? bhcWord(result.attempts_remaining === 1 ? 'quiz.retry_left_one' : 'quiz.retry_left', { count: result.attempts_remaining ?? 0 })
+                            : bhcWord('quiz.retry_none'));
                     }
                     // result.correct is null on an already-passed replay; re-derive from
                     // score/total (inverse of BHC_Steps::score_quiz()).
@@ -1242,18 +1258,18 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                         // Mirrors BHC_Render_Lesson::render_quiz_review(). All values are
                         // server-computed numbers, so building HTML here is safe.
                         resultBox.innerHTML = '<div class="bhc-quiz-pass-icon">&#10003;</div>'
-                            + '<div class="bhc-datum bhc-quiz-pass-figure"><span class="bhc-datum-value">' + result.score + '%</span><span class="bhc-datum-label">quiz passed</span></div>'
-                            + '<p class="bhc-quiz-pass-sub">' + correctCount + '/' + result.total + ' correct. Nice work.</p>';
+                            + '<div class="bhc-datum bhc-quiz-pass-figure"><span class="bhc-datum-value">' + result.score + '%</span><span class="bhc-datum-label">' + bhcEsc(bhcWord('quiz.passed_label')) + '</span></div>'
+                            + '<p class="bhc-quiz-pass-sub">' + bhcEsc(bhcWord('quiz.passed_score', { correct: correctCount, total: result.total })) + '</p>';
                     } else if (attemptsExhausted) {
                         var missedTopics = (result.questions || [])
                             .filter(function (q) { return q.chosen_index !== q.correct_index; })
                             .map(function (q) { return q.q; })
                             .filter(Boolean);
                         resultBox.textContent = missedTopics.length
-                            ? 'Not this time — ' + correctCount + '/' + result.total + ' correct, and out of attempts. Before moving on, go back and review: ' + missedTopics.join('; ') + '.'
-                            : 'Not this time — ' + correctCount + '/' + result.total + ' correct, and out of attempts. Review the lesson before moving on.';
+                            ? bhcWord('quiz.failed_final_topics', { correct: correctCount, total: result.total, topics: missedTopics.join('; ') })
+                            : bhcWord('quiz.failed_final', { correct: correctCount, total: result.total });
                     } else {
-                        resultBox.textContent = correctCount + '/' + result.total + ' correct — not quite there yet.' + attemptsNote + ' Take another look and give it another shot.';
+                        resultBox.textContent = bhcWord('quiz.failed_retry', { correct: correctCount, total: result.total, attempts: attemptsNote });
                     }
 
                     // Per-question breakdown; lock the inputs so it reads as a review.
@@ -1293,7 +1309,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                         var continueBtn = document.createElement('button');
                         continueBtn.type = 'button';
                         continueBtn.className = 'bhc-btn bhc-quiz-continue';
-                        continueBtn.textContent = 'Continue';
+                        continueBtn.textContent = bhcWord('quiz.continue');
                         continueBtn.addEventListener('click', function () { advance(index); });
                         form.appendChild(continueBtn);
                     } else if (result.max_attempts && result.attempts_remaining === 0) {
@@ -1304,7 +1320,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                         var tryAgainBtn = document.createElement('button');
                         tryAgainBtn.type = 'button';
                         tryAgainBtn.className = 'bhc-btn bhc-btn-secondary bhc-quiz-try-again';
-                        tryAgainBtn.textContent = 'Try again';
+                        tryAgainBtn.textContent = bhcWord('quiz.try_again');
                         tryAgainBtn.addEventListener('click', resetQuizForm);
                         form.appendChild(tryAgainBtn);
                     }
@@ -1317,7 +1333,7 @@ function bhcSetVisibleStep(root: ParentNode, index: number): number {
                     if (resultBox) {
                         resultBox.style.display = '';
                         resultBox.className = 'bhc-quiz-result bhc-fail';
-                        resultBox.textContent = 'Could not reach the server — check your connection and submit again.';
+                        resultBox.textContent = bhcWord('quiz.offline');
                     }
                 });
         });

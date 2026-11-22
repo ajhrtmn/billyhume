@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.15.17
+ * Version:     3.16.0
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BH_VER',        '3.15.17');
+define('BH_VER',        '3.16.0');
 
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
@@ -20,7 +20,7 @@ define('BH_MAX_BYTES',  20 * 1024 * 1024);  // max upload size
 define('BH_REG_THROTTLE', 3);               // max registrations per IP per hour
 define('BH_LOGIN_MAX_FAILS', 5);            // failed logins (per username+IP) before a 15-minute lockout
 
-foreach (['tables', 'activator', 'post-types', 'helpers', 'auth', 'api', 'admin-menus', 'admin-list-tables', 'admin-reports', 'admin-moderation', 'admin-metaboxes', 'admin', 'contest-wizard', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'contest-library', 'style-surfaces', 'portal-panel', 'judging', 'charts', 'rounds', 'share-cards', 'blocks', 'test-suite'] as $f) {
+foreach (['words', 'tables', 'activator', 'post-types', 'helpers', 'auth', 'api', 'admin-menus', 'admin-list-tables', 'admin-reports', 'admin-moderation', 'admin-metaboxes', 'admin', 'contest-wizard', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'contest-library', 'style-surfaces', 'portal-panel', 'judging', 'charts', 'rounds', 'share-cards', 'blocks', 'test-suite'] as $f) {
     require_once BH_PATH . "includes/class-$f.php";
 }
 
@@ -152,9 +152,13 @@ add_action('plugins_loaded', function () {
         wp_enqueue_style('bh-player', BH_URL . 'assets/css/player.css', $font_url ? ['bh-fonts'] : [], BH_VER);
         wp_add_inline_style('bh-player', BHY_Style::inline_css());
 
+        // bh-common carries bhEsc()/bhWord() and the wording from words.php for every contest script.
+        wp_register_script('bh-common', BH_URL . 'assets/js/bh-common.js', [], BH_VER, true);
+        wp_localize_script('bh-common', 'BHWords', BHCON_Words::all());
+
         if ($has_player) {
             wp_enqueue_script('howler', 'https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js', [], '2.2.4', true);
-            wp_enqueue_script('bh-player', BH_URL . 'assets/js/player.js', ['howler'], BH_VER, true);
+            wp_enqueue_script('bh-player', BH_URL . 'assets/js/player.js', ['howler', 'bh-common'], BH_VER, true);
             $brand = BHY_Style::get();
             wp_localize_script('bh-player', 'BHData', [
                 'rest'     => esc_url_raw(rest_url('bh/v1/')),
@@ -167,7 +171,7 @@ add_action('plugins_loaded', function () {
         }
 
         if ($has_reveal) {
-            wp_enqueue_script('bh-common', BH_URL . 'assets/js/bh-common.js', [], BH_VER, true);
+            wp_enqueue_script('bh-common');
             wp_enqueue_script('bh-anime', BH_URL . 'assets/js/vendor/anime.min.js', [], '4.5.0', true);
             wp_enqueue_script('bh-reveal', BH_URL . 'assets/js/reveal.js', ['bh-common', 'bh-anime'], BH_VER, true);
             wp_localize_script('bh-reveal', 'BHData', [
@@ -176,7 +180,7 @@ add_action('plugins_loaded', function () {
         }
 
         if ($has_archive) {
-            wp_enqueue_script('bh-common', BH_URL . 'assets/js/bh-common.js', [], BH_VER, true);
+            wp_enqueue_script('bh-common');
             wp_enqueue_script('bh-archive', BH_URL . 'assets/js/archive.js', ['bh-common'], BH_VER, true);
             wp_localize_script('bh-archive', 'BHData', [
                 'rest' => esc_url_raw(rest_url('bh/v1/')),

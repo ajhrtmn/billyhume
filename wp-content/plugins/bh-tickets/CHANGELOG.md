@@ -1,10 +1,12 @@
 # Changelog — BH Tickets
 
-Moved out of `bh-tickets.php` on 2026-08-25 — this plugin never got the same extraction the-self-hosted-self did on 2026-08-23, so its version history sat in source comments until now. See `CONVENTIONS.md` for why version history lives here and in git rather than in source.
+Moved out of `bh-tickets.php` on 2026-08-25 — this plugin never got the same extraction the-self-hosted-self did on 2026-08-23, so its version history sat in source comments until now.
 
 Entries are newest-first, exactly as written in-file. Nothing reworded or dropped.
 
 ---
+
+1.1.0 - The Support form and the Support tab's wording now live in `words.php` (read through `BHT_Words`), including how ticket statuses are named. Removed the plugin's own registry entry (core now lists it). Checked locally on the Support page.
 
 1.0.6 - The [bht_support] wrapper is a div, not a section: Automatic.css on the live site gives top-level sections page-section padding and flex layout.
 

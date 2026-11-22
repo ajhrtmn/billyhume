@@ -3,7 +3,7 @@
 For paid course video that must not be a shareable link. Both options
 below give the player a URL that **expires in 4 hours and is minted per
 viewer** after bh-courses' own access gate has already passed. Configure
-one or both in **wp-admin → Self-Hosted Self → Media & CDN Setup →
+one or both in **wp-admin → Site Tools → Media & CDN Setup →
 "Private (signed) video delivery"**, then pick the source on any Video
 step in a lesson.
 
@@ -77,6 +77,6 @@ The list renders under the video and seeks on click.
 - If a link ever 403s in the player, it expired — reloading the lesson
   mints a fresh one.
 - `BHY_MediaToken`'s signing is covered by the core Test Runner suite
-  (Self-Hosted Self → Debug Tools → Tests). The R2 signature is verified
+  (Site Tools → Debug Tools → Tests). The R2 signature is verified
   byte-for-byte against the Worker's HMAC. End-to-end playback itself
   can only be checked against a real bucket/library.

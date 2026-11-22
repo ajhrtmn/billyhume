@@ -1,14 +1,14 @@
-# Runbook — updating the ecosystem on the live site
+# Runbook — updating the live site
 
-Written 2026-08-30 after a session spent rediscovering all of this the hard way. If you are about to push ecosystem plugin changes to `billyhume.net`, read this first.
+If you are about to push plugin changes to `billyhume.net`, read this first.
 
 ## When to use this
 
 - You merged plugin changes to `dev` / `master` and need them on the live site.
 - The live site is showing stale behaviour (old JS, an old markup shape) after a change that *should* have landed.
-- The Bundled Zip Freshness or GitHub Updates panel is flagging drift.
+- The GitHub Updates panel is flagging drift.
 
-Not for: third-party plugins (WooCommerce, Rank Math, the Bluehost plugin, Etch) — Billy's dev manages those from wp-admin / WordPress.org. This workflow only ever touches the 14 folders in `tools/ecosystem-plugins.txt`.
+Not for: third-party plugins (WooCommerce, Rank Math, the Bluehost plugin, Etch) — Billy's dev manages those from wp-admin / WordPress.org. This workflow only ever touches the folders in `tools/ecosystem-plugins.txt` (the core, bh-courses, bh-contest, bh-monetization-woo, bh-tickets, bh-crm, bh-mailpoet) and the theme.
 
 ## The two delivery paths (know which one you're on)
 
@@ -31,18 +31,6 @@ git push origin dev
 git checkout master && git merge dev --ff-only && git push origin master && git checkout dev
 ```
 
-If you changed a **peer** plugin (anything but the core), also refresh its bundled copy in the same commit:
-
-```bash
-cd wp-content/plugins
-rm -f the-self-hosted-self/bundled/<plugin>.zip
-zip -rq the-self-hosted-self/bundled/<plugin>.zip <plugin> \
-  -x '*/.git/*' '*/node_modules/*' '*/vendor/*' '*/.DS_Store'
-# then bump the-self-hosted-self's own version + CHANGELOG for the zip refresh
-```
-
-The **Bundled Zip Freshness** panel (Debug Tools) tells you when you forgot — it compares each `bundled/*.zip`'s header against the installed version. `OUS_Installer::install_from_bundle()` extracts from these, so a stale bundle means "reinstalled, still old."
-
 ### 2. Wait for GitHub's raw CDN
 
 `raw.githubusercontent.com` caches ~5 min. Confirm the new version is actually being served before touching wp-admin:
@@ -53,13 +41,13 @@ curl -s "https://raw.githubusercontent.com/ajhrtmn/billyhume/dev/wp-content/plug
 
 ### 3. Update in wp-admin
 
-**The Self-Hosted Self → Debug Tools → GitHub Updates** (`admin.php?page=ous-debug#ous-section-ous-github-updates`).
+**Site Tools → Debug Tools → GitHub Updates** (`admin.php?page=ous-debug#ous-section-ous-github-updates`).
 
 1. **Check now.** This *queues* an async job (it never checks synchronously — a synchronous check timed the whole site out once, see `class-github-updates.php` history). On a host where WP-Cron is unreliable it also auto-submits the Job Queue's "Run due jobs now" for you.
 2. Wait, then re-read the table. **The "On GitHub" column lags step 2's `curl` result by another 5–15 min** — the checker keeps its own transient. Click **Check now** again if it still shows the old number. Every session this session it took 1–2 extra Check-now cycles.
 3. When the row says **Update available**, click **Update now** (a `confirm()` → an `admin-post.php` form POST → downloads the folder from `dev`, overwrites in place).
 
-The "not installed here" clutter toggle at the top of that panel (and the ecosystem dashboard, and Bundled Zip Freshness) hides rows for plugins this site doesn't run. Option: `ous_updates_show_absent`.
+The "not installed here" toggle at the top of that panel hides rows for plugins this site doesn't run. Option: `ous_updates_show_absent`.
 
 ### 4. Purge the page cache — do not skip this
 
@@ -90,7 +78,7 @@ There is **no built-in "reinstall previous version"** button. To roll back:
 
 1. `git revert <bad commit>` on `dev`, bump the version *down-then-up* isn't possible — bump it *forward* with a "revert X" changelog entry, push `dev` + `master`.
 2. Re-run steps 2–5 above. **Update now** overwrites with whatever `dev` currently holds, so a forward-revert is the rollback.
-3. If the bad version is causing a fatal and wp-admin itself is down: FTP the previous known-good folder in by hand (or the matching `the-self-hosted-self/bundled/<plugin>.zip` from a good commit), then fix forward.
+3. If the bad version is causing a fatal and wp-admin itself is down: FTP the previous known-good folder in by hand (download it from a good commit on GitHub), then fix forward.
 
 Keep the change small enough that a forward-revert is always safe — this is why peer plugins shipped 6 point releases in one session rather than one big one.
 
@@ -108,4 +96,12 @@ Keep the change small enough that a forward-revert is always safe — this is wh
 - `deploy-ftp.yml` — path B, and the build-verification step that fails a deploy on stale committed `.js`.
 - `OPEN.md` "Blocked on AJ" — the path-B / GitHub-Updates flow has never been click-through verified end to end on a real host.
 - `ETCH-COMPATIBILITY-NOTES.md` — why the live site's rendered markup can differ from what the plugin emitted.
-- `CONVENTIONS.md` — version bump + CHANGELOG in one commit.
+- `CLAUDE.md` — version bump + CHANGELOG in one commit.
+
+## One-time cleanup after the November 2026 rescope
+
+The repo dropped seven plugins Billy doesn't use: bh-streaming, bh-video, bh-live, bh-feedback, bh-registry, bh-social and self-hosted-self-admin-skin. Deleting them from git does not remove them from the live site. Once the new core (3.22.0+) is installed there:
+
+1. **Plugins** screen: deactivate any of those seven that are active, then delete them. Their database tables stay; nothing else reads them.
+2. **Debug Tools → GitHub Updates**: they no longer appear (the panel only lists plugins still in the repo).
+3. Install the remaining updates in this order: core first, then the others.

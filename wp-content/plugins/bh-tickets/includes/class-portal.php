@@ -16,7 +16,7 @@ class BHT_Portal {
     public static function register_panel(array $panels): array {
         $panels[] = [
             'id' => 'tickets',
-            'label' => 'Support',
+            'label' => BHT_Words::get('portal.tab'),
             'icon' => 'dashicons-sos',
             'render' => [self::class, 'render'],
             'priority' => 50,
@@ -41,25 +41,25 @@ class BHT_Portal {
     private static function render_list(int $user_id): void {
         $tickets = BHT_Tickets::for_user($user_id);
 
-        echo '<h3>New ticket</h3>';
+        echo '<h3>' . BHT_Words::e('portal.new_heading') . '</h3>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="bht_portal_new_ticket">';
         wp_nonce_field('bht_portal_new_ticket');
-        echo '<p><input type="text" name="subject" class="regular-text" placeholder="Subject" required></p>';
-        echo '<p><textarea name="body" rows="5" class="large-text" placeholder="How can we help?" required></textarea></p>';
-        echo '<p><button class="button button-primary">Submit</button></p>';
+        echo '<p><input type="text" name="subject" class="regular-text" placeholder="' . esc_attr(BHT_Words::get('portal.subject')) . '" required></p>';
+        echo '<p><textarea name="body" rows="5" class="large-text" placeholder="' . esc_attr(BHT_Words::get('portal.body')) . '" required></textarea></p>';
+        echo '<p><button class="button button-primary">' . BHT_Words::e('portal.submit') . '</button></p>';
         echo '</form>';
 
-        echo '<h3>Your tickets</h3>';
+        echo '<h3>' . BHT_Words::e('portal.list_heading') . '</h3>';
         if (!$tickets) {
-            echo '<p>No tickets yet.</p>';
+            echo '<p>' . BHT_Words::e('portal.none') . '</p>';
             return;
         }
-        echo '<table class="widefat striped"><thead><tr><th>Subject</th><th>Status</th><th>Updated</th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr><th>' . BHT_Words::e('portal.col_subject') . '</th><th>' . BHT_Words::e('portal.col_status') . '</th><th>' . BHT_Words::e('portal.col_updated') . '</th></tr></thead><tbody>';
         foreach ($tickets as $t) {
             $url = add_query_arg(['panel' => 'tickets', 'ticket_id' => (int) $t['id']]);
             echo '<tr><td><a href="' . esc_url($url) . '">' . esc_html($t['subject']) . '</a></td>'
-               . '<td>' . esc_html(BHT_Tickets::STATUSES[$t['status']] ?? $t['status']) . '</td>'
+               . '<td>' . esc_html(BHT_Words::status($t['status'])) . '</td>'
                . '<td>' . esc_html($t['updated_at']) . '</td></tr>';
         }
         echo '</table>';
@@ -68,14 +68,14 @@ class BHT_Portal {
     /** @param array<string, mixed> $ticket */
     private static function render_detail(array $ticket): void {
         $ticket_id = (int) $ticket['id'];
-        echo '<p><a href="' . esc_url(add_query_arg(['panel' => 'tickets', 'ticket_id' => false])) . '">&larr; Your tickets</a></p>';
+        echo '<p><a href="' . esc_url(add_query_arg(['panel' => 'tickets', 'ticket_id' => false])) . '">' . BHT_Words::e('portal.back') . '</a></p>';
         echo '<h3>' . esc_html($ticket['subject']) . '</h3>';
-        echo '<p><strong>Status:</strong> ' . esc_html(BHT_Tickets::STATUSES[$ticket['status']] ?? $ticket['status']) . '</p>';
+        echo '<p><strong>' . BHT_Words::e('portal.status_label') . '</strong> ' . esc_html(BHT_Words::status($ticket['status'])) . '</p>';
 
         foreach (BHT_Replies::for_ticket($ticket_id) as $reply) {
             $author = get_userdata((int) $reply['user_id']);
             echo '<div style="border:1px solid #dcdcde;border-radius:4px;padding:12px;margin-bottom:8px;' . ($reply['is_staff'] ? 'background:#f0f6fc;' : '') . '">';
-            echo '<p><strong>' . esc_html($reply['is_staff'] ? 'Support' : ($author ? $author->display_name : 'You')) . '</strong>'
+            echo '<p><strong>' . esc_html($reply['is_staff'] ? BHT_Words::get('portal.staff_name') : ($author ? $author->display_name : BHT_Words::get('portal.you'))) . '</strong>'
                . ' <span class="description">' . esc_html($reply['created_at']) . '</span></p>';
             echo wp_kses_post($reply['body']);
             echo '</div>';
@@ -87,7 +87,7 @@ class BHT_Portal {
             echo '<input type="hidden" name="ticket_id" value="' . $ticket_id . '">';
             wp_nonce_field('bht_portal_reply_' . $ticket_id);
             echo '<textarea name="body" rows="5" class="large-text" required></textarea>';
-            echo '<p><button class="button button-primary">Reply</button></p>';
+            echo '<p><button class="button button-primary">' . BHT_Words::e('portal.reply') . '</button></p>';
             echo '</form>';
         }
     }
@@ -99,7 +99,7 @@ class BHT_Portal {
             wp_unslash($_POST['subject'] ?? ''),
             wp_unslash($_POST['body'] ?? '')
         );
-        $msg = is_wp_error($result) ? $result->get_error_message() : 'Ticket submitted.';
+        $msg = is_wp_error($result) ? $result->get_error_message() : BHT_Words::get('portal.submitted');
         wp_safe_redirect(add_query_arg(['panel' => 'tickets', 'bht_msg' => rawurlencode($msg)], home_url('/account/')));
         exit;
     }
@@ -113,7 +113,7 @@ class BHT_Portal {
         if (!$ticket || (int) $ticket['user_id'] !== get_current_user_id()) wp_die('Not allowed.');
 
         BHT_Replies::add($ticket_id, get_current_user_id(), wp_unslash($_POST['body'] ?? ''), false);
-        wp_safe_redirect(add_query_arg(['panel' => 'tickets', 'ticket_id' => $ticket_id, 'bht_msg' => 'Reply sent.'], home_url('/account/')));
+        wp_safe_redirect(add_query_arg(['panel' => 'tickets', 'ticket_id' => $ticket_id, 'bht_msg' => BHT_Words::get('portal.reply_sent')], home_url('/account/')));
         exit;
     }
 }

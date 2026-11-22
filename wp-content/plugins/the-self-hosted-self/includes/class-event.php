@@ -7,9 +7,9 @@ if (!defined('ABSPATH')) exit;
  *
  *   BH_Event::register_event_type('bhs/play', ['track_id' => 'int']);   // on 'init'
  *
- *   BH_Event::emit('bhs/play', [
+ *   BH_Event::emit('bhc/lesson_complete', [
  *       'user_id' => get_current_user_id(),
- *       'subject_type' => 'bhs_track', 'subject_id' => $track_id,
+ *       'subject_type' => 'bh_lesson', 'subject_id' => $lesson_id,
  *       'payload' => ['referrer_bucket' => $bucket],
  *   ]);
  *
@@ -82,7 +82,7 @@ class BH_Event {
     }
 
     /**
-     * Rough request context (referrer/UA only). Not reusing BHS_Stats: must not depend on bh-streaming.
+     * Rough request context (referrer/UA only).
      *
      * @return array<string, string>
      */

@@ -160,25 +160,17 @@ class BHM_TestSuite {
             $rows = array_merge($rows, self::run_tier_exclusivity_tests());
         }
 
-        // Referral and purchase-ledger suites need WooCommerce (real product/order/coupon).
+        // The referral suite needs WooCommerce (real product/order/coupon).
         if (class_exists('BHM_Referrals') && class_exists('OUS_Debug') && BH_Commerce::available()) {
             $rows = array_merge($rows, self::run_referral_tests());
-        }
-
-        if (class_exists('BHM_PurchaseLedger') && class_exists('OUS_Debug') && BH_Commerce::available()) {
-            $rows = array_merge($rows, self::run_purchase_ledger_tests());
         }
 
         if (class_exists('BHM_GiftAccess') && class_exists('OUS_Debug') && BH_Commerce::available()) {
             $rows = array_merge($rows, self::run_gift_access_tests());
         }
 
-        // Auctions run against a plain post: BHM_Auctions never calls wc_get_product().
         if (class_exists('BHM_Wallet') && class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_wallet_hold_tests());
-        }
-        if (class_exists('BHM_Auctions') && class_exists('BHM_Wallet') && class_exists('OUS_Debug')) {
-            $rows = array_merge($rows, self::run_auction_tests());
         }
 
         return $rows;
@@ -307,84 +299,6 @@ class BHM_TestSuite {
         return $rows;
     }
 
-    /** BHM_Auctions end to end: bidding, outbids, reserve, close_auction() idempotency. */
-    /** @return array<int, array<string, mixed>> */
-    private static function run_auction_tests(): array {
-        $rows = [];
-        global $wpdb;
-        $bidder_a = OUS_Debug::get_or_create_test_user('bhm_auction_bidder_a', false);
-        $bidder_b = OUS_Debug::get_or_create_test_user('bhm_auction_bidder_b', false);
-        $wallet_table = BHM_Tables::wallet();
-        $ledger_table = BHM_Tables::wallet_ledger();
-        $bids_table = BHM_Tables::auction_bids();
-        foreach ([$bidder_a, $bidder_b] as $uid) {
-            $wpdb->delete($wallet_table, ['user_id' => $uid]);
-            $wpdb->delete($ledger_table, ['user_id' => $uid]);
-        }
-        BHM_Wallet::apply_ledger_delta($bidder_a, 10000, 'test_topup');
-        BHM_Wallet::apply_ledger_delta($bidder_b, 10000, 'test_topup');
-
-        $product_id = wp_insert_post(['post_type' => 'product', 'post_status' => 'publish', 'post_title' => 'Auction Suite Fixture'], true);
-        $wpdb->delete($bids_table, ['product_id' => $product_id]);
-
-        $rows[] = OUS_TestRunner::assert_false(BHM_Auctions::is_auction($product_id), 'a plain product is not an auction until convert_to_auction() is called');
-
-        $ends_at = date('Y-m-d H:i:s', strtotime(current_time('mysql') . ' +1 hour'));
-        $rows[] = OUS_TestRunner::assert_true(
-            BHM_Auctions::convert_to_auction($product_id, 500, 800, $ends_at),
-            'convert_to_auction() succeeds with a real future end time'
-        );
-        $rows[] = OUS_TestRunner::assert_true(BHM_Auctions::is_auction($product_id), 'is_auction() is true immediately after conversion');
-        $rows[] = OUS_TestRunner::assert_same('open', BHM_Auctions::status($product_id), 'status() is "open" while the end time is still in the future');
-        $rows[] = OUS_TestRunner::assert_same(500, BHM_Auctions::current_bid_cents($product_id), 'current_bid_cents() is the starting price before any real bid exists');
-
-        $rows[] = OUS_TestRunner::assert_true(is_wp_error(BHM_Auctions::place_bid($product_id, $bidder_a, 400)), 'a bid below the starting price is rejected');
-        $rows[] = OUS_TestRunner::assert_false(is_wp_error(BHM_Auctions::place_bid($product_id, $bidder_a, 500)), "bidder A's opening bid at exactly the starting price succeeds");
-        // Charge-on-win: bids never hold funds; only the winner is charged, at close.
-        $rows[] = OUS_TestRunner::assert_same(0, BHM_Wallet::held_cents($bidder_a), "bidder A's bid does NOT hold funds (charge-on-win) — held_cents stays 0");
-        $rows[] = OUS_TestRunner::assert_same(10000, BHM_Wallet::balance_cents($bidder_a), "bidder A's balance is untouched by placing a bid — nothing is charged until a win");
-
-        $rows[] = OUS_TestRunner::assert_true(is_wp_error(BHM_Auctions::place_bid($product_id, $bidder_b, 500)), "bidder B matching (not beating) the current high bid is rejected");
-        $rows[] = OUS_TestRunner::assert_false(is_wp_error(BHM_Auctions::place_bid($product_id, $bidder_b, 700)), "bidder B's higher bid of 700 succeeds");
-        $rows[] = OUS_TestRunner::assert_same(0, BHM_Wallet::held_cents($bidder_a), "bidder A being outbid is a pure no-op on their wallet — there was never a hold to release");
-        $rows[] = OUS_TestRunner::assert_same(0, BHM_Wallet::held_cents($bidder_b), "bidder B's own higher bid still does NOT hold funds (charge-on-win)");
-        $rows[] = OUS_TestRunner::assert_same(700, BHM_Auctions::current_bid_cents($product_id), 'current_bid_cents() reflects the new high bid of 700');
-        $rows[] = OUS_TestRunner::assert_same((int) $bidder_b, BHM_Auctions::current_bidder_id($product_id), 'current_bidder_id() is bidder B after their bid takes the lead');
-
-        $outbid_status = $wpdb->get_var($wpdb->prepare("SELECT status FROM $bids_table WHERE product_id = %d AND user_id = %d AND amount_cents = 500", $product_id, $bidder_a));
-        $rows[] = OUS_TestRunner::assert_same('outbid', $outbid_status, "bidder A's own 500-cent bid row is marked 'outbid', not deleted — a real history, not just current-state");
-
-        // Reserve 800 not met by 700: no charge, not sold.
-        BHM_Auctions::close_auction(['product_id' => $product_id]);
-        $rows[] = OUS_TestRunner::assert_same('closed', BHM_Auctions::status($product_id), 'status() is "closed" once close_auction() has actually finalized it');
-        $rows[] = OUS_TestRunner::assert_same(10000, BHM_Wallet::balance_cents($bidder_b), "bidder B's balance is completely untouched — the reserve wasn't met, so charge-on-win never attempted a debit");
-
-        $balance_before_replay = BHM_Wallet::balance_cents($bidder_b);
-        BHM_Auctions::close_auction(['product_id' => $product_id]);
-        $rows[] = OUS_TestRunner::assert_same($balance_before_replay, BHM_Wallet::balance_cents($bidder_b), 'calling close_auction() a second time on an already-finalized auction is a no-op — balance does not move again');
-
-        // No-reserve listing: the winner is debited at close.
-        $product_id_2 = wp_insert_post(['post_type' => 'product', 'post_status' => 'publish', 'post_title' => 'Auction Suite Fixture (no reserve)'], true);
-        BHM_Auctions::convert_to_auction($product_id_2, 500, 0, $ends_at);
-        BHM_Auctions::place_bid($product_id_2, $bidder_a, 600);
-        $rows[] = OUS_TestRunner::assert_same(10000, BHM_Wallet::balance_cents($bidder_a), "placing the winning bid itself still charges nothing — the debit only happens at close");
-        BHM_Auctions::close_auction(['product_id' => $product_id_2]);
-        $rows[] = OUS_TestRunner::assert_same('closed', BHM_Auctions::status($product_id_2), 'the no-reserve listing is also closed after close_auction()');
-        $rows[] = OUS_TestRunner::assert_same(9400, BHM_Wallet::balance_cents($bidder_a), "the winning bidder's balance actually drops by the winning 600-cent bid once a sale with no reserve genuinely closes");
-        $rows[] = OUS_TestRunner::assert_same((int) $bidder_a, (int) get_post_meta($product_id_2, BHM_Auctions::META_WINNER_ID, true), 'the winner meta is correctly set once the charge-on-win debit succeeds');
-
-        foreach ([$bidder_a, $bidder_b] as $uid) {
-            $wpdb->delete($wallet_table, ['user_id' => $uid]);
-            $wpdb->delete($ledger_table, ['user_id' => $uid]);
-        }
-        $wpdb->delete($bids_table, ['product_id' => $product_id]);
-        $wpdb->delete($bids_table, ['product_id' => $product_id_2]);
-        wp_delete_post($product_id, true);
-        wp_delete_post($product_id_2, true);
-
-        return $rows;
-    }
-
     /** @return array<int, array<string, mixed>> */
     private static function run_referral_tests(): array {
         $rows = [];
@@ -463,78 +377,6 @@ class BHM_TestSuite {
 
     // Purchase ledger + anchoring. Only asserts the anchor job is enqueued; the
     // OpenTimestamps network call is deliberately not exercised (slow, flaky).
-    /** @return array<int, array<string, mixed>> */
-    private static function run_purchase_ledger_tests(): array {
-        if (!class_exists('BHS_API')) return []; // content_hash lookup needs a real bhs_track
-
-        $rows = [];
-        global $wpdb;
-        $t = BHM_Tables::purchase_ledger();
-
-        $track_id = wp_insert_post([
-            'post_type' => 'bhs_track', 'post_status' => 'publish', 'post_title' => 'BHM Purchase Ledger Suite Fixture Track',
-            'meta_input' => ['bhcore_is_test' => 'bhm_purchase_ledger_suite', '_bhs_audio_hash' => 'suitehash1234567890'],
-        ], true);
-        if (is_wp_error($track_id)) {
-            return [['name' => 'Purchase-ledger fixture creation failed', 'pass' => false, 'message' => 'Could not create fixture bhs_track post — skipping.']];
-        }
-
-        $product_id = BHM_ProductSync::sync_object_purchase_product($track_id, 'bhs_track', 199);
-        $customer_id = OUS_Debug::get_or_create_test_user('bhm_purchase_ledger_suite_customer', false);
-        $wpdb->delete($t, ['user_id' => $customer_id]);
-
-        $order = wc_create_order(['customer_id' => $customer_id]);
-        $order->add_product(wc_get_product($product_id), 1);
-        $order->calculate_totals();
-        $order->update_status('completed'); // fires the real woocommerce_order_status_completed path
-
-        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE wc_order_id = %d AND event_type = 'purchase'", $order->get_id()));
-        $rows[] = OUS_TestRunner::assert_true((bool) $row, 'A completed order for a downloadable track-purchase product writes a real bhm_purchase_ledger row');
-        if ($row) {
-            $rows[] = OUS_TestRunner::assert_same('suitehash1234567890', $row->content_hash, 'The ledger row carries the track\'s real _bhs_audio_hash as content_hash');
-            $rows[] = OUS_TestRunner::assert_same(199, (int) $row->price_cents, 'The ledger row records the order total in cents, not dollars');
-            $rows[] = OUS_TestRunner::assert_true((bool) $row->record_hash && strlen($row->record_hash) === 64, 'record_hash is a real 64-char SHA-256 hex digest');
-            $rows[] = OUS_TestRunner::assert_same('pending', $row->anchor_status, 'A freshly-written row starts anchor_status=pending, before any anchoring job has run');
-
-            // WHY: query Action Scheduler's table directly (any status); as_get_scheduled_actions()
-            // defaults to pending-only and the job may already have completed.
-            $as_table = $wpdb->prefix . 'actionscheduler_actions';
-            if ($wpdb->get_var("SHOW TABLES LIKE '$as_table'") === $as_table) {
-                $enqueued_count = (int) $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(*) FROM $as_table WHERE hook = 'bhm_anchor_submit' AND args LIKE %s",
-                    '%"ledger_row_id":' . (int) $row->id . '%'
-                ));
-                $rows[] = OUS_TestRunner::assert_true($enqueued_count > 0, 'write_row() enqueues a real bhm_anchor_submit job for the new row (not asserting the network call itself ran)');
-            }
-        }
-
-        // A refund writes a second linked row, never mutating the original.
-        $order->update_status('refunded');
-        $reversal = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE wc_order_id = %d AND event_type = 'reversal'", $order->get_id()));
-        $rows[] = OUS_TestRunner::assert_true((bool) $reversal, 'Refunding the order writes a linked reversal row rather than mutating the original purchase row');
-        if ($reversal && $row) {
-            $rows[] = OUS_TestRunner::assert_same((string) $row->id, (string) $reversal->linked_record_id, 'The reversal row\'s linked_record_id points back at the original purchase row');
-        }
-
-        // Double-reversal guard (e.g. refunded -> cancelled).
-        BHM_PurchaseLedger::on_order_reversed($order->get_id());
-        $reversal_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE wc_order_id = %d AND event_type = 'reversal'", $order->get_id()));
-        $rows[] = OUS_TestRunner::assert_same(1, $reversal_count, 'Calling on_order_reversed() again for an already-reversed order does not record a second reversal (the NOT EXISTS guard)');
-
-        $rows[] = OUS_TestRunner::assert_same(1, count(BHM_PurchaseLedger::for_user($customer_id)), 'for_user() returns exactly this customer\'s one purchase row');
-        if ($row) {
-            $found_reversal = BHM_PurchaseLedger::reversal_for($row->id);
-            $rows[] = OUS_TestRunner::assert_true((bool) $found_reversal, 'reversal_for() finds the linked reversal row for the original purchase');
-        }
-
-        $wpdb->delete($t, ['wc_order_id' => $order->get_id()]);
-        $order->delete(true);
-        if ($product_id) wp_delete_post($product_id, true);
-        wp_delete_post($track_id, true);
-
-        return $rows;
-    }
-
     /** @return array<int, array<string, mixed>> */
     private static function run_gift_access_tests(): array {
         global $wpdb;

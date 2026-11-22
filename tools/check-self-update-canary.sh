@@ -50,7 +50,6 @@ check_url() {
 
 while IFS= read -r plugin; do
   [ -z "$plugin" ] && continue
-  [ "$plugin" = "self-hosted-self-admin-skin" ] && continue # not registered with OUS_GithubUpdates (a skin, not one of OUS_Registry's own bundled_zip entries)
   url="https://raw.githubusercontent.com/$REPO/$BRANCH/wp-content/plugins/$plugin/$plugin.php"
   check_url "$plugin" "$url"
 done < <(grep -vE '^\s*(#|$)' tools/ecosystem-plugins.txt)

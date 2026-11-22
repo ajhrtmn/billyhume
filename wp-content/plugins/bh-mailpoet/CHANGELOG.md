@@ -1,10 +1,12 @@
 # Changelog — BH MailPoet
 
-Moved out of `bh-mailpoet.php` on 2026-08-23. See `CONVENTIONS.md` for why version history lives here and in git rather than in source.
+Moved out of `bh-mailpoet.php` on 2026-08-23.
 
 Entries are newest-first, exactly as written in-file. Nothing reworded or dropped.
 
 ---
+
+1.2.1 — Removed the plugin's own registry entry; core now lists it with MailPoet as its dependency.
 
 1.2.0 — Robustness pass across every MailPoet integration point,
 prompted by a direct request to make sure MailPoet usage in this

@@ -3,7 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * Content-type-agnostic paywall: any post type marks itself locked with one postmeta key
- * and calls one static method to check access (used by bh-streaming and bh-courses).
+ * and calls one static method to check access (used by bh-courses).
  */
 class BHM_Gate {
     public static function init(): void {
@@ -146,14 +146,14 @@ class BHM_Gate {
     // Generic "become a supporter" notice for any locked content type.
     public static function render_paywall_notice(int $tier_id): string {
         $tier = BHM_Tiers::get($tier_id);
-        if (!$tier) return '<div class="bhm-paywall"><p>This content requires supporter access.</p></div>';
+        if (!$tier) return '<div class="bhm-paywall"><p>' . BHM_Words::e('paywall.generic') . '</p></div>';
 
         ob_start();
         ?>
         <div class="bhm-paywall">
-            <p class="bhm-paywall-title">This content is for <strong><?php echo esc_html($tier['name']); ?></strong> supporters and above.</p>
+            <p class="bhm-paywall-title"><?php echo BHM_Words::html('paywall.tier', ['tier' => '<strong>' . esc_html($tier['name']) . '</strong>']); ?></p>
             <?php if (!empty($tier['benefits'])): ?><p class="bhm-paywall-benefits"><?php echo esc_html($tier['benefits']); ?></p><?php endif; ?>
-            <a class="bhm-btn" href="<?php echo esc_url(BHM_Tiers::tiers_page_url()); ?>">Become a supporter</a>
+            <a class="bhm-btn" href="<?php echo esc_url(BHM_Tiers::tiers_page_url()); ?>"><?php echo BHM_Words::e('paywall.button'); ?></a>
         </div>
         <?php
         return ob_get_clean();

@@ -113,6 +113,7 @@ class BHC_Render {
             'nonce'   => wp_create_nonce('bhc_progress'),
             'loggedIn' => is_user_logged_in(),
             'supportUrl' => (method_exists('OUS_Pages', 'url') ? (string) OUS_Pages::url('bht_support') : ''),
+            'words' => BHC_Words::all(),
         ]);
     }
 

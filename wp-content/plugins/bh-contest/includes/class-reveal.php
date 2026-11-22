@@ -334,7 +334,7 @@ class BH_Reveal {
             <button type="button" class="bh-reveal-sound-toggle" id="bh-reveal-sound-toggle" aria-label="Toggle reveal sound effects" aria-pressed="true">🔊</button>
             <span class="bh-reveal-live" id="bh-reveal-live"><span class="bh-reveal-live-dot"></span><span class="bh-reveal-live-label">LIVE</span></span>
             <div class="bh-container bh-reveal-stage" id="bh-reveal-stage" data-contest="<?php echo esc_attr((string) $cid); ?>">
-                <div class="bh-reveal-loading">Waiting for reveal to start…</div>
+                <div class="bh-reveal-loading"><?php echo BHCON_Words::e('reveal.waiting'); ?></div>
             </div>
         </div>
         <?php

@@ -1,12 +1,10 @@
-# Codebase Walkthrough — a complete guided curriculum
+# Codebase Walkthrough — a guided tour of the site's code
 
-You built this project's features by directing the work, not by writing the code. This doc is the next step: being able to open any file in the ecosystem, read it, and understand what it does and why — well enough to change something yourself.
+For anyone (Billy included) who wants to open a file, read it, and understand what it does and why. You never need this to ask Claude for a change; it's here for when you're curious or want to check Claude's work.
 
-**Module 0 and Module 1 (the shared foundations) are required reading, in order** — nearly everything in Modules 2 through 7 leans on patterns explained there. After Module 1, the plugin modules can be read in any order; each stands on its own.
+**Module 0 and Module 1 (the shared foundations) are required reading, in order** — nearly everything in Modules 2 through 5 leans on patterns explained there. After Module 1, the plugin modules can be read in any order; each stands on its own.
 
 Pointers name a class and method ("find `BHC_Progress::step_status()`") rather than a line number, because line numbers drift. Open the file and search for the method name.
-
-Before you start: read `VISION.md` at the plugins root (five minutes) for the pitch of what this ecosystem is and why it's built as separate plugins instead of one giant one.
 
 ---
 
@@ -14,7 +12,7 @@ Before you start: read `VISION.md` at the plugins root (five minutes) for the pi
 
 You don't need to become a WordPress developer. You need five ideas, explained once, so the rest of this tour doesn't stop to re-explain them.
 
-**A "plugin" is just a folder of PHP files that WordPress loads.** This tour covers the core (`the-self-hosted-self`) and six peer plugins (`bh-contest`, `bh-courses`, `bh-crm`, `bh-monetization-woo`, `bh-registry`, `bh-streaming`). Newer peers such as `bh-video`, `bh-live` and `bh-tickets` follow the same shapes. Each plugin is one folder with one main file at its root (e.g. `bh-courses/bh-courses.php`) that WordPress reads first. That main file's job is almost always the same: load a bunch of other files, then tell WordPress "when X happens, run this code."
+**A "plugin" is just a folder of PHP files that WordPress loads.** This tour covers the core (`the-self-hosted-self`) and the plugins built on it (`bh-courses`, `bh-contest`, `bh-crm`, `bh-monetization-woo`). `bh-tickets` and `bh-mailpoet` follow the same shapes. Each plugin is one folder with one main file at its root (e.g. `bh-courses/bh-courses.php`) that WordPress reads first. That main file's job is almost always the same: load a bunch of other files, then tell WordPress "when X happens, run this code."
 
 **"Hooks" are how WordPress lets plugins run code at the right moment, without editing WordPress itself.** Two flavors:
 
@@ -25,16 +23,9 @@ You don't need to become a WordPress developer. You need five ideas, explained o
 
 **`class_exists('SomeClassName')` is how one plugin checks "is that OTHER plugin even active?"** This is the most important pattern in the ecosystem, because the plugins are designed to work independently — `bh-courses` works fine even if `bh-monetization-woo` (payments) isn't installed. Every time one plugin wants a feature from another, it first checks `class_exists(...)` on the other plugin's class, and if that's false, it skips the feature gracefully instead of crashing.
 
-**A Custom Post Type (CPT) is how WordPress represents "a kind of thing" beyond blog posts.** Plugins can register their own kinds — a course, a track, a contest submission — and they all get the same machinery for free (an edit screen, a URL, custom fields called "post meta"). Whenever you see `register_post_type('some_name', [...])`, read it as "this plugin is teaching WordPress about a new kind of content."
+**A Custom Post Type (CPT) is how WordPress represents "a kind of thing" beyond blog posts.** Plugins can register their own kinds — a course, a lesson, a contest submission — and they all get the same machinery for free (an edit screen, a URL, custom fields called "post meta"). Whenever you see `register_post_type('some_name', [...])`, read it as "this plugin is teaching WordPress about a new kind of content."
 
-**If you're coming from .NET, four quick mental anchors:**
-
-- **Hooks (actions/filters)** are roughly C# events/delegates, or an ASP.NET middleware pipeline. Filters are the closer analogy to middleware, since they take a value, transform it, and pass it on.
-- **`$wpdb`** is raw-SQL-first, like Dapper — not an ORM like Entity Framework.
-- **`class_exists()` guards** play the role of optional DI — "is this type even loaded? If not, degrade gracefully" instead of a hard dependency that would throw.
-- **WP-Cron** is a lightweight cousin of Hangfire or Quartz — "run this on a schedule," but driven by site traffic, not a real background service.
-
-Five ideas plus four anchors. Everything else you'll learn by seeing it in real code.
+Five ideas. Everything else you'll learn by seeing it in real code.
 
 ---
 
@@ -65,7 +56,7 @@ This loads every file in the list. Each name maps to a file in `includes/` — `
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH Courses</strong> requires <strong>The Self-Hosted Self</strong> plugin...</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH Courses</strong> requires <strong>the core</strong> plugin...</p></div>';
         });
         return;
     }
@@ -133,7 +124,7 @@ This is the whole idea in one function: any plugin can say "here's a new kind of
 
 **Open `the-self-hosted-self/includes/class-commerce.php`** — read the comment at the top and the first few methods (`available()`, `has_subscriptions()`, `upsert_product()`).
 
-The big idea: other plugins ask `BH_Commerce` to create a product, load an order, etc., instead of calling WooCommerce directly. Each `BH_Commerce` method forwards to whichever provider is active. The contract a provider must implement is the `BH_CommerceProvider` interface (`the-self-hosted-self/includes/class-commerce-provider.php`); the registry that picks the active one is `BH_CommerceProviders` (`the-self-hosted-self/includes/class-commerce-providers.php`); and the only real implementation today is `BH_WooCommerceProvider` (`the-self-hosted-self/includes/class-commerce-provider-woocommerce.php`). Because the other plugins only talk to `BH_Commerce`, replacing WooCommerce later means writing one new provider class, not rewriting every plugin that sells something. You'll see this used for real in Module 7.
+The big idea: other plugins ask `BH_Commerce` to create a product, load an order, etc., instead of calling WooCommerce directly. Each `BH_Commerce` method forwards to whichever provider is active. The contract a provider must implement is the `BH_CommerceProvider` interface (`the-self-hosted-self/includes/class-commerce-provider.php`); the registry that picks the active one is `BH_CommerceProviders` (`the-self-hosted-self/includes/class-commerce-providers.php`); and the only real implementation today is `BH_WooCommerceProvider` (`the-self-hosted-self/includes/class-commerce-provider-woocommerce.php`). Because the other plugins only talk to `BH_Commerce`, replacing WooCommerce later means writing one new provider class, not rewriting every plugin that sells something. You'll see this used for real in Module 5.
 
 ## 1.9 — BHY_UI and the design-token system
 
@@ -168,69 +159,41 @@ This is likely the feature you understand best from directing its build, which m
 
 ---
 
-# Module 3 — bh-streaming: a personal streaming library
+# Module 3 — bh-contest: a music contest voting platform
 
-This plugin has the most varied feature shapes in the ecosystem — worth reading even if streaming isn't your main interest, because it introduces ideas (near-real-time sync, recommendation, external-service health monitoring) that don't show up elsewhere.
-
-## 3.1 — The content model
-
-**Open `bh-streaming/includes/class-post-types.php`.** Four content types — `bhs_track`, `bhs_release`, `bhs_playlist`, `bhs_feed_source` — plus one taxonomy, `bhs_genre`, attached to tracks. Notice a track's artist and release are stored as post meta (`_bhs_artist`, `_bhs_release_id`) rather than a second taxonomy — the same "just store an ID or a list of IDs as meta" pattern as bh-courses' lesson order.
-
-## 3.2 — Feed aggregation and source health
-
-**Open `bh-streaming/includes/class-feeds.php`.** `sync_all()` pulls tracks in from external feed sources on a schedule — queuing one `OUS_Jobs` job per feed when the job queue is available (`sync_one_job()`), or syncing inline when it isn't (a `class_exists()` fallback in action). `check_external_track_health()` is worth real attention: it does a cheap `wp_remote_head()` request first (asking "are you there?" without downloading the file), and falls back to a tiny ranged download for hosts that mishandle HEAD. It counts consecutive failures per track and only marks a track "down" after `HEALTH_DOWN_AFTER_FAILS` (three) in a row, avoiding false alarms from one blip. It logs only when a track's status *changes*, not on every check — "log the transition, not the check" is a principle worth recognizing elsewhere.
-
-## 3.3 — Jam sessions: the shared-listening feature
-
-**Open `bh-streaming/includes/class-jam.php` and read the comment at the top.** The feature lets several people listen in sync, and the "obvious" way to build that is a WebSocket (a permanently-open connection for instant updates). The comment explains why it deliberately isn't: ordinary shared hosting can't run a socket server. Instead, clients poll roughly every two seconds.
-
-**The mechanism:** `push_host_state()` is how the host's playback position gets written; `get_state()` is how every participant reads it back. The stored state includes both a position AND a server timestamp, so each listener's browser can estimate "it's probably 1.3 seconds further along now" between polls instead of visibly jumping. Two control modes exist: `host` (only the session creator controls playback) and `vote_skip` (see `vote_skip()` — a majority of participants can skip, with the threshold set by `SKIP_VOTE_RATIO`).
-
-## 3.4 — The recommendation engine
-
-**Open `bh-streaming/includes/class-recommendations.php` and read `get_related()`.** The comment states plainly this is content-based, not collaborative filtering ("people who liked this also liked..."), which would need real usage data at scale. The scoring is simple and readable: +3 for the same artist, +4 for the same release, +1 per shared genre — then sort and take the top 10. Results go through `BHS_API::track_payload()`, so a locked track never leaks its audio URL. Worth reading end to end because it shows "recommendation engine" doesn't have to mean anything exotic — a short, explainable scoring function is a legitimate implementation.
-
-## 3.5 — Stats and the artist-facing dashboard
-
-**Open `bh-streaming/includes/class-stats.php`.** `record_play()`/`record_skip()` write to a dedicated daily-stats table (`table()`) — kept separate from posts and post meta because this is high-volume, append-only event data, a different shape from "the current state of a course's progress" in Module 2. `add_admin_page()`/`render()` turn that data into the dashboard an artist sees.
-
----
-
-# Module 4 — bh-contest: a music contest voting platform
-
-## 4.1 — The voting system and its race-condition protection
+## 3.1 — The voting system and its race-condition protection
 
 **Open `bh-contest/includes/class-api.php` and find `vote()`.** Read it slowly — it's the clearest example in the codebase of a tricky problem: what if the same person clicks "vote" twice in the same fraction of a second (a double-click, or a retried request)? Without protection, both requests could each check "have I hit my limit?", both see "no," and both proceed.
 
 The fix, in the "Toggle on" branch: `START TRANSACTION` begins a database transaction (a group of operations that either all happen or none do), then `SELECT COUNT(*) ... FOR UPDATE` counts existing votes WHILE locking those rows — `FOR UPDATE` is what says "nobody else touches these rows until I'm done," closing the gap the double-click could exploit. If the count is already at the limit, it `ROLLBACK`s (undoes everything); otherwise it inserts the vote and `COMMIT`s. If the insert itself fails, it rolls back and logs the database error. This is the pattern to recognize any time "only one of these should happen": a transaction plus a row lock, not a "check first" that leaves a gap.
 
-## 4.2 — Results and the reveal system
+## 3.2 — Results and the reveal system
 
 **In the same file, read `category_results()`** — a `GROUP BY`/`COUNT`/`ORDER BY` query turning raw vote rows into a ranked list, with ties handled by `BH_Helpers::competition_ranks()`, so two submissions tied for 2nd both show "2" and the next shows "4," not "3" ("competition ranking," as in sports standings).
 
 **Open `bh-contest/includes/class-reveal.php` and read its top comment.** "Reveal" is a live, on-stream results ceremony — counting up from 3rd to 1st per category, then an overall reveal. There are two separate pieces: an admin controller (Next/Previous) and a public display (the `[bh_results_reveal]` shortcode) meant to be captured by streaming software like OBS. The display polls the server for its own state, so the person clicking "next" and the computer capturing the livestream can be different machines.
 
-## 4.3 — The submission flow
+## 3.3 — The submission flow
 
 **In `class-api.php`, read `submit()`.** It's a good list of what a real form-submission handler has to check: is the email verified, is the submission window open, does this person already have a draft or a submission, is their profile complete, is a file attached (unless the contest allows adding audio later), is it under the size limit, is it actually an audio file (checked server-side, since a browser's file-picker filter is easy to bypass). Notice the duplicate guard uses `add_option()` rather than only a database check — the `WHY:` comment explains that WordPress option names are unique at the database level, so `add_option()` is atomic and closes the same double-submit race Section 4.1 closed for votes, with a simpler tool.
 
 ---
 
-# Module 5 — bh-crm: shared identity, and how plugins feed it
+# Module 4 — bh-crm: shared identity, and how plugins feed it
 
-## 5.1 — The People page
+## 4.1 — The People page
 
 **Open `bh-crm/includes/class-people.php` and read the top comment.** It documents two filters other plugins hook to feed the CRM. `active_user_ids()` decides who shows up on the list — anyone with profile data in core's `BHI_Profiles`, plus anyone another plugin reports via `bh_crm_active_user_ids`. A person's detail page gathers identity fields, tags, notes, and — via `bh_crm_activity_summary` — sections other plugins contribute about that person's activity. These are live: search for `bh_crm_active_user_ids` and you'll find `class-crm-integration.php` files in bh-contest, bh-courses and bh-monetization-woo, plus bh-crm's own `bh-crm/includes/class-event-activity.php` turning core's event log into a timeline.
 
 `render()` dispatches the page: the roster, one person's detail view, or a project board (Section 5.3).
 
-## 5.2 — Respecting the boundary
+## 4.2 — Respecting the boundary
 
 Module 1.2 taught you that plugins talk through `class_exists()` checks and public methods, never by reaching into another plugin's database tables. bh-crm's top comment says so explicitly: it "never queries another plugin's tables."
 
 **Look at `active_user_ids()` in `class-people.php`, and the matching line in `bh-crm/includes/class-export.php`.** Both call `BHI_Profiles::user_ids_with_profile_data()` — a public method on the core class that owns the profiles table — instead of running SQL against that table directly. When you're tempted to "just query their table," this is the shape to reach for instead: ask the owning class for a method.
 
-## 5.3 — Tags, notes, and project boards
+## 4.3 — Tags, notes, and project boards
 
 **`bh-crm/includes/class-tags.php`** stores free-text tags per person as a JSON array in user meta — intentionally simple. **`bh-crm/includes/class-notes.php`** stores append-only notes with author and timestamp in their own table; a note can carry a reminder, which is an `OUS_Jobs` one-off job that notifies the note's author through `OUS_Notifications` — two Module 1 services composed in a few lines.
 
@@ -238,50 +201,29 @@ Module 1.2 taught you that plugins talk through `class_exists()` checks and publ
 
 ---
 
-# Module 6 — bh-registry: an anonymous link directory
-
-## 6.1 — The core concept
-
-This plugin is unlike every other one in this tour: **no user accounts are involved.** It's a directory of artists' public links (their own website, RSS feed, ActivityPub profile — a decentralized-social-web identity), submitted and verified without anyone logging in. **Open `bh-registry/includes/class-activator.php` and find `create_or_update_schema()`** to see the tables it's built on: `bhr_artists` and `bhr_links`, plus tables for peers (other bh-registry sites this one crawls, so directories can discover each other) and a dedup ledger for that crawl. This plugin uses plain custom tables rather than Custom Post Types because the data is relational — searching by link type, joining an artist to their links, filtering to verified-only — which is more natural as real tables than as WordPress posts.
-
-## 6.2 — BHR_Links: a deliberately minimal data-access class
-
-**Open `bh-registry/includes/class-links.php`.** Two short methods, `table()` and `find($link_id)`, and a one-line comment: "deliberately not a full repository." It exists to remove repeated "fetch one link by ID" queries, without building more machinery (an ORM) than the plugin needs. A useful contrast to Module 1's bigger services: not every reusable piece of code needs to be a subsystem.
-
-## 6.3 — Verification: proving you own a link without an account
-
-**Open `bh-registry/includes/class-verification.php`.** Three independent checks, each answering "is this really yours?" differently:
-- `check_domain_ownership()` — asks the artist to place a specific text file at `/.well-known/bh-registry-verify.txt` on their own site, then checks it's there.
-- `check_open_feed()` — confirms a submitted RSS feed is real and has actual audio content.
-- `check_activitypub_actor()` — confirms an ActivityPub profile URL returns a real, spec-shaped profile document.
-
-All three fetch from someone else's server, which can fail for reasons unrelated to whether the artist is legitimate (slow, down, misconfigured). Each one logs through `OUS_DebugLog` when a fetch fails, so a failed verification shows WHY (timeout? wrong response? actually invalid?) instead of just "not verified." Notice too the `WHY:` comment about SSRF: because the URL comes from an anonymous submission, every outbound fetch is guarded so it can't be pointed at the server's own internal network.
-
----
-
-# Module 7 — bh-monetization-woo: payments, tiers, and the wallet
+# Module 5 — bh-monetization-woo: payments, tiers, and the wallet
 
 This is the plugin other plugins' payment features check for with `class_exists()` (you saw one in Module 1.2, from bh-courses' gate). It's built on WooCommerce (a separate, very large e-commerce plugin this ecosystem doesn't try to replace) rather than handling payments itself.
 
-## 7.1 — Tiers
+## 5.1 — Tiers
 
 **Open `bh-monetization-woo/includes/class-tiers.php`.** A supporter tier is its own Custom Post Type (`bhm_tier`), with meta for price, an optional annual price, a benefits list, and a synced WooCommerce product ID. `save()` calls `BHM_ProductSync::sync_tier_wc_product()` (`bh-monetization-woo/includes/class-product-sync.php`), the bridge: whenever a tier is created or edited, a matching product is created or updated in WooCommerce, so the two never drift apart.
 
-## 7.2 — The wallet, and the "atomic write" idea from Module 4
+## 5.2 — The wallet, and the "atomic write" idea from Module 3
 
-**Open `bh-monetization-woo/includes/class-wallet.php`.** `debit()` and the private `apply_delta()` solve the same problem as bh-contest's vote limit (Section 4.1) with a different tool: instead of a transaction and lock, the check and the write are ONE statement — `UPDATE ... SET balance_cents = balance_cents - X WHERE ... AND balance_cents >= X` — and success means "exactly one row changed." Read the `WHY:` comment above `debit()`: a separate check-then-write would let two near-simultaneous spends both pass the balance check, driving the balance negative. Any time money, votes, or anything with a hard limit is involved, look for "the check and the write are the same statement" (or a transaction with a lock).
+**Open `bh-monetization-woo/includes/class-wallet.php`.** `debit()` and the private `apply_delta()` solve the same problem as bh-contest's vote limit (Section 3.1) with a different tool: instead of a transaction and lock, the check and the write are ONE statement — `UPDATE ... SET balance_cents = balance_cents - X WHERE ... AND balance_cents >= X` — and success means "exactly one row changed." Read the `WHY:` comment above `debit()`: a separate check-then-write would let two near-simultaneous spends both pass the balance check, driving the balance negative. Any time money, votes, or anything with a hard limit is involved, look for "the check and the write are the same statement" (or a transaction with a lock).
 
 Both methods also log through `OUS_DebugLog` when a write fails — including the specific case where the balance moved but the ledger row didn't insert, which would otherwise leave a customer's balance and history quietly disagreeing.
 
-## 7.3 — The gate: deciding who can see what
+## 5.3 — The gate: deciding who can see what
 
 **Open `bh-monetization-woo/includes/class-gate.php`.** `user_has_tier_access()` and `user_has_benefit()` (plus `user_owns_object()` for one-time purchases) are what other plugins' gating code calls — recall bh-courses' `user_can_access_course()` from Module 1.2. They check the entitlements table for an active subscription or purchase, and fall through to a filter (`bhm_extra_entitlement_check`) so another integration can add its own access rule without editing this file.
 
-## 7.4 — Fraud detection in its own file
+## 5.4 — Fraud detection in its own file
 
 **Open `bh-monetization-woo/includes/class-fraud.php`.** `track_refund_pattern()` flags an account with three or more refunds in a 30-day window (`REFUND_ABUSE_THRESHOLD`, `REFUND_ABUSE_WINDOW`), and separately looks for the same browser fingerprint (a hash of IP plus a first-party cookie; raw IPs are never stored) refunding across multiple accounts. Read the top comment: it only flags for human review, never auto-restricts, because a false positive would lock out a real fan. "Handling refunds" and "detecting refund abuse" are different jobs, so they live in different files — worth remembering as what a good "split this file up" looks like.
 
-## 7.5 — The BH_Commerce interface, made concrete
+## 5.5 — The BH_Commerce interface, made concrete
 
 Back in Module 1.8, you read `BH_Commerce`'s interface idea in the abstract. Here's where it's used.
 
@@ -296,13 +238,8 @@ This is the code that runs when someone pays: it turns a completed order into en
 
 # Where to go from here
 
-You've now read: the shared foundation (bootstrap, peer-optionality, shared services, Debug Tools, auth, the block-authoring system, the commerce interface, the design system) and six peer plugins — courses, streaming (near-real-time sync and recommendations), contest voting (race-condition protection), a CRM fed by other plugins, an account-free verified link directory, and the payments/wallet system tying several others together.
+You've now read the shared foundation (bootstrap, optional dependencies, shared services, Debug Tools, accounts, the block system, the commerce interface, the design system) and the plugins built on it: courses, contest voting, the People list, and payments.
 
-From here, learn by need: next time you want to understand or change something, find the plugin, find the file whose name matches, find its `init()`, and read outward.
+From here, learn by need: when you want to understand or change something, find the plugin, find the file whose name matches, find its `init()`, and read outward. Wording lives in each plugin's `words.php`, not in these files.
 
-Documents worth reading once you're comfortable (all at the plugins root):
-- **`VISION.md`** — where the ecosystem is deliberately heading, and why pieces like `BH_Commerce` were built as interfaces.
-- **`OPEN.md`** — the backlog and known bugs.
-- **`CONVENTIONS.md`** and **`STYLE-SYSTEM.md`** — how code and styles are written here.
-
-Older roadmaps and audits live in `docs/archive/` at the repository root.
+Other docs at the plugins root: `OPEN.md` (known bugs and unfinished work), `STYLE-SYSTEM.md` (where styles go), `DESIGN-DIRECTION.md` (the look), `TESTS.md`, `RUNBOOK-live-updates.md`.

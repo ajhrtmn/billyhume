@@ -136,25 +136,25 @@ interface BHRevealState {
     function render(data: BHRevealState): void {
         var html = '';
         if (data.type === 'none') {
-            html = '<div class="bh-reveal-loading">No contest ready to reveal yet.</div>';
+            html = '<div class="bh-reveal-loading">' + bhWordEsc('reveal.none') + '</div>';
         } else if (data.type === 'intro') {
-            html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Results</div><h1>' + bhEsc(data.title) + '</h1></div>';
+            html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">' + bhWordEsc('reveal.results') + '</div><h1>' + bhEsc(data.title) + '</h1></div>';
         } else if (data.type === 'pass_intro') {
-            html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Now Revealing</div><h1>' + bhEsc(data.title) + '</h1></div>';
+            html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">' + bhWordEsc('reveal.now_revealing') + '</div><h1>' + bhEsc(data.title) + '</h1></div>';
         } else if (data.type === 'category_intro') {
-            html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Category</div><h1>' + bhEsc(data.category) + '</h1>'
-                + '<p class="bh-reveal-subtext">' + bhEsc(data.entry_count) + (data.entry_count === 1 ? ' entry' : ' entries') + '</p></div>';
+            html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">' + bhWordEsc('reveal.category') + '</div><h1>' + bhEsc(data.category) + '</h1>'
+                + '<p class="bh-reveal-subtext">' + bhWordEsc(data.entry_count === 1 ? 'reveal.entries_one' : 'reveal.entries', { count: data.entry_count ?? 0 }) + '</p></div>';
         } else if (data.type === 'overall_intro') {
-            html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Grand Finale</div><h1>Overall</h1>'
-                + '<p class="bh-reveal-subtext">Across all categories &mdash; ' + bhEsc(data.entry_count) + (data.entry_count === 1 ? ' entry' : ' entries') + '</p></div>';
+            html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">' + bhWordEsc('reveal.grand_finale') + '</div><h1>' + bhWordEsc('reveal.overall') + '</h1>'
+                + '<p class="bh-reveal-subtext">' + bhWordEsc(data.entry_count === 1 ? 'reveal.overall_entries_one' : 'reveal.overall_entries', { count: data.entry_count ?? 0 }) + '</p></div>';
         } else if (data.type === 'category_reveal') {
             html = '<div class="bh-reveal-board"><div class="bh-reveal-kicker">' + bhEsc(data.category) + '</div>'
                 + '<div class="bh-reveal-entries">' + renderEntries(data.entries || [], data.just_revealed_rank, data.source) + '</div></div>';
         } else if (data.type === 'overall_reveal') {
-            html = '<div class="bh-reveal-board"><div class="bh-reveal-kicker">Overall</div>'
+            html = '<div class="bh-reveal-board"><div class="bh-reveal-kicker">' + bhWordEsc('reveal.overall') + '</div>'
                 + '<div class="bh-reveal-entries">' + renderEntries(data.entries || [], data.just_revealed_rank) + '</div></div>';
         } else if (data.type === 'end') {
-            html = '<div class="bh-reveal-intro"><h1>Thanks for watching!</h1></div>';
+            html = '<div class="bh-reveal-intro"><h1>' + bhWordEsc('reveal.thanks') + '</h1></div>';
         }
         (stage as HTMLElement).innerHTML = html;
         animateReveal(data.type, data.just_revealed_rank);

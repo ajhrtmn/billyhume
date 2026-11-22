@@ -16,8 +16,6 @@ class OUS_Roles {
     const DEFAULT_CAPS = [
         // Course instructors (BHC_ProgressAdmin); named generically for reuse.
         'bhcore_manage_students' => ['administrator'],
-        // bh-feedback's reviewer claim queue.
-        'bhcore_review_submissions' => ['administrator'],
         // Design Suite access for trusted non-admin staff (editor is the closest
         // built-in fit).
         'bhcore_design_site' => ['administrator', 'editor', self::MANAGER_ROLE],

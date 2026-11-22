@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.16.57
+ * Version:     0.17.0
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.16.57');
+define('BHC_VER',  '0.17.0');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -18,9 +18,8 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
 /**
  * A peer plugin depending only on the-self-hosted-self. bh-monetization-woo is optional
  * (class_exists() at init) and enables tier-gating; without it courses are open.
- * No relationship to bh-streaming.
  */
-foreach (['tables', 'post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render-landing', 'render', 'style-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'bunny', 'reviews', 'downloads', 'feedback', 'notes', 'privacy', 'sessions', 'sessions-admin', 'sessions-portal'] as $f) {
+foreach (['words', 'tables', 'post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render-landing', 'render', 'style-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'bunny', 'reviews', 'downloads', 'feedback', 'notes', 'privacy', 'sessions', 'sessions-admin', 'sessions-portal'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -217,21 +216,6 @@ add_action('plugins_loaded', function () {
     add_action('wp_ajax_bhc_save_video_position', ['BHC_Progress', 'ajax_save_video_position']);
     add_action('wp_ajax_bhc_mark_annotation', ['BHC_Progress', 'ajax_mark_annotation']);
     add_action('wp_ajax_bhc_submit_review', ['BHC_Reviews', 'ajax_submit_review']);
-});
-
-// Self-registration into the Self-Hosted Self dashboard (class-registry.php contract).
-add_filter('ous_registered_plugins', function ($plugins) {
-    $plugins['bh-courses'] = [
-        'label' => 'BH Courses',
-        'file' => 'bh-courses/bh-courses.php',
-        'depends_on' => [],
-        'check_class' => 'BHC_PostTypes',
-        'description' => 'Courses built from ordered, multistep lessons (text, images, quizzes) with progress tracking and optional supporter-tier gating.',
-        'dashboard_link' => 'edit.php?post_type=bh_course',
-        'bundled_zip' => 'bh-courses.zip',
-        // No 'admin_menus': Courses/Lessons keep their own CPT top-level menus.
-    ];
-    return $plugins;
 });
 
 // Debug Tools section — same shared page every other plugin uses.

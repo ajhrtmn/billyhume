@@ -1,10 +1,12 @@
 # Changelog — BH CRM
 
-Moved out of `bh-crm.php` on 2026-08-23. See `CONVENTIONS.md` for why version history lives here and in git rather than in source.
+Moved out of `bh-crm.php` on 2026-08-23.
 
 Entries are newest-first, exactly as written in-file. Nothing reworded or dropped.
 
 ---
+
+2.4.26 - Removed linking a project card to a person's streaming track (the streaming plugin is gone); file uploads on cards are unchanged and existing track-link rows still display.
 
 2.4.25 - Removed the CRM profile page's empty BH_Element slot, its surface,
 and the Design Suite "CRM profile page (live)" preview (BHCRM_StyleSurface),

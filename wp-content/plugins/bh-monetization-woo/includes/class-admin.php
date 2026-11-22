@@ -2,41 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Monetization settings screen (exists even without WooCommerce) and registry entries,
- * including WooCommerce as an install-from-WordPress.org dependency (never bundled).
+ * Monetization settings screen (exists even without WooCommerce).
  */
 class BHM_Admin {
     public static function init(): void {
-        add_filter('ous_registered_plugins', [self::class, 'register']);
         add_action('admin_post_bhm_save_settings', [self::class, 'save_settings']);
-    }
-
-    /**
-     * @param array<string, mixed> $plugins
-     * @return array<string, mixed>
-     */
-    public static function register($plugins): array {
-        $plugins['bh-monetization-woo'] = [
-            'label' => 'BH Monetization', 'file' => 'bh-monetization-woo/bh-monetization-woo.php',
-            'depends_on' => ['woocommerce'], 'check_class' => 'BHM_Gate',
-            'description' => 'Supporter tiers, purchases, tips, and pay-per-play for bh-streaming — backed by WooCommerce, with refund/velocity fraud-pattern flagging.',
-            // Must exist at the-self-hosted-self/bundled/ for the dashboard's Install button.
-            'bundled_zip' => 'bh-monetization-woo.zip',
-            'dashboard_link' => 'admin.php?page=bhm-settings',
-            // Under WooCommerce, next to the Tiers CPT menu.
-            'admin_menus' => [
-                ['slug' => 'bhm-settings', 'label' => 'Monetization Settings', 'callback' => [self::class, 'render'], 'parent' => 'woocommerce'],
-            ],
-        ];
-        // Only if no other plugin already registered it.
-        if (!isset($plugins['woocommerce'])) {
-            $plugins['woocommerce'] = [
-                'label' => 'WooCommerce', 'file' => 'woocommerce/woocommerce.php',
-                'wporg_slug' => 'woocommerce', 'check_class' => 'WooCommerce',
-                'description' => 'Required for BH Monetization — payments and commerce, not reimplemented here.',
-            ];
-        }
-        return $plugins;
     }
 
     public static function render(): void {

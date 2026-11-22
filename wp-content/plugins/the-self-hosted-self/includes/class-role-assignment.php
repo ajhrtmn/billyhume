@@ -15,11 +15,6 @@ class OUS_RoleAssignment {
             'description' => 'Manage student progress in courses.',
             'caps' => ['bhcore_manage_students'],
         ],
-        'reviewer' => [
-            'label' => 'Reviewer',
-            'description' => 'Review submitted work (BH Feedback, instructor-graded steps).',
-            'caps' => ['bhcore_review_submissions'],
-        ],
         'designer' => [
             'label' => 'Designer',
             'description' => 'Use the Design Suite to edit site layout and styling.',

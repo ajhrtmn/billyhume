@@ -10,9 +10,9 @@ import { customElement, property, state } from 'lit/decorators.js';
  * "blank until hydrated".
  *
  * Light DOM on purpose. Shadow DOM would encapsulate styles and cut the
- * button off from the design tokens and admin-skin.css, which is exactly the
+ * button off from the design tokens and admin styles, which is exactly the
  * thing that would make Lit a bad fit for this design system.
- * See CONVENTIONS.md, "The rendering layers".
+ * See STYLE-SYSTEM.md.
  *
  * NOTE: no `star-slash` sequence in this comment, deliberately — writing the
  * token prefixes as a glob pair closed the block early and broke the parse.

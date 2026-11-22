@@ -68,30 +68,17 @@ wp-content/plugins/bh-monetization-woo/tests-integration/vendor/
 /wp-content/object-cache.php
 /wp-content/advanced-cache.php
 
-# Third-party plugins: ignore everything under wp-content/plugins EXCEPT
-# the eleven Self-Hosted Self ecosystem plugins (the-self-hosted-self +
-# peers), the self-hosted-self-admin-skin wp-admin reskin (a standalone plugin, but
-# still part of this ecosystem's own tracked code — depends only on
-# core, same as every peer plugin), and the ecosystem's own root-level
-# docs. Anything else installed later (a new WooCommerce extension, a
-# one-off diagnostic tool like Query Monitor, etc.) is ignored by
-# default without needing a new line added here — only this
-# ecosystem's own plugins need to be explicitly whitelisted.
+# Third-party plugins: ignore everything under wp-content/plugins except
+# Billy's own plugins (listed below, same list as tools/ecosystem-plugins.txt)
+# and the docs beside them. Anything installed later is ignored by default.
 /wp-content/plugins/*
 !/wp-content/plugins/the-self-hosted-self/
 !/wp-content/plugins/bh-contest/
 !/wp-content/plugins/bh-courses/
 !/wp-content/plugins/bh-crm/
-!/wp-content/plugins/bh-feedback/
 !/wp-content/plugins/bh-monetization-woo/
-!/wp-content/plugins/bh-registry/
-!/wp-content/plugins/bh-streaming/
-!/wp-content/plugins/bh-video/
-!/wp-content/plugins/bh-live/
-!/wp-content/plugins/bh-social/
 !/wp-content/plugins/bh-mailpoet/
 !/wp-content/plugins/bh-tickets/
-!/wp-content/plugins/self-hosted-self-admin-skin/
 !/wp-content/plugins/*.md
 !/wp-content/plugins/LICENSE
 !/wp-content/plugins/index.php
