@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Reads and changes site wording (properties) from the command line.
+ * Reads and changes site wording and Design Suite styles (properties) from the command line.
  *
  * Every change goes through BH_Props, so the CLI, REST and a future admin screen behave identically.
  */
@@ -12,7 +12,7 @@ class BH_Props_CLI {
     }
 
     /**
-     * Lists the property providers (one per words.php file, for now).
+     * Lists the property providers: one per words.php file, plus "style" (the Design Suite).
      *
      * ## EXAMPLES
      *     wp bh providers
@@ -95,6 +95,8 @@ class BH_Props_CLI {
      *
      * ## EXAMPLES
      *     wp bh set words.courses:lesson.next_lesson "Keep going →"
+     *     wp bh set style:radius 16
+     *     wp bh set style:color_accent "#c85c48"
      *
      * @param array<int, string> $args
      * @param array<string, string> $assoc

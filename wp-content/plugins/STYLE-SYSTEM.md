@@ -5,6 +5,7 @@ Check here before adding a spacing value, color, badge, alert or table treatment
 ## 1. Tokens (custom properties only)
 
 - **Front end**: `BHY_Style::inline_css()` in `the-self-hosted-self/includes/class-style.php` prints the site's theme colors and sizes (`--bh-accent`, `--bh-surface`, `--bh-text`…), editable in the Design Suite. Fixed status colors (`--bh-success/-warning/-danger`) are not themeable.
+- **Component tokens** a plugin registers (`bhy_style_component_tokens`, emitted as `--bh-comp-<group>-<key>`) show up automatically in the Customizer and as `style:components.<group>.<key>` properties for `wp bh` and Debug Tools (`class-style-props.php`). Register a token instead of hard-coding a value Billy might want to change.
 - **Admin**: `BHY_UI::design_system_css()` in `class-ui.php` (`--bhy-*`).
 - Always reference a token with a fallback: `var(--bh-accent, #2271b1)`.
 
