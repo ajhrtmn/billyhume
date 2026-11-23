@@ -367,15 +367,16 @@ class BHCRM_Projects {
 
         $ids_sql = implode(',', $card_ids);
         $rows = $wpdb->get_results(
-            "SELECT card_placement_id, MAX(entered_at) AS last_moved_at FROM " . self::moves_table() . "
+            // WHY: entered_at is filled by MySQL's clock (CURRENT_TIMESTAMP), so the age is measured
+            // against MySQL's NOW(), not WordPress's timezone, or it's off by the offset.
+            "SELECT card_placement_id, TIMESTAMPDIFF(DAY, MAX(entered_at), NOW()) AS days FROM " . self::moves_table() . "
              WHERE card_placement_id IN ($ids_sql) GROUP BY card_placement_id",
             ARRAY_A
         );
 
-        $now = current_time('timestamp');
         $out = [];
         foreach ($rows as $row) {
-            $days = (int) floor(($now - strtotime($row['last_moved_at'])) / DAY_IN_SECONDS);
+            $days = (int) $row['days'];
             if ($days >= self::STALL_DAYS) $out[(int) $row['card_placement_id']] = $days;
         }
         return $out;

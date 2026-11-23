@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Sales for Billy's site through WooCommerce: course products, supporter tiers, gift access, launch coupons, tips, guest checkout and refund/fraud flagging. WooCommerce owns the cart and payments.
- * Version:     0.7.2
+ * Version:     0.7.3
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHM_VER',  '0.7.2');
+define('BHM_VER',  '0.7.3');
 
 define('BHM_PATH', plugin_dir_path(__FILE__));
 define('BHM_URL',  plugin_dir_url(__FILE__));

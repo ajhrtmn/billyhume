@@ -715,10 +715,18 @@ class BHC_Admin {
     public static function course_column_content(string $col, int $post_id): void {
         if ($col === 'bhc_lessons') echo count(BHC_PostTypes::lesson_order($post_id));
         if ($col === 'bhc_gate') {
-            $tier = BHC_Gate::required_tier($post_id);
-            if (!$tier || !class_exists('BHM_Tiers')) { echo 'Open'; return; }
-            $t = BHM_Tiers::get($tier);
-            echo esc_html($t['name'] ?? 'Gated');
+            // Every way in, the same order BHC_Gate checks them; nothing set means open.
+            $ways = [];
+            if ($benefit = BHC_Gate::required_benefit($post_id)) {
+                $ways[] = BHC_Words::get('admin.admin.access_benefit', ['benefit' => $benefit]);
+            } elseif ($tier = BHC_Gate::required_tier($post_id)) {
+                $t = class_exists('BHM_Tiers') ? BHM_Tiers::get($tier) : null;
+                $ways[] = (string) ($t['name'] ?? BHC_Words::get('admin.admin.access_gated'));
+            }
+            if (BHC_Gate::has_purchase_option($post_id)) {
+                $ways[] = BHC_Words::get('admin.admin.access_purchase', ['price' => number_format(BHC_Gate::purchase_price_cents($post_id) / 100, 2)]);
+            }
+            echo esc_html($ways ? implode(BHC_Words::get('admin.admin.access_or'), $ways) : BHC_Words::get('admin.admin.access_open'));
         }
     }
 

@@ -2,6 +2,8 @@
 
 Newest first. Recent releases have their own line; older ones are summarized. The full detail of each change is in git.
 
+3.16.3 - Bug fixes. Judged and hybrid contests now announce the right winners: the Discord results post and the winner emails use the same leaderboards as the Reveal Party (`BH_Reveal::final_results()`), showing judge results as "score N/100". Multi-round contests use the round's own windows everywhere (replacing audio, editing details, the reveal lock, the Live Console, the portal). A round cut now counts every eligible entry, so entries with no votes can still advance, and is no longer limited to the top 10. Clearing the votes-per-category fields saves the site default instead of 0. The Reveal Party no longer breaks when browser storage is blocked. The Live Console shows a no-audio entry as "Waiting for audio" with no Approve link. 5 new tests.
+
 3.16.2 - Wording is now a BH_Props provider: changes made with `wp bh set` (or the future admin screen) apply on top of words.php.
 
 3.16.1 - Admin-screen wording (contest settings, wizard, Live Console, results, moderation, judging, reveal controls) moved into `words.php`; output unchanged. Only non-admin words are sent to the browser. PHPStan fixes, shorter comments, merged duplicate CSS selectors and a condensed changelog.

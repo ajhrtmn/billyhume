@@ -106,7 +106,7 @@ class BH_Judging {
     // criteria normalized to % of max and averaged, then averaged over submitted judges.
     // Unscored submissions are omitted. $round null = every round.
     /** @return array<int, array<string, mixed>> */
-    public static function judge_results(int $cid, string $category, ?int $round = null): array {
+    public static function judge_results(int $cid, string $category, ?int $round = null, int $limit = 10): array {
         global $wpdb;
         $rubric = self::rubric($cid);
         if (!$rubric) return [];
@@ -142,7 +142,7 @@ class BH_Judging {
             $valid[] = ['post' => $p, 'score' => round($avg, 1)];
         }
         usort($valid, fn($a, $b) => $b['score'] <=> $a['score']);
-        $valid = array_slice($valid, 0, 10);
+        if ($limit > 0) $valid = array_slice($valid, 0, $limit);
 
         $ranks = BH_Helpers::competition_ranks(array_column($valid, 'score'));
 

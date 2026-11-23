@@ -2,6 +2,8 @@
 
 Newest first. Recent releases have their own line; older ones are summarized. The full detail of each change is in git.
 
+0.7.3 - The tiers page link falls back to the home page unless the page is published (drafts and private pages were linked). The monthly equivalent of an annual price is rounded, not truncated.
+
 0.7.2 - Wording is now a BH_Props provider: changes made with `wp bh set` (or the future admin screen) apply on top of words.php.
 
 0.7.1 - Admin-screen wording (settings, tiers, gift access, storefront) moved into `words.php`; output unchanged. PHPStan fixes, shorter comments and a condensed changelog.

@@ -221,7 +221,7 @@ class BHM_Frontend {
             echo '<div class="bhm-tier-price">$' . esc_html(BHM_Money::display($t['price_cents'])) . '/mo</div>';
             if (!empty($t['annual_price_cents'])) {
                 // Savings shown only when annual is genuinely cheaper than 12x monthly.
-                $annual_monthly_equivalent = $t['annual_price_cents'] / 12;
+                $annual_monthly_equivalent = (int) round($t['annual_price_cents'] / 12); // display() truncates, so round first
                 $savings_percent = BHM_Gate::annual_savings_percent($t['price_cents'], $t['annual_price_cents']);
                 echo '<div class="bhm-tier-price-annual">or $' . esc_html(BHM_Money::display($t['annual_price_cents'])) . '/yr ($' . esc_html(BHM_Money::display($annual_monthly_equivalent)) . '/mo equivalent)';
                 if ($savings_percent > 0) echo (' <span class="bhm-tier-savings">' . BHM_Words::get('admin.frontend.save') . ' ') . (int) $savings_percent . '%</span>';

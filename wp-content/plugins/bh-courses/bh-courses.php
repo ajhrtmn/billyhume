@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses for Billy Hume's site: lessons with video, text, quizzes and downloads, student progress, notes, sales pages and certificates. Sold through BH Monetization when it is active.
- * Version:     0.17.2
+ * Version:     0.17.3
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.17.2');
+define('BHC_VER',  '0.17.3');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));

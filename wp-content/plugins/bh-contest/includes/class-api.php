@@ -476,7 +476,7 @@ class BH_API {
         }
 
         $cid = (int) get_post_meta($pid, '_bh_contest_id', true);
-        if (!$cid || !BH_Helpers::is_submission_open($cid)) {
+        if (!$cid || !BH_Rounds::is_new_submission_allowed($cid)) {
             return self::err('sub_closed', BHCON_Words::get('admin.api.submissions_are_closed_contest_file'), 403);
         }
 
@@ -549,7 +549,7 @@ class BH_API {
         }
 
         $cid = (int) get_post_meta($pid, '_bh_contest_id', true);
-        if (!$cid || !BH_Helpers::is_submission_open($cid)) {
+        if (!$cid || !BH_Rounds::is_new_submission_allowed($cid)) {
             return self::err('sub_closed', BHCON_Words::get('admin.api.submissions_are_closed_contest_details'), 403);
         }
 
@@ -596,13 +596,14 @@ class BH_API {
     // Ranked results for one category; public so BH_Reveal shares the same query.
     // $round limits the tally to one round's votes; null counts every round.
     /** @return array<int, array<string, mixed>> */
-    public static function category_results(int $cid, string $category, ?int $round = null): array {
+    public static function category_results(int $cid, string $category, ?int $round = null, int $limit = 10): array {
         global $wpdb;
         $t    = BH_Helpers::table();
         $round_sql = $round !== null ? $wpdb->prepare('AND round = %d', (int) $round) : '';
+        $limit_sql = $limit > 0 ? 'LIMIT ' . $limit : ''; // 0 = every entry (round cuts)
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT submission_id, COUNT(id) votes FROM $t
-             WHERE contest_id = %d AND category = %s $round_sql GROUP BY submission_id ORDER BY votes DESC LIMIT 10",
+             WHERE contest_id = %d AND category = %s $round_sql GROUP BY submission_id ORDER BY votes DESC $limit_sql",
             $cid, $category
         ));
 
@@ -705,7 +706,7 @@ class BH_API {
             'contest'           => get_the_title($cid),
             'category'          => $all ? 'all' : $cat,
             'categories'        => BH_Helpers::categories($cid),
-            'voting_open'       => BH_Helpers::is_voting_open($cid),
+            'voting_open'       => BH_Rounds::is_voting_open($cid),
             'results_published' => get_post_meta($cid, '_bh_results_published', true) === '1',
             'total_votes'       => (int) $total_votes,
             'unique_voters'     => $unique_voters,

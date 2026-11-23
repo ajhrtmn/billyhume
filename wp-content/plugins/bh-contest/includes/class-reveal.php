@@ -79,6 +79,45 @@ class BH_Reveal {
         return $steps;
     }
 
+    /**
+     * The final leaderboards, ranked the same way the Reveal Party ranks them (judges'
+     * scores for judged contests, both for hybrid). Used by the Discord post and winner emails.
+     * @return array<int, array{label: string, source: string, results: array<int, array<string, mixed>>}>
+     */
+    public static function final_results(int $cid): array {
+        $format = BH_Helpers::contest_format($cid);
+        $round = class_exists('BH_Rounds') && BH_Rounds::is_multi_round($cid) ? BH_Rounds::active_round_index($cid) : null;
+        $cats = BH_Helpers::categories($cid);
+        if (!$cats) $cats = [['slug' => '', 'name' => BHCON_Words::get('admin.admin_metaboxes.results')]];
+
+        $sources = [];
+        if ($format === 'public' || $format === 'hybrid') $sources['public'] = $format === 'hybrid' ? BHCON_Words::get('admin.reveal.people_s_choice') : '';
+        if ($format === 'judges' || $format === 'hybrid') $sources['judges'] = $format === 'hybrid' ? BHCON_Words::get('admin.reveal.judges_pick') : '';
+
+        $out = [];
+        foreach ($sources as $source => $prefix) {
+            foreach ($cats as $c) {
+                $results = $source === 'judges' ? BH_Judging::judge_results($cid, $c['slug'], $round) : BH_API::category_results($cid, $c['slug'], $round);
+                if ($results) $out[] = ['label' => ($prefix !== '' ? $prefix . ' — ' : '') . $c['name'], 'source' => $source, 'results' => $results];
+            }
+        }
+        // Same rule as build_sequence(): overall is public votes, single round only.
+        if (isset($sources['public']) && $round === null && ($overall = self::overall_results($cid))) {
+            $out[] = ['label' => BHCON_Words::get('admin.discord.overall'), 'source' => 'public', 'results' => $overall];
+        }
+        return $out;
+    }
+
+    /**
+     * "12 votes" or "score 84.5/100" for one result row.
+     * @param int|float|string $tally
+     */
+    public static function tally_text(string $source, $tally): string {
+        return $source === 'judges'
+            ? BHCON_Words::get('admin.reveal.score_out_of_100', ['score' => (string) $tally])
+            : BHCON_Words::get('admin.reveal.n_votes', ['n' => (string) $tally]);
+    }
+
     // Overall ranking: total votes across all categories. Public for BH_Discord.
     /** @return array<int, array<string, mixed>> */
     public static function overall_results(int $cid): array {
@@ -211,7 +250,7 @@ class BH_Reveal {
         $index = max(0, min($index, count($seq) - 1));
 
         // WHY: never pass the intro while voting is open, so a mis-click can't leak standings.
-        if ($index > 0 && BH_Helpers::is_voting_open($cid)) {
+        if ($index > 0 && BH_Rounds::is_voting_open($cid)) {
             return new WP_Error('voting_open', BHCON_Words::get('admin.reveal.voting_still_open_contest_close'), ['status' => 403]);
         }
 
@@ -233,7 +272,7 @@ class BH_Reveal {
 
     // Reveal preview + Next/Prev/Reset, rendered inline by BH_Console::render().
     public static function render_controls_widget(int $cid): void {
-        if (BH_Helpers::is_voting_open($cid)) {
+        if (BH_Rounds::is_voting_open($cid)) {
             echo ('<div class="notice notice-warning" style="margin:0 0 12px;"><p>' . BHCON_Words::get('admin.reveal.voting_still_open_reveal_locked') . '</p></div>');
         }
 

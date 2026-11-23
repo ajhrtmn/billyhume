@@ -99,24 +99,26 @@ class BH_Rounds {
         $cats = BH_Helpers::categories($cid);
         if (!$cats) $cats = [['slug' => '', 'name' => '']];
 
-        // The cut ranks by total tally across all categories (no per-category cuts).
-        $totals = [];
-        foreach ($cats as $c) {
-            $results = $format === 'judges'
-                ? BH_Judging::judge_results($cid, $c['slug'], $idx)
-                : BH_API::category_results($cid, $c['slug'], $idx);
-            foreach ($results as $r) {
-                $totals[$r['id']] = ($totals[$r['id']] ?? 0) + $r['votes'];
-            }
-        }
-        arsort($totals);
-        $survivors = array_slice(array_keys($totals), 0, $cut);
-
         $eligible_now = get_posts([
             'post_type' => 'bh_submission', 'post_status' => 'publish', 'posts_per_page' => -1, 'fields' => 'ids',
             'meta_key' => '_bh_contest_id', 'meta_value' => (string) $cid,
         ]);
         $eligible_now = array_filter($eligible_now, fn($sid) => self::is_eligible($sid, $cid));
+
+        // The cut ranks by total tally across all categories (no per-category cuts).
+        // WHY: every eligible entry starts at 0, so entries nobody voted for can still
+        // fill the cut; tallies are unlimited (the leaderboards stop at 10).
+        $totals = array_fill_keys(array_map('intval', $eligible_now), 0);
+        foreach ($cats as $c) {
+            $results = $format === 'judges'
+                ? BH_Judging::judge_results($cid, $c['slug'], $idx, 0)
+                : BH_API::category_results($cid, $c['slug'], $idx, 0);
+            foreach ($results as $r) {
+                if (isset($totals[$r['id']])) $totals[$r['id']] += $r['votes'];
+            }
+        }
+        arsort($totals);
+        $survivors = array_slice(array_keys($totals), 0, $cut);
 
         $eliminated = array_diff($eligible_now, $survivors);
         foreach ($survivors as $sid) {

@@ -2,6 +2,8 @@
 
 Newest first. Recent releases have their own line; older ones are summarized. The full detail of each change is in git.
 
+2.4.29 - Stalled-card days on project boards are measured on MySQL's clock, the same clock that records the moves, so they're no longer off by the timezone offset.
+
 2.4.28 - Wording is now a BH_Props provider: changes made with `wp bh set` (or the future admin screen) apply on top of words.php.
 
 2.4.27 - New `words.php` (read through `BHCRM_Words`) holding the People and Project Tracker screens' wording; output unchanged. Shorter comments.

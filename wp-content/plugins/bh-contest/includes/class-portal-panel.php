@@ -92,7 +92,7 @@ class BH_PortalPanel {
             $contest_id = (int) get_post_meta($sub->ID, '_bh_contest_id', true);
             $contest = $contest_id ? get_post($contest_id) : null;
             $votes = self::vote_count_for($sub->ID);
-            $window_open = $contest_id && class_exists('BH_Helpers') && BH_Helpers::is_submission_open($contest_id);
+            $window_open = $contest_id && class_exists('BH_Rounds') && BH_Rounds::is_new_submission_allowed($contest_id);
             $pending_id = (int) get_post_meta($sub->ID, '_bh_pending_audio_id', true);
 
             // 'draft' here means "reserved, audio not attached yet".

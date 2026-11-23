@@ -438,6 +438,7 @@ return [
     'admin.console.identity'                             => 'Identity',
     'admin.console.actions'                              => 'Actions',
     'admin.console.pending'                              => 'Pending',
+    'admin.console.waiting_for_audio'                    => 'Waiting for audio',
     'admin.console.no_profile_file'                      => 'No profile on file',
     'admin.console.ok_stream'                            => 'OK on stream',
     'admin.console.nothing_don_t_say_any'                => 'nothing — don\'t say any name for them',
@@ -554,6 +555,8 @@ return [
     /* ---------- reveal (includes/class-reveal.php) ---------- */
     'admin.reveal.people_s_choice'                   => 'People\'s Choice',
     'admin.reveal.judges_pick'                       => 'Judges\' Pick',
+    'admin.reveal.n_votes'                           => '{n} votes',
+    'admin.reveal.score_out_of_100'                  => 'score {score}/100',
     'admin.reveal.no_contest_reveal'                 => 'No contest to reveal.',
     'admin.reveal.voting_still_open_contest_close'   => 'Voting is still open for this contest — close voting before revealing results.',
     'admin.reveal.voting_still_open_reveal_locked'   => 'Voting is still open — the reveal is locked to the intro slide until you close voting.',

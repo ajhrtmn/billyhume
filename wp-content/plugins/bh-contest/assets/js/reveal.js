@@ -15,7 +15,12 @@
     var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     // Sound is on by default; the presenter's choice persists in localStorage.
     var SOUND_KEY = 'bh_reveal_sound';
-    var soundOn = localStorage.getItem(SOUND_KEY) !== 'off';
+    // WHY: localStorage throws in private windows and with blocked site data; sound then just stays on.
+    var soundOn = true;
+    try {
+        soundOn = localStorage.getItem(SOUND_KEY) !== 'off';
+    }
+    catch (e) { /* storage unavailable */ }
     var soundToggle = document.getElementById('bh-reveal-sound-toggle');
     function syncSoundToggle() {
         if (!soundToggle)
@@ -27,7 +32,10 @@
         syncSoundToggle();
         soundToggle.addEventListener('click', function () {
             soundOn = !soundOn;
-            localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off');
+            try {
+                localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off');
+            }
+            catch (e) { /* storage unavailable */ }
             syncSoundToggle();
         });
     }

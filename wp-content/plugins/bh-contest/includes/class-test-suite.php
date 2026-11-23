@@ -189,6 +189,15 @@ class BH_TestSuite {
             wp_delete_post($sub3, true);
         }
 
+        // Winners (Discord post, winner emails) follow the contest format, not public votes.
+        update_post_meta($cid, '_bh_contest_format', 'judges');
+        $boards = BH_Reveal::final_results($cid);
+        $rows[] = OUS_TestRunner::assert_same(['judges'], array_column($boards, 'source'), 'A judged contest announces the judges\' leaderboard only, not public votes');
+        $rows[] = OUS_TestRunner::assert_same($sub1, $boards[0]['results'][0]['id'] ?? null, 'Its winner is the top judge score');
+        $rows[] = OUS_TestRunner::assert_same('score 75/100', BH_Reveal::tally_text('judges', 75), 'A judge result reads as a score out of 100, not votes');
+        update_post_meta($cid, '_bh_contest_format', 'hybrid');
+        $rows[] = OUS_TestRunner::assert_same(['judges'], array_values(array_unique(array_column(BH_Reveal::final_results($cid), 'source'))), 'A hybrid contest with no public votes yet still lists the judges\' board');
+
         // Cleanup.
         $wpdb->delete($table, ['contest_id' => $cid]);
         wp_delete_post($sub1, true);
@@ -265,6 +274,27 @@ class BH_TestSuite {
         $wpdb->delete(BHCON_Tables::judge_scores(), ['contest_id' => $cid]);
         foreach ($subs as $sid) wp_delete_post($sid, true);
         wp_delete_post($cid, true);
+
+        // An entry with no votes or scores still fills the cut when there's room.
+        $cid2 = wp_insert_post([
+            'post_type' => 'bh_contest', 'post_status' => 'publish', 'post_title' => 'Rounds Zero-Tally Fixture',
+            'meta_input' => [
+                'bhcore_is_test' => self::SEED_TAG, '_bh_contest_format' => 'judges', '_bh_active_round' => 0,
+                '_bh_rounds' => wp_json_encode([['cut_count' => 2], ['cut_count' => 1]]),
+                '_bh_rubric' => wp_json_encode([['slug' => 'score', 'name' => 'Score', 'max' => 100]]),
+            ],
+        ], true);
+        if (!is_wp_error($cid2)) {
+            $scored = (int) wp_insert_post(['post_type' => 'bh_submission', 'post_status' => 'publish', 'post_title' => 'Scored', 'meta_input' => ['bhcore_is_test' => self::SEED_TAG, '_bh_contest_id' => $cid2]]);
+            $unscored = (int) wp_insert_post(['post_type' => 'bh_submission', 'post_status' => 'publish', 'post_title' => 'Unscored', 'meta_input' => ['bhcore_is_test' => self::SEED_TAG, '_bh_contest_id' => $cid2]]);
+            BH_Judging::save_score($judge, $cid2, $scored, '', ['score' => 50], 'submitted');
+            $res2 = BH_Rounds::advance_round($cid2);
+            $rows[] = OUS_TestRunner::assert_true(!is_wp_error($res2) && in_array($unscored, $res2['advanced'], true), 'An entry nobody scored still advances when the cut has room for it');
+            $wpdb->delete(BHCON_Tables::judge_scores(), ['contest_id' => $cid2]);
+            wp_delete_post($scored, true);
+            wp_delete_post($unscored, true);
+            wp_delete_post($cid2, true);
+        }
 
         return $rows;
     }

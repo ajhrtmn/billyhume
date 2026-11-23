@@ -97,23 +97,19 @@ class BH_AdminReports {
 
     // One email per winning user, listing all of their placements.
     private static function email_winners(int $cid): void {
-        $placements = []; // uid => [ [label, rank, votes, title], ... ]
+        $placements = []; // uid => [ [label, rank, tally, title], ... ]
         $medal = ['🥇', '🥈', '🥉'];
 
-        $collect = function ($results, $label) use (&$placements) {
-            foreach ($results as $r) {
+        // Ranked like the Reveal Party: judges' scores for judged contests, both for hybrid.
+        foreach (BH_Reveal::final_results($cid) as $board) {
+            foreach ($board['results'] as $r) {
                 if ($r['rank'] > 3) continue;
                 $post = get_post($r['id']);
                 if (!$post) continue;
                 $uid = (int) $post->post_author;
-                $placements[$uid][] = ['label' => $label, 'rank' => $r['rank'], 'votes' => $r['votes'], 'title' => $r['title']];
+                $placements[$uid][] = ['label' => $board['label'], 'rank' => $r['rank'], 'tally' => BH_Reveal::tally_text($board['source'], $r['votes']), 'title' => $r['title']];
             }
-        };
-
-        foreach (BH_Helpers::categories($cid) as $cat) {
-            $collect(BH_API::category_results($cid, $cat['slug']), $cat['name']);
         }
-        $collect(BH_Reveal::overall_results($cid), 'Overall');
 
         $contest_title = get_the_title($cid);
 
@@ -124,7 +120,7 @@ class BH_AdminReports {
             if (!$user || !$user->user_email) continue;
 
             $lines = array_map(
-                fn($w) => ($medal[$w['rank'] - 1] ?? ('#' . $w['rank'])) . ' ' . $w['label'] . ' — "' . $w['title'] . '" (' . $w['votes'] . ' votes)',
+                fn($w) => ($medal[$w['rank'] - 1] ?? ('#' . $w['rank'])) . ' ' . $w['label'] . ' — "' . $w['title'] . '" (' . $w['tally'] . ')',
                 $wins
             );
             $body = "Hi {$user->user_login},\n\nCongratulations — here's how you placed in {$contest_title}:\n\n"
@@ -250,7 +246,7 @@ class BH_AdminReports {
             $total_votes   = array_sum(wp_list_pluck($rows, 'votes'));
             $unique_voters = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT user_id) FROM " . BH_Helpers::table() . " WHERE contest_id = %d AND category = %s", $cid, $cat));
         }
-        $voting_open = BH_Helpers::is_voting_open($cid);
+        $voting_open = BH_Rounds::is_voting_open($cid);
         $published   = get_post_meta($cid, '_bh_results_published', true) === '1';
         $cat_label   = $cats ? (' ' . BHCON_Words::get('admin.admin_reports.category_2') . ' <strong>') . ($all ? 'All' : esc_html(self::category_name($cats, $cat))) . '</strong>' : '';
 

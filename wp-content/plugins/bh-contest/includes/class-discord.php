@@ -92,17 +92,12 @@ class BH_Discord {
 
     // One embed for all categories: a single request, no rate-limit risk.
     public static function notify_results(int $contest_id): void {
+        // WHY: final_results() follows the contest format; ranking by votes here announced
+        // the wrong winners for judged contests.
         $fields = [];
-
-        foreach (BH_Helpers::categories($contest_id) as $cat) {
-            $results = BH_API::category_results($contest_id, $cat['slug']);
-            if (!$results) continue;
-            $fields[] = ['name' => '🎵 ' . $cat['name'], 'value' => self::medal_lines($results), 'inline' => false];
-        }
-
-        $overall = BH_Reveal::overall_results($contest_id);
-        if ($overall) {
-            $fields[] = ['name' => BHCON_Words::get('admin.discord.overall'), 'value' => self::medal_lines($overall), 'inline' => false];
+        foreach (BH_Reveal::final_results($contest_id) as $board) {
+            $overall = $board['label'] === BHCON_Words::get('admin.discord.overall');
+            $fields[] = ['name' => ($overall ? '' : '🎵 ') . $board['label'], 'value' => self::medal_lines($board['results'], $board['source']), 'inline' => false];
         }
 
         self::send(
@@ -116,12 +111,12 @@ class BH_Discord {
 
     // Top 3 lines with medals, indexed by rank (ties share a medal, like the email path).
     /** @param array<int, array<string, mixed>> $results */
-    private static function medal_lines($results): string {
+    private static function medal_lines($results, string $source = 'public'): string {
         $medals = ['🥇', '🥈', '🥉'];
         $lines = [];
         foreach (array_slice($results, 0, 3) as $r) {
             $rank = (int) ($r['rank'] ?? 0);
-            $lines[] = ($medals[$rank - 1] ?? '#' . $rank) . ' **' . $r['title'] . '** — ' . $r['artist'] . ' (' . $r['votes'] . ' votes)';
+            $lines[] = ($medals[$rank - 1] ?? '#' . $rank) . ' **' . $r['title'] . '** — ' . $r['artist'] . ' (' . BH_Reveal::tally_text($source, $r['votes']) . ')';
         }
         return implode("\n", $lines);
     }

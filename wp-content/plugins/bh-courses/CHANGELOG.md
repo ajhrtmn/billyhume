@@ -2,6 +2,8 @@
 
 Newest first. Recent releases have their own line; older ones are summarized. The full detail of each change is in git.
 
+0.17.3 - The course list's Access column shows every way in: the tier or benefit gate and the one-time purchase price (paid courses showed "Open").
+
 0.17.2 - Wording is now a BH_Props provider: changes made with `wp bh set` (or the future admin screen) apply on top of words.php.
 
 0.17.1 - Admin-screen wording (course, lesson and progress screens, sessions, Bunny tools) moved into `words.php`; output unchanged. Only non-admin words are sent to the browser. PHPStan fixes, shorter comments, CSS formatting and a condensed changelog.

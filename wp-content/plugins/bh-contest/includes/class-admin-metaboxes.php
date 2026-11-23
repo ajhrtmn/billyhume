@@ -686,8 +686,13 @@ class BH_AdminMetaboxes {
         if (isset($_POST['bh_start'])) update_post_meta($post_id, '_bh_start', sanitize_text_field($_POST['bh_start']));
         if (isset($_POST['bh_end']))   update_post_meta($post_id, '_bh_end', sanitize_text_field($_POST['bh_end']));
         update_post_meta($post_id, '_bh_results_published', isset($_POST['bh_results_published']) ? '1' : '0');
-        if (isset($_POST['bh_vote_base']))  update_post_meta($post_id, '_bh_vote_base', max(0, (int) $_POST['bh_vote_base']));
-        if (isset($_POST['bh_vote_bonus'])) update_post_meta($post_id, '_bh_vote_bonus', max(0, (int) $_POST['bh_vote_bonus']));
+        // A cleared field means "use the site default" (vote_limit() reads blank that way), not 0.
+        foreach (['bh_vote_base' => '_bh_vote_base', 'bh_vote_bonus' => '_bh_vote_bonus'] as $field => $meta) {
+            if (!isset($_POST[$field])) continue;
+            $raw = trim(sanitize_text_field(wp_unslash($_POST[$field])));
+            if ($raw === '') delete_post_meta($post_id, $meta);
+            else update_post_meta($post_id, $meta, max(0, (int) $raw));
+        }
 
         // Whitelisted against the known field list.
         $shown = array_values(array_intersect(

@@ -142,12 +142,14 @@ class BH_Console {
             $status_badge = [
                 'publish'  => ('<span class="bhy-badge bhy-badge-success">' . BHCON_Words::get('admin.console.approved') . '</span>'),
                 'rejected' => ('<span class="bhy-badge bhy-badge-neutral">' . BHCON_Words::get('admin.admin_metaboxes.rejected') . '</span>'),
+                // A reserved entry with no audio yet: nothing to review.
+                'draft'    => ('<span class="bhy-badge bhy-badge-neutral">' . BHCON_Words::get('admin.console.waiting_for_audio') . '</span>'),
             ][$p->post_status] ?? ('<span class="bhy-badge bhy-badge-warning">' . BHCON_Words::get('admin.console.pending') . '</span>');
             echo '<td>' . $status_badge . '</td>';
             echo '<td>' . self::identity_cell($profile) . '</td>';
             echo '<td style="font-weight:600;">' . esc_html((string) $votes) . '</td>';
             echo '<td>';
-            if ($p->post_status !== 'publish') {
+            if ($p->post_status !== 'publish' && $p->post_status !== 'draft') {
                 $approve_url = wp_nonce_url(
                     admin_url('admin-post.php?action=bh_quick_approve&submission_id=' . $p->ID),
                     'bh_quick_approve_' . $p->ID

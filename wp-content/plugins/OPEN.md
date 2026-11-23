@@ -2,22 +2,14 @@
 
 Only open items live here. Finished work is in each plugin's `CHANGELOG.md` and in git. Ordered roughly by value.
 
-## Bugs (found reading the code, 2026-11; not yet fixed or tried on a running site)
+## Bugs
 
-- **bh-contest — judged contests announce the wrong winners.** `BH_Discord::notify_results()` and the admin "email winners" action rank by public votes even when the contest format is judges/hybrid.
-- **bh-contest — round windows can disagree.** `replace_audio()`, `edit_details()`, `advance()` and `admin_live()` use `BH_Helpers::is_*_open()` while `submit()`/`vote()` use `BH_Rounds`; on multi-round contests the two can differ.
-- **bh-contest — `advance_round()`** only ranks entries with votes or scores, so zero-tally entries never advance even when `cut_count` exceeds the field.
-- **bh-contest — vote base/bonus:** clearing the field saves 0 instead of the site default the form promises.
-- **bh-contest — `reveal.ts`:** `localStorage` calls aren't wrapped in try/catch (throws in private/blocked-storage contexts).
-- **bh-contest — console** shows a draft (no audio yet) submission as "Pending".
-- **bh-crm — stalled-card days** mix WordPress local time with MySQL server time in `stalled_cards_for_board()` (off by the timezone offset).
-- **bh-monetization-woo —** `tiers_page_url()` links draft/private pages; the monthly equivalent of an annual price is truncated, not rounded.
-- **bh-courses —** the course list's "Access" column only shows tier gating (purchase-gated courses show "Open").
+None known. The list found by reading the code in November 2026 was fixed in bh-contest 3.16.3, bh-courses 0.17.3, bh-crm 2.4.29 and bh-monetization-woo 0.7.3 (see their changelogs). The contest fixes are covered by tests but have not been tried on a real contest yet: try a judged contest end to end (scores, reveal, Discord post, winner emails) before relying on it.
 
 ## Leftovers from the November 2026 rescope
 
 - **Wallet, referrals and the storefront** in bh-monetization-woo were built for the removed streaming plugin (pay-per-play credit). Nothing on the site spends wallet credit now. Remove them if Billy doesn't plan to use them.
-- **Words not yet in `words.php`:** wp-admin screens, emails, the certificate PDF, and a few rarely seen notices still have their wording in the PHP files.
+- **Words not yet in `words.php`:** the emails, the certificate PDF, a few rarely seen notices and some labels inside wp-admin forms (e.g. "base" / "bonus for submitting" next to the vote fields) still have their wording in the PHP files.
 - **Old database tables** from the removed plugins (streaming, registry, live, feedback, social, DMCA notices) are still in the database. Harmless; drop them only after a backup.
 
 ## Code cleanup still open

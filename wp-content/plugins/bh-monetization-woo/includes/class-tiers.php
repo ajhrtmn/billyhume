@@ -301,6 +301,7 @@ class BHM_Tiers {
     public static function tiers_page_url(): string {
         $page_id = (int) get_option('bhm_tiers_page_id', 0);
         $status  = $page_id ? get_post_status($page_id) : false;
-        return ($page_id && $status && $status !== 'trash') ? (string) get_permalink($page_id) : home_url('/');
+        // Only a published page is reachable by visitors; a draft or private one falls back home.
+        return ($page_id && $status === 'publish') ? (string) get_permalink($page_id) : home_url('/');
     }
 }

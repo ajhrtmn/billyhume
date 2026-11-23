@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contests for Billy Hume's site: song submissions, voting, judging and the live Reveal Party.
- * Version:     3.16.2
+ * Version:     3.16.3
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BH_VER',        '3.16.2');
+define('BH_VER',        '3.16.3');
 
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
